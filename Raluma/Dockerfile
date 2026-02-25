@@ -8,13 +8,13 @@ RUN npm ci
 
 COPY . .
 
-# Empty VITE_API_URL → relative paths, proxied by nginx
+# Empty VITE_API_URL → relative paths through Caddy proxy
 RUN VITE_API_URL='' npm run build
 
-# Stage 2: serve with nginx
-FROM nginx:1.27-alpine
+# Stage 2: serve with Caddy (auto SSL via Let's Encrypt)
+FROM caddy:2-alpine
 
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/dist /srv
+COPY Caddyfile /etc/caddy/Caddyfile
 
-EXPOSE 80
+EXPOSE 80 443

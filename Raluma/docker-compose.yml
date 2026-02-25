@@ -4,24 +4,28 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
-    network_mode: host
     volumes:
       - db_data:/app/data
     environment:
       - DATABASE_URL=sqlite:////app/data/raluma.db
+    expose:
+      - "8000"
 
   frontend:
     build:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "80:80"
+      - "443:443"
     volumes:
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-      - certbot_webroot:/var/www/certbot
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on:
       - backend
 
 volumes:
   db_data:
-  certbot_webroot:
+  caddy_data:
+  caddy_config:

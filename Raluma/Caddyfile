@@ -1,0 +1,13 @@
+{
+    email lexa_vordak@mail.ru
+}
+
+raluma.tech, www.raluma.tech {
+    root * /srv
+    file_server
+
+    reverse_proxy /api/* backend:8000
+    reverse_proxy /health backend:8000
+
+    try_files {path} /index.html
+}
