@@ -11,7 +11,7 @@ engine/
 scraper/
 scraper;C/
 *.docx
-docker-compose.yml
+/docker-compose.yml
 
 # Node
 Raluma/node_modules/
