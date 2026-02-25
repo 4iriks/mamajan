@@ -1,0 +1,35 @@
+# Claude session data
+.claude/
+
+# Misc / другие папки проекта
+nul
+output/
+output;C/
+APPGLASS_REPORT.md
+docs/
+engine/
+scraper/
+scraper;C/
+*.docx
+docker-compose.yml
+
+# Node
+Raluma/node_modules/
+Raluma/dist/
+Raluma/.env.local
+Raluma/.env
+
+# Python
+Raluma/backend/__pycache__/
+Raluma/backend/**/__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# SQLite database (локальная БД, не коммитим)
+Raluma/backend/*.db
+Raluma/backend/*.sqlite
+
+# OS
+.DS_Store
+Thumbs.db

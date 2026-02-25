@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+/* Глобальный цвет текста в полях ввода */
+input, select, textarea {
+  color: white;
+}
+input::placeholder {
+  color: rgba(255, 255, 255, 0.25);
+}
+select option {
+  background: #1a3a4a;
+  color: white;
+}
+
+/* Кастомный скроллбар */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(42, 122, 138, 0.4);
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(79, 209, 197, 0.5);
+}
