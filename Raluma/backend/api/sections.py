@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -38,12 +39,12 @@ def create_section(
     current_user: models.User = Depends(get_current_user),
 ):
     _get_project_or_403(project_id, db, current_user)
-    # auto order
-    max_order = db.query(models.Section).filter(
+    # auto order: use max to avoid collisions after deletions
+    max_order = db.query(func.max(models.Section.order)).filter(
         models.Section.project_id == project_id
-    ).count()
+    ).scalar()
     section_data = data.model_dump()
-    section_data['order'] = max_order
+    section_data['order'] = (max_order or 0) + 1
     section = models.Section(project_id=project_id, **section_data)
     db.add(section)
     db.commit()

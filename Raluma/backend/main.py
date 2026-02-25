@@ -86,4 +86,9 @@ app.include_router(sections.router)
 
 @app.get("/health")
 def health():
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception as e:
+        return {"status": "error", "service": "Ралюма API", "detail": str(e)}
     return {"status": "ok", "service": "Ралюма API"}

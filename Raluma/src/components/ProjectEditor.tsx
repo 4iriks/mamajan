@@ -641,6 +641,8 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const [sectionToDelete, setSectionToDelete] = useState<Section | null>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewDocName, setPreviewDocName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const activeSection = useMemo(() =>
     sections.find(s => s.id === activeSectionId) || null,
@@ -678,9 +680,8 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       const local = apiToLocal(created, project.system);
       setSections(prev => [...prev, local]);
       setActiveSectionId(local.id);
-    } catch {
-      setSections(prev => [...prev, newSection]);
-      setActiveSectionId(newSection.id);
+    } catch (e: any) {
+      alert(e.response?.data?.detail || 'Не удалось создать секцию');
     }
   };
 
@@ -690,14 +691,19 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   };
 
   const handleSaveSection = async () => {
-    if (!activeSection || !project) return;
+    if (!activeSection || !project || isSaving) return;
+    const sectionId = parseInt(activeSection.id);
+    if (isNaN(sectionId)) return;
+    setIsSaving(true);
+    setSaveError(null);
     const idx = sections.findIndex(s => s.id === activeSectionId);
     try {
-      const sectionId = parseInt(activeSection.id);
-      if (!isNaN(sectionId)) {
-        await updateSection(project.id, sectionId, localToApi(activeSection, idx));
-      }
-    } catch { /* silent */ }
+      await updateSection(project.id, sectionId, localToApi(activeSection, idx));
+    } catch (e: any) {
+      setSaveError(e.response?.data?.detail || 'Не удалось сохранить секцию');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDeleteSection = async () => {
@@ -913,10 +919,17 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                 )}
 
                 {/* Actions */}
+                {saveError && (
+                  <div className="mb-3 px-4 py-2.5 rounded-xl bg-red-500/20 border border-red-500/40 text-red-300 text-sm">
+                    {saveError}
+                  </div>
+                )}
                 <div className="flex gap-4">
-                  <button onClick={handleSaveSection}
-                    className="flex-1 py-4 rounded-2xl bg-[#00b894] hover:bg-[#00d1a7] text-white font-bold transition-all shadow-lg shadow-[#00b894]/20">
-                    Сохранить секцию
+                  <button onClick={handleSaveSection} disabled={isSaving}
+                    className="flex-1 py-4 rounded-2xl bg-[#00b894] hover:bg-[#00d1a7] text-white font-bold transition-all shadow-lg shadow-[#00b894]/20 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
+                    {isSaving ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : 'Сохранить секцию'}
                   </button>
                   <button onClick={() => openPreview('Производственный лист')}
                     className="flex-1 py-4 rounded-2xl bg-[#2a7a8a]/20 border border-[#2a7a8a]/40 hover:bg-[#2a7a8a]/40 text-[#4fd1c5] font-bold transition-all">

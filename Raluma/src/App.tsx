@@ -158,6 +158,7 @@ function ProjectsPage() {
   const [newSystem, setNewSystem] = useState<SystemType>('СЛАЙД');
   const [newSubtype, setNewSubtype] = useState(SYSTEM_SUBTYPES['СЛАЙД'][0]);
 
+  const [isCreating, setIsCreating] = useState(false);
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -177,12 +178,16 @@ function ProjectsPage() {
   }), [projects, searchQuery, systemFilter]);
 
   const handleCreate = async () => {
+    if (isCreating) return;
+    setIsCreating(true);
     try {
       const project = await createProject({ number: newNumber, customer: newCustomer, system: newSystem, subtype: newSubtype });
       setIsCreateModalOpen(false);
       navigate(`/projects/${project.id}`);
     } catch (e: any) {
       alert(e.response?.data?.detail || 'Ошибка создания');
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -489,10 +494,14 @@ function ProjectsPage() {
               </div>
               <div className="flex gap-4 mt-10">
                 <button onClick={() => setIsCreateModalOpen(false)} className="flex-1 py-4 rounded-2xl bg-white/5 hover:bg-white/10 font-bold transition-all">Отмена</button>
-                <button onClick={handleCreate} disabled={!newNumber.trim()}
+                <button onClick={handleCreate} disabled={!newNumber.trim() || isCreating}
                   className="flex-1 py-4 rounded-2xl bg-[#00b894] hover:bg-[#00d1a7] text-white font-bold transition-all shadow-lg shadow-[#00b894]/20 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Создать <ArrowRight className="w-5 h-5" />
+                  {isCreating ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>Создать <ArrowRight className="w-5 h-5" /></>
+                  )}
                 </button>
               </div>
             </motion.div>

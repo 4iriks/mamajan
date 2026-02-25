@@ -55,6 +55,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<UserOut[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Модал создания/редактирования
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -83,7 +84,9 @@ export default function AdminPage() {
 
   const loadUsers = async () => {
     setLoading(true);
+    setLoadError(null);
     try { setUsers(await getUsers()); }
+    catch (e: any) { setLoadError(e.response?.data?.detail || 'Не удалось загрузить пользователей'); }
     finally { setLoading(false); }
   };
 
@@ -260,6 +263,8 @@ export default function AdminPage() {
             <tbody>
               {loading ? (
                 <tr><td colSpan={6} className="py-20 text-center text-white/40">Загрузка...</td></tr>
+              ) : loadError ? (
+                <tr><td colSpan={6} className="py-20 text-center text-red-400">{loadError}</td></tr>
               ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-20 text-center">

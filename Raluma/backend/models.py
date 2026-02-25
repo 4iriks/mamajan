@@ -40,7 +40,7 @@ class Section(Base):
     __tablename__ = "sections"
 
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
     order = Column(Integer, default=0)
     name = Column(String, nullable=False)
 
