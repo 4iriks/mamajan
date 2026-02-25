@@ -522,6 +522,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 // ── App (Router) ──────────────────────────────────────────────────────────────
 
 export default function App() {
+  const { token, setAuth, clearAuth } = useAuthStore();
+
+  useEffect(() => {
+    if (token) {
+      getMe().then(user => setAuth(token, user)).catch(() => clearAuth());
+    }
+  }, []);
+
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
