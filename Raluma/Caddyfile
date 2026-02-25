@@ -3,11 +3,17 @@
 }
 
 raluma.tech, www.raluma.tech {
-    root * /srv
-    file_server
+    handle /api/* {
+        reverse_proxy backend:8000
+    }
 
-    reverse_proxy /api/* backend:8000
-    reverse_proxy /health backend:8000
+    handle /health {
+        reverse_proxy backend:8000
+    }
 
-    try_files {path} /index.html
+    handle {
+        root * /srv
+        try_files {path} /index.html
+        file_server
+    }
 }
