@@ -278,7 +278,7 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
         <div className="space-y-2">
           <label className={LBL}>Кол-во панелей</label>
           <select value={s.panels} onChange={e => update({ panels: parseInt(e.target.value) })} className={SEL}>
-            {[2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}</option>)}
+            {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
         <div className="space-y-2">
@@ -296,9 +296,9 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
           <select value={s.threshold || ''} onChange={e => update({ threshold: e.target.value || undefined })} className={SEL}>
             <option value="">— Без порога —</option>
             <option>Стандартный анод</option>
-            <option>Низкий порог</option>
-            <option>Антрацит</option>
-            <option>Тёмно-коричневый</option>
+            <option>Стандартный окраш</option>
+            <option>Накладной анод</option>
+            <option>Накладной окраш</option>
           </select>
         </div>
       </div>
@@ -307,9 +307,9 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
           <label className={LBL}>Межстекольный профиль</label>
           <select value={s.interGlassProfile || ''} onChange={e => update({ interGlassProfile: e.target.value || undefined })} className={SEL}>
             <option value="">— Нет —</option>
-            <option>Стандартный</option>
-            <option>Широкий</option>
-            <option>Узкий</option>
+            <option>Алюминиевый RS1061</option>
+            <option>Прозрачный</option>
+            <option>h-профиль RS1004</option>
           </select>
         </div>
         <div className="space-y-2">
