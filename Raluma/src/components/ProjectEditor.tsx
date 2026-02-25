@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Save, Plus, Trash2, FileText,
@@ -11,6 +11,7 @@ import {
   ChevronRight, Loader2, X, ArrowRight,
 } from 'lucide-react';
 import { getProject, createSection, updateSection, deleteSection, SectionOut } from '../api/projects';
+import { toast } from '../store/toastStore';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -642,15 +643,36 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewDocName, setPreviewDocName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const handleSaveSectionRef = useRef<() => Promise<void>>(async () => {});
 
   const activeSection = useMemo(() =>
     sections.find(s => s.id === activeSectionId) || null,
     [sections, activeSectionId]
   );
 
-  // Reset tab when switching sections
-  useEffect(() => { setActiveTab('main'); }, [activeSectionId]);
+  // Reset tab and dirty flag when switching sections
+  useEffect(() => { setActiveTab('main'); setIsDirty(false); }, [activeSectionId]);
+
+  // Ctrl+S → сохранить секцию
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleSaveSectionRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  // Предупреждение при закрытии вкладки с несохранёнными изменениями
+  useEffect(() => {
+    if (!isDirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [isDirty]);
 
   const defaultsForSystem = (system: SystemType): Partial<Section> => {
     switch (system) {
@@ -681,12 +703,13 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       setSections(prev => [...prev, local]);
       setActiveSectionId(local.id);
     } catch (e: any) {
-      alert(e.response?.data?.detail || 'Не удалось создать секцию');
+      toast.error(e.response?.data?.detail || 'Не удалось создать секцию');
     }
   };
 
   const updateActiveSection = (updates: Partial<Section>) => {
     if (!activeSectionId) return;
+    setIsDirty(true);
     setSections(sections.map(s => s.id === activeSectionId ? { ...s, ...updates } : s));
   };
 
@@ -695,23 +718,29 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     const sectionId = parseInt(activeSection.id);
     if (isNaN(sectionId)) return;
     setIsSaving(true);
-    setSaveError(null);
     const idx = sections.findIndex(s => s.id === activeSectionId);
     try {
       await updateSection(project.id, sectionId, localToApi(activeSection, idx));
+      setIsDirty(false);
+      toast.success('Секция сохранена');
     } catch (e: any) {
-      setSaveError(e.response?.data?.detail || 'Не удалось сохранить секцию');
+      toast.error(e.response?.data?.detail || 'Не удалось сохранить секцию');
     } finally {
       setIsSaving(false);
     }
   };
+
+  // Обновляем ref на актуальную версию функции при каждом рендере
+  handleSaveSectionRef.current = handleSaveSection;
 
   const handleDeleteSection = async () => {
     if (!sectionToDelete || !project) return;
     try {
       const sectionId = parseInt(sectionToDelete.id);
       if (!isNaN(sectionId)) await deleteSection(project.id, sectionId);
-    } catch { /* silent */ }
+    } catch (e: any) {
+      toast.error(e.response?.data?.detail || 'Не удалось удалить секцию');
+    }
     setSections(sections.filter(s => s.id !== sectionToDelete.id));
     if (activeSectionId === sectionToDelete.id) setActiveSectionId(null);
     setIsDeleteModalOpen(false);
@@ -780,10 +809,18 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             )}
           </div>
         </div>
-        <button onClick={() => { handleSaveSection(); onBack(); }}
-          className="flex items-center gap-2 px-6 py-2.5 bg-[#00b894] hover:bg-[#00d1a7] text-white font-bold rounded-xl transition-all shadow-lg shadow-[#00b894]/20">
-          <Save className="w-4 h-4" />
-          Сохранить и выйти
+        <button onClick={async () => { await handleSaveSection(); onBack(); }}
+          className={`flex items-center gap-2 px-6 py-2.5 text-white font-bold rounded-xl transition-all shadow-lg ${
+            isDirty
+              ? 'bg-amber-500 hover:bg-amber-400 shadow-amber-500/20'
+              : 'bg-[#00b894] hover:bg-[#00d1a7] shadow-[#00b894]/20'
+          }`}>
+          {isSaving ? (
+            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          ) : (
+            <Save className="w-4 h-4" />
+          )}
+          {isDirty ? 'Сохранить и выйти' : 'Выйти'}
         </button>
       </div>
 
@@ -919,16 +956,17 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                 )}
 
                 {/* Actions */}
-                {saveError && (
-                  <div className="mb-3 px-4 py-2.5 rounded-xl bg-red-500/20 border border-red-500/40 text-red-300 text-sm">
-                    {saveError}
-                  </div>
-                )}
                 <div className="flex gap-4">
                   <button onClick={handleSaveSection} disabled={isSaving}
-                    className="flex-1 py-4 rounded-2xl bg-[#00b894] hover:bg-[#00d1a7] text-white font-bold transition-all shadow-lg shadow-[#00b894]/20 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
+                    className={`flex-1 py-4 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed ${
+                      isDirty
+                        ? 'bg-amber-500 hover:bg-amber-400 shadow-lg shadow-amber-500/20'
+                        : 'bg-[#00b894] hover:bg-[#00d1a7] shadow-lg shadow-[#00b894]/20'
+                    }`}>
                     {isSaving ? (
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : isDirty ? (
+                      <><Save className="w-4 h-4" /> Сохранить изменения</>
                     ) : 'Сохранить секцию'}
                   </button>
                   <button onClick={() => openPreview('Производственный лист')}

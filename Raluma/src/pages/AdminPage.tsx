@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { toast } from '../store/toastStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -86,7 +87,11 @@ export default function AdminPage() {
     setLoading(true);
     setLoadError(null);
     try { setUsers(await getUsers()); }
-    catch (e: any) { setLoadError(e.response?.data?.detail || 'Не удалось загрузить пользователей'); }
+    catch (e: any) {
+      const msg = e.response?.data?.detail || 'Не удалось загрузить пользователей';
+      setLoadError(msg);
+      toast.error(msg);
+    }
     finally { setLoading(false); }
   };
 
@@ -124,7 +129,7 @@ export default function AdminPage() {
       setIsEditOpen(false);
       await loadUsers();
     } catch (e: any) {
-      alert(e.response?.data?.detail || 'Ошибка сохранения');
+      toast.error(e.response?.data?.detail || 'Ошибка сохранения');
     }
   };
 
@@ -134,8 +139,9 @@ export default function AdminPage() {
       await deleteUser(deleteTarget.id);
       setDeleteTarget(null);
       await loadUsers();
+      toast.success('Пользователь удалён');
     } catch (e: any) {
-      alert(e.response?.data?.detail || 'Ошибка удаления');
+      toast.error(e.response?.data?.detail || 'Ошибка удаления');
     }
   };
 
@@ -145,7 +151,7 @@ export default function AdminPage() {
       setResetResult({ userId: u.id, name: u.display_name, password: new_password });
       setCopied(false);
     } catch (e: any) {
-      alert(e.response?.data?.detail || 'Ошибка сброса пароля');
+      toast.error(e.response?.data?.detail || 'Ошибка сброса пароля');
     }
   };
 

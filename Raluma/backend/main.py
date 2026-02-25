@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from sqlalchemy import text
 from database import engine, Base
@@ -90,5 +91,8 @@ def health():
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
     except Exception as e:
-        return {"status": "error", "service": "Ралюма API", "detail": str(e)}
+        return JSONResponse(
+            status_code=503,
+            content={"status": "error", "service": "Ралюма API", "detail": str(e)},
+        )
     return {"status": "ok", "service": "Ралюма API"}

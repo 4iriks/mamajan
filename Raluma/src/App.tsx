@@ -16,6 +16,8 @@ import { useAuthStore } from './store/authStore';
 import { login as apiLogin, getMe } from './api/auth';
 import { getProjects, createProject, updateProject, deleteProject, copyProject, ProjectList } from './api/projects';
 import AdminPage from './pages/AdminPage';
+import ToastContainer from './components/Toast';
+import { toast } from './store/toastStore';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -138,6 +140,20 @@ function LoginPage() {
   );
 }
 
+// ── Skeleton Row ─────────────────────────────────────────────────────────────
+
+function SkeletonRow() {
+  return (
+    <tr className="border-b border-[#2a7a8a]/10">
+      {[60, 80, 45, 55, 30].map((w, i) => (
+        <td key={i} className="px-8 py-5">
+          <div className="h-4 rounded-lg bg-white/[0.06] animate-pulse" style={{ width: `${w}%` }} />
+        </td>
+      ))}
+    </tr>
+  );
+}
+
 // ── Projects Page ─────────────────────────────────────────────────────────────
 
 function ProjectsPage() {
@@ -185,7 +201,7 @@ function ProjectsPage() {
       setIsCreateModalOpen(false);
       navigate(`/projects/${project.id}`);
     } catch (e: any) {
-      alert(e.response?.data?.detail || 'Ошибка создания');
+      toast.error(e.response?.data?.detail || 'Ошибка создания проекта');
     } finally {
       setIsCreating(false);
     }
@@ -198,8 +214,9 @@ function ProjectsPage() {
       setIsDeleteModalOpen(false);
       setProjectToDelete(null);
       await loadProjects();
+      toast.success('Проект удалён');
     } catch (e: any) {
-      alert(e.response?.data?.detail || 'Ошибка удаления');
+      toast.error(e.response?.data?.detail || 'Ошибка удаления проекта');
     }
   };
 
@@ -215,7 +232,9 @@ function ProjectsPage() {
     try {
       await updateProject(renamingId, { number: renameValue.trim() });
       setProjects(ps => ps.map(p => p.id === renamingId ? { ...p, number: renameValue.trim() } : p));
-    } catch { /* silent */ }
+    } catch (e: any) {
+      toast.error(e.response?.data?.detail || 'Не удалось переименовать');
+    }
     setRenamingId(null);
   };
 
@@ -225,7 +244,7 @@ function ProjectsPage() {
       const copy = await copyProject(id);
       navigate(`/projects/${copy.id}`);
     } catch (e: any) {
-      alert(e.response?.data?.detail || 'Ошибка копирования');
+      toast.error(e.response?.data?.detail || 'Ошибка копирования проекта');
     }
   };
 
@@ -315,7 +334,7 @@ function ProjectsPage() {
             <tbody>
               <AnimatePresence mode="popLayout">
                 {loading ? (
-                  <tr><td colSpan={5} className="py-20 text-center text-white/40">Загрузка...</td></tr>
+                  Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
                 ) : filteredProjects.length > 0 ? filteredProjects.map(project => (
                   <motion.tr key={project.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                     onClick={() => navigate(`/projects/${project.id}`)}
@@ -540,12 +559,15 @@ export default function App() {
   }, []);
 
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/" element={<ProtectedRoute><ProjectsPage /></ProtectedRoute>} />
-      <Route path="/projects/:id" element={<ProtectedRoute><EditorPage /></ProtectedRoute>} />
-      <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <ToastContainer />
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/" element={<ProtectedRoute><ProjectsPage /></ProtectedRoute>} />
+        <Route path="/projects/:id" element={<ProtectedRoute><EditorPage /></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }
