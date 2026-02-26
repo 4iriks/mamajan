@@ -307,13 +307,13 @@ function ProjectsPage() {
           </div>
           <div className="flex gap-4 w-full md:w-auto">
             <select value={systemFilter} onChange={e => setSystemFilter(e.target.value)}
-              className="bg-[#1a4b54]/20 border border-[#2a7a8a]/20 rounded-2xl px-6 py-4 outline-none focus:border-[#4fd1c5]/50 transition-all appearance-none cursor-pointer min-w-[180px]"
+              className="flex-1 md:flex-none bg-[#1a4b54]/20 border border-[#2a7a8a]/20 rounded-2xl px-6 py-4 outline-none focus:border-[#4fd1c5]/50 transition-all appearance-none cursor-pointer md:min-w-[180px]"
             >
               <option>Все системы</option>
               {(['СЛАЙД','КНИЖКА','ЛИФТ','ЦС','ДВЕРЬ'] as SystemType[]).map(s => <option key={s}>{s}</option>)}
             </select>
             <button onClick={() => { setNewNumber(''); setIsCreateModalOpen(true); }}
-              className="flex items-center gap-2 px-8 py-4 bg-[#00b894] hover:bg-[#00d1a7] text-white font-bold rounded-2xl transition-all shadow-lg shadow-[#00b894]/20 whitespace-nowrap"
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 md:px-8 py-4 bg-[#00b894] hover:bg-[#00d1a7] text-white font-bold rounded-2xl transition-all shadow-lg shadow-[#00b894]/20 whitespace-nowrap"
             >
               <Plus className="w-5 h-5" /> Новый проект
             </button>
