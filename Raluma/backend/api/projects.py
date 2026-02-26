@@ -40,7 +40,7 @@ def create_project(
     project = models.Project(
         number=data.number,
         customer=data.customer,
-        system=data.system,
+        system=data.system or '',   # '' satisfies legacy NOT NULL constraint
         subtype=data.subtype,
         created_by=current_user.id,
     )

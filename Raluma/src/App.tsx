@@ -147,6 +147,14 @@ function ProjectsPage() {
   const [newNumber, setNewNumber] = useState('');
   const [newCustomer, setNewCustomer] = useState('ПРОЗРАЧНЫЕ РЕШЕНИЯ');
 
+  // Маска номера: Х00-0-0000 → первый символ буква, потом 2+1+4 цифры с тире
+  const formatProjectNumber = (raw: string) => {
+    const clean = raw.replace(/[^a-zA-ZА-Яа-яёЁ0-9]/gi, '').slice(0, 8);
+    if (clean.length <= 3) return clean;
+    if (clean.length === 4) return clean.slice(0, 3) + '-' + clean[3];
+    return clean.slice(0, 3) + '-' + clean[3] + '-' + clean.slice(4);
+  };
+
   const [isCreating, setIsCreating] = useState(false);
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -424,9 +432,10 @@ function ProjectsPage() {
               <div className="space-y-5 sm:space-y-8">
                 <div className="space-y-3">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40 ml-1">Номер проекта</label>
-                  <input type="text" value={newNumber} onChange={e => setNewNumber(e.target.value)}
-                    className="w-full bg-white/8 border border-[#2a7a8a]/35 rounded-2xl px-6 py-4 outline-none focus:border-[#4fd1c5]/50 transition-all font-mono text-lg text-white"
-                    placeholder="2042"
+                  <input type="text" value={newNumber}
+                    onChange={e => setNewNumber(formatProjectNumber(e.target.value))}
+                    className="w-full bg-white/8 border border-[#2a7a8a]/35 rounded-2xl px-6 py-4 outline-none focus:border-[#4fd1c5]/50 transition-all font-mono text-lg text-white tracking-widest"
+                    placeholder="Х00-0-0000"
                   />
                 </div>
                 <div className="space-y-3">
