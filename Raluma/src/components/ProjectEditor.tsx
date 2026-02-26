@@ -15,7 +15,7 @@ import { toast } from '../store/toastStore';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export type SystemType = 'СЛАЙД' | 'КНИЖКА' | 'ЛИФТ' | 'ЦС' | 'ДВЕРЬ';
+export type SystemType = 'СЛАЙД' | 'КНИЖКА' | 'ЛИФТ' | 'ЦС' | 'КОМПЛЕКТАЦИЯ';
 
 export interface Section {
   id: string;
@@ -77,7 +77,7 @@ const SYSTEM_COLORS: Record<SystemType, string> = {
   'КНИЖКА': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
   'ЛИФТ':   'bg-orange-500/20 text-orange-300 border-orange-500/30',
   'ЦС':     'bg-purple-500/20 text-purple-300 border-purple-500/30',
-  'ДВЕРЬ':  'bg-rose-500/20 text-rose-300 border-rose-500/30',
+  'КОМПЛЕКТАЦИЯ': 'bg-rose-500/20 text-rose-300 border-rose-500/30',
 };
 
 const SYSTEM_PICKER_COLORS: Record<SystemType, string> = {
@@ -85,16 +85,18 @@ const SYSTEM_PICKER_COLORS: Record<SystemType, string> = {
   'КНИЖКА': 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20',
   'ЛИФТ':   'bg-orange-500/10 border-orange-500/30 text-orange-300 hover:bg-orange-500/20',
   'ЦС':     'bg-purple-500/10 border-purple-500/30 text-purple-300 hover:bg-purple-500/20',
-  'ДВЕРЬ':  'bg-rose-500/10 border-rose-500/30 text-rose-300 hover:bg-rose-500/20',
+  'КОМПЛЕКТАЦИЯ': 'bg-rose-500/10 border-rose-500/30 text-rose-300 hover:bg-rose-500/20',
 };
 
 // ── Converters ────────────────────────────────────────────────────────────────
 
 function apiToLocal(s: SectionOut): Section {
+  // Backwards compat: migrate legacy 'ДВЕРЬ' value
+  const rawSystem = s.system === 'ДВЕРЬ' ? 'КОМПЛЕКТАЦИЯ' : s.system;
   return {
     id: String(s.id),
     name: s.name,
-    system: (s.system as SystemType) || 'СЛАЙД',
+    system: (rawSystem as SystemType) || 'СЛАЙД',
     width: s.width,
     height: s.height,
     panels: s.panels,
@@ -694,7 +696,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       case 'КНИЖКА': return { doors: 1, doorSide: 'Правая', panels: 3 };
       case 'ЛИФТ':   return { panels: 2 };
       case 'ЦС':     return { csShape: 'Прямоугольник', panels: 1 };
-      case 'ДВЕРЬ':  return { panels: 1, doorSystem: 'Одностворчатая', doorOpening: 'Внутрь' };
+      case 'КОМПЛЕКТАЦИЯ': return { panels: 1, doorSystem: 'Одностворчатая', doorOpening: 'Внутрь' };
     }
   };
 
@@ -819,7 +821,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           </div>
         )}
 
-        {activeSection.system === 'ДВЕРЬ' && (
+        {activeSection.system === 'КОМПЛЕКТАЦИЯ' && (
           <div>
             <SectionDivider label="Система" />
             <div className="mt-5">
@@ -914,7 +916,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   className="overflow-hidden mb-4"
                 >
                   <div className="grid grid-cols-2 gap-2 pt-1 pb-3">
-                    {(['СЛАЙД', 'КНИЖКА', 'ЛИФТ', 'ЦС', 'ДВЕРЬ'] as SystemType[]).map(sys => (
+                    {(['СЛАЙД', 'КНИЖКА', 'ЛИФТ', 'ЦС', 'КОМПЛЕКТАЦИЯ'] as SystemType[]).map(sys => (
                       <button
                         key={sys}
                         onClick={() => handleAddSection(sys)}
@@ -997,16 +999,26 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           <AnimatePresence mode="wait">
             {!activeSection ? (
               <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="h-full flex flex-col items-center justify-center p-12 text-center min-h-[60vh]">
-                <div className="w-24 h-24 rounded-full bg-[#2a7a8a]/10 border border-[#2a7a8a]/20 flex items-center justify-center mb-6">
-                  <ClipboardList className="w-10 h-10 text-white/10" />
-                </div>
-                <h3 className="text-2xl font-bold mb-2">Выберите секцию</h3>
-                <p className="text-white/40 max-w-xs mb-8">Выберите существующую секцию или добавьте новую</p>
-                <div className="flex flex-col gap-3 w-full max-w-xs">
+                className="h-full flex flex-col items-center justify-center p-8 sm:p-12 min-h-[60vh]">
+                <div className="w-full max-w-sm">
+                  <div className="text-center mb-8">
+                    <div className="w-16 h-16 rounded-2xl bg-[#2a7a8a]/15 border border-[#2a7a8a]/25 flex items-center justify-center mx-auto mb-5">
+                      <Plus className="w-7 h-7 text-[#4fd1c5]/60" />
+                    </div>
+                    <h3 className="text-xl font-bold mb-1.5">Создать секцию</h3>
+                    <p className="text-white/30 text-sm">Выберите систему</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {(['СЛАЙД', 'КНИЖКА', 'ЛИФТ', 'ЦС', 'КОМПЛЕКТАЦИЯ'] as SystemType[]).map(sys => (
+                      <button key={sys} onClick={() => handleAddSection(sys)}
+                        className={`py-5 rounded-2xl border font-bold text-sm transition-all ${SYSTEM_PICKER_COLORS[sys]} ${sys === 'КОМПЛЕКТАЦИЯ' ? 'col-span-2' : ''}`}>
+                        {sys}
+                      </button>
+                    ))}
+                  </div>
                   <button onClick={() => setMobileSidebarOpen(true)}
-                    className="sm:hidden flex items-center justify-center gap-2 px-8 py-4 bg-[#2a7a8a]/20 border border-[#2a7a8a]/40 hover:bg-[#2a7a8a]/40 text-[#4fd1c5] font-bold rounded-2xl transition-all">
-                    <ClipboardList className="w-5 h-5" /> Открыть секции
+                    className="sm:hidden mt-4 w-full flex items-center justify-center gap-2 px-6 py-3 bg-white/[0.03] border border-[#2a7a8a]/20 hover:bg-[#2a7a8a]/20 text-white/40 hover:text-[#4fd1c5] text-sm font-bold rounded-xl transition-all">
+                    <ClipboardList className="w-4 h-4" /> Список секций
                   </button>
                 </div>
               </motion.div>
