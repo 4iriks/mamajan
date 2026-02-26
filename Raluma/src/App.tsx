@@ -146,7 +146,7 @@ function SkeletonRow() {
   return (
     <tr className="border-b border-[#2a7a8a]/10">
       {[60, 80, 45, 55, 30].map((w, i) => (
-        <td key={i} className={`px-3 py-4 sm:px-8 sm:py-5 ${i === 1 ? 'hidden sm:table-cell' : ''} ${i === 3 ? 'hidden md:table-cell' : ''}`}>
+        <td key={i} className="px-8 py-5">
           <div className="h-4 rounded-lg bg-white/[0.06] animate-pulse" style={{ width: `${w}%` }} />
         </td>
       ))}
@@ -321,93 +321,95 @@ function ProjectsPage() {
         </div>
 
         <div className="bg-[#1a4b54]/30 backdrop-blur-xl border border-[#2a7a8a]/30 rounded-[2rem] overflow-hidden shadow-2xl">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-[#2a7a8a]/20 bg-white/[0.02]">
-                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Проект</th>
-                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/40 hidden sm:table-cell">Заказчик</th>
-                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Система</th>
-                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/40 hidden md:table-cell">Дата</th>
-                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/40 text-right">Действия</th>
-              </tr>
-            </thead>
-            <tbody>
-              <AnimatePresence mode="popLayout">
-                {loading ? (
-                  Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
-                ) : filteredProjects.length > 0 ? filteredProjects.map(project => (
-                  <motion.tr key={project.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    onClick={() => navigate(`/projects/${project.id}`)}
-                    className="border-b border-[#2a7a8a]/10 hover:bg-white/[0.03] transition-colors cursor-pointer group"
-                  >
-                    <td className="px-3 py-4 sm:px-8 sm:py-5 font-mono text-sm text-[#4fd1c5] font-bold" onClick={e => e.stopPropagation()}>
-                      {renamingId === project.id ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            ref={renameInputRef}
-                            value={renameValue}
-                            onChange={e => setRenameValue(e.target.value)}
-                            onBlur={commitRename}
-                            onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingId(null); }}
-                            className="bg-[#2a7a8a]/20 border border-[#4fd1c5]/40 rounded-lg px-2 py-1 outline-none text-[#4fd1c5] font-mono text-sm w-24"
-                          />
-                          <button onClick={commitRename} className="p-1 rounded text-emerald-400 hover:text-emerald-300">
-                            <Check className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="cursor-pointer hover:text-white transition-colors group-hover:underline" onDoubleClick={e => startRename(e, project)}>
-                          {project.number}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-4 sm:px-8 sm:py-5 text-sm font-medium hidden sm:table-cell">{project.customer}</td>
-                    <td className="px-3 py-4 sm:px-8 sm:py-5"><Badge type={project.system as SystemType} /></td>
-                    <td className="px-3 py-4 sm:px-8 sm:py-5 text-sm text-white/40 hidden md:table-cell">
-                      {new Date(project.created_at).toLocaleDateString('ru-RU')}
-                    </td>
-                    <td className="px-3 py-4 sm:px-8 sm:py-5 text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                        <button onClick={e => startRename(e, project)}
-                          className="p-2 rounded-lg hover:bg-[#2a7a8a]/20 text-[#4fd1c5] transition-colors" title="Переименовать">
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button onClick={e => handleCopy(e, project.id)}
-                          className="p-2 rounded-lg hover:bg-[#2a7a8a]/20 text-[#4fd1c5] transition-colors">
-                          <Copy className="w-4 h-4" />
-                        </button>
-                        <button onClick={e => { e.stopPropagation(); setProjectToDelete(project); setIsDeleteModalOpen(true); }}
-                          className="p-2 rounded-lg hover:bg-red-500/20 text-red-400 transition-colors">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </motion.tr>
-                )) : (
-                  <tr>
-                    <td colSpan={5} className="py-20 text-center">
-                      <div className="flex flex-col items-center gap-4">
-                        <div className="w-20 h-20 rounded-full bg-[#2a7a8a]/10 flex items-center justify-center border border-[#2a7a8a]/20">
-                          {searchQuery ? <Search className="w-10 h-10 text-white/20" /> : <List className="w-10 h-10 text-white/20" />}
-                        </div>
-                        <div>
-                          <h3 className="text-xl font-bold mb-1">{searchQuery ? 'Ничего не найдено' : 'Проектов пока нет'}</h3>
-                          <p className="text-white/40 text-sm">{searchQuery ? 'Попробуйте другой запрос' : 'Создайте свой первый проект'}</p>
-                        </div>
-                        {!searchQuery && (
-                          <button onClick={() => setIsCreateModalOpen(true)}
-                            className="mt-4 flex items-center gap-2 px-6 py-3 bg-[#00b894] hover:bg-[#00d1a7] text-white font-bold rounded-xl transition-all">
-                            <Plus className="w-4 h-4" /> Новый проект
-                          </button>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] text-left border-collapse">
+              <thead>
+                <tr className="border-b border-[#2a7a8a]/20 bg-white/[0.02]">
+                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Проект</th>
+                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Заказчик</th>
+                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Система</th>
+                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Дата</th>
+                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40 text-right">Действия</th>
+                </tr>
+              </thead>
+              <tbody>
+                <AnimatePresence mode="popLayout">
+                  {loading ? (
+                    Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
+                  ) : filteredProjects.length > 0 ? filteredProjects.map(project => (
+                    <motion.tr key={project.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      onClick={() => navigate(`/projects/${project.id}`)}
+                      className="border-b border-[#2a7a8a]/10 hover:bg-white/[0.03] transition-colors cursor-pointer group"
+                    >
+                      <td className="px-8 py-5 font-mono text-sm text-[#4fd1c5] font-bold" onClick={e => e.stopPropagation()}>
+                        {renamingId === project.id ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              ref={renameInputRef}
+                              value={renameValue}
+                              onChange={e => setRenameValue(e.target.value)}
+                              onBlur={commitRename}
+                              onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingId(null); }}
+                              className="bg-[#2a7a8a]/20 border border-[#4fd1c5]/40 rounded-lg px-2 py-1 outline-none text-[#4fd1c5] font-mono text-sm w-24"
+                            />
+                            <button onClick={commitRename} className="p-1 rounded text-emerald-400 hover:text-emerald-300">
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="cursor-pointer hover:text-white transition-colors group-hover:underline" onDoubleClick={e => startRename(e, project)}>
+                            {project.number}
+                          </span>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </AnimatePresence>
-            </tbody>
-          </table>
-          <div className="px-4 py-4 sm:px-8 sm:py-6 bg-white/[0.02] flex items-center justify-between border-t border-[#2a7a8a]/20">
+                      </td>
+                      <td className="px-8 py-5 text-sm font-medium">{project.customer}</td>
+                      <td className="px-8 py-5"><Badge type={project.system as SystemType} /></td>
+                      <td className="px-8 py-5 text-sm text-white/40">
+                        {new Date(project.created_at).toLocaleDateString('ru-RU')}
+                      </td>
+                      <td className="px-8 py-5 text-right">
+                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={e => startRename(e, project)}
+                            className="p-2 rounded-lg hover:bg-[#2a7a8a]/20 text-[#4fd1c5] transition-colors" title="Переименовать">
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button onClick={e => handleCopy(e, project.id)}
+                            className="p-2 rounded-lg hover:bg-[#2a7a8a]/20 text-[#4fd1c5] transition-colors">
+                            <Copy className="w-4 h-4" />
+                          </button>
+                          <button onClick={e => { e.stopPropagation(); setProjectToDelete(project); setIsDeleteModalOpen(true); }}
+                            className="p-2 rounded-lg hover:bg-red-500/20 text-red-400 transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </motion.tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={5} className="py-20 text-center">
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="w-20 h-20 rounded-full bg-[#2a7a8a]/10 flex items-center justify-center border border-[#2a7a8a]/20">
+                            {searchQuery ? <Search className="w-10 h-10 text-white/20" /> : <List className="w-10 h-10 text-white/20" />}
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-bold mb-1">{searchQuery ? 'Ничего не найдено' : 'Проектов пока нет'}</h3>
+                            <p className="text-white/40 text-sm">{searchQuery ? 'Попробуйте другой запрос' : 'Создайте свой первый проект'}</p>
+                          </div>
+                          {!searchQuery && (
+                            <button onClick={() => setIsCreateModalOpen(true)}
+                              className="mt-4 flex items-center gap-2 px-6 py-3 bg-[#00b894] hover:bg-[#00d1a7] text-white font-bold rounded-xl transition-all">
+                              <Plus className="w-4 h-4" /> Новый проект
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </AnimatePresence>
+              </tbody>
+            </table>
+          </div>
+          <div className="px-8 py-6 bg-white/[0.02] flex items-center justify-between border-t border-[#2a7a8a]/20">
             <div className="text-xs text-white/40">
               Показано <span className="text-white font-bold">{filteredProjects.length}</span> из <span className="text-white font-bold">{projects.length}</span>
             </div>

@@ -257,15 +257,16 @@ export default function AdminPage() {
 
         {/* Table */}
         <div className="bg-[#1a4b54]/30 backdrop-blur-xl border border-[#2a7a8a]/25 rounded-[2rem] overflow-hidden shadow-2xl">
-          <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-left border-collapse">
             <thead>
               <tr className="border-b border-[#2a7a8a]/20 bg-white/[0.03]">
-                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/50">Логин</th>
-                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/50 hidden sm:table-cell">Имя</th>
-                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/50">Роль</th>
-                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/50 hidden md:table-cell">Заказчик</th>
-                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/50 hidden md:table-cell">Статус</th>
-                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/50 text-right">Действия</th>
+                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/50">Логин</th>
+                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/50">Имя</th>
+                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/50">Роль</th>
+                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/50">Заказчик</th>
+                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/50">Статус</th>
+                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/50 text-right">Действия</th>
               </tr>
             </thead>
             <tbody>
@@ -290,23 +291,23 @@ export default function AdminPage() {
               ) : filtered.map(u => (
                 <motion.tr key={u.id} initial={{ opacity: 0 }} animate={{ opacity: u.is_active ? 1 : 0.45 }}
                   className="border-b border-[#2a7a8a]/10 hover:bg-white/[0.03] transition-colors group">
-                  <td className="px-3 py-4 sm:px-8 sm:py-5 font-mono text-sm text-[#4fd1c5] font-bold">{u.username}</td>
-                  <td className="px-3 py-4 sm:px-8 sm:py-5 text-sm font-medium text-white/90 hidden sm:table-cell">{u.display_name}</td>
-                  <td className="px-3 py-4 sm:px-8 sm:py-5">
+                  <td className="px-8 py-5 font-mono text-sm text-[#4fd1c5] font-bold">{u.username}</td>
+                  <td className="px-8 py-5 text-sm font-medium text-white/90">{u.display_name}</td>
+                  <td className="px-8 py-5">
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border ${ROLE_COLORS[u.role]}`}>
                       <RoleIcon role={u.role} />
-                      <span className="hidden sm:inline">{ROLE_LABELS[u.role]}</span>
+                      {ROLE_LABELS[u.role]}
                     </span>
                   </td>
-                  <td className="px-3 py-4 sm:px-8 sm:py-5 text-sm text-white/50 hidden md:table-cell">{u.customer || '—'}</td>
-                  <td className="px-3 py-4 sm:px-8 sm:py-5 hidden md:table-cell">
+                  <td className="px-8 py-5 text-sm text-white/50">{u.customer || '—'}</td>
+                  <td className="px-8 py-5">
                     <span className={`inline-flex items-center gap-1.5 text-xs font-bold ${u.is_active ? 'text-emerald-400' : 'text-red-400'}`}>
                       <span className={`w-2 h-2 rounded-full ${u.is_active ? 'bg-emerald-400' : 'bg-red-400'}`} />
                       {u.is_active ? 'Активен' : 'Неактивен'}
                     </span>
                   </td>
-                  <td className="px-3 py-4 sm:px-8 sm:py-5 text-right">
-                    <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                  <td className="px-8 py-5 text-right">
+                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => openEdit(u)}
                         className="p-2 rounded-lg hover:bg-[#2a7a8a]/25 text-[#4fd1c5] transition-colors" title="Изменить">
                         <Edit2 className="w-4 h-4" />
@@ -327,7 +328,8 @@ export default function AdminPage() {
               ))}
             </tbody>
           </table>
-          <div className="px-4 py-4 sm:px-8 bg-white/[0.02] border-t border-[#2a7a8a]/20 text-xs text-white/40">
+          </div>
+          <div className="px-8 py-4 bg-white/[0.02] border-t border-[#2a7a8a]/20 text-xs text-white/40">
             Всего сотрудников: <span className="text-white font-bold">{users.length}</span>
           </div>
         </div>
