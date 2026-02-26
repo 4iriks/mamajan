@@ -204,6 +204,34 @@ function RadioList({ value, options, onChange, noneLabel }: { value?: string; op
   );
 }
 
+// ── Section card helpers ──────────────────────────────────────────────────────
+
+function getSectionTypeLabel(s: Section): string {
+  switch (s.system) {
+    case 'СЛАЙД': {
+      const rows = s.rails === 5 ? '2 ряда' : '1 ряд';
+      return `${rows} · ${s.panels ?? 3} пан.`;
+    }
+    case 'КНИЖКА':
+      return `${s.doors ?? 1} дв. · ${s.panels ?? 3} пан.`;
+    case 'ЛИФТ':
+      return `${s.panels ?? 2} пан.`;
+    case 'ЦС':
+      return s.csShape || '';
+    case 'КОМПЛЕКТАЦИЯ':
+      return s.doorSystem || '';
+    default:
+      return '';
+  }
+}
+
+function getSectionColorLabel(s: Section): string {
+  if (s.paintingType === 'Без окрашивания') return 'Без окрас.';
+  if (s.paintingType === 'Анодированный') return 'Анод.';
+  if (s.paintingType.includes('RAL')) return s.ralColor ? `RAL ${s.ralColor}` : 'RAL';
+  return '';
+}
+
 // ── Section divider ───────────────────────────────────────────────────────────
 
 function SectionDivider({ label }: { label: string }) {
@@ -961,19 +989,29 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   }`}
                 >
                   <div className="flex justify-between items-start mb-2">
-                    <span className={`text-sm font-bold ${activeSectionId === section.id ? 'text-[#4fd1c5]' : 'text-white/80'}`}>
+                    <span className={`text-sm font-bold leading-snug ${activeSectionId === section.id ? 'text-[#4fd1c5]' : 'text-white/80'}`}>
                       {section.name}
                     </span>
                     <button onClick={e => { e.stopPropagation(); setSectionToDelete(section); setIsDeleteModalOpen(true); }}
-                      className="p-1 rounded-lg hover:bg-red-500/20 text-red-400 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                      className="p-1 rounded-lg hover:bg-red-500/20 text-red-400 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0 ml-1">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${SYSTEM_COLORS[section.system]}`}>
+                  {/* Тип */}
+                  <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${SYSTEM_COLORS[section.system]}`}>
                       {section.system}
                     </span>
-                    <span className="text-xs font-mono text-white/40">{section.width} × {section.height}</span>
+                    {getSectionTypeLabel(section) && (
+                      <span className="text-[11px] text-white/40 font-medium">{getSectionTypeLabel(section)}</span>
+                    )}
+                  </div>
+                  {/* Размеры + цвет */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-mono text-white/35">{section.width} × {section.height} мм</span>
+                    {getSectionColorLabel(section) && (
+                      <span className="text-[11px] text-white/35">{getSectionColorLabel(section)}</span>
+                    )}
                   </div>
                 </motion.div>
               ))}
