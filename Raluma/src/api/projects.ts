@@ -55,6 +55,9 @@ export interface SectionOut {
   profile_right_bubble?: boolean;
   lock_left?: string;
   lock_right?: string;
+  book_subtype?: string;
+  handle_left?: string;
+  handle_right?: string;
   doors?: number;
   door_side?: string;
   door_type?: string;

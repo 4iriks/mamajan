@@ -85,6 +85,9 @@ class Section(Base):
     profile_right_bubble = Column(Boolean, default=False)
     lock_left = Column(String, nullable=True)    # Без замка / 1-сторонний / 2-сторонний
     lock_right = Column(String, nullable=True)
+    book_subtype = Column(String, nullable=True)   # doors | angle | doors_and_angle
+    handle_left = Column(String, nullable=True)    # ручка слева
+    handle_right = Column(String, nullable=True)   # ручка справа
 
     # КНИЖКА
     doors = Column(Integer, nullable=True)

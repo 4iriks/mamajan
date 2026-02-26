@@ -58,6 +58,9 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE sections ADD COLUMN profile_right_bubble BOOLEAN DEFAULT 0",
             "ALTER TABLE sections ADD COLUMN lock_left VARCHAR",
             "ALTER TABLE sections ADD COLUMN lock_right VARCHAR",
+            "ALTER TABLE sections ADD COLUMN book_subtype VARCHAR",
+            "ALTER TABLE sections ADD COLUMN handle_left VARCHAR",
+            "ALTER TABLE sections ADD COLUMN handle_right VARCHAR",
         ]:
             try:
                 conn.execute(text(col_sql))

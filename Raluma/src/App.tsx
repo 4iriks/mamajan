@@ -145,7 +145,7 @@ function ProjectsPage() {
   const [projectToDelete, setProjectToDelete] = useState<ProjectList | null>(null);
 
   const [newNumber, setNewNumber] = useState('');
-  const [newCustomer, setNewCustomer] = useState('ПРОЗРАЧНЫЕ РЕШЕНИЯ');
+  const [newCustomer, setNewCustomer] = useState('');
 
   // Маска номера: Х00-0-0000 → первый символ буква, потом 2+1+4 цифры с тире
   const formatProjectNumber = (raw: string) => {
@@ -440,20 +440,18 @@ function ProjectsPage() {
                 </div>
                 <div className="space-y-3">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40 ml-1">Заказчик</label>
-                  <div className="grid grid-cols-1 gap-3">
-                    {['ПРОЗРАЧНЫЕ РЕШЕНИЯ','КРОКНА ИНЖИНИРИНГ','СТУДИЯ СПК'].map(c => (
-                      <button key={c} onClick={() => setNewCustomer(c)}
-                        className={`flex items-center gap-4 px-6 py-4 rounded-2xl border transition-all text-left ${
-                          newCustomer === c ? 'bg-[#4fd1c5]/10 border-[#4fd1c5]/50 text-[#4fd1c5]' : 'bg-black/10 border-[#2a7a8a]/20 text-white/40 hover:border-[#2a7a8a]/50'
-                        }`}
-                      >
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${newCustomer === c ? 'border-[#4fd1c5]' : 'border-white/10'}`}>
-                          {newCustomer === c && <div className="w-2.5 h-2.5 rounded-full bg-[#4fd1c5]" />}
-                        </div>
-                        <span className="font-medium">{c}</span>
-                      </button>
-                    ))}
-                  </div>
+                  <input
+                    list="customer-list"
+                    value={newCustomer}
+                    onChange={e => setNewCustomer(e.target.value)}
+                    className="w-full bg-white/8 border border-[#2a7a8a]/35 rounded-2xl px-6 py-4 outline-none focus:border-[#4fd1c5]/50 transition-all text-white"
+                    placeholder="Заказчик"
+                  />
+                  <datalist id="customer-list">
+                    <option value="ООО «ПРОЗРАЧНЫЕ РЕШЕНИЯ»" />
+                    <option value="ООО «КРОКНА ИНЖИНИРИНГ»" />
+                    <option value="ООО «СТУДИЯ СПК»" />
+                  </datalist>
                 </div>
               </div>
               <div className="flex gap-4 mt-6 sm:mt-10">

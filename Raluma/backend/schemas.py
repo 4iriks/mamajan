@@ -95,6 +95,9 @@ class SectionBase(BaseModel):
     profile_right_bubble: bool = False
     lock_left: Optional[str] = None
     lock_right: Optional[str] = None
+    book_subtype: Optional[str] = None
+    handle_left: Optional[str] = None
+    handle_right: Optional[str] = None
     # КНИЖКА
     doors: Optional[int] = None
     door_side: Optional[str] = None

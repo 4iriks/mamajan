@@ -57,6 +57,9 @@ export interface Section {
   profileRightBubble: boolean;
   lockLeft?: string;
   lockRight?: string;
+  bookSubtype?: string;
+  handleLeft?: string;
+  handleRight?: string;
   // КНИЖКА
   doors?: number;
   doorSide?: string;
@@ -144,6 +147,9 @@ function apiToLocal(s: SectionOut): Section {
     profileRightBubble: s.profile_right_bubble ?? false,
     lockLeft: s.lock_left,
     lockRight: s.lock_right,
+    bookSubtype: s.book_subtype,
+    handleLeft: s.handle_left,
+    handleRight: s.handle_right,
     doors: s.doors,
     doorSide: s.door_side,
     doorType: s.door_type,
@@ -184,6 +190,9 @@ function localToApi(s: Section, order: number): Omit<SectionOut, 'id' | 'project
     profile_right_bubble: s.profileRightBubble,
     lock_left: s.lockLeft,
     lock_right: s.lockRight,
+    book_subtype: s.bookSubtype,
+    handle_left: s.handleLeft,
+    handle_right: s.handleRight,
     doors: s.doors, door_side: s.doorSide, door_type: s.doorType,
     door_opening: s.doorOpening, compensator: s.compensator,
     angle_left: s.angleLeft, angle_right: s.angleRight, book_system: s.bookSystem,
@@ -249,8 +258,10 @@ function getSectionTypeLabel(s: Section): string {
       const rows = s.rails === 5 ? '2 ряда от центра' : '1 ряд';
       return `${rows} · ${s.panels ?? 3} пан.`;
     }
-    case 'КНИЖКА':
-      return `${s.doors ?? 1} дв. · ${s.panels ?? 3} пан.`;
+    case 'КНИЖКА': {
+      const sub = s.bookSubtype === 'angle' ? 'с углом' : s.bookSubtype === 'doors_and_angle' ? 'с дв. и углом' : 'с дверями';
+      return `${sub} · ${s.panels ?? 3} пан.`;
+    }
     case 'ЛИФТ':
       return `${s.panels ?? 2} пан.`;
     case 'ЦС':
@@ -361,8 +372,10 @@ function ProfileCheckbox({ checked, onChange, label, indent }: { checked: boolea
 }
 
 function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
-  const showLockLeft = s.profileLeftLockBar || s.profileLeftHandleBar;
-  const showLockRight = s.profileRightLockBar || s.profileRightHandleBar;
+  const showLockLeft = (s.profileLeftLockBar || s.profileLeftHandleBar) && !(s.profileLeftPBar && s.profileLeftHandleBar);
+  const showLockRight = (s.profileRightLockBar || s.profileRightHandleBar) && !(s.profileRightPBar && s.profileRightHandleBar);
+  const showHandleLeft = s.profileLeftPBar && s.profileLeftBubble && !s.profileLeftHandleBar;
+  const showHandleRight = s.profileRightPBar && s.profileRightBubble && !s.profileRightHandleBar;
 
   return (
     <div className="space-y-6">
@@ -403,17 +416,19 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
           <div className="space-y-2">
             <label className={LBL}>Межстекольный профиль</label>
             <select value={s.interGlassProfile || ''} onChange={e => update({ interGlassProfile: e.target.value || undefined })} className={SEL}>
-              <option value="">— Нет —</option>
+              <option value="">— Без межстекольного профиля —</option>
               <option>Алюминиевый RS1061</option>
-              <option>Прозрачный</option>
+              <option>Прозрачный с фетром RS1006</option>
               <option>h-профиль RS1004</option>
             </select>
           </div>
-          <div className="space-y-2">
-            <label className={LBL}>Свободная нить</label>
-            <ToggleGroup value={s.unusedTrack ?? 'Нет'} options={['Внешняя', 'Внутренняя', 'Нет']}
-              onChange={v => update({ unusedTrack: v === 'Нет' ? undefined : v })} />
-          </div>
+          {((s.rails !== 5 && (s.panels ?? 3) < 3) || (s.rails === 5 && (s.panels ?? 3) < 5)) && (
+            <div className="space-y-2">
+              <label className={LBL}>Свободная нить</label>
+              <ToggleGroup value={s.unusedTrack ?? 'Нет'} options={['Внешняя', 'Внутренняя', 'Нет']}
+                onChange={v => update({ unusedTrack: v === 'Нет' ? undefined : v })} />
+            </div>
+          )}
           <div className="space-y-2">
             <label className={LBL}>Угловое соединение</label>
             <div className="flex gap-6 mt-1">
@@ -446,8 +461,16 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
             <div className="mt-2 space-y-1">
               <label className={LBL}>Замок слева</label>
               <RadioList value={s.lockLeft} noneLabel="Без замка"
-                options={['1-сторонний', '2-сторонний']}
+                options={['1-сторонний RS3018', '2-сторонний с ключом RS3019']}
                 onChange={v => update({ lockLeft: v })} />
+            </div>
+          )}
+          {showHandleLeft && (
+            <div className="mt-2 space-y-1">
+              <label className={LBL}>Ручка слева</label>
+              <RadioList value={s.handleLeft} noneLabel="Без ручки (глухая)"
+                options={['Без ручки (подвижная)', 'Ручка-кноб RS3014', 'Стеклянная ручка RS3017', 'Ручка-скоба']}
+                onChange={v => update({ handleLeft: v })} />
             </div>
           )}
         </div>
@@ -466,8 +489,16 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
             <div className="mt-2 space-y-1">
               <label className={LBL}>Замок справа</label>
               <RadioList value={s.lockRight} noneLabel="Без замка"
-                options={['1-сторонний', '2-сторонний']}
+                options={['1-сторонний RS3018', '2-сторонний с ключом RS3019']}
                 onChange={v => update({ lockRight: v })} />
+            </div>
+          )}
+          {showHandleRight && (
+            <div className="mt-2 space-y-1">
+              <label className={LBL}>Ручка справа</label>
+              <RadioList value={s.handleRight} noneLabel="Без ручки (глухая)"
+                options={['Без ручки (подвижная)', 'Ручка-кноб RS3014', 'Стеклянная ручка RS3017', 'Ручка-скоба']}
+                onChange={v => update({ handleRight: v })} />
             </div>
           )}
         </div>
@@ -488,60 +519,72 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
 // ── Tab: КНИЖКА — Система ────────────────────────────────────────────────────
 
 function BookSystemTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
+  const hasDoors = !s.bookSubtype || s.bookSubtype === 'doors' || s.bookSubtype === 'doors_and_angle';
+  const hasAngle = s.bookSubtype === 'angle' || s.bookSubtype === 'doors_and_angle';
   return (
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-8">
       <div className="space-y-5">
-        <div className="space-y-2">
-          <label className={LBL}>Кол-во дверей</label>
-          <ToggleGroup value={s.doors?.toString()} options={['1', '2']}
-            onChange={v => update({ doors: parseInt(v) })} />
-        </div>
-        <div className="space-y-2">
-          <label className={LBL}>Сторона двери</label>
-          <ToggleGroup value={s.doorSide} options={['Левая', 'Правая']}
-            onChange={v => update({ doorSide: v })} />
-        </div>
-        <div className="space-y-2">
-          <label className={LBL}>Тип двери</label>
-          <RadioList value={s.doorType}
-            options={['Тип 1', 'Тип 4']}
-            onChange={v => update({ doorType: v })} />
-        </div>
-        <div className="space-y-2">
-          <label className={LBL}>Открывание</label>
-          <ToggleGroup value={s.doorOpening} options={['Внутрь', 'Наружу']}
-            onChange={v => update({ doorOpening: v })} />
-        </div>
-      </div>
-      <div className="space-y-5">
+        {hasDoors && (
+          <>
+            <div className="space-y-2">
+              <label className={LBL}>Кол-во дверей</label>
+              <ToggleGroup value={s.doors?.toString()} options={['1', '2']}
+                onChange={v => update({ doors: parseInt(v) })} />
+            </div>
+            <div className="space-y-2">
+              <label className={LBL}>Сторона двери</label>
+              <ToggleGroup value={s.doorSide} options={['Левая', 'Правая']}
+                onChange={v => update({ doorSide: v })} />
+            </div>
+            <div className="space-y-2">
+              <label className={LBL}>Тип двери</label>
+              <RadioList value={s.doorType}
+                options={['Тип 1', 'Тип 4']}
+                onChange={v => update({ doorType: v })} />
+            </div>
+            <div className="space-y-2">
+              <label className={LBL}>Открывание</label>
+              <ToggleGroup value={s.doorOpening} options={['Внутрь', 'Наружу']}
+                onChange={v => update({ doorOpening: v })} />
+            </div>
+          </>
+        )}
         <div className="space-y-2">
           <label className={LBL}>Кол-во панелей</label>
           <select value={s.panels} onChange={e => update({ panels: parseInt(e.target.value) })} className={SEL}>
             {[2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
-        <div className="space-y-2">
-          <label className={LBL}>Система книжки</label>
-          <RadioList value={s.bookSystem} noneLabel="— Стандарт —"
-            options={['С кареткой', 'Без каретки']}
-            onChange={v => update({ bookSystem: v })} />
-        </div>
-        <div className="space-y-2">
-          <label className={LBL}>Компенсатор</label>
-          <RadioList value={s.compensator} noneLabel="— Нет —"
-            options={['Левый', 'Правый', 'Оба']}
-            onChange={v => update({ compensator: v })} />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className={LBL}>Угол лев., °</label>
-            <input type="number" value={s.angleLeft || ''} onChange={e => update({ angleLeft: parseFloat(e.target.value) || undefined })} className={INP} placeholder="0" />
+      </div>
+      <div className="space-y-5">
+        {hasDoors && (
+          <>
+            <div className="space-y-2">
+              <label className={LBL}>Система книжки</label>
+              <RadioList value={s.bookSystem} noneLabel="— Стандарт —"
+                options={['С кареткой', 'Без каретки']}
+                onChange={v => update({ bookSystem: v })} />
+            </div>
+            <div className="space-y-2">
+              <label className={LBL}>Компенсатор</label>
+              <RadioList value={s.compensator} noneLabel="— Нет —"
+                options={['Левый', 'Правый', 'Оба']}
+                onChange={v => update({ compensator: v })} />
+            </div>
+          </>
+        )}
+        {(hasDoors || hasAngle) && (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className={LBL}>Угол лев., °</label>
+              <input type="number" value={s.angleLeft || ''} onChange={e => update({ angleLeft: parseFloat(e.target.value) || undefined })} className={INP} placeholder="0" />
+            </div>
+            <div className="space-y-2">
+              <label className={LBL}>Угол пр., °</label>
+              <input type="number" value={s.angleRight || ''} onChange={e => update({ angleRight: parseFloat(e.target.value) || undefined })} className={INP} placeholder="0" />
+            </div>
           </div>
-          <div className="space-y-2">
-            <label className={LBL}>Угол пр., °</label>
-            <input type="number" value={s.angleRight || ''} onChange={e => update({ angleRight: parseFloat(e.target.value) || undefined })} className={INP} placeholder="0" />
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -738,6 +781,9 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(true);
   const [showSystemPicker, setShowSystemPicker] = useState(false);
   const [slideSubVisible, setSlideSubVisible] = useState(false);
+  const [bookSubVisible, setBookSubVisible] = useState(false);
+  const [liftSubVisible, setLiftSubVisible] = useState(false);
+  const [csSubVisible, setCsSubVisible] = useState(false);
   const handleSaveSectionRef = useRef<() => Promise<void>>(async () => {});
 
   const activeSection = useMemo(() =>
@@ -772,20 +818,37 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [isDirty]);
 
-  const defaultsForSystem = (system: SystemType): Partial<Section> => {
+  const defaultsForSystem = (system: SystemType, opts?: { bookSubtype?: string; liftPanels?: number; csShape?: string }): Partial<Section> => {
     switch (system) {
       case 'СЛАЙД':  return { rails: 3, firstPanelInside: 'Справа', panels: 3 };
-      case 'КНИЖКА': return { doors: 1, doorSide: 'Правая', panels: 3 };
-      case 'ЛИФТ':   return { panels: 2 };
-      case 'ЦС':     return { csShape: 'Прямоугольник', panels: 1 };
+      case 'КНИЖКА': {
+        const sub = opts?.bookSubtype || 'doors';
+        const hasDoors = sub === 'doors' || sub === 'doors_and_angle';
+        return {
+          bookSubtype: sub,
+          doors: hasDoors ? 1 : undefined,
+          doorSide: hasDoors ? 'Правая' : undefined,
+          panels: 3,
+        };
+      }
+      case 'ЛИФТ':   return { panels: opts?.liftPanels || 2 };
+      case 'ЦС':     return { csShape: opts?.csShape || 'Прямоугольник', panels: 1 };
       case 'КОМПЛЕКТАЦИЯ': return { panels: 1, doorSystem: 'Одностворчатая', doorOpening: 'Внутрь' };
     }
   };
 
-  const handleAddSection = async (system: SystemType, slideRails?: 3 | 5) => {
+  const handleAddSection = async (system: SystemType, opts?: { slideRails?: 3 | 5; bookSubtype?: string; liftPanels?: number; csShape?: string }) => {
     if (!project) return;
     setShowSystemPicker(false);
     setSlideSubVisible(false);
+    setBookSubVisible(false);
+    setLiftSubVisible(false);
+    setCsSubVisible(false);
+    const extra: Partial<Section> = {};
+    if (system === 'СЛАЙД' && opts?.slideRails) extra.rails = opts.slideRails;
+    if (system === 'КНИЖКА' && opts?.bookSubtype) extra.bookSubtype = opts.bookSubtype;
+    if (system === 'ЛИФТ' && opts?.liftPanels) extra.panels = opts.liftPanels;
+    if (system === 'ЦС' && opts?.csShape) extra.csShape = opts.csShape;
     const newSection: Section = {
       id: `tmp-${Date.now()}`,
       name: `Секция ${sections.length + 1}`,
@@ -799,8 +862,8 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       profileLeftHandleBar: false, profileLeftBubble: false,
       profileRightWall: false, profileRightLockBar: false, profileRightPBar: false,
       profileRightHandleBar: false, profileRightBubble: false,
-      ...defaultsForSystem(system),
-      ...(system === 'СЛАЙД' && slideRails ? { rails: slideRails } : {}),
+      ...defaultsForSystem(system, opts),
+      ...extra,
     };
     try {
       const created = await createSection(project.id, localToApi(newSection, sections.length));
@@ -1025,22 +1088,70 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                     </button>
                     {slideSubVisible && (
                       <>
-                        <button onClick={() => handleAddSection('СЛАЙД', 3)}
+                        <button onClick={() => handleAddSection('СЛАЙД', { slideRails: 3 })}
                           className={`py-2 rounded-xl border font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
                           Стандарт 1 ряд
                         </button>
-                        <button onClick={() => handleAddSection('СЛАЙД', 5)}
+                        <button onClick={() => handleAddSection('СЛАЙД', { slideRails: 5 })}
                           className={`py-2 rounded-xl border font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
                           2 ряда от центра
                         </button>
                       </>
                     )}
-                    {(['КНИЖКА', 'ЛИФТ', 'ЦС'] as SystemType[]).map(sys => (
-                      <button key={sys} onClick={() => handleAddSection(sys)}
-                        className={`py-2.5 rounded-xl border font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS[sys]}`}>
-                        {sys}
-                      </button>
-                    ))}
+                    {/* КНИЖКА sub-picker */}
+                    <button onClick={() => setBookSubVisible(v => !v)}
+                      className={`col-span-2 py-2.5 rounded-xl border font-bold text-[11px] transition-all flex items-center justify-between px-3 ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
+                      <span>КНИЖКА</span>
+                      <ChevronRight className={`w-3.5 h-3.5 transition-transform ${bookSubVisible ? 'rotate-90' : ''}`} />
+                    </button>
+                    {bookSubVisible && (
+                      <>
+                        <button onClick={() => handleAddSection('КНИЖКА', { bookSubtype: 'doors' })}
+                          className={`py-2 rounded-xl border font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
+                          С дверями
+                        </button>
+                        <button onClick={() => handleAddSection('КНИЖКА', { bookSubtype: 'angle' })}
+                          className={`py-2 rounded-xl border font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
+                          С углом
+                        </button>
+                        <button onClick={() => handleAddSection('КНИЖКА', { bookSubtype: 'doors_and_angle' })}
+                          className={`col-span-2 py-2 rounded-xl border font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
+                          С дверями и углом
+                        </button>
+                      </>
+                    )}
+                    {/* ЛИФТ sub-picker */}
+                    <button onClick={() => setLiftSubVisible(v => !v)}
+                      className={`col-span-2 py-2.5 rounded-xl border font-bold text-[11px] transition-all flex items-center justify-between px-3 ${SYSTEM_PICKER_COLORS['ЛИФТ']}`}>
+                      <span>ЛИФТ</span>
+                      <ChevronRight className={`w-3.5 h-3.5 transition-transform ${liftSubVisible ? 'rotate-90' : ''}`} />
+                    </button>
+                    {liftSubVisible && (
+                      <>
+                        {[2, 3, 4].map(n => (
+                          <button key={n} onClick={() => handleAddSection('ЛИФТ', { liftPanels: n })}
+                            className={`py-2 rounded-xl border font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['ЛИФТ']}`}>
+                            {n} панели
+                          </button>
+                        ))}
+                      </>
+                    )}
+                    {/* ЦС sub-picker */}
+                    <button onClick={() => setCsSubVisible(v => !v)}
+                      className={`col-span-2 py-2.5 rounded-xl border font-bold text-[11px] transition-all flex items-center justify-between px-3 ${SYSTEM_PICKER_COLORS['ЦС']}`}>
+                      <span>ЦС</span>
+                      <ChevronRight className={`w-3.5 h-3.5 transition-transform ${csSubVisible ? 'rotate-90' : ''}`} />
+                    </button>
+                    {csSubVisible && (
+                      <>
+                        {['Треугольник', 'Прямоугольник', 'Трапеция', 'Сложная форма'].map(shape => (
+                          <button key={shape} onClick={() => handleAddSection('ЦС', { csShape: shape })}
+                            className={`py-2 rounded-xl border font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['ЦС']}`}>
+                            {shape}
+                          </button>
+                        ))}
+                      </>
+                    )}
                     <button onClick={() => handleAddSection('КОМПЛЕКТАЦИЯ')}
                       className={`col-span-2 py-2.5 rounded-xl border font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['КОМПЛЕКТАЦИЯ']}`}>
                       КОМПЛЕКТАЦИЯ
@@ -1130,22 +1241,70 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                       </button>
                     ) : (
                       <>
-                        <button onClick={() => handleAddSection('СЛАЙД', 3)}
+                        <button onClick={() => handleAddSection('СЛАЙД', { slideRails: 3 })}
                           className={`py-5 rounded-2xl border font-bold text-sm transition-all ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
                           Стандарт 1 ряд
                         </button>
-                        <button onClick={() => handleAddSection('СЛАЙД', 5)}
+                        <button onClick={() => handleAddSection('СЛАЙД', { slideRails: 5 })}
                           className={`py-5 rounded-2xl border font-bold text-sm transition-all ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
                           2 ряда от центра
                         </button>
                       </>
                     )}
-                    {(['КНИЖКА', 'ЛИФТ', 'ЦС'] as SystemType[]).map(sys => (
-                      <button key={sys} onClick={() => handleAddSection(sys)}
-                        className={`py-5 rounded-2xl border font-bold text-sm transition-all ${SYSTEM_PICKER_COLORS[sys]}`}>
-                        {sys}
+                    {/* КНИЖКА sub-picker in empty state */}
+                    {!bookSubVisible ? (
+                      <button onClick={() => setBookSubVisible(true)}
+                        className={`py-5 rounded-2xl border font-bold text-sm transition-all flex items-center justify-between px-5 ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
+                        <span>КНИЖКА</span><ChevronRight className="w-4 h-4" />
                       </button>
-                    ))}
+                    ) : (
+                      <>
+                        <button onClick={() => handleAddSection('КНИЖКА', { bookSubtype: 'doors' })}
+                          className={`py-4 rounded-2xl border font-bold text-sm transition-all ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
+                          С дверями
+                        </button>
+                        <button onClick={() => handleAddSection('КНИЖКА', { bookSubtype: 'angle' })}
+                          className={`py-4 rounded-2xl border font-bold text-sm transition-all ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
+                          С углом
+                        </button>
+                        <button onClick={() => handleAddSection('КНИЖКА', { bookSubtype: 'doors_and_angle' })}
+                          className={`col-span-2 py-4 rounded-2xl border font-bold text-sm transition-all ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
+                          С дверями и углом
+                        </button>
+                      </>
+                    )}
+                    {/* ЛИФТ sub-picker in empty state */}
+                    {!liftSubVisible ? (
+                      <button onClick={() => setLiftSubVisible(true)}
+                        className={`py-5 rounded-2xl border font-bold text-sm transition-all flex items-center justify-between px-5 ${SYSTEM_PICKER_COLORS['ЛИФТ']}`}>
+                        <span>ЛИФТ</span><ChevronRight className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <>
+                        {[2, 3, 4].map(n => (
+                          <button key={n} onClick={() => handleAddSection('ЛИФТ', { liftPanels: n })}
+                            className={`py-4 rounded-2xl border font-bold text-sm transition-all ${SYSTEM_PICKER_COLORS['ЛИФТ']}`}>
+                            {n} панели
+                          </button>
+                        ))}
+                      </>
+                    )}
+                    {/* ЦС sub-picker in empty state */}
+                    {!csSubVisible ? (
+                      <button onClick={() => setCsSubVisible(true)}
+                        className={`py-5 rounded-2xl border font-bold text-sm transition-all flex items-center justify-between px-5 ${SYSTEM_PICKER_COLORS['ЦС']}`}>
+                        <span>ЦС</span><ChevronRight className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <>
+                        {['Треугольник', 'Прямоугольник', 'Трапеция', 'Сложная форма'].map(shape => (
+                          <button key={shape} onClick={() => handleAddSection('ЦС', { csShape: shape })}
+                            className={`py-4 rounded-2xl border font-bold text-sm transition-all ${SYSTEM_PICKER_COLORS['ЦС']}`}>
+                            {shape}
+                          </button>
+                        ))}
+                      </>
+                    )}
                     <button onClick={() => handleAddSection('КОМПЛЕКТАЦИЯ')}
                       className={`col-span-2 py-5 rounded-2xl border font-bold text-sm transition-all ${SYSTEM_PICKER_COLORS['КОМПЛЕКТАЦИЯ']}`}>
                       КОМПЛЕКТАЦИЯ
@@ -1168,7 +1327,13 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                     <span className={`px-3 py-1 rounded-lg text-[11px] font-bold border ${SYSTEM_COLORS[activeSection.system]}`}>
                       {activeSection.system === 'СЛАЙД'
                         ? `СЛАЙД стандарт ${activeSection.rails === 5 ? '2 ряда от центра' : '1 ряд'}`
-                        : activeSection.system}
+                        : activeSection.system === 'КНИЖКА' && activeSection.bookSubtype
+                          ? `КНИЖКА ${activeSection.bookSubtype === 'doors' ? 'с дверями' : activeSection.bookSubtype === 'angle' ? 'с углом' : 'с дверями и углом'}`
+                          : activeSection.system === 'ЛИФТ'
+                            ? `ЛИФТ · ${activeSection.panels ?? 2} пан.`
+                            : activeSection.system === 'ЦС' && activeSection.csShape
+                              ? `ЦС · ${activeSection.csShape}`
+                              : activeSection.system}
                     </span>
                   </div>
                 </div>
