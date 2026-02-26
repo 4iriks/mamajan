@@ -25,7 +25,7 @@ export default function ToastContainer() {
   const { toasts, remove } = useToastStore();
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none">
+    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[9999] flex flex-col gap-3 pointer-events-none w-[calc(100vw-2rem)] sm:w-auto max-w-[400px]">
       <AnimatePresence initial={false}>
         {toasts.map(t => {
           const { icon: Icon, cls, bar } = CONFIG[t.type];
@@ -37,7 +37,7 @@ export default function ToastContainer() {
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 80, scale: 0.85 }}
               transition={{ type: 'spring', stiffness: 350, damping: 28 }}
-              className={`pointer-events-auto relative overflow-hidden flex items-start gap-3 px-5 py-4 rounded-2xl border backdrop-blur-md shadow-2xl ${cls} min-w-[280px] max-w-[400px]`}
+              className={`pointer-events-auto relative overflow-hidden flex items-start gap-3 px-5 py-4 rounded-2xl border backdrop-blur-md shadow-2xl ${cls} w-full`}
             >
               {/* Прогресс-бар внизу */}
               <motion.div

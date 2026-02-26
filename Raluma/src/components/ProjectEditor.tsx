@@ -202,7 +202,7 @@ function RadioList({ value, options, onChange, noneLabel }: { value?: string; op
 
 function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
   return (
-    <div className="grid grid-cols-2 gap-8">
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-8">
       <div className="space-y-5">
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -269,7 +269,7 @@ function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => v
 
 function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
   return (
-    <div className="grid grid-cols-2 gap-8">
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-8">
       <div className="space-y-5">
         <div className="space-y-2">
           <label className={LBL}>Рельсы</label>
@@ -353,7 +353,7 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
 
 function SlideHardwareTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
   return (
-    <div className="grid grid-cols-2 gap-8">
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-8">
       <div className="space-y-5">
         <div className="space-y-2">
           <label className={LBL}>Замок</label>
@@ -391,7 +391,7 @@ function SlideHardwareTab({ s, update }: { s: Section; update: (u: Partial<Secti
 
 function BookSystemTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
   return (
-    <div className="grid grid-cols-2 gap-8">
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-8">
       <div className="space-y-5">
         <div className="space-y-2">
           <label className={LBL}>Кол-во дверей</label>
@@ -453,7 +453,7 @@ function BookSystemTab({ s, update }: { s: Section; update: (u: Partial<Section>
 
 function LiftSystemTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
   return (
-    <div className="grid grid-cols-2 gap-8">
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-8">
       <div className="space-y-5">
         <div className="space-y-2">
           <label className={LBL}>Кол-во панелей</label>
@@ -543,7 +543,7 @@ function CsShapeTab({ s, update }: { s: Section; update: (u: Partial<Section>) =
 
 function DoorSystemTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
   return (
-    <div className="grid grid-cols-2 gap-8">
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-8">
       <div className="space-y-5">
         <div className="space-y-2">
           <label className={LBL}>Тип системы</label>
@@ -644,6 +644,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const [previewDocName, setPreviewDocName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(true);
   const handleSaveSectionRef = useRef<() => Promise<void>>(async () => {});
 
   const activeSection = useMemo(() =>
@@ -651,8 +652,12 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     [sections, activeSectionId]
   );
 
-  // Reset tab and dirty flag when switching sections
-  useEffect(() => { setActiveTab('main'); setIsDirty(false); }, [activeSectionId]);
+  // Reset tab and dirty flag when switching sections; auto-close sidebar on mobile
+  useEffect(() => {
+    setActiveTab('main');
+    setIsDirty(false);
+    if (activeSectionId) setMobileSidebarOpen(false);
+  }, [activeSectionId]);
 
   // Ctrl+S → сохранить секцию
   useEffect(() => {
@@ -789,46 +794,57 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     <div className="min-h-screen flex flex-col bg-[#0c1d2d]">
 
       {/* Header */}
-      <div className="bg-[#1a4b54]/40 border-b border-[#2a7a8a]/30 px-8 py-4 flex items-center justify-between z-20 flex-shrink-0">
-        <div className="flex items-center gap-6">
-          <button onClick={onBack} className="flex items-center gap-2 text-white/40 hover:text-[#4fd1c5] transition-colors group">
+      <div className="bg-[#1a4b54]/40 border-b border-[#2a7a8a]/30 px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between z-20 flex-shrink-0 gap-2">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <button onClick={onBack} className="flex items-center gap-2 text-white/40 hover:text-[#4fd1c5] transition-colors group flex-shrink-0">
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            <span className="text-sm font-bold uppercase tracking-wider">Проекты</span>
+            <span className="hidden sm:inline text-sm font-bold uppercase tracking-wider">Проекты</span>
           </button>
-          <div className="h-6 w-px bg-[#2a7a8a]/20" />
-          <div className="flex items-center gap-3">
-            <span className="text-xl font-bold">Проект № {project.number}</span>
-            <span className="text-white/20">·</span>
-            <span className="text-white/60">{project.customer}</span>
-            <span className="text-white/20">·</span>
-            <span className="px-2 py-0.5 rounded-md bg-[#2a7a8a]/20 border border-[#2a7a8a]/30 text-[#4fd1c5] text-[10px] font-bold uppercase tracking-wider">
-              {project.system}
-            </span>
-            {project.subtype && (
-              <span className="text-white/30 text-xs">{project.subtype}</span>
-            )}
+          <div className="hidden sm:block h-6 w-px bg-[#2a7a8a]/20 flex-shrink-0" />
+          <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+            <span className="text-sm sm:text-xl font-bold whitespace-nowrap">№ {project.number}</span>
+            <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
+              <span className="text-white/20">·</span>
+              <span className="text-white/60 truncate max-w-[160px]">{project.customer}</span>
+              <span className="text-white/20">·</span>
+              <span className="px-2 py-0.5 rounded-md bg-[#2a7a8a]/20 border border-[#2a7a8a]/30 text-[#4fd1c5] text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
+                {project.system}
+              </span>
+              {project.subtype && (
+                <span className="text-white/30 text-xs whitespace-nowrap">{project.subtype}</span>
+              )}
+            </div>
           </div>
         </div>
-        <button onClick={async () => { await handleSaveSection(); onBack(); }}
-          className={`flex items-center gap-2 px-6 py-2.5 text-white font-bold rounded-xl transition-all shadow-lg ${
-            isDirty
-              ? 'bg-amber-500 hover:bg-amber-400 shadow-amber-500/20'
-              : 'bg-[#00b894] hover:bg-[#00d1a7] shadow-[#00b894]/20'
-          }`}>
-          {isSaving ? (
-            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          ) : (
-            <Save className="w-4 h-4" />
-          )}
-          {isDirty ? 'Сохранить и выйти' : 'Выйти'}
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            className="sm:hidden p-2.5 rounded-xl bg-[#2a7a8a]/15 border border-[#2a7a8a]/30 text-[#4fd1c5] hover:bg-[#2a7a8a]/30 transition-colors"
+            onClick={() => setMobileSidebarOpen(v => !v)}
+            aria-label="Секции"
+          >
+            <ClipboardList className="w-4 h-4" />
+          </button>
+          <button onClick={async () => { await handleSaveSection(); onBack(); }}
+            className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 text-white font-bold rounded-xl transition-all shadow-lg ${
+              isDirty
+                ? 'bg-amber-500 hover:bg-amber-400 shadow-amber-500/20'
+                : 'bg-[#00b894] hover:bg-[#00d1a7] shadow-[#00b894]/20'
+            }`}>
+            {isSaving ? (
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            <span className="hidden sm:inline">{isDirty ? 'Сохранить и выйти' : 'Выйти'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Body */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col sm:flex-row min-h-0 overflow-hidden">
 
         {/* Left: sections list + docs */}
-        <aside className="w-[300px] border-r border-[#2a7a8a]/30 flex flex-col bg-[#0c1d2d]/80 backdrop-blur-sm z-10 flex-shrink-0">
+        <aside className={`border-r border-[#2a7a8a]/30 flex-col bg-[#0c1d2d]/80 backdrop-blur-sm z-10 flex-shrink-0 w-full sm:w-[300px] ${mobileSidebarOpen ? 'flex' : 'hidden sm:flex'}`}>
           <div className="p-5 flex-1 overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40">Секции</h3>
@@ -870,6 +886,16 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             </div>
           </div>
 
+          {/* Mobile: go to editor button */}
+          {activeSectionId && (
+            <div className="sm:hidden p-3 border-t border-[#2a7a8a]/20 flex-shrink-0">
+              <button onClick={() => setMobileSidebarOpen(false)}
+                className="w-full py-3 rounded-xl bg-[#2a7a8a]/20 border border-[#2a7a8a]/40 text-[#4fd1c5] font-bold text-sm flex items-center justify-center gap-2">
+                <ChevronRight className="w-4 h-4" /> Редактировать
+              </button>
+            </div>
+          )}
+
           {/* Documents */}
           <div className="p-5 border-t border-[#2a7a8a]/20 bg-black/20 flex-shrink-0">
             <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40 mb-3">Документы</h3>
@@ -891,7 +917,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         </aside>
 
         {/* Right: editor */}
-        <main className="flex-1 overflow-y-auto bg-[#0c1d2d]/50">
+        <main className={`flex-1 overflow-y-auto bg-[#0c1d2d]/50 ${mobileSidebarOpen ? 'hidden sm:block' : 'block'}`}>
           <AnimatePresence mode="wait">
             {!activeSection ? (
               <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -900,30 +926,36 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   <ClipboardList className="w-10 h-10 text-white/10" />
                 </div>
                 <h3 className="text-2xl font-bold mb-2">Выберите секцию</h3>
-                <p className="text-white/40 max-w-xs mb-8">Выберите существующую секцию слева или добавьте новую</p>
-                <button onClick={handleAddSection}
-                  className="flex items-center gap-2 px-8 py-4 bg-[#2a7a8a]/20 border border-[#2a7a8a]/40 hover:bg-[#2a7a8a]/40 text-[#4fd1c5] font-bold rounded-2xl transition-all">
-                  <Plus className="w-5 h-5" /> Добавить секцию
-                </button>
+                <p className="text-white/40 max-w-xs mb-8">Выберите существующую секцию или добавьте новую</p>
+                <div className="flex flex-col gap-3 w-full max-w-xs">
+                  <button onClick={() => setMobileSidebarOpen(true)}
+                    className="sm:hidden flex items-center justify-center gap-2 px-8 py-4 bg-[#2a7a8a]/20 border border-[#2a7a8a]/40 hover:bg-[#2a7a8a]/40 text-[#4fd1c5] font-bold rounded-2xl transition-all">
+                    <ClipboardList className="w-5 h-5" /> Открыть секции
+                  </button>
+                  <button onClick={handleAddSection}
+                    className="flex items-center justify-center gap-2 px-8 py-4 bg-[#2a7a8a]/20 border border-[#2a7a8a]/40 hover:bg-[#2a7a8a]/40 text-[#4fd1c5] font-bold rounded-2xl transition-all">
+                    <Plus className="w-5 h-5" /> Добавить секцию
+                  </button>
+                </div>
               </motion.div>
             ) : (
               <motion.div key={activeSection.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
-                className="p-8 max-w-4xl mx-auto w-full">
+                className="p-4 sm:p-8 max-w-4xl mx-auto w-full">
 
                 {/* Section title + tabs */}
-                <div className="flex items-center justify-between mb-7">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-5 sm:mb-7 gap-3">
                   <div>
-                    <h2 className="text-2xl font-bold mb-1">{activeSection.name}</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold mb-1">{activeSection.name}</h2>
                     <div className="flex items-center gap-2 text-white/40 text-sm">
                       <span>Система</span>
                       <ChevronRight className="w-4 h-4" />
                       <span className="text-[#4fd1c5] font-bold">{project.system}</span>
                     </div>
                   </div>
-                  <div className="flex p-1 bg-black/20 rounded-2xl border border-[#2a7a8a]/20">
+                  <div className="flex p-1 bg-black/20 rounded-2xl border border-[#2a7a8a]/20 self-start sm:self-auto">
                     {tabs.map(tab => (
                       <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                        className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        className={`px-4 sm:px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
                           activeTab === tab.id ? 'bg-[#2a7a8a] text-white shadow-lg' : 'text-white/30 hover:text-white/60'
                         }`}
                       >{tab.label}</button>
@@ -932,7 +964,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                 </div>
 
                 {/* Tab content card */}
-                <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/35 rounded-[2rem] p-8 mb-6">
+                <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/35 rounded-2xl sm:rounded-[2rem] p-4 sm:p-8 mb-6">
                   <AnimatePresence mode="wait">
                     <motion.div key={activeTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
                       {renderTabContent(activeTab)}
@@ -942,8 +974,8 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
 
                 {/* SVG scheme (only for СЛАЙД) */}
                 {project.system === 'СЛАЙД' && (
-                  <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-[2rem] p-7 mb-6 overflow-hidden">
-                    <div className="flex items-center justify-between mb-5">
+                  <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2rem] p-4 sm:p-7 mb-6 overflow-x-auto">
+                    <div className="flex items-center justify-between mb-5 min-w-[360px]">
                       <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Схема (Вид сверху)</h4>
                       <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">
                         {activeSection.rails ?? 3}-рельсовая · {activeSection.panels} пан.
@@ -987,7 +1019,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setIsDeleteModalOpen(false)} className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
             <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-md bg-[#122433] border border-red-500/30 rounded-[2rem] p-8 shadow-2xl z-10">
+              className="relative w-full max-w-md bg-[#122433] border border-red-500/30 rounded-[2rem] p-6 sm:p-8 shadow-2xl z-10">
               <button onClick={() => setIsDeleteModalOpen(false)} className="absolute right-6 top-6 text-white/20 hover:text-white transition-colors">
                 <X className="w-6 h-6" />
               </button>
@@ -1014,15 +1046,15 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setIsPreviewModalOpen(false)} className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
             <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-4xl bg-[#1a4b54] border border-[#2a7a8a]/30 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] z-10">
-              <div className="px-10 py-7 border-b border-[#2a7a8a]/20 flex items-center justify-between flex-shrink-0">
+              className="relative w-full max-w-4xl bg-[#1a4b54] border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] z-10">
+              <div className="px-5 py-5 sm:px-10 sm:py-7 border-b border-[#2a7a8a]/20 flex items-center justify-between flex-shrink-0">
                 <h2 className="text-2xl font-bold">{previewDocName}</h2>
                 <button onClick={() => setIsPreviewModalOpen(false)} className="text-white/20 hover:text-white transition-colors">
                   <X className="w-6 h-6" />
                 </button>
               </div>
-              <div className="flex-1 p-10 overflow-y-auto bg-black/20">
-                <div className="aspect-[1/1.414] w-full bg-white rounded-lg shadow-inner p-12 text-black flex flex-col">
+              <div className="flex-1 p-4 sm:p-10 overflow-y-auto bg-black/20">
+                <div className="aspect-[1/1.414] w-full bg-white rounded-lg shadow-inner p-5 sm:p-12 text-black flex flex-col">
                   <div className="flex justify-between items-start border-b-2 border-black pb-8 mb-8">
                     <div>
                       <h1 className="text-4xl font-black uppercase tracking-tighter">Ралюма</h1>
@@ -1045,7 +1077,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   </div>
                 </div>
               </div>
-              <div className="px-10 py-6 bg-black/40 border-t border-[#2a7a8a]/20 flex justify-end gap-4 flex-shrink-0">
+              <div className="px-5 py-4 sm:px-10 sm:py-6 bg-black/40 border-t border-[#2a7a8a]/20 flex justify-end gap-4 flex-shrink-0">
                 <button onClick={() => setIsPreviewModalOpen(false)} className="px-8 py-3 rounded-xl bg-white/5 hover:bg-white/10 font-bold transition-all">Закрыть</button>
                 <button className="px-8 py-3 rounded-xl bg-[#00b894] hover:bg-[#00d1a7] text-white font-bold transition-all">
                   <ArrowRight className="w-4 h-4 inline mr-2" />Скачать PDF

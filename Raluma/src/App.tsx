@@ -146,7 +146,7 @@ function SkeletonRow() {
   return (
     <tr className="border-b border-[#2a7a8a]/10">
       {[60, 80, 45, 55, 30].map((w, i) => (
-        <td key={i} className="px-8 py-5">
+        <td key={i} className={`px-3 py-4 sm:px-8 sm:py-5 ${i === 1 ? 'hidden sm:table-cell' : ''} ${i === 3 ? 'hidden md:table-cell' : ''}`}>
           <div className="h-4 rounded-lg bg-white/[0.06] animate-pulse" style={{ width: `${w}%` }} />
         </td>
       ))}
@@ -260,43 +260,43 @@ function ProjectsPage() {
         <div className="absolute bottom-[-10%] left-[-5%] w-[40%] h-[40%] bg-[#1a5f7a]/5 rounded-full blur-[120px]" />
       </div>
 
-      <nav className="sticky top-0 z-40 bg-[#0c1d2d]/90 backdrop-blur-md border-b border-[#2a7a8a]/25 px-6 py-4 flex items-center justify-between">
+      <nav className="sticky top-0 z-40 bg-[#0c1d2d]/90 backdrop-blur-md border-b border-[#2a7a8a]/25 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#2a7a8a]/20 border border-[#2a7a8a]/30 flex items-center justify-center">
-            <LayoutGrid className="w-6 h-6 text-[#4fd1c5]" />
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#2a7a8a]/20 border border-[#2a7a8a]/30 flex items-center justify-center">
+            <LayoutGrid className="w-5 h-5 sm:w-6 sm:h-6 text-[#4fd1c5]" />
           </div>
-          <span className="text-xl font-bold tracking-tight uppercase">Ралюма</span>
+          <span className="text-lg sm:text-xl font-bold tracking-tight uppercase">Ралюма</span>
         </div>
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-3 pr-6 border-r border-[#2a7a8a]/20">
-            <div className="text-right">
+        <div className="flex items-center gap-2 sm:gap-6">
+          <div className="flex items-center gap-3 sm:pr-6 sm:border-r sm:border-[#2a7a8a]/20">
+            <div className="text-right hidden sm:block">
               <div className="text-sm font-medium">{user?.display_name}</div>
               <div className="text-[10px] text-[#4fd1c5] font-bold uppercase tracking-wider">{user?.role}</div>
             </div>
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#2a7a8a] to-[#1a4b54] flex items-center justify-center border border-white/10">
-              <User className="w-5 h-5" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-[#2a7a8a] to-[#1a4b54] flex items-center justify-center border border-white/10">
+              <User className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
           </div>
           <div className="flex items-center gap-2">
             {isAdmin() && (
               <button onClick={() => navigate('/admin')}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#2a7a8a]/10 hover:bg-[#2a7a8a]/20 text-[#4fd1c5] transition-all border border-[#2a7a8a]/20"
+                className="flex items-center gap-2 px-2.5 sm:px-4 py-2.5 rounded-xl bg-[#2a7a8a]/10 hover:bg-[#2a7a8a]/20 text-[#4fd1c5] transition-all border border-[#2a7a8a]/20"
               >
                 <Shield className="w-4 h-4" />
-                <span className="text-sm font-bold">Администрирование</span>
+                <span className="hidden sm:inline text-sm font-bold">Администрирование</span>
               </button>
             )}
             <button onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-all border border-red-500/20"
+              className="flex items-center gap-2 px-2.5 sm:px-4 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-all border border-red-500/20"
             >
               <LogOut className="w-4 h-4" />
-              <span className="text-sm font-bold">Выйти</span>
+              <span className="hidden sm:inline text-sm font-bold">Выйти</span>
             </button>
           </div>
         </div>
       </nav>
 
-      <main className="flex-1 p-8 max-w-7xl mx-auto w-full z-10">
+      <main className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full z-10">
         <div className="flex flex-col md:flex-row gap-4 mb-8 items-center">
           <div className="relative flex-1 group w-full">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/20 group-focus-within:text-[#4fd1c5] transition-colors" />
@@ -324,11 +324,11 @@ function ProjectsPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-[#2a7a8a]/20 bg-white/[0.02]">
-                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Проект</th>
-                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Заказчик</th>
-                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Система</th>
-                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Дата</th>
-                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40 text-right">Действия</th>
+                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Проект</th>
+                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/40 hidden sm:table-cell">Заказчик</th>
+                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Система</th>
+                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/40 hidden md:table-cell">Дата</th>
+                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/40 text-right">Действия</th>
               </tr>
             </thead>
             <tbody>
@@ -340,7 +340,7 @@ function ProjectsPage() {
                     onClick={() => navigate(`/projects/${project.id}`)}
                     className="border-b border-[#2a7a8a]/10 hover:bg-white/[0.03] transition-colors cursor-pointer group"
                   >
-                    <td className="px-8 py-5 font-mono text-sm text-[#4fd1c5] font-bold" onClick={e => e.stopPropagation()}>
+                    <td className="px-3 py-4 sm:px-8 sm:py-5 font-mono text-sm text-[#4fd1c5] font-bold" onClick={e => e.stopPropagation()}>
                       {renamingId === project.id ? (
                         <div className="flex items-center gap-1">
                           <input
@@ -361,13 +361,13 @@ function ProjectsPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-8 py-5 text-sm font-medium">{project.customer}</td>
-                    <td className="px-8 py-5"><Badge type={project.system as SystemType} /></td>
-                    <td className="px-8 py-5 text-sm text-white/40">
+                    <td className="px-3 py-4 sm:px-8 sm:py-5 text-sm font-medium hidden sm:table-cell">{project.customer}</td>
+                    <td className="px-3 py-4 sm:px-8 sm:py-5"><Badge type={project.system as SystemType} /></td>
+                    <td className="px-3 py-4 sm:px-8 sm:py-5 text-sm text-white/40 hidden md:table-cell">
                       {new Date(project.created_at).toLocaleDateString('ru-RU')}
                     </td>
-                    <td className="px-8 py-5 text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <td className="px-3 py-4 sm:px-8 sm:py-5 text-right">
+                      <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <button onClick={e => startRename(e, project)}
                           className="p-2 rounded-lg hover:bg-[#2a7a8a]/20 text-[#4fd1c5] transition-colors" title="Переименовать">
                           <Edit2 className="w-4 h-4" />
@@ -407,7 +407,7 @@ function ProjectsPage() {
               </AnimatePresence>
             </tbody>
           </table>
-          <div className="px-8 py-6 bg-white/[0.02] flex items-center justify-between border-t border-[#2a7a8a]/20">
+          <div className="px-4 py-4 sm:px-8 sm:py-6 bg-white/[0.02] flex items-center justify-between border-t border-[#2a7a8a]/20">
             <div className="text-xs text-white/40">
               Показано <span className="text-white font-bold">{filteredProjects.length}</span> из <span className="text-white font-bold">{projects.length}</span>
             </div>
@@ -452,13 +452,13 @@ function ProjectsPage() {
               onClick={() => setIsCreateModalOpen(false)} className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
             <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-xl bg-[#122433] border border-[#2a7a8a]/35 rounded-[2.5rem] p-10 shadow-2xl overflow-hidden z-10"
+              className="relative w-full max-w-xl bg-[#122433] border border-[#2a7a8a]/35 rounded-[2.5rem] p-5 sm:p-10 shadow-2xl overflow-y-auto max-h-[95vh] z-10"
             >
               <button onClick={() => setIsCreateModalOpen(false)} className="absolute right-8 top-8 text-white/20 hover:text-white transition-colors">
                 <X className="w-6 h-6" />
               </button>
-              <h2 className="text-3xl font-bold mb-8">Новый проект</h2>
-              <div className="space-y-8">
+              <h2 className="text-2xl sm:text-3xl font-bold mb-5 sm:mb-8">Новый проект</h2>
+              <div className="space-y-5 sm:space-y-8">
                 <div className="space-y-3">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40 ml-1">Номер проекта</label>
                   <input type="text" value={newNumber} onChange={e => setNewNumber(e.target.value)}
@@ -511,7 +511,7 @@ function ProjectsPage() {
                   </div>
                 </div>
               </div>
-              <div className="flex gap-4 mt-10">
+              <div className="flex gap-4 mt-6 sm:mt-10">
                 <button onClick={() => setIsCreateModalOpen(false)} className="flex-1 py-4 rounded-2xl bg-white/5 hover:bg-white/10 font-bold transition-all">Отмена</button>
                 <button onClick={handleCreate} disabled={!newNumber.trim() || isCreating}
                   className="flex-1 py-4 rounded-2xl bg-[#00b894] hover:bg-[#00d1a7] text-white font-bold transition-all shadow-lg shadow-[#00b894]/20 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"

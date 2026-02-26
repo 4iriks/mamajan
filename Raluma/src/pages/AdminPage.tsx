@@ -220,7 +220,7 @@ export default function AdminPage() {
         </div>
       </nav>
 
-      <main className="flex-1 p-8 max-w-5xl mx-auto w-full z-10">
+      <main className="flex-1 p-4 sm:p-8 max-w-5xl mx-auto w-full z-10">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <button onClick={() => navigate('/')}
@@ -233,7 +233,7 @@ export default function AdminPage() {
         </div>
 
         {/* Toolbar */}
-        <div className="flex gap-3 mb-6">
+        <div className="flex flex-col sm:flex-row gap-3 mb-6">
           <div className="relative flex-1 group">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/25 group-focus-within:text-[#4fd1c5] transition-colors" />
             <input type="text" placeholder="Поиск по логину или имени..." value={search}
@@ -241,16 +241,18 @@ export default function AdminPage() {
               className="w-full bg-[#1a4b54]/30 border border-[#2a7a8a]/30 rounded-2xl pl-12 pr-4 py-4 outline-none focus:border-[#4fd1c5]/50 transition-all text-white"
             />
           </div>
-          <button onClick={() => { setIsBulkOpen(true); setBulkText(''); setBulkRole('user'); setBulkCustomer(''); setBulkResults([]); }}
-            className="flex items-center gap-2 px-6 py-4 bg-[#2a7a8a]/25 hover:bg-[#2a7a8a]/40 text-[#4fd1c5] font-bold rounded-2xl transition-all border border-[#2a7a8a]/35 whitespace-nowrap">
-            <Users className="w-5 h-5" />
-            Массовое добавление
-          </button>
-          <button onClick={openCreate}
-            className="flex items-center gap-2 px-6 py-4 bg-[#00b894] hover:bg-[#00d1a7] text-white font-bold rounded-2xl transition-all shadow-lg shadow-[#00b894]/20 whitespace-nowrap">
-            <Plus className="w-5 h-5" />
-            Создать сотрудника
-          </button>
+          <div className="flex gap-3">
+            <button onClick={() => { setIsBulkOpen(true); setBulkText(''); setBulkRole('user'); setBulkCustomer(''); setBulkResults([]); }}
+              className="flex items-center gap-2 px-4 sm:px-6 py-4 bg-[#2a7a8a]/25 hover:bg-[#2a7a8a]/40 text-[#4fd1c5] font-bold rounded-2xl transition-all border border-[#2a7a8a]/35 whitespace-nowrap">
+              <Users className="w-5 h-5" />
+              <span className="hidden sm:inline">Массовое добавление</span>
+            </button>
+            <button onClick={openCreate}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-4 bg-[#00b894] hover:bg-[#00d1a7] text-white font-bold rounded-2xl transition-all shadow-lg shadow-[#00b894]/20 whitespace-nowrap">
+              <Plus className="w-5 h-5" />
+              Создать сотрудника
+            </button>
+          </div>
         </div>
 
         {/* Table */}
@@ -258,12 +260,12 @@ export default function AdminPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-[#2a7a8a]/20 bg-white/[0.03]">
-                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/50">Логин</th>
-                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/50">Имя</th>
-                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/50">Роль</th>
-                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/50">Заказчик</th>
-                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/50">Статус</th>
-                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/50 text-right">Действия</th>
+                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/50">Логин</th>
+                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/50 hidden sm:table-cell">Имя</th>
+                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/50">Роль</th>
+                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/50 hidden md:table-cell">Заказчик</th>
+                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/50 hidden md:table-cell">Статус</th>
+                <th className="px-3 py-4 sm:px-8 sm:py-5 text-[10px] font-bold uppercase tracking-widest text-white/50 text-right">Действия</th>
               </tr>
             </thead>
             <tbody>
@@ -288,23 +290,23 @@ export default function AdminPage() {
               ) : filtered.map(u => (
                 <motion.tr key={u.id} initial={{ opacity: 0 }} animate={{ opacity: u.is_active ? 1 : 0.45 }}
                   className="border-b border-[#2a7a8a]/10 hover:bg-white/[0.03] transition-colors group">
-                  <td className="px-8 py-5 font-mono text-sm text-[#4fd1c5] font-bold">{u.username}</td>
-                  <td className="px-8 py-5 text-sm font-medium text-white/90">{u.display_name}</td>
-                  <td className="px-8 py-5">
+                  <td className="px-3 py-4 sm:px-8 sm:py-5 font-mono text-sm text-[#4fd1c5] font-bold">{u.username}</td>
+                  <td className="px-3 py-4 sm:px-8 sm:py-5 text-sm font-medium text-white/90 hidden sm:table-cell">{u.display_name}</td>
+                  <td className="px-3 py-4 sm:px-8 sm:py-5">
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border ${ROLE_COLORS[u.role]}`}>
                       <RoleIcon role={u.role} />
-                      {ROLE_LABELS[u.role]}
+                      <span className="hidden sm:inline">{ROLE_LABELS[u.role]}</span>
                     </span>
                   </td>
-                  <td className="px-8 py-5 text-sm text-white/50">{u.customer || '—'}</td>
-                  <td className="px-8 py-5">
+                  <td className="px-3 py-4 sm:px-8 sm:py-5 text-sm text-white/50 hidden md:table-cell">{u.customer || '—'}</td>
+                  <td className="px-3 py-4 sm:px-8 sm:py-5 hidden md:table-cell">
                     <span className={`inline-flex items-center gap-1.5 text-xs font-bold ${u.is_active ? 'text-emerald-400' : 'text-red-400'}`}>
                       <span className={`w-2 h-2 rounded-full ${u.is_active ? 'bg-emerald-400' : 'bg-red-400'}`} />
                       {u.is_active ? 'Активен' : 'Неактивен'}
                     </span>
                   </td>
-                  <td className="px-8 py-5 text-right">
-                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <td className="px-3 py-4 sm:px-8 sm:py-5 text-right">
+                    <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <button onClick={() => openEdit(u)}
                         className="p-2 rounded-lg hover:bg-[#2a7a8a]/25 text-[#4fd1c5] transition-colors" title="Изменить">
                         <Edit2 className="w-4 h-4" />
@@ -325,7 +327,7 @@ export default function AdminPage() {
               ))}
             </tbody>
           </table>
-          <div className="px-8 py-4 bg-white/[0.02] border-t border-[#2a7a8a]/20 text-xs text-white/40">
+          <div className="px-4 py-4 sm:px-8 bg-white/[0.02] border-t border-[#2a7a8a]/20 text-xs text-white/40">
             Всего сотрудников: <span className="text-white font-bold">{users.length}</span>
           </div>
         </div>
@@ -339,7 +341,7 @@ export default function AdminPage() {
               onClick={() => setIsEditOpen(false)} className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
             <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-lg bg-[#122433] border border-[#2a7a8a]/40 rounded-[2.5rem] p-10 shadow-2xl z-10">
+              className="relative w-full max-w-lg bg-[#122433] border border-[#2a7a8a]/40 rounded-[2.5rem] p-6 sm:p-10 shadow-2xl z-10 overflow-y-auto max-h-[95vh]">
               <button onClick={() => setIsEditOpen(false)} className="absolute right-8 top-8 text-white/30 hover:text-white transition-colors">
                 <X className="w-6 h-6" />
               </button>
@@ -539,7 +541,7 @@ export default function AdminPage() {
               onClick={() => setResetResult(null)} className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
             <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-md bg-[#122433] border border-[#2a7a8a]/40 rounded-[2.5rem] p-10 shadow-2xl z-10">
+              className="relative w-full max-w-md bg-[#122433] border border-[#2a7a8a]/40 rounded-[2.5rem] p-6 sm:p-10 shadow-2xl z-10">
               <button onClick={() => setResetResult(null)} className="absolute right-8 top-8 text-white/30 hover:text-white transition-colors">
                 <X className="w-6 h-6" />
               </button>
