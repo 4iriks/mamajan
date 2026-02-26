@@ -847,8 +847,9 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     <div className="min-h-screen flex flex-col bg-[#0c1d2d]">
 
       {/* Header */}
-      <div className="bg-[#1a4b54]/40 border-b border-[#2a7a8a]/30 px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between z-20 flex-shrink-0 gap-2">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
+      <div className="bg-[#1a4b54]/40 border-b border-[#2a7a8a]/30 px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between z-20 flex-shrink-0 gap-3">
+        {/* Left: back + title */}
+        <div className="flex items-center gap-3 min-w-0 flex-shrink-0">
           <button onClick={onBack} className="flex items-center gap-2 text-white/40 hover:text-[#4fd1c5] transition-colors group flex-shrink-0">
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
             <span className="hidden sm:inline text-sm font-bold uppercase tracking-wider">Проекты</span>
@@ -856,12 +857,30 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           <div className="hidden sm:block h-6 w-px bg-[#2a7a8a]/20 flex-shrink-0" />
           <div className="flex items-center gap-2 min-w-0 overflow-hidden">
             <span className="text-sm sm:text-xl font-bold whitespace-nowrap">№ {project.number}</span>
-            <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
+            <div className="hidden lg:flex items-center gap-2 flex-shrink-0">
               <span className="text-white/20">·</span>
               <span className="text-white/60 truncate max-w-[200px]">{project.customer}</span>
             </div>
           </div>
         </div>
+
+        {/* Center: document buttons */}
+        <div className="hidden md:flex items-center gap-1 flex-1 justify-center">
+          {[
+            { name: 'Произв. лист', icon: FileText },
+            { name: 'Накладная', icon: ClipboardList },
+            { name: 'Заказ стекла', icon: WindowIcon },
+            { name: 'Заявка покр.', icon: Palette },
+          ].map(doc => (
+            <button key={doc.name} onClick={() => openPreview(doc.name)}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:bg-[#2a7a8a]/20 hover:border-[#2a7a8a]/40 transition-all group">
+              <doc.icon className="w-3.5 h-3.5 text-[#4fd1c5]/50 group-hover:text-[#4fd1c5] transition-colors flex-shrink-0" />
+              <span className="text-[11px] font-bold text-white/40 group-hover:text-white transition-colors whitespace-nowrap">{doc.name}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Right: actions */}
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
             className="sm:hidden p-2.5 rounded-xl bg-[#2a7a8a]/15 border border-[#2a7a8a]/30 text-[#4fd1c5] hover:bg-[#2a7a8a]/30 transition-colors"
@@ -974,24 +993,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             </div>
           )}
 
-          {/* Documents */}
-          <div className="p-5 border-t border-[#2a7a8a]/20 bg-black/20 flex-shrink-0">
-            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40 mb-3">Документы</h3>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { name: 'Произв. лист', icon: FileText },
-                { name: 'Накладная', icon: ClipboardList },
-                { name: 'Заказ стекла', icon: WindowIcon },
-                { name: 'Заявка покр.', icon: Palette },
-              ].map(doc => (
-                <button key={doc.name} onClick={() => openPreview(doc.name)}
-                  className="flex items-center gap-2 p-2.5 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-[#2a7a8a]/20 hover:border-[#2a7a8a]/30 transition-all group">
-                  <doc.icon className="w-3.5 h-3.5 text-[#4fd1c5]/40 group-hover:text-[#4fd1c5] transition-colors flex-shrink-0" />
-                  <span className="text-[10px] font-bold text-white/50 group-hover:text-white transition-colors leading-tight">{doc.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
         </aside>
 
         {/* Right: editor */}
