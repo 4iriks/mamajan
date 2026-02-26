@@ -236,6 +236,26 @@ mamajan/
 
 ## История изменений
 
+### 2026-02-26 — Мобильная адаптация
+- `Toast.tsx` — полная ширина на мобиле (`bottom-4 right-4`, `w-[calc(100vw-2rem)]`)
+- `App.tsx`:
+  - Navbar: иконки без текста на мобиле, аватар без имени/роли
+  - Таблица: уменьшен padding (`px-3 py-4`), скрыты Заказчик/Дата на мобиле, действия всегда видны
+  - Модал создания: `p-5 sm:p-10`, `overflow-y-auto max-h-[95vh]`
+- `ProjectEditor.tsx`:
+  - Хедер: компактный на мобиле (иконки без текста, номер проекта без деталей)
+  - Кнопка переключения sidebar (`<ClipboardList>`) в хедере на мобиле
+  - Body: `flex-col sm:flex-row` — сайдбар или редактор (mobile two-panel nav)
+  - Сайдбар: кнопка «Редактировать» в нижней части
+  - Пустое состояние: кнопка «Открыть секции» на мобиле
+  - Все вкладки: `grid-cols-1` → `sm:grid-cols-2` (MainTab, SlideSystemTab, SlideHardwareTab, BookSystemTab, LiftSystemTab, DoorSystemTab)
+  - SVG схема: `overflow-x-auto` + `min-w-[360px]`
+  - Контентная карточка: `p-4 sm:p-8`, `rounded-2xl sm:rounded-[2rem]`
+- `AdminPage.tsx`:
+  - Toolbar: `flex-col sm:flex-row`, кнопка «Массовое» — только иконка на мобиле
+  - Таблица: уменьшен padding, скрыты Имя/Заказчик/Статус на мобиле
+  - Модал редактирования: `p-6 sm:p-10`, `max-h-[95vh]`
+
 ### 2026-02-26 — Аудит + полировка
 **Backend:**
 - `sections.py` — заменить `count()` на `func.max(order) + 1` (корректный порядок после удалений)
