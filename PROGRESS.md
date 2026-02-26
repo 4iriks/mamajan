@@ -236,6 +236,18 @@ mamajan/
 
 ## История изменений
 
+### 2026-02-26 — Рефакторинг: система на секцию
+- `backend/models.py` — `Section.system` (nullable), `Project.system` → nullable (legacy)
+- `backend/schemas.py` — `SectionBase.system: Optional[str]`, `ProjectBase.system: Optional[str]`
+- `backend/main.py` — миграция `ALTER TABLE sections ADD COLUMN system`, data migration из project.system
+- `src/api/projects.ts` — `SectionOut.system?: string`, `createProject` только `number`+`customer`
+- `src/App.tsx` — убраны: фильтр систем, колонка "Система", выбор системы/подтипа при создании; таблица 4 колонки
+- `src/components/ProjectEditor.tsx`:
+  - Система выбирается при создании секции (picker в сайдбаре по кнопке +)
+  - Вкладки убраны — всё на одной прокручиваемой странице
+  - Секции в сайдбаре показывают цветной бейдж системы
+  - Проект может содержать секции разных систем одновременно
+
 ### 2026-02-26 — Мобильная адаптация
 - `Toast.tsx` — полная ширина на мобиле (`bottom-4 right-4`, `w-[calc(100vw-2rem)]`)
 - `App.tsx`:

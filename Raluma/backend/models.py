@@ -26,7 +26,7 @@ class Project(Base):
     id = Column(Integer, primary_key=True, index=True)
     number = Column(String, nullable=False)
     customer = Column(String, nullable=False)
-    system = Column(String, nullable=False)   # СЛАЙД | КНИЖКА | ЛИФТ | ЦС | ДВЕРЬ
+    system = Column(String, nullable=True)    # СЛАЙД | КНИЖКА | ЛИФТ | ЦС | ДВЕРЬ (legacy, теперь на секцию)
     subtype = Column(String, nullable=True)   # подтип системы
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -43,6 +43,8 @@ class Section(Base):
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
     order = Column(Integer, default=0)
     name = Column(String, nullable=False)
+
+    system = Column(String, nullable=True)       # СЛАЙД | КНИЖКА | ЛИФТ | ЦС | ДВЕРЬ
 
     # Общие поля
     width = Column(Float, default=2000)

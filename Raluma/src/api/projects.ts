@@ -1,11 +1,10 @@
 import client from './client';
-import { SystemType } from '../components/ProjectEditor';
 
 export interface ProjectList {
   id: number;
   number: string;
   customer: string;
-  system: SystemType;
+  system?: string;
   subtype?: string;
   created_at: string;
   updated_at: string;
@@ -21,6 +20,7 @@ export interface SectionOut {
   project_id: number;
   order: number;
   name: string;
+  system?: string;
   width: number;
   height: number;
   panels: number;
@@ -63,7 +63,7 @@ export const getProjects = () =>
 export const getProject = (id: number) =>
   client.get<ProjectFull>(`/api/projects/${id}`).then(r => r.data);
 
-export const createProject = (data: { number: string; customer: string; system: SystemType; subtype?: string }) =>
+export const createProject = (data: { number: string; customer: string }) =>
   client.post<ProjectFull>('/api/projects', data).then(r => r.data);
 
 export const updateProject = (id: number, data: Partial<{ number: string; customer: string; system: string }>) =>

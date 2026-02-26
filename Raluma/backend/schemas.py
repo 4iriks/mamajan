@@ -58,6 +58,7 @@ class ResetPasswordResponse(BaseModel):
 class SectionBase(BaseModel):
     name: str
     order: int = 0
+    system: Optional[str] = None
     width: float = 2000
     height: float = 2400
     panels: int = 3
@@ -116,7 +117,7 @@ class SectionOut(SectionBase):
 class ProjectBase(BaseModel):
     number: str
     customer: str
-    system: str
+    system: Optional[str] = None
     subtype: Optional[str] = None
 
 

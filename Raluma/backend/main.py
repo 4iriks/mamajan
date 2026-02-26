@@ -45,12 +45,23 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE sections ADD COLUMN door_system VARCHAR",
             "ALTER TABLE sections ADD COLUMN cs_shape VARCHAR",
             "ALTER TABLE sections ADD COLUMN cs_width2 FLOAT",
+            "ALTER TABLE sections ADD COLUMN system VARCHAR",
         ]:
             try:
                 conn.execute(text(col_sql))
                 conn.commit()
             except Exception:
                 pass  # колонка уже существует
+    # Переносим system из project в sections для старых данных
+    with engine.connect() as conn:
+        try:
+            conn.execute(text(
+                "UPDATE sections SET system = (SELECT system FROM projects WHERE projects.id = sections.project_id) "
+                "WHERE system IS NULL"
+            ))
+            conn.commit()
+        except Exception:
+            pass
     seed_superadmin()
     yield
     # Shutdown (ничего не нужно)

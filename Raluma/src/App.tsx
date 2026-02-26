@@ -8,40 +8,16 @@ import { Routes, Route, Navigate, useNavigate, useParams } from 'react-router-do
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogIn, User, Lock, ArrowRight, Search, Plus,
-  Edit2, Copy, Trash2, ChevronLeft, ChevronRight,
+  Edit2, Copy, Trash2,
   LogOut, X, LayoutGrid, List, Shield, Check
 } from 'lucide-react';
-import { ProjectEditor, SystemType } from './components/ProjectEditor';
+import { ProjectEditor } from './components/ProjectEditor';
 import { useAuthStore } from './store/authStore';
 import { login as apiLogin, getMe } from './api/auth';
 import { getProjects, createProject, updateProject, deleteProject, copyProject, ProjectList } from './api/projects';
 import AdminPage from './pages/AdminPage';
 import ToastContainer from './components/Toast';
 import { toast } from './store/toastStore';
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-const SYSTEM_COLORS: Record<SystemType, string> = {
-  'СЛАЙД':  'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  'КНИЖКА': 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-  'ЛИФТ':   'bg-orange-500/20 text-orange-400 border-orange-500/30',
-  'ЦС':     'bg-purple-500/20 text-purple-400 border-purple-500/30',
-  'ДВЕРЬ':  'bg-rose-500/20 text-rose-400 border-rose-500/30',
-};
-
-const SYSTEM_SUBTYPES: Record<SystemType, string[]> = {
-  'СЛАЙД':  ['Стандарт 1 ряд', 'Стандарт от центра 2 ряда'],
-  'КНИЖКА': ['Секция с дверями', 'Секция с углом', 'Секция с дверями и углом'],
-  'ЛИФТ':   ['2 панели', '3 панели', '4 панели'],
-  'ЦС':     ['Треугольник', 'Прямоугольник', 'Трапеция', 'Сложная форма'],
-  'ДВЕРЬ':  ['Одностворчатая', 'Двустворчатая'],
-};
-
-const Badge = ({ type }: { type: SystemType }) => (
-  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${SYSTEM_COLORS[type]}`}>
-    {type}
-  </span>
-);
 
 // ── Login Page ────────────────────────────────────────────────────────────────
 
@@ -145,7 +121,7 @@ function LoginPage() {
 function SkeletonRow() {
   return (
     <tr className="border-b border-[#2a7a8a]/10">
-      {[60, 80, 45, 55, 30].map((w, i) => (
+      {[60, 80, 55, 30].map((w, i) => (
         <td key={i} className="px-8 py-5">
           <div className="h-4 rounded-lg bg-white/[0.06] animate-pulse" style={{ width: `${w}%` }} />
         </td>
@@ -163,7 +139,6 @@ function ProjectsPage() {
   const [projects, setProjects] = useState<ProjectList[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [systemFilter, setSystemFilter] = useState('Все системы');
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -171,8 +146,6 @@ function ProjectsPage() {
 
   const [newNumber, setNewNumber] = useState('');
   const [newCustomer, setNewCustomer] = useState('ПРОЗРАЧНЫЕ РЕШЕНИЯ');
-  const [newSystem, setNewSystem] = useState<SystemType>('СЛАЙД');
-  const [newSubtype, setNewSubtype] = useState(SYSTEM_SUBTYPES['СЛАЙД'][0]);
 
   const [isCreating, setIsCreating] = useState(false);
   const [renamingId, setRenamingId] = useState<number | null>(null);
@@ -188,16 +161,14 @@ function ProjectsPage() {
   };
 
   const filteredProjects = useMemo(() => projects.filter(p => {
-    const matchSearch = p.number.includes(searchQuery) || p.customer.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchFilter = systemFilter === 'Все системы' || p.system === systemFilter;
-    return matchSearch && matchFilter;
-  }), [projects, searchQuery, systemFilter]);
+    return p.number.includes(searchQuery) || p.customer.toLowerCase().includes(searchQuery.toLowerCase());
+  }), [projects, searchQuery]);
 
   const handleCreate = async () => {
     if (isCreating) return;
     setIsCreating(true);
     try {
-      const project = await createProject({ number: newNumber, customer: newCustomer, system: newSystem, subtype: newSubtype });
+      const project = await createProject({ number: newNumber, customer: newCustomer });
       setIsCreateModalOpen(false);
       navigate(`/projects/${project.id}`);
     } catch (e: any) {
@@ -305,29 +276,20 @@ function ProjectsPage() {
               className="w-full bg-[#1a4b54]/20 border border-[#2a7a8a]/20 rounded-2xl pl-12 pr-4 py-4 outline-none focus:border-[#4fd1c5]/50 focus:ring-2 focus:ring-[#4fd1c5]/10 transition-all"
             />
           </div>
-          <div className="flex gap-4 w-full md:w-auto">
-            <select value={systemFilter} onChange={e => setSystemFilter(e.target.value)}
-              className="flex-1 md:flex-none bg-[#1a4b54]/20 border border-[#2a7a8a]/20 rounded-2xl px-6 py-4 outline-none focus:border-[#4fd1c5]/50 transition-all appearance-none cursor-pointer md:min-w-[180px]"
-            >
-              <option>Все системы</option>
-              {(['СЛАЙД','КНИЖКА','ЛИФТ','ЦС','ДВЕРЬ'] as SystemType[]).map(s => <option key={s}>{s}</option>)}
-            </select>
-            <button onClick={() => { setNewNumber(''); setIsCreateModalOpen(true); }}
-              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 md:px-8 py-4 bg-[#00b894] hover:bg-[#00d1a7] text-white font-bold rounded-2xl transition-all shadow-lg shadow-[#00b894]/20 whitespace-nowrap"
-            >
-              <Plus className="w-5 h-5" /> Новый проект
-            </button>
-          </div>
+          <button onClick={() => { setNewNumber(''); setIsCreateModalOpen(true); }}
+            className="w-full md:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-[#00b894] hover:bg-[#00d1a7] text-white font-bold rounded-2xl transition-all shadow-lg shadow-[#00b894]/20 whitespace-nowrap"
+          >
+            <Plus className="w-5 h-5" /> Новый проект
+          </button>
         </div>
 
         <div className="bg-[#1a4b54]/30 backdrop-blur-xl border border-[#2a7a8a]/30 rounded-[2rem] overflow-hidden shadow-2xl">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left border-collapse">
+            <table className="w-full min-w-[480px] text-left border-collapse">
               <thead>
                 <tr className="border-b border-[#2a7a8a]/20 bg-white/[0.02]">
                   <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Проект</th>
                   <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Заказчик</th>
-                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Система</th>
                   <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Дата</th>
                   <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40 text-right">Действия</th>
                 </tr>
@@ -363,7 +325,6 @@ function ProjectsPage() {
                         )}
                       </td>
                       <td className="px-8 py-5 text-sm font-medium">{project.customer}</td>
-                      <td className="px-8 py-5"><Badge type={project.system as SystemType} /></td>
                       <td className="px-8 py-5 text-sm text-white/40">
                         {new Date(project.created_at).toLocaleDateString('ru-RU')}
                       </td>
@@ -386,7 +347,7 @@ function ProjectsPage() {
                     </motion.tr>
                   )) : (
                     <tr>
-                      <td colSpan={5} className="py-20 text-center">
+                      <td colSpan={4} className="py-20 text-center">
                         <div className="flex flex-col items-center gap-4">
                           <div className="w-20 h-20 rounded-full bg-[#2a7a8a]/10 flex items-center justify-center border border-[#2a7a8a]/20">
                             {searchQuery ? <Search className="w-10 h-10 text-white/20" /> : <List className="w-10 h-10 text-white/20" />}
@@ -481,33 +442,6 @@ function ProjectsPage() {
                           {newCustomer === c && <div className="w-2.5 h-2.5 rounded-full bg-[#4fd1c5]" />}
                         </div>
                         <span className="font-medium">{c}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40 ml-1">Тип системы</label>
-                  <div className="flex p-1 bg-black/20 rounded-2xl border border-[#2a7a8a]/20">
-                    {(['СЛАЙД','КНИЖКА','ЛИФТ','ЦС','ДВЕРЬ'] as SystemType[]).map(s => (
-                      <button key={s} onClick={() => { setNewSystem(s); setNewSubtype(SYSTEM_SUBTYPES[s][0]); }}
-                        className={`flex-1 py-3 rounded-xl text-[10px] font-bold transition-all ${newSystem === s ? 'bg-[#2a7a8a] text-white shadow-lg' : 'text-white/30 hover:text-white/60'}`}
-                      >{s}</button>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40 ml-1">Подтип</label>
-                  <div className="grid grid-cols-1 gap-2">
-                    {SYSTEM_SUBTYPES[newSystem].map(sub => (
-                      <button key={sub} onClick={() => setNewSubtype(sub)}
-                        className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left ${
-                          newSubtype === sub ? 'bg-[#4fd1c5]/10 border-[#4fd1c5]/50 text-[#4fd1c5]' : 'bg-black/10 border-[#2a7a8a]/20 text-white/40 hover:border-[#2a7a8a]/50'
-                        }`}
-                      >
-                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${newSubtype === sub ? 'border-[#4fd1c5]' : 'border-white/10'}`}>
-                          {newSubtype === sub && <div className="w-2 h-2 rounded-full bg-[#4fd1c5]" />}
-                        </div>
-                        <span className="text-xs font-medium">{sub}</span>
                       </button>
                     ))}
                   </div>
