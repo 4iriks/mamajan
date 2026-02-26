@@ -46,6 +46,18 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE sections ADD COLUMN cs_shape VARCHAR",
             "ALTER TABLE sections ADD COLUMN cs_width2 FLOAT",
             "ALTER TABLE sections ADD COLUMN system VARCHAR",
+            "ALTER TABLE sections ADD COLUMN profile_left_wall BOOLEAN DEFAULT 0",
+            "ALTER TABLE sections ADD COLUMN profile_left_lock_bar BOOLEAN DEFAULT 0",
+            "ALTER TABLE sections ADD COLUMN profile_left_p_bar BOOLEAN DEFAULT 0",
+            "ALTER TABLE sections ADD COLUMN profile_left_handle_bar BOOLEAN DEFAULT 0",
+            "ALTER TABLE sections ADD COLUMN profile_left_bubble BOOLEAN DEFAULT 0",
+            "ALTER TABLE sections ADD COLUMN profile_right_wall BOOLEAN DEFAULT 0",
+            "ALTER TABLE sections ADD COLUMN profile_right_lock_bar BOOLEAN DEFAULT 0",
+            "ALTER TABLE sections ADD COLUMN profile_right_p_bar BOOLEAN DEFAULT 0",
+            "ALTER TABLE sections ADD COLUMN profile_right_handle_bar BOOLEAN DEFAULT 0",
+            "ALTER TABLE sections ADD COLUMN profile_right_bubble BOOLEAN DEFAULT 0",
+            "ALTER TABLE sections ADD COLUMN lock_left VARCHAR",
+            "ALTER TABLE sections ADD COLUMN lock_right VARCHAR",
         ]:
             try:
                 conn.execute(text(col_sql))

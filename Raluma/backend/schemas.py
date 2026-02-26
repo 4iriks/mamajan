@@ -82,6 +82,19 @@ class SectionBase(BaseModel):
     floor_latches_left: bool = False
     floor_latches_right: bool = False
     handle_offset: Optional[int] = None
+    # СЛАЙД — профили (чекбоксы)
+    profile_left_wall: bool = False
+    profile_left_lock_bar: bool = False
+    profile_left_p_bar: bool = False
+    profile_left_handle_bar: bool = False
+    profile_left_bubble: bool = False
+    profile_right_wall: bool = False
+    profile_right_lock_bar: bool = False
+    profile_right_p_bar: bool = False
+    profile_right_handle_bar: bool = False
+    profile_right_bubble: bool = False
+    lock_left: Optional[str] = None
+    lock_right: Optional[str] = None
     # КНИЖКА
     doors: Optional[int] = None
     door_side: Optional[str] = None

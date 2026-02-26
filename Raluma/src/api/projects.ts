@@ -43,6 +43,18 @@ export interface SectionOut {
   floor_latches_left: boolean;
   floor_latches_right: boolean;
   handle_offset?: number;
+  profile_left_wall?: boolean;
+  profile_left_lock_bar?: boolean;
+  profile_left_p_bar?: boolean;
+  profile_left_handle_bar?: boolean;
+  profile_left_bubble?: boolean;
+  profile_right_wall?: boolean;
+  profile_right_lock_bar?: boolean;
+  profile_right_p_bar?: boolean;
+  profile_right_handle_bar?: boolean;
+  profile_right_bubble?: boolean;
+  lock_left?: string;
+  lock_right?: string;
   doors?: number;
   door_side?: string;
   door_type?: string;

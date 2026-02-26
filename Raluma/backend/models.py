@@ -72,6 +72,20 @@ class Section(Base):
     floor_latches_right = Column(Boolean, default=False)
     handle_offset = Column(Integer, nullable=True)
 
+    # СЛАЙД — профили (чекбоксы)
+    profile_left_wall = Column(Boolean, default=False)          # Пристеночный RS1333/1335
+    profile_left_lock_bar = Column(Boolean, default=False)      # Боковой профиль-замок RS1081
+    profile_left_p_bar = Column(Boolean, default=False)         # Боковой П-профиль RS1082
+    profile_left_handle_bar = Column(Boolean, default=False)    # Ручка-профиль RS112
+    profile_left_bubble = Column(Boolean, default=False)        # Пузырьковый уплотнитель RS1002
+    profile_right_wall = Column(Boolean, default=False)
+    profile_right_lock_bar = Column(Boolean, default=False)
+    profile_right_p_bar = Column(Boolean, default=False)
+    profile_right_handle_bar = Column(Boolean, default=False)
+    profile_right_bubble = Column(Boolean, default=False)
+    lock_left = Column(String, nullable=True)    # Без замка / 1-сторонний / 2-сторонний
+    lock_right = Column(String, nullable=True)
+
     # КНИЖКА
     doors = Column(Integer, nullable=True)
     door_side = Column(String, nullable=True)
