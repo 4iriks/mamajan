@@ -772,6 +772,132 @@ function SlideSchemeSVG({ section }: { section: Section }) {
   );
 }
 
+// ── SVG: Вид из помещения ─────────────────────────────────────────────────────
+
+function SlideRoomViewSVG({ section }: { section: Section }) {
+  const panels  = section.panels;
+  const firstRight = (section.firstPanelInside ?? 'Справа') === 'Справа';
+  const W  = section.width;
+  const Hh = section.height;
+
+  // SVG canvas
+  const vbW = 540, vbH = 330;
+  // Frame position
+  const fX = 50, fY = 35, fW = 400, fH = 210;
+  const pt = 10; // profile (frame border) thickness
+
+  // Inner glass area
+  const iX = fX + pt, iY = fY + pt;
+  const iW = fW - 2 * pt, iH = fH - 2 * pt;
+  const pW = iW / panels; // panel draw-width per panel
+
+  const panelWmm = Math.round(W / panels);
+  const arrowLeft = firstRight; // true = all arrows ←, false = all →
+
+  return (
+    <svg viewBox={`0 0 ${vbW} ${vbH}`} className="w-full" style={{ maxWidth: 540, maxHeight: 330 }}>
+
+      {/* ── Outer frame ── */}
+      {/* Top rail */}
+      <rect x={fX} y={fY} width={fW} height={pt} fill="#1a4b54" stroke="#4fd1c5" strokeWidth="0.6" strokeOpacity="0.4" />
+      {/* Bottom rail */}
+      <rect x={fX} y={fY + fH - pt} width={fW} height={pt} fill="#1a4b54" stroke="#4fd1c5" strokeWidth="0.6" strokeOpacity="0.4" />
+      {/* Left jamb */}
+      <rect x={fX} y={fY} width={pt} height={fH} fill="#1a4b54" stroke="#4fd1c5" strokeWidth="0.6" strokeOpacity="0.4" />
+      {/* Right jamb */}
+      <rect x={fX + fW - pt} y={fY} width={pt} height={fH} fill="#1a4b54" stroke="#4fd1c5" strokeWidth="0.6" strokeOpacity="0.4" />
+      {/* Outer border */}
+      <rect x={fX} y={fY} width={fW} height={fH} fill="none" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.5" />
+
+      {/* ── Panels ── */}
+      {Array.from({ length: panels }).map((_, i) => {
+        const px = iX + i * pW;
+        const cx = px + pW / 2;
+        const cy = iY + iH / 2;
+        const num = firstRight ? panels - i : i + 1;
+        const aLen = Math.min(22, pW * 0.45);
+
+        return (
+          <g key={i}>
+            {/* Glass fill */}
+            <rect x={px} y={iY} width={pW} height={iH}
+              fill="#4fd1c5" fillOpacity="0.07" />
+            {/* Glass highlight */}
+            <rect x={px + 3} y={iY + 3} width={pW * 0.28} height={iH - 6}
+              fill="white" fillOpacity="0.025" rx="1" />
+
+            {/* Inter-panel profile (not after last panel) */}
+            {i < panels - 1 && (
+              <rect x={px + pW - 2} y={iY} width={4} height={iH}
+                fill="#0d1e2d" stroke="#4fd1c5" strokeWidth="0.4" strokeOpacity="0.25" />
+            )}
+
+            {/* Panel number */}
+            <text x={cx} y={cy - 12} textAnchor="middle" fontSize="14"
+              fill="#4fd1c5" fillOpacity="0.85" fontWeight="bold" fontFamily="monospace">
+              {num}
+            </text>
+
+            {/* Slide arrow */}
+            <line
+              x1={arrowLeft ? cx + aLen / 2 : cx - aLen / 2}
+              y1={cy + 5}
+              x2={arrowLeft ? cx - aLen / 2 : cx + aLen / 2}
+              y2={cy + 5}
+              stroke="#4fd1c5" strokeWidth="1.3" strokeOpacity="0.55"
+            />
+            {arrowLeft ? (
+              <polyline
+                points={`${cx - aLen / 2 + 6},${cy + 1} ${cx - aLen / 2},${cy + 5} ${cx - aLen / 2 + 6},${cy + 9}`}
+                stroke="#4fd1c5" strokeWidth="1.3" fill="none" strokeOpacity="0.55"
+              />
+            ) : (
+              <polyline
+                points={`${cx + aLen / 2 - 6},${cy + 1} ${cx + aLen / 2},${cy + 5} ${cx + aLen / 2 - 6},${cy + 9}`}
+                stroke="#4fd1c5" strokeWidth="1.3" fill="none" strokeOpacity="0.55"
+              />
+            )}
+          </g>
+        );
+      })}
+
+      {/* ── Dimension lines ── */}
+
+      {/* Per-panel widths */}
+      {Array.from({ length: panels }).map((_, i) => {
+        const dx1 = fX + i * (fW / panels);
+        const dx2 = fX + (i + 1) * (fW / panels);
+        const dy  = fY + fH + 18;
+        const cx  = (dx1 + dx2) / 2;
+        return (
+          <g key={i}>
+            <line x1={dx1 + 3} y1={dy} x2={dx2 - 3} y2={dy} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.35" />
+            <line x1={dx1 + 3} y1={dy - 4} x2={dx1 + 3} y2={dy + 4} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.35" />
+            <line x1={dx2 - 3} y1={dy - 4} x2={dx2 - 3} y2={dy + 4} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.35" />
+            <text x={cx} y={dy + 12} textAnchor="middle" fontSize="9" fill="#4fd1c5" fillOpacity="0.45">{panelWmm}</text>
+          </g>
+        );
+      })}
+
+      {/* Total width */}
+      <line x1={fX} y1={fY + fH + 38} x2={fX + fW} y2={fY + fH + 38} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.3" />
+      <line x1={fX}       y1={fY + fH + 32} x2={fX}       y2={fY + fH + 44} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.3" />
+      <line x1={fX + fW}  y1={fY + fH + 32} x2={fX + fW}  y2={fY + fH + 44} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.3" />
+      <text x={fX + fW / 2} y={fY + fH + 52} textAnchor="middle" fontSize="10" fill="#4fd1c5" fillOpacity="0.5">{W}</text>
+
+      {/* Height on right */}
+      <line x1={fX + fW + 18} y1={fY} x2={fX + fW + 18} y2={fY + fH} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.3" />
+      <line x1={fX + fW + 12} y1={fY}      x2={fX + fW + 24} y2={fY}      stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.3" />
+      <line x1={fX + fW + 12} y1={fY + fH} x2={fX + fW + 24} y2={fY + fH} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.3" />
+      <text
+        x={fX + fW + 34} y={fY + fH / 2}
+        textAnchor="middle" fontSize="10" fill="#4fd1c5" fillOpacity="0.5"
+        transform={`rotate(90,${fX + fW + 34},${fY + fH / 2})`}
+      >{Hh}</text>
+    </svg>
+  );
+}
+
 // ── ProjectEditor ─────────────────────────────────────────────────────────────
 
 export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack }) => {
@@ -1484,19 +1610,35 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   {renderSectionContent()}
                 </div>
 
-                {/* SVG scheme (only for СЛАЙД) */}
+                {/* SVG schemes (only for СЛАЙД) */}
                 {activeSection.system === 'СЛАЙД' && (
-                  <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2rem] p-4 sm:p-7 mb-6 overflow-x-auto">
-                    <div className="flex items-center justify-between mb-5 min-w-[360px]">
-                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Схема (Вид сверху)</h4>
-                      <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">
-                        {activeSection.rails ?? 3}-рельсовая · {activeSection.panels} пан.
-                      </span>
+                  <>
+                    {/* Вид сверху */}
+                    <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2rem] p-4 sm:p-7 mb-4 overflow-x-auto">
+                      <div className="flex items-center justify-between mb-5 min-w-[360px]">
+                        <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Схема · Вид сверху</h4>
+                        <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">
+                          {activeSection.rails ?? 3}-рельсовая · {activeSection.panels} пан.
+                        </span>
+                      </div>
+                      <div className="flex justify-center py-4">
+                        <SlideSchemeSVG section={activeSection} />
+                      </div>
                     </div>
-                    <div className="flex justify-center py-4">
-                      <SlideSchemeSVG section={activeSection} />
+
+                    {/* Вид из помещения */}
+                    <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2rem] p-4 sm:p-7 mb-6 overflow-x-auto">
+                      <div className="flex items-center justify-between mb-4 min-w-[360px]">
+                        <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Вид из помещения</h4>
+                        <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">
+                          {activeSection.panels} пан. · {activeSection.width} × {activeSection.height} мм
+                        </span>
+                      </div>
+                      <div className="flex justify-center py-2">
+                        <SlideRoomViewSVG section={activeSection} />
+                      </div>
                     </div>
-                  </div>
+                  </>
                 )}
 
                 {/* Actions */}
