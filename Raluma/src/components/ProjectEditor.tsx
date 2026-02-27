@@ -1086,83 +1086,95 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   exit={{ opacity: 0, height: 0 }}
                   className="overflow-hidden mb-4"
                 >
-                  <div className="grid grid-cols-2 gap-2 pt-1 pb-3">
-                    {/* СЛАЙД с подвыбором */}
-                    <button
-                      onClick={() => setSlideSubVisible(v => !v)}
-                      className={`col-span-2 py-2.5 rounded-xl border font-bold text-[11px] transition-all flex items-center justify-between px-3 ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}
-                    >
-                      <span>СЛАЙД</span>
-                      <ChevronRight className={`w-3.5 h-3.5 transition-transform ${slideSubVisible ? 'rotate-90' : ''}`} />
-                    </button>
-                    {slideSubVisible && (
-                      <>
-                        <button onClick={() => handleAddSection('СЛАЙД', { slideRails: 3 })}
-                          className={`py-2 rounded-xl border font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
-                          Стандарт 1 ряд
-                        </button>
-                        <button onClick={() => handleAddSection('СЛАЙД', { slideRails: 5 })}
-                          className={`py-2 rounded-xl border font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
-                          2 ряда от центра
-                        </button>
-                      </>
-                    )}
-                    {/* КНИЖКА sub-picker */}
-                    <button onClick={() => setBookSubVisible(v => !v)}
-                      className={`col-span-2 py-2.5 rounded-xl border font-bold text-[11px] transition-all flex items-center justify-between px-3 ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
-                      <span>КНИЖКА</span>
-                      <ChevronRight className={`w-3.5 h-3.5 transition-transform ${bookSubVisible ? 'rotate-90' : ''}`} />
-                    </button>
-                    {bookSubVisible && (
-                      <>
-                        <button onClick={() => handleAddSection('КНИЖКА', { bookSubtype: 'doors' })}
-                          className={`py-2 rounded-xl border font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
-                          С дверями
-                        </button>
-                        <button onClick={() => handleAddSection('КНИЖКА', { bookSubtype: 'angle' })}
-                          className={`py-2 rounded-xl border font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
-                          С углом
-                        </button>
-                        <button onClick={() => handleAddSection('КНИЖКА', { bookSubtype: 'doors_and_angle' })}
-                          className={`col-span-2 py-2 rounded-xl border font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
-                          С дверями и углом
-                        </button>
-                      </>
-                    )}
-                    {/* ЛИФТ sub-picker */}
-                    <button onClick={() => setLiftSubVisible(v => !v)}
-                      className={`col-span-2 py-2.5 rounded-xl border font-bold text-[11px] transition-all flex items-center justify-between px-3 ${SYSTEM_PICKER_COLORS['ЛИФТ']}`}>
-                      <span>ЛИФТ</span>
-                      <ChevronRight className={`w-3.5 h-3.5 transition-transform ${liftSubVisible ? 'rotate-90' : ''}`} />
-                    </button>
-                    {liftSubVisible && (
-                      <>
-                        {[2, 3, 4].map(n => (
-                          <button key={n} onClick={() => handleAddSection('ЛИФТ', { liftPanels: n })}
-                            className={`py-2 rounded-xl border font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['ЛИФТ']}`}>
-                            {n} панели
+                  <div className="flex flex-col gap-1.5 pt-1 pb-3">
+                    {/* СЛАЙД */}
+                    <div className={`rounded-xl border overflow-hidden transition-all ${slideSubVisible ? 'border-[#2a7a8a]/50' : 'border-[#2a7a8a]/25'}`}>
+                      <button onClick={() => setSlideSubVisible(v => !v)}
+                        className={`w-full py-2.5 px-3 font-bold text-[11px] transition-all flex items-center justify-between ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
+                        <span>СЛАЙД</span>
+                        <ChevronRight className={`w-3.5 h-3.5 transition-transform ${slideSubVisible ? 'rotate-90' : ''}`} />
+                      </button>
+                      {slideSubVisible && (
+                        <div className="grid grid-cols-2 border-t border-[#2a7a8a]/25">
+                          <button onClick={() => handleAddSection('СЛАЙД', { slideRails: 3 })}
+                            className={`py-2 font-bold text-[11px] transition-all border-r border-[#2a7a8a]/25 ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
+                            Стандарт 1 ряд
                           </button>
-                        ))}
-                      </>
-                    )}
-                    {/* ЦС sub-picker */}
-                    <button onClick={() => setCsSubVisible(v => !v)}
-                      className={`col-span-2 py-2.5 rounded-xl border font-bold text-[11px] transition-all flex items-center justify-between px-3 ${SYSTEM_PICKER_COLORS['ЦС']}`}>
-                      <span>ЦС</span>
-                      <ChevronRight className={`w-3.5 h-3.5 transition-transform ${csSubVisible ? 'rotate-90' : ''}`} />
-                    </button>
-                    {csSubVisible && (
-                      <>
-                        {['Треугольник', 'Прямоугольник', 'Трапеция', 'Сложная форма'].map(shape => (
-                          <button key={shape} onClick={() => handleAddSection('ЦС', { csShape: shape })}
-                            className={`py-2 rounded-xl border font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['ЦС']}`}>
-                            {shape}
+                          <button onClick={() => handleAddSection('СЛАЙД', { slideRails: 5 })}
+                            className={`py-2 font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
+                            2 ряда от центра
                           </button>
-                        ))}
-                      </>
-                    )}
+                        </div>
+                      )}
+                    </div>
+                    {/* КНИЖКА */}
+                    <div className={`rounded-xl border overflow-hidden transition-all ${bookSubVisible ? 'border-[#7a4a2a]/50' : 'border-[#7a4a2a]/25'}`}>
+                      <button onClick={() => setBookSubVisible(v => !v)}
+                        className={`w-full py-2.5 px-3 font-bold text-[11px] transition-all flex items-center justify-between ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
+                        <span>КНИЖКА</span>
+                        <ChevronRight className={`w-3.5 h-3.5 transition-transform ${bookSubVisible ? 'rotate-90' : ''}`} />
+                      </button>
+                      {bookSubVisible && (
+                        <div className="border-t border-[#7a4a2a]/25">
+                          <div className="grid grid-cols-2">
+                            <button onClick={() => handleAddSection('КНИЖКА', { bookSubtype: 'doors' })}
+                              className={`py-2 font-bold text-[11px] transition-all border-r border-b border-[#7a4a2a]/25 ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
+                              С дверями
+                            </button>
+                            <button onClick={() => handleAddSection('КНИЖКА', { bookSubtype: 'angle' })}
+                              className={`py-2 font-bold text-[11px] transition-all border-b border-[#7a4a2a]/25 ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
+                              С углом
+                            </button>
+                          </div>
+                          <button onClick={() => handleAddSection('КНИЖКА', { bookSubtype: 'doors_and_angle' })}
+                            className={`w-full py-2 font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
+                            С дверями и углом
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {/* ЛИФТ */}
+                    <div className={`rounded-xl border overflow-hidden transition-all ${liftSubVisible ? 'border-[#4a2a7a]/50' : 'border-[#4a2a7a]/25'}`}>
+                      <button onClick={() => setLiftSubVisible(v => !v)}
+                        className={`w-full py-2.5 px-3 font-bold text-[11px] transition-all flex items-center justify-between ${SYSTEM_PICKER_COLORS['ЛИФТ']}`}>
+                        <span>ЛИФТ</span>
+                        <ChevronRight className={`w-3.5 h-3.5 transition-transform ${liftSubVisible ? 'rotate-90' : ''}`} />
+                      </button>
+                      {liftSubVisible && (
+                        <div className="grid grid-cols-3 border-t border-[#4a2a7a]/25">
+                          {[2, 3, 4].map((n, i) => (
+                            <button key={n} onClick={() => handleAddSection('ЛИФТ', { liftPanels: n })}
+                              className={`py-2 font-bold text-[11px] transition-all ${i < 2 ? 'border-r border-[#4a2a7a]/25' : ''} ${SYSTEM_PICKER_COLORS['ЛИФТ']}`}>
+                              {n} пан.
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* ЦС */}
+                    <div className={`rounded-xl border overflow-hidden transition-all ${csSubVisible ? 'border-[#2a4a7a]/50' : 'border-[#2a4a7a]/25'}`}>
+                      <button onClick={() => setCsSubVisible(v => !v)}
+                        className={`w-full py-2.5 px-3 font-bold text-[11px] transition-all flex items-center justify-between ${SYSTEM_PICKER_COLORS['ЦС']}`}>
+                        <span>ЦС</span>
+                        <ChevronRight className={`w-3.5 h-3.5 transition-transform ${csSubVisible ? 'rotate-90' : ''}`} />
+                      </button>
+                      {csSubVisible && (
+                        <div className="grid grid-cols-2 border-t border-[#2a4a7a]/25">
+                          {['Треугольник', 'Прямоугольник', 'Трапеция', 'Сложная форма'].map((shape, i) => (
+                            <button key={shape} onClick={() => handleAddSection('ЦС', { csShape: shape })}
+                              className={`py-2 font-bold text-[11px] transition-all
+                                ${i % 2 === 0 ? 'border-r border-[#2a4a7a]/25' : ''}
+                                ${i < 2 ? 'border-b border-[#2a4a7a]/25' : ''}
+                                ${SYSTEM_PICKER_COLORS['ЦС']}`}>
+                              {shape}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* КОМПЛЕКТАЦИЯ */}
                     <button onClick={() => handleAddSection('КОМПЛЕКТАЦИЯ')}
-                      className={`col-span-2 py-2.5 rounded-xl border font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['КОМПЛЕКТАЦИЯ']}`}>
+                      className={`py-2.5 rounded-xl border font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['КОМПЛЕКТАЦИЯ']}`}>
                       КОМПЛЕКТАЦИЯ
                     </button>
                   </div>
