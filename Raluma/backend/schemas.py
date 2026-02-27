@@ -135,6 +135,8 @@ class ProjectBase(BaseModel):
     customer: str
     system: Optional[str] = None
     subtype: Optional[str] = None
+    extra_parts: Optional[str] = None
+    comments: Optional[str] = None
 
 
 class ProjectCreate(ProjectBase):
@@ -146,6 +148,8 @@ class ProjectUpdate(BaseModel):
     customer: Optional[str] = None
     system: Optional[str] = None
     subtype: Optional[str] = None
+    extra_parts: Optional[str] = None
+    comments: Optional[str] = None
 
 
 class ProjectOut(ProjectBase):

@@ -10,7 +10,7 @@ import {
   ClipboardList, Square as WindowIcon, Palette,
   ChevronRight, Loader2, X, ArrowRight,
 } from 'lucide-react';
-import { getProject, createSection, updateSection, deleteSection, SectionOut } from '../api/projects';
+import { getProject, updateProject, createSection, updateSection, deleteSection, SectionOut } from '../api/projects';
 import { toast } from '../store/toastStore';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -360,9 +360,9 @@ function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => v
 
 // ── Tab: СЛАЙД — Система + Профили + Фурнитура ────────────────────────────────
 
-function ProfileCheckbox({ checked, onChange, label, indent }: { checked: boolean; onChange: () => void; label: string; indent?: boolean }) {
+function ProfileCheckbox({ checked, onChange, label, indent, disabled }: { checked: boolean; onChange: () => void; label: string; indent?: boolean; disabled?: boolean }) {
   return (
-    <label className={`flex items-center gap-2 cursor-pointer py-1 ${indent ? 'pl-5' : ''}`} onClick={onChange}>
+    <label className={`flex items-center gap-2 py-1 ${indent ? 'pl-5' : ''} ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`} onClick={disabled ? undefined : onChange}>
       <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${checked ? 'bg-[#4fd1c5] border-[#4fd1c5]' : 'border-[#2a7a8a]/40 bg-black/20'}`}>
         {checked && <div className="w-2 h-2 bg-[#0c1d2d] rounded-sm" />}
       </div>
@@ -372,10 +372,12 @@ function ProfileCheckbox({ checked, onChange, label, indent }: { checked: boolea
 }
 
 function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
-  const showLockLeft = (s.profileLeftLockBar || s.profileLeftHandleBar) && !(s.profileLeftPBar && s.profileLeftHandleBar);
+  const showLockLeft  = (s.profileLeftLockBar  || s.profileLeftHandleBar)  && !(s.profileLeftPBar  && s.profileLeftHandleBar);
+  const showNoLockLeft  = s.profileLeftPBar  && s.profileLeftHandleBar;
+  const showHandleLeft  = (s.profileLeftPBar  && s.profileLeftBubble)  || (s.profileLeftBubble  && !s.profileLeftLockBar  && !s.profileLeftPBar  && !s.profileLeftHandleBar);
   const showLockRight = (s.profileRightLockBar || s.profileRightHandleBar) && !(s.profileRightPBar && s.profileRightHandleBar);
-  const showHandleLeft = s.profileLeftPBar && s.profileLeftBubble && !s.profileLeftHandleBar;
-  const showHandleRight = s.profileRightPBar && s.profileRightBubble && !s.profileRightHandleBar;
+  const showNoLockRight = s.profileRightPBar && s.profileRightHandleBar;
+  const showHandleRight = (s.profileRightPBar && s.profileRightBubble) || (s.profileRightBubble && !s.profileRightLockBar && !s.profileRightPBar && !s.profileRightHandleBar);
 
   return (
     <div className="space-y-6">
@@ -396,11 +398,20 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
               {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
+          {((s.rails !== 5 && (s.panels ?? 3) < 3) || (s.rails === 5 && (s.panels ?? 3) < 5)) && (
+            <div className="space-y-2">
+              <label className={LBL}>Неиспользуемый рельс</label>
+              <ToggleGroup value={s.unusedTrack ?? 'Нет'} options={['Внутренний', 'Внешний', 'Нет']}
+                onChange={v => update({ unusedTrack: v === 'Нет' ? undefined : v })} />
+            </div>
+          )}
           <div className="space-y-2">
             <label className={LBL}>1-я панель внутри</label>
             <ToggleGroup value={s.firstPanelInside} options={['Слева', 'Справа']}
               onChange={v => update({ firstPanelInside: v })} />
           </div>
+        </div>
+        <div className="space-y-5">
           <div className="space-y-2">
             <label className={LBL}>Порог</label>
             <select value={s.threshold || ''} onChange={e => update({ threshold: e.target.value || undefined })} className={SEL}>
@@ -411,8 +422,6 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
               <option>Накладной окраш</option>
             </select>
           </div>
-        </div>
-        <div className="space-y-5">
           <div className="space-y-2">
             <label className={LBL}>Межстекольный профиль</label>
             <select value={s.interGlassProfile || ''} onChange={e => update({ interGlassProfile: e.target.value || undefined })} className={SEL}>
@@ -422,25 +431,22 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
               <option>h-профиль RS1004</option>
             </select>
           </div>
-          {((s.rails !== 5 && (s.panels ?? 3) < 3) || (s.rails === 5 && (s.panels ?? 3) < 5)) && (
-            <div className="space-y-2">
-              <label className={LBL}>Свободная нить</label>
-              <ToggleGroup value={s.unusedTrack ?? 'Нет'} options={['Внешняя', 'Внутренняя', 'Нет']}
-                onChange={v => update({ unusedTrack: v === 'Нет' ? undefined : v })} />
-            </div>
-          )}
-          <div className="space-y-2">
-            <label className={LBL}>Угловое соединение</label>
-            <div className="flex gap-6 mt-1">
-              <Checkbox checked={s.cornerLeft} onChange={() => update({ cornerLeft: !s.cornerLeft })} label="Левое" />
-              <Checkbox checked={s.cornerRight} onChange={() => update({ cornerRight: !s.cornerRight })} label="Правое" />
-            </div>
-          </div>
-          {(s.cornerLeft || s.cornerRight) && (
-            <div className="space-y-2">
-              <label className={LBL}>Внешняя ширина, мм</label>
-              <input type="number" value={s.externalWidth || ''} onChange={e => update({ externalWidth: parseFloat(e.target.value) || undefined })} className={INP} placeholder="мм" />
-            </div>
+          {false && (
+            <>
+              <div className="space-y-2">
+                <label className={LBL}>Угловое соединение</label>
+                <div className="flex gap-6 mt-1">
+                  <Checkbox checked={s.cornerLeft} onChange={() => update({ cornerLeft: !s.cornerLeft })} label="Левое" />
+                  <Checkbox checked={s.cornerRight} onChange={() => update({ cornerRight: !s.cornerRight })} label="Правое" />
+                </div>
+              </div>
+              {(s.cornerLeft || s.cornerRight) && (
+                <div className="space-y-2">
+                  <label className={LBL}>Внешняя ширина, мм</label>
+                  <input type="number" value={s.externalWidth || ''} onChange={e => update({ externalWidth: parseFloat(e.target.value) || undefined })} className={INP} placeholder="мм" />
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -452,10 +458,10 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
           <label className={LBL}>Профили слева</label>
           <div className="bg-black/10 border border-[#2a7a8a]/20 rounded-xl px-3 py-2">
             <ProfileCheckbox checked={s.profileLeftWall} onChange={() => update({ profileLeftWall: !s.profileLeftWall })} label="Пристеночный RS1333/1335" />
-            <ProfileCheckbox checked={s.profileLeftLockBar} onChange={() => update({ profileLeftLockBar: !s.profileLeftLockBar })} label="Боковой профиль-замок RS1081" indent />
-            <ProfileCheckbox checked={s.profileLeftPBar} onChange={() => update({ profileLeftPBar: !s.profileLeftPBar })} label="Боковой П-профиль RS1082" indent />
+            <ProfileCheckbox checked={s.profileLeftLockBar} onChange={() => { if (!s.profileLeftLockBar) update({ profileLeftLockBar: true, profileLeftPBar: false }); else update({ profileLeftLockBar: false }); }} label="Боковой профиль-замок RS1081" indent />
+            <ProfileCheckbox checked={s.profileLeftPBar} onChange={() => { if (!s.profileLeftPBar) update({ profileLeftPBar: true, profileLeftLockBar: false }); else update({ profileLeftPBar: false }); }} label="Боковой П-профиль RS1082" indent />
             <ProfileCheckbox checked={s.profileLeftHandleBar} onChange={() => update({ profileLeftHandleBar: !s.profileLeftHandleBar })} label="Ручка-профиль RS112" />
-            <ProfileCheckbox checked={s.profileLeftBubble} onChange={() => update({ profileLeftBubble: !s.profileLeftBubble })} label="Пузырьковый уплотнитель RS1002" />
+            <ProfileCheckbox checked={s.profileLeftBubble} onChange={() => update({ profileLeftBubble: !s.profileLeftBubble })} label="Пузырьковый уплотнитель RS1002" disabled={s.profileLeftLockBar} />
           </div>
           {showLockLeft && (
             <div className="mt-2 space-y-1">
@@ -463,6 +469,11 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
               <RadioList value={s.lockLeft} noneLabel="Без замка"
                 options={['1-сторонний RS3018', '2-сторонний с ключом RS3019']}
                 onChange={v => update({ lockLeft: v })} />
+            </div>
+          )}
+          {showNoLockLeft && (
+            <div className="mt-2 px-4 py-2 bg-black/10 border border-[#2a7a8a]/20 rounded-xl">
+              <span className="text-xs text-white/40 font-bold">Без замков</span>
             </div>
           )}
           {showHandleLeft && (
@@ -480,10 +491,10 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
           <label className={LBL}>Профили справа</label>
           <div className="bg-black/10 border border-[#2a7a8a]/20 rounded-xl px-3 py-2">
             <ProfileCheckbox checked={s.profileRightWall} onChange={() => update({ profileRightWall: !s.profileRightWall })} label="Пристеночный RS1333/1335" />
-            <ProfileCheckbox checked={s.profileRightLockBar} onChange={() => update({ profileRightLockBar: !s.profileRightLockBar })} label="Боковой профиль-замок RS1081" indent />
-            <ProfileCheckbox checked={s.profileRightPBar} onChange={() => update({ profileRightPBar: !s.profileRightPBar })} label="Боковой П-профиль RS1082" indent />
+            <ProfileCheckbox checked={s.profileRightLockBar} onChange={() => { if (!s.profileRightLockBar) update({ profileRightLockBar: true, profileRightPBar: false }); else update({ profileRightLockBar: false }); }} label="Боковой профиль-замок RS1081" indent />
+            <ProfileCheckbox checked={s.profileRightPBar} onChange={() => { if (!s.profileRightPBar) update({ profileRightPBar: true, profileRightLockBar: false }); else update({ profileRightPBar: false }); }} label="Боковой П-профиль RS1082" indent />
             <ProfileCheckbox checked={s.profileRightHandleBar} onChange={() => update({ profileRightHandleBar: !s.profileRightHandleBar })} label="Ручка-профиль RS112" />
-            <ProfileCheckbox checked={s.profileRightBubble} onChange={() => update({ profileRightBubble: !s.profileRightBubble })} label="Пузырьковый уплотнитель RS1002" />
+            <ProfileCheckbox checked={s.profileRightBubble} onChange={() => update({ profileRightBubble: !s.profileRightBubble })} label="Пузырьковый уплотнитель RS1002" disabled={s.profileRightLockBar} />
           </div>
           {showLockRight && (
             <div className="mt-2 space-y-1">
@@ -491,6 +502,11 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
               <RadioList value={s.lockRight} noneLabel="Без замка"
                 options={['1-сторонний RS3018', '2-сторонний с ключом RS3019']}
                 onChange={v => update({ lockRight: v })} />
+            </div>
+          )}
+          {showNoLockRight && (
+            <div className="mt-2 px-4 py-2 bg-black/10 border border-[#2a7a8a]/20 rounded-xl">
+              <span className="text-xs text-white/40 font-bold">Без замков</span>
             </div>
           )}
           {showHandleRight && (
@@ -766,6 +782,8 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   useEffect(() => {
     getProject(projectId).then(p => {
       setProject({ id: p.id, number: p.number, customer: p.customer });
+      setProjectExtraParts(p.extra_parts || '');
+      setProjectComments(p.comments || '');
       setSections(p.sections.map(s => apiToLocal(s)));
       setLoadingProject(false);
     }).catch(() => { setLoadingProject(false); onBack(); });
@@ -779,6 +797,8 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(true);
+  const [projectExtraParts, setProjectExtraParts] = useState('');
+  const [projectComments, setProjectComments] = useState('');
   const [showSystemPicker, setShowSystemPicker] = useState(false);
   const [slideSubVisible, setSlideSubVisible] = useState(false);
   const [bookSubVisible, setBookSubVisible] = useState(false);
@@ -849,9 +869,10 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     if (system === 'КНИЖКА' && opts?.bookSubtype) extra.bookSubtype = opts.bookSubtype;
     if (system === 'ЛИФТ' && opts?.liftPanels) extra.panels = opts.liftPanels;
     if (system === 'ЦС' && opts?.csShape) extra.csShape = opts.csShape;
+    const maxNum = sections.reduce((m, sec) => Math.max(m, parseInt(sec.name.replace(/\D/g, '')) || 0), 0);
     const newSection: Section = {
       id: `tmp-${Date.now()}`,
-      name: `Секция ${sections.length + 1}`,
+      name: `Секция ${maxNum + 1}`,
       system,
       width: 2000, height: 2400, panels: 3, quantity: 1,
       glassType: '10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ',
@@ -915,6 +936,15 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   };
 
   const openPreview = (name: string) => { setPreviewDocName(name); setIsPreviewModalOpen(true); };
+
+  const handleSaveProjectNotes = async () => {
+    if (!project) return;
+    try {
+      await updateProject(project.id, { extra_parts: projectExtraParts, comments: projectComments });
+    } catch {
+      toast.error('Не удалось сохранить примечания');
+    }
+  };
 
   // Рендер всего содержимого секции на одной странице
   const renderSectionContent = () => {
@@ -1224,6 +1254,35 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                 <div className="text-center py-8 text-white/20 text-xs">Нажмите + чтобы добавить секцию</div>
               )}
             </div>
+
+            {/* Sidebar project notes */}
+            <div className="mt-5 pt-4 border-t border-[#2a7a8a]/20">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40 mb-3">Примечания</p>
+              <div className="space-y-2.5">
+                <div>
+                  <label className="text-[10px] text-white/25 uppercase tracking-wider block mb-1.5">Доп. комплектующие</label>
+                  <textarea
+                    value={projectExtraParts}
+                    onChange={e => setProjectExtraParts(e.target.value)}
+                    onBlur={handleSaveProjectNotes}
+                    rows={2}
+                    placeholder="..."
+                    className="w-full bg-white/[0.02] border border-[#2a7a8a]/20 rounded-xl px-3 py-2 text-[11px] text-white/60 placeholder-white/15 resize-none focus:outline-none focus:border-[#4fd1c5]/40 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-white/25 uppercase tracking-wider block mb-1.5">Комментарии</label>
+                  <textarea
+                    value={projectComments}
+                    onChange={e => setProjectComments(e.target.value)}
+                    onBlur={handleSaveProjectNotes}
+                    rows={2}
+                    placeholder="..."
+                    className="w-full bg-white/[0.02] border border-[#2a7a8a]/20 rounded-xl px-3 py-2 text-[11px] text-white/60 placeholder-white/15 resize-none focus:outline-none focus:border-[#4fd1c5]/40 transition-colors"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Mobile: go to editor button */}
@@ -1243,7 +1302,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           <AnimatePresence mode="wait">
             {!activeSection ? (
               <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="h-full flex flex-col items-center justify-center p-8 sm:p-12 min-h-[60vh]">
+                className="h-full flex flex-col items-center p-8 sm:p-12 min-h-[60vh] pt-12 sm:pt-16">
                 <div className="w-full max-w-sm">
                   <div className="text-center mb-8">
                     <div className="w-16 h-16 rounded-2xl bg-[#2a7a8a]/15 border border-[#2a7a8a]/25 flex items-center justify-center mx-auto mb-5">
@@ -1349,6 +1408,35 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                     <ClipboardList className="w-4 h-4" /> Список секций
                   </button>
                 </div>
+
+                {/* Main area project notes */}
+                <div className="w-full mt-10 pt-8 border-t border-[#2a7a8a]/20">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40 mb-6">Примечания к проекту</p>
+                  <div className="space-y-5">
+                    <div>
+                      <label className="text-[11px] text-white/35 uppercase tracking-wider block mb-2">Доп. комплектующие</label>
+                      <textarea
+                        value={projectExtraParts}
+                        onChange={e => setProjectExtraParts(e.target.value)}
+                        onBlur={handleSaveProjectNotes}
+                        rows={4}
+                        placeholder="Перечислите дополнительные комплектующие..."
+                        className="w-full bg-white/[0.03] border border-[#2a7a8a]/25 rounded-2xl px-4 py-3 text-sm text-white/70 placeholder-white/20 resize-none focus:outline-none focus:border-[#4fd1c5]/40 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-white/35 uppercase tracking-wider block mb-2">Комментарии</label>
+                      <textarea
+                        value={projectComments}
+                        onChange={e => setProjectComments(e.target.value)}
+                        onBlur={handleSaveProjectNotes}
+                        rows={4}
+                        placeholder="Любые дополнительные комментарии..."
+                        className="w-full bg-white/[0.03] border border-[#2a7a8a]/25 rounded-2xl px-4 py-3 text-sm text-white/70 placeholder-white/20 resize-none focus:outline-none focus:border-[#4fd1c5]/40 transition-colors"
+                      />
+                    </div>
+                  </div>
+                </div>
               </motion.div>
             ) : (
               <motion.div key={activeSection.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
@@ -1357,6 +1445,11 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                 {/* Section title + system badge */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-5 sm:mb-7 gap-3">
                   <div>
+                    <button onClick={() => setActiveSectionId(null)}
+                      className="flex items-center gap-1.5 text-white/30 hover:text-[#4fd1c5] transition-colors group mb-3 text-xs font-bold uppercase tracking-wider">
+                      <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+                      К проекту
+                    </button>
                     <h2 className="text-xl sm:text-2xl font-bold mb-1.5">{activeSection.name}</h2>
                     <span className={`px-3 py-1 rounded-lg text-[11px] font-bold border ${SYSTEM_COLORS[activeSection.system]}`}>
                       {activeSection.system === 'СЛАЙД'

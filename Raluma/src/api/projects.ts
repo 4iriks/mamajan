@@ -6,6 +6,8 @@ export interface ProjectList {
   customer: string;
   system?: string;
   subtype?: string;
+  extra_parts?: string;
+  comments?: string;
   created_at: string;
   updated_at: string;
   created_by: number;
@@ -81,7 +83,7 @@ export const getProject = (id: number) =>
 export const createProject = (data: { number: string; customer: string }) =>
   client.post<ProjectFull>('/api/projects', data).then(r => r.data);
 
-export const updateProject = (id: number, data: Partial<{ number: string; customer: string; system: string }>) =>
+export const updateProject = (id: number, data: Partial<{ number: string; customer: string; system: string; extra_parts: string; comments: string }>) =>
   client.put<ProjectFull>(`/api/projects/${id}`, data).then(r => r.data);
 
 export const deleteProject = (id: number) =>

@@ -75,6 +75,10 @@ def update_project(
         project.system = data.system
     if data.subtype is not None:
         project.subtype = data.subtype
+    if data.extra_parts is not None:
+        project.extra_parts = data.extra_parts
+    if data.comments is not None:
+        project.comments = data.comments
     project.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(project)
@@ -104,6 +108,8 @@ def copy_project(
         customer=source.customer,
         system=source.system,
         subtype=source.subtype,
+        extra_parts=source.extra_parts,
+        comments=source.comments,
         created_by=current_user.id,
     )
     db.add(new_project)

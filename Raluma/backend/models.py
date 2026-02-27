@@ -31,6 +31,8 @@ class Project(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    extra_parts = Column(String, nullable=True)
+    comments = Column(String, nullable=True)
 
     owner = relationship("User", back_populates="projects")
     sections = relationship("Section", back_populates="project", cascade="all, delete-orphan", order_by="Section.order")
