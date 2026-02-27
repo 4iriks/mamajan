@@ -460,7 +460,7 @@ function ProjectsPage() {
                 </div>
                 <div className="space-y-3">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40 ml-1">Заказчик</label>
-                  <div className="relative">
+                  <div>
                     <input
                       value={newCustomer}
                       onChange={e => { setNewCustomer(e.target.value); setShowCustomerDrop(true); }}
@@ -470,7 +470,7 @@ function ProjectsPage() {
                       placeholder="Введите или выберите заказчика"
                     />
                     {showCustomerDrop && filteredCustomers.length > 0 && (
-                      <div className="absolute z-20 top-full mt-2 w-full bg-[#122433] border border-[#2a7a8a]/40 rounded-2xl overflow-hidden shadow-2xl shadow-black/50">
+                      <div className="mt-2 w-full bg-[#0e1f2e] border border-[#2a7a8a]/40 rounded-2xl overflow-y-auto shadow-2xl shadow-black/50" style={{ maxHeight: '172px' }}>
                         {filteredCustomers.map(c => (
                           <button key={c} type="button"
                             onMouseDown={() => { setNewCustomer(c); setShowCustomerDrop(false); }}
