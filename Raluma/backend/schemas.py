@@ -137,6 +137,16 @@ class ProjectBase(BaseModel):
     subtype: Optional[str] = None
     extra_parts: Optional[str] = None
     comments: Optional[str] = None
+    production_stages: Optional[int] = 1
+    current_stage: Optional[int] = 1
+    status: Optional[str] = None
+    glass_status: Optional[str] = None
+    glass_invoice: Optional[str] = None
+    glass_ready_date: Optional[str] = None
+    paint_status: Optional[str] = None
+    paint_ship_date: Optional[str] = None
+    paint_received_date: Optional[str] = None
+    order_items: Optional[str] = None
 
 
 class ProjectCreate(ProjectBase):
@@ -150,6 +160,16 @@ class ProjectUpdate(BaseModel):
     subtype: Optional[str] = None
     extra_parts: Optional[str] = None
     comments: Optional[str] = None
+    production_stages: Optional[int] = None
+    current_stage: Optional[int] = None
+    status: Optional[str] = None
+    glass_status: Optional[str] = None
+    glass_invoice: Optional[str] = None
+    glass_ready_date: Optional[str] = None
+    paint_status: Optional[str] = None
+    paint_ship_date: Optional[str] = None
+    paint_received_date: Optional[str] = None
+    order_items: Optional[str] = None
 
 
 class ProjectOut(ProjectBase):

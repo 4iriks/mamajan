@@ -26,7 +26,7 @@ export interface Section {
   panels: number;
   quantity: number;
   glassType: string;
-  paintingType: 'RAL стандарт' | 'RAL нестандарт' | 'Анодированный' | 'Без окрашивания';
+  paintingType: 'RAL стандарт' | 'RAL нестандарт' | 'Анодированный';
   ralColor?: string;
   cornerLeft: boolean;
   cornerRight: boolean;
@@ -73,6 +73,14 @@ export interface Section {
   doorSystem?: string;
   csShape?: string;
   csWidth2?: number;
+}
+
+interface OrderItem {
+  id: string;
+  name: string;
+  invoice: string;
+  paidDate: string;
+  deliveredDate: string;
 }
 
 interface ProjectEditorProps {
@@ -274,7 +282,6 @@ function getSectionTypeLabel(s: Section): string {
 }
 
 function getSectionColorLabel(s: Section): string {
-  if (s.paintingType === 'Без окрашивания') return 'Без окрас.';
   if (s.paintingType === 'Анодированный') return 'Анод.';
   if (s.paintingType.includes('RAL')) return s.ralColor ? `RAL ${s.ralColor}` : 'RAL';
   return '';
@@ -332,8 +339,14 @@ function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => v
       <div className="space-y-5">
         <div className="space-y-2">
           <label className={LBL}>Окрашивание</label>
+          {s.paintingType.includes('RAL') && (
+            <div className="space-y-1">
+              <label className={LBL}>Цвет RAL</label>
+              <input type="text" value={s.ralColor || ''} onChange={e => update({ ralColor: e.target.value })} className={INP} placeholder="Напр. 9016" />
+            </div>
+          )}
           <div className="space-y-1.5">
-            {(['RAL стандарт', 'RAL нестандарт', 'Анодированный', 'Без окрашивания'] as const).map(type => (
+            {(['RAL стандарт', 'RAL нестандарт', 'Анодированный'] as const).map(type => (
               <button key={type} onClick={() => update({ paintingType: type })}
                 className={`flex items-center gap-3 w-full px-4 py-2.5 rounded-xl border transition-all text-left ${
                   s.paintingType === type ? 'bg-[#4fd1c5]/10 border-[#4fd1c5]/50 text-[#4fd1c5]' : 'bg-black/10 border-[#2a7a8a]/20 text-white/40 hover:border-[#2a7a8a]/50'
@@ -347,12 +360,6 @@ function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => v
             ))}
           </div>
         </div>
-        {s.paintingType.includes('RAL') && (
-          <div className="space-y-2">
-            <label className={LBL}>Цвет RAL</label>
-            <input type="text" value={s.ralColor || ''} onChange={e => update({ ralColor: e.target.value })} className={INP} placeholder="Напр. 9016" />
-          </div>
-        )}
       </div>
     </div>
   );
@@ -406,7 +413,7 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
             </div>
           )}
           <div className="space-y-2">
-            <label className={LBL}>1-я панель внутри</label>
+            <label className={LBL}>1-я панель внутри помещения</label>
             <ToggleGroup value={s.firstPanelInside} options={['Слева', 'Справа']}
               onChange={v => update({ firstPanelInside: v })} />
           </div>
@@ -421,6 +428,9 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
               <option>Накладной анод</option>
               <option>Накладной окраш</option>
             </select>
+            {!s.threshold && (
+              <p className="text-[10px] text-amber-400/70 font-bold uppercase tracking-wider pl-1">⚠ Без порога система быть не может</p>
+            )}
           </div>
           <div className="space-y-2">
             <label className={LBL}>Межстекольный профиль</label>
@@ -458,16 +468,16 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
           <label className={LBL}>Профили слева</label>
           <div className="bg-black/10 border border-[#2a7a8a]/20 rounded-xl px-3 py-2">
             <ProfileCheckbox checked={s.profileLeftWall} onChange={() => update({ profileLeftWall: !s.profileLeftWall })} label="Пристеночный RS1333/1335" />
-            <ProfileCheckbox checked={s.profileLeftLockBar} onChange={() => { if (!s.profileLeftLockBar) update({ profileLeftLockBar: true, profileLeftPBar: false }); else update({ profileLeftLockBar: false }); }} label="Боковой профиль-замок RS1081" indent />
+            <ProfileCheckbox checked={s.profileLeftLockBar} onChange={() => { if (!s.profileLeftLockBar) update({ profileLeftLockBar: true, profileLeftPBar: false, profileLeftHandleBar: true, profileLeftBubble: false }); else update({ profileLeftLockBar: false }); }} label="Боковой профиль-замок RS1081" indent />
             <ProfileCheckbox checked={s.profileLeftPBar} onChange={() => { if (!s.profileLeftPBar) update({ profileLeftPBar: true, profileLeftLockBar: false }); else update({ profileLeftPBar: false }); }} label="Боковой П-профиль RS1082" indent />
-            <ProfileCheckbox checked={s.profileLeftHandleBar} onChange={() => update({ profileLeftHandleBar: !s.profileLeftHandleBar })} label="Ручка-профиль RS112" />
-            <ProfileCheckbox checked={s.profileLeftBubble} onChange={() => update({ profileLeftBubble: !s.profileLeftBubble })} label="Пузырьковый уплотнитель RS1002" disabled={s.profileLeftLockBar} />
+            <ProfileCheckbox checked={s.profileLeftHandleBar} onChange={() => { if (!s.profileLeftHandleBar) update({ profileLeftHandleBar: true, profileLeftBubble: false }); else update({ profileLeftHandleBar: false }); }} label="Ручка-профиль RS112" />
+            <ProfileCheckbox checked={s.profileLeftBubble} onChange={() => { if (!s.profileLeftBubble) update({ profileLeftBubble: true, profileLeftHandleBar: false }); else update({ profileLeftBubble: false }); }} label="Пузырьковый уплотнитель RS1002" disabled={s.profileLeftLockBar} />
           </div>
           {showLockLeft && (
             <div className="mt-2 space-y-1">
               <label className={LBL}>Замок слева</label>
               <RadioList value={s.lockLeft} noneLabel="Без замка"
-                options={['1-сторонний RS3018', '2-сторонний с ключом RS3019']}
+                options={['ЗАМОК-ЗАЩЕЛКА 1стор', 'ЗАМОК-ЗАЩЕЛКА 2стор с ключом']}
                 onChange={v => update({ lockLeft: v })} />
             </div>
           )}
@@ -491,16 +501,16 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
           <label className={LBL}>Профили справа</label>
           <div className="bg-black/10 border border-[#2a7a8a]/20 rounded-xl px-3 py-2">
             <ProfileCheckbox checked={s.profileRightWall} onChange={() => update({ profileRightWall: !s.profileRightWall })} label="Пристеночный RS1333/1335" />
-            <ProfileCheckbox checked={s.profileRightLockBar} onChange={() => { if (!s.profileRightLockBar) update({ profileRightLockBar: true, profileRightPBar: false }); else update({ profileRightLockBar: false }); }} label="Боковой профиль-замок RS1081" indent />
+            <ProfileCheckbox checked={s.profileRightLockBar} onChange={() => { if (!s.profileRightLockBar) update({ profileRightLockBar: true, profileRightPBar: false, profileRightHandleBar: true, profileRightBubble: false }); else update({ profileRightLockBar: false }); }} label="Боковой профиль-замок RS1081" indent />
             <ProfileCheckbox checked={s.profileRightPBar} onChange={() => { if (!s.profileRightPBar) update({ profileRightPBar: true, profileRightLockBar: false }); else update({ profileRightPBar: false }); }} label="Боковой П-профиль RS1082" indent />
-            <ProfileCheckbox checked={s.profileRightHandleBar} onChange={() => update({ profileRightHandleBar: !s.profileRightHandleBar })} label="Ручка-профиль RS112" />
-            <ProfileCheckbox checked={s.profileRightBubble} onChange={() => update({ profileRightBubble: !s.profileRightBubble })} label="Пузырьковый уплотнитель RS1002" disabled={s.profileRightLockBar} />
+            <ProfileCheckbox checked={s.profileRightHandleBar} onChange={() => { if (!s.profileRightHandleBar) update({ profileRightHandleBar: true, profileRightBubble: false }); else update({ profileRightHandleBar: false }); }} label="Ручка-профиль RS112" />
+            <ProfileCheckbox checked={s.profileRightBubble} onChange={() => { if (!s.profileRightBubble) update({ profileRightBubble: true, profileRightHandleBar: false }); else update({ profileRightBubble: false }); }} label="Пузырьковый уплотнитель RS1002" disabled={s.profileRightLockBar} />
           </div>
           {showLockRight && (
             <div className="mt-2 space-y-1">
               <label className={LBL}>Замок справа</label>
               <RadioList value={s.lockRight} noneLabel="Без замка"
-                options={['1-сторонний RS3018', '2-сторонний с ключом RS3019']}
+                options={['ЗАМОК-ЗАЩЕЛКА 1стор', 'ЗАМОК-ЗАЩЕЛКА 2стор с ключом']}
                 onChange={v => update({ lockRight: v })} />
             </div>
           )}
@@ -528,6 +538,14 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
           <Checkbox checked={s.floorLatchesRight} onChange={() => update({ floorLatchesRight: !s.floorLatchesRight })} label="Справа" />
         </div>
       </div>
+
+      {/* Отступ под ручку */}
+      {(s.handleLeft === 'Стеклянная ручка RS3017' || s.handleLeft === 'Ручка-скоба' || s.handleRight === 'Стеклянная ручка RS3017' || s.handleRight === 'Ручка-скоба') && (
+        <div className="space-y-2">
+          <label className={LBL}>Отступ под ручку, мм</label>
+          <input type="number" value={s.handleOffset || ''} onChange={e => update({ handleOffset: parseFloat(e.target.value) || undefined })} className={INP} placeholder="мм" />
+        </div>
+      )}
     </div>
   );
 }
@@ -910,6 +928,16 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       setProject({ id: p.id, number: p.number, customer: p.customer });
       setProjectExtraParts(p.extra_parts || '');
       setProjectComments(p.comments || '');
+      setProductionStages((p.production_stages as 1 | 2) || 1);
+      setCurrentStage((p.current_stage as 1 | 2) || 1);
+      setProjectStatus(p.status || '');
+      setGlassStatus(p.glass_status || '');
+      setGlassInvoice(p.glass_invoice || '');
+      setGlassReadyDate(p.glass_ready_date || '');
+      setPaintStatus(p.paint_status || '');
+      setPaintShipDate(p.paint_ship_date || '');
+      setPaintReceivedDate(p.paint_received_date || '');
+      try { setOrderItems(p.order_items ? JSON.parse(p.order_items) : []); } catch { setOrderItems([]); }
       setSections(p.sections.map(s => apiToLocal(s)));
       setLoadingProject(false);
     }).catch(() => { setLoadingProject(false); onBack(); });
@@ -925,6 +953,16 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(true);
   const [projectExtraParts, setProjectExtraParts] = useState('');
   const [projectComments, setProjectComments] = useState('');
+  const [productionStages, setProductionStages] = useState<1 | 2>(1);
+  const [currentStage, setCurrentStage] = useState<1 | 2>(1);
+  const [projectStatus, setProjectStatus] = useState('');
+  const [glassStatus, setGlassStatus] = useState('');
+  const [glassInvoice, setGlassInvoice] = useState('');
+  const [glassReadyDate, setGlassReadyDate] = useState('');
+  const [paintStatus, setPaintStatus] = useState('');
+  const [paintShipDate, setPaintShipDate] = useState('');
+  const [paintReceivedDate, setPaintReceivedDate] = useState('');
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [notesOpen, setNotesOpen] = useState(false);
   const [showSystemPicker, setShowSystemPicker] = useState(false);
   const [slideSubVisible, setSlideSubVisible] = useState(false);
@@ -1067,10 +1105,51 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const handleSaveProjectNotes = async () => {
     if (!project) return;
     try {
-      await updateProject(project.id, { extra_parts: projectExtraParts, comments: projectComments });
+      await updateProject(project.id, {
+        extra_parts: projectExtraParts,
+        comments: projectComments,
+        production_stages: productionStages,
+        current_stage: currentStage,
+        status: projectStatus || undefined,
+        glass_status: glassStatus || undefined,
+        glass_invoice: glassInvoice || undefined,
+        glass_ready_date: glassReadyDate || undefined,
+        paint_status: paintStatus || undefined,
+        paint_ship_date: paintShipDate || undefined,
+        paint_received_date: paintReceivedDate || undefined,
+        order_items: orderItems.length ? JSON.stringify(orderItems) : undefined,
+      });
     } catch {
-      toast.error('Не удалось сохранить примечания');
+      toast.error('Не удалось сохранить данные проекта');
     }
+  };
+
+  const saveStatus = async (updates: Partial<{ status: string; glass_status: string; glass_invoice: string; glass_ready_date: string; paint_status: string; paint_ship_date: string; paint_received_date: string; current_stage: number; order_items: string; production_stages: number; }>) => {
+    if (!project) return;
+    try { await updateProject(project.id, updates); }
+    catch { toast.error('Не удалось сохранить'); }
+  };
+
+  const addOrderItem = () => {
+    const newItem: OrderItem = { id: `oi-${Date.now()}`, name: '', invoice: '', paidDate: '', deliveredDate: '' };
+    const next = [...orderItems, newItem];
+    setOrderItems(next);
+    saveStatus({ order_items: JSON.stringify(next) });
+  };
+
+  const removeOrderItem = (id: string) => {
+    const next = orderItems.filter(oi => oi.id !== id);
+    setOrderItems(next);
+    saveStatus({ order_items: next.length > 0 ? JSON.stringify(next) : undefined });
+  };
+
+  const updateOrderItem = (id: string, field: keyof OrderItem, value: string) => {
+    const next = orderItems.map(oi => oi.id === id ? { ...oi, [field]: value } : oi);
+    setOrderItems(next);
+  };
+
+  const saveOrderItems = () => {
+    saveStatus({ order_items: orderItems.length > 0 ? JSON.stringify(orderItems) : undefined });
   };
 
   // Рендер всего содержимого секции на одной странице
@@ -1164,22 +1243,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           </div>
         </div>
 
-        {/* Center: document buttons */}
-        <div className="hidden md:flex items-center gap-1 flex-1 justify-center">
-          {[
-            { name: 'Произв. лист', icon: FileText },
-            { name: 'Накладная', icon: ClipboardList },
-            { name: 'Заказ стекла', icon: WindowIcon },
-            { name: 'Заявка покр.', icon: Palette },
-          ].map(doc => (
-            <button key={doc.name} onClick={() => openPreview(doc.name)}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:bg-[#2a7a8a]/20 hover:border-[#2a7a8a]/40 transition-all group">
-              <doc.icon className="w-3.5 h-3.5 text-[#4fd1c5]/50 group-hover:text-[#4fd1c5] transition-colors flex-shrink-0" />
-              <span className="text-[11px] font-bold text-white/40 group-hover:text-white transition-colors whitespace-nowrap">{doc.name}</span>
-            </button>
-          ))}
-        </div>
-
         {/* Right: actions */}
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
@@ -1203,6 +1266,22 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             <span className="hidden sm:inline">{isDirty ? 'Сохранить и выйти' : 'Выйти'}</span>
           </button>
         </div>
+      </div>
+
+      {/* Document buttons sub-bar */}
+      <div className="hidden sm:flex items-center gap-1 px-4 sm:px-8 py-2 border-b border-[#2a7a8a]/20 bg-[#1a4b54]/20 flex-shrink-0">
+        {[
+          { name: 'Спецификация', icon: FileText },
+          { name: 'Накладная', icon: ClipboardList },
+          { name: 'Заказ стекла', icon: WindowIcon },
+          { name: 'Заявка покр.', icon: Palette },
+        ].map(doc => (
+          <button key={doc.name} onClick={() => openPreview(doc.name)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.06] hover:bg-[#2a7a8a]/20 hover:border-[#2a7a8a]/40 transition-all group">
+            <doc.icon className="w-3 h-3 text-[#4fd1c5]/50 group-hover:text-[#4fd1c5] transition-colors flex-shrink-0" />
+            <span className="text-[10px] font-bold text-white/40 group-hover:text-white transition-colors whitespace-nowrap">{doc.name}</span>
+          </button>
+        ))}
       </div>
 
       {/* Body */}
@@ -1442,141 +1521,167 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           <AnimatePresence mode="wait">
             {!activeSection ? (
               <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="h-full flex flex-col items-center p-8 sm:p-12 min-h-[60vh] pt-12 sm:pt-16">
-                <div className="w-full max-w-sm">
-                  <div className="text-center mb-8">
-                    <div className="w-16 h-16 rounded-2xl bg-[#2a7a8a]/15 border border-[#2a7a8a]/25 flex items-center justify-center mx-auto mb-5">
-                      <Plus className="w-7 h-7 text-[#4fd1c5]/60" />
+                className="p-4 sm:p-8 max-w-3xl mx-auto w-full">
+
+                {/* Production stages badge + Stage selector */}
+                {productionStages === 2 && (
+                  <div className="flex items-center gap-3 mb-6">
+                    <span className="text-xs font-bold text-amber-300/70 border border-amber-500/20 bg-amber-500/5 rounded-xl px-3 py-1.5">
+                      Производство в 2 этапа
+                    </span>
+                    <div className="flex gap-2">
+                      {([1, 2] as const).map(n => (
+                        <button key={n} onClick={() => { setCurrentStage(n); saveStatus({ current_stage: n }); }}
+                          className={`px-4 py-1.5 rounded-xl border font-bold text-sm transition-all ${
+                            currentStage === n
+                              ? 'bg-[#4fd1c5]/15 border-[#4fd1c5]/40 text-[#4fd1c5]'
+                              : 'bg-black/10 border-[#2a7a8a]/20 text-white/40 hover:border-[#2a7a8a]/40'
+                          }`}>
+                          Этап {n}
+                        </button>
+                      ))}
                     </div>
-                    <h3 className="text-xl font-bold mb-1.5">Создать секцию</h3>
-                    <p className="text-white/30 text-sm">Выберите систему</p>
                   </div>
-                  <div className="flex flex-col gap-2">
-                    {/* СЛАЙД */}
-                    <div className={`rounded-2xl border overflow-hidden transition-all ${slideSubVisible ? 'border-[#2a7a8a]/50' : 'border-[#2a7a8a]/25'}`}>
-                      <button onClick={() => setSlideSubVisible(v => !v)}
-                        className={`w-full py-3.5 px-5 font-bold text-sm transition-all flex items-center justify-between ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
-                        <span>СЛАЙД</span>
-                        <ChevronRight className={`w-4 h-4 transition-transform ${slideSubVisible ? 'rotate-90' : ''}`} />
-                      </button>
-                      {slideSubVisible && (
-                        <div className="grid grid-cols-2 border-t border-[#2a7a8a]/25">
-                          <button onClick={() => handleAddSection('СЛАЙД', { slideRails: 3 })}
-                            className={`py-3 font-bold text-sm transition-all border-r border-[#2a7a8a]/25 ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
-                            Стандарт 1 ряд
-                          </button>
-                          <button onClick={() => handleAddSection('СЛАЙД', { slideRails: 5 })}
-                            className={`py-3 font-bold text-sm transition-all ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
-                            2 ряда от центра
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    {/* КНИЖКА */}
-                    <div className={`rounded-2xl border overflow-hidden transition-all ${bookSubVisible ? 'border-[#7a4a2a]/50' : 'border-[#7a4a2a]/25'}`}>
-                      <button onClick={() => setBookSubVisible(v => !v)}
-                        className={`w-full py-3.5 px-5 font-bold text-sm transition-all flex items-center justify-between ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
-                        <span>КНИЖКА</span>
-                        <ChevronRight className={`w-4 h-4 transition-transform ${bookSubVisible ? 'rotate-90' : ''}`} />
-                      </button>
-                      {bookSubVisible && (
-                        <div className="border-t border-[#7a4a2a]/25">
-                          <div className="grid grid-cols-2">
-                            <button onClick={() => handleAddSection('КНИЖКА', { bookSubtype: 'doors' })}
-                              className={`py-3 font-bold text-sm transition-all border-r border-b border-[#7a4a2a]/25 ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
-                              С дверями
-                            </button>
-                            <button onClick={() => handleAddSection('КНИЖКА', { bookSubtype: 'angle' })}
-                              className={`py-3 font-bold text-sm transition-all border-b border-[#7a4a2a]/25 ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
-                              С углом
-                            </button>
-                          </div>
-                          <button onClick={() => handleAddSection('КНИЖКА', { bookSubtype: 'doors_and_angle' })}
-                            className={`w-full py-3 font-bold text-sm transition-all ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
-                            С дверями и углом
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    {/* ЛИФТ */}
-                    <div className={`rounded-2xl border overflow-hidden transition-all ${liftSubVisible ? 'border-[#4a2a7a]/50' : 'border-[#4a2a7a]/25'}`}>
-                      <button onClick={() => setLiftSubVisible(v => !v)}
-                        className={`w-full py-3.5 px-5 font-bold text-sm transition-all flex items-center justify-between ${SYSTEM_PICKER_COLORS['ЛИФТ']}`}>
-                        <span>ЛИФТ</span>
-                        <ChevronRight className={`w-4 h-4 transition-transform ${liftSubVisible ? 'rotate-90' : ''}`} />
-                      </button>
-                      {liftSubVisible && (
-                        <div className="grid grid-cols-3 border-t border-[#4a2a7a]/25">
-                          {[2, 3, 4].map((n, i) => (
-                            <button key={n} onClick={() => handleAddSection('ЛИФТ', { liftPanels: n })}
-                              className={`py-3 font-bold text-sm transition-all ${i < 2 ? 'border-r border-[#4a2a7a]/25' : ''} ${SYSTEM_PICKER_COLORS['ЛИФТ']}`}>
-                              {n} панели
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    {/* ЦС */}
-                    <div className={`rounded-2xl border overflow-hidden transition-all ${csSubVisible ? 'border-[#2a4a7a]/50' : 'border-[#2a4a7a]/25'}`}>
-                      <button onClick={() => setCsSubVisible(v => !v)}
-                        className={`w-full py-3.5 px-5 font-bold text-sm transition-all flex items-center justify-between ${SYSTEM_PICKER_COLORS['ЦС']}`}>
-                        <span>ЦС</span>
-                        <ChevronRight className={`w-4 h-4 transition-transform ${csSubVisible ? 'rotate-90' : ''}`} />
-                      </button>
-                      {csSubVisible && (
-                        <div className="grid grid-cols-2 border-t border-[#2a4a7a]/25">
-                          {['Треугольник', 'Прямоугольник', 'Трапеция', 'Сложная форма'].map((shape, i) => (
-                            <button key={shape} onClick={() => handleAddSection('ЦС', { csShape: shape })}
-                              className={`py-3 font-bold text-sm transition-all
-                                ${i % 2 === 0 ? 'border-r border-[#2a4a7a]/25' : ''}
-                                ${i < 2 ? 'border-b border-[#2a4a7a]/25' : ''}
-                                ${SYSTEM_PICKER_COLORS['ЦС']}`}>
-                              {shape}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    {/* КОМПЛЕКТАЦИЯ */}
-                    <button onClick={() => handleAddSection('КОМПЛЕКТАЦИЯ')}
-                      className={`py-3.5 rounded-2xl border font-bold text-sm transition-all ${SYSTEM_PICKER_COLORS['КОМПЛЕКТАЦИЯ']}`}>
-                      КОМПЛЕКТАЦИЯ
-                    </button>
+                )}
+
+                {/* Status */}
+                <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/30 rounded-2xl p-5 sm:p-6 mb-4">
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40">Статус</span>
                   </div>
-                  <button onClick={() => setMobileSidebarOpen(true)}
-                    className="sm:hidden mt-4 w-full flex items-center justify-center gap-2 px-6 py-3 bg-white/[0.03] border border-[#2a7a8a]/20 hover:bg-[#2a7a8a]/20 text-white/40 hover:text-[#4fd1c5] text-sm font-bold rounded-xl transition-all">
-                    <ClipboardList className="w-4 h-4" /> Список секций
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    {['РАСЧЕТ','В работе','Запущен в производство','Готов','Отгружен полностью','Отгружен частично','Отгружен 1 этап','Рекламация','Архив'].map(s => {
+                      const active = projectStatus === s;
+                      return (
+                        <button key={s} onClick={() => { setProjectStatus(s); saveStatus({ status: s }); }}
+                          className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+                            active ? 'bg-[#4fd1c5]/15 border-[#4fd1c5]/40 text-[#4fd1c5]'
+                                   : 'bg-black/10 border-[#2a7a8a]/20 text-white/40 hover:border-[#2a7a8a]/40'
+                          }`}>{s}</button>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                {/* Main area project notes */}
-                <div className="w-full mt-10 pt-8 border-t border-[#2a7a8a]/20">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40 mb-6">Примечания к проекту</p>
-                  <div className="space-y-5">
+                {/* Glass — hidden for 2-stage stage 1 */}
+                {!(productionStages === 2 && currentStage === 1) && (
+                  <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/30 rounded-2xl p-5 sm:p-6 mb-4">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40 block mb-4">Стекла</span>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {['Без стекла','Стекла заказаны','Стекла в цеху'].map(s => (
+                        <button key={s} onClick={() => { setGlassStatus(s); saveStatus({ glass_status: s }); }}
+                          className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+                            glassStatus === s ? 'bg-[#4fd1c5]/15 border-[#4fd1c5]/40 text-[#4fd1c5]'
+                                             : 'bg-black/10 border-[#2a7a8a]/20 text-white/40 hover:border-[#2a7a8a]/40'
+                          }`}>{s}</button>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className={LBL}>Счёт №</label>
+                        <input value={glassInvoice} onChange={e => setGlassInvoice(e.target.value)}
+                          onBlur={() => saveStatus({ glass_invoice: glassInvoice || undefined })}
+                          className={INP} placeholder="Номер счёта" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className={LBL}>Ориентир готовности</label>
+                        <input type="date" value={glassReadyDate} onChange={e => { setGlassReadyDate(e.target.value); saveStatus({ glass_ready_date: e.target.value || undefined }); }}
+                          className={INP} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Paint */}
+                <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/30 rounded-2xl p-5 sm:p-6 mb-4">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40 block mb-4">Покраска</span>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {['Без покраски','Задание на покраску в цеху','Отгружен на покраску','Получен с покраски'].map(s => (
+                      <button key={s} onClick={() => { setPaintStatus(s); saveStatus({ paint_status: s }); }}
+                        className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+                          paintStatus === s ? 'bg-[#4fd1c5]/15 border-[#4fd1c5]/40 text-[#4fd1c5]'
+                                           : 'bg-black/10 border-[#2a7a8a]/20 text-white/40 hover:border-[#2a7a8a]/40'
+                        }`}>{s}</button>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className={LBL}>Отгружен на покраску</label>
+                      <input type="date" value={paintShipDate} onChange={e => { setPaintShipDate(e.target.value); saveStatus({ paint_ship_date: e.target.value || undefined }); }}
+                        className={INP} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className={LBL}>Получен с покраски</label>
+                      <input type="date" value={paintReceivedDate} onChange={e => { setPaintReceivedDate(e.target.value); saveStatus({ paint_received_date: e.target.value || undefined }); }}
+                        className={INP} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Order items */}
+                <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/30 rounded-2xl p-5 sm:p-6 mb-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40">Заказ доп. комплектующих</span>
+                    <button onClick={addOrderItem}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#2a7a8a]/20 border border-[#2a7a8a]/40 text-[#4fd1c5] text-xs font-bold hover:bg-[#2a7a8a]/40 transition-colors">
+                      <Plus className="w-3.5 h-3.5" /> Добавить
+                    </button>
+                  </div>
+                  {orderItems.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="hidden sm:grid grid-cols-[1fr_1fr_120px_120px_32px] gap-2 mb-1">
+                        {['Название','Счёт','Оплачен','Доставлен в цех',''].map((h, i) => (
+                          <span key={i} className="text-[9px] font-bold uppercase tracking-widest text-white/25">{h}</span>
+                        ))}
+                      </div>
+                      {orderItems.map(item => (
+                        <div key={item.id} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_120px_120px_32px] gap-2 items-center">
+                          <input value={item.name} onChange={e => updateOrderItem(item.id,'name',e.target.value)}
+                            onBlur={saveOrderItems} placeholder="Название"
+                            className="bg-white/[0.04] border border-[#2a7a8a]/20 rounded-xl px-3 py-2 text-xs text-white/70 outline-none focus:border-[#4fd1c5]/40 transition-colors" />
+                          <input value={item.invoice} onChange={e => updateOrderItem(item.id,'invoice',e.target.value)}
+                            onBlur={saveOrderItems} placeholder="Счёт"
+                            className="bg-white/[0.04] border border-[#2a7a8a]/20 rounded-xl px-3 py-2 text-xs text-white/70 outline-none focus:border-[#4fd1c5]/40 transition-colors" />
+                          <input type="date" value={item.paidDate} onChange={e => { updateOrderItem(item.id,'paidDate',e.target.value); saveOrderItems(); }}
+                            className="bg-white/[0.04] border border-[#2a7a8a]/20 rounded-xl px-3 py-2 text-xs text-white/70 outline-none focus:border-[#4fd1c5]/40 transition-colors" />
+                          <input type="date" value={item.deliveredDate} onChange={e => { updateOrderItem(item.id,'deliveredDate',e.target.value); saveOrderItems(); }}
+                            className="bg-white/[0.04] border border-[#2a7a8a]/20 rounded-xl px-3 py-2 text-xs text-white/70 outline-none focus:border-[#4fd1c5]/40 transition-colors" />
+                          <button onClick={() => removeOrderItem(item.id)}
+                            className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-red-500/20 text-red-400/60 hover:text-red-400 transition-colors">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {orderItems.length === 0 && (
+                    <p className="text-xs text-white/20 text-center py-4">Нажмите «Добавить» для добавления позиции</p>
+                  )}
+                </div>
+
+                {/* Notes */}
+                <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/30 rounded-2xl p-5 sm:p-6 mb-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40 mb-5">Примечания к проекту</p>
+                  <div className="space-y-4">
                     <div>
                       <label className="text-[11px] text-white/35 uppercase tracking-wider block mb-2">Доп. комплектующие</label>
-                      <textarea
-                        value={projectExtraParts}
-                        onChange={e => setProjectExtraParts(e.target.value)}
-                        onBlur={handleSaveProjectNotes}
-                        rows={4}
-                        placeholder="Перечислите дополнительные комплектующие..."
-                        className="w-full bg-white/[0.03] border border-[#2a7a8a]/25 rounded-2xl px-4 py-3 text-sm text-white/70 placeholder-white/20 resize-none focus:outline-none focus:border-[#4fd1c5]/40 transition-colors"
-                      />
+                      <textarea value={projectExtraParts} onChange={e => setProjectExtraParts(e.target.value)}
+                        onBlur={handleSaveProjectNotes} rows={3} placeholder="Перечислите дополнительные комплектующие..."
+                        className="w-full bg-white/[0.03] border border-[#2a7a8a]/25 rounded-2xl px-4 py-3 text-sm text-white/70 placeholder-white/20 resize-none focus:outline-none focus:border-[#4fd1c5]/40 transition-colors" />
                     </div>
                     <div>
                       <label className="text-[11px] text-white/35 uppercase tracking-wider block mb-2">Комментарии</label>
-                      <textarea
-                        value={projectComments}
-                        onChange={e => setProjectComments(e.target.value)}
-                        onBlur={handleSaveProjectNotes}
-                        rows={4}
-                        placeholder="Любые дополнительные комментарии..."
-                        className="w-full bg-white/[0.03] border border-[#2a7a8a]/25 rounded-2xl px-4 py-3 text-sm text-white/70 placeholder-white/20 resize-none focus:outline-none focus:border-[#4fd1c5]/40 transition-colors"
-                      />
+                      <textarea value={projectComments} onChange={e => setProjectComments(e.target.value)}
+                        onBlur={handleSaveProjectNotes} rows={3} placeholder="Любые дополнительные комментарии..."
+                        className="w-full bg-white/[0.03] border border-[#2a7a8a]/25 rounded-2xl px-4 py-3 text-sm text-white/70 placeholder-white/20 resize-none focus:outline-none focus:border-[#4fd1c5]/40 transition-colors" />
                     </div>
                   </div>
                 </div>
+
+                <button onClick={() => setMobileSidebarOpen(true)}
+                  className="sm:hidden mt-4 w-full flex items-center justify-center gap-2 px-6 py-3 bg-white/[0.03] border border-[#2a7a8a]/20 hover:bg-[#2a7a8a]/20 text-white/40 hover:text-[#4fd1c5] text-sm font-bold rounded-xl transition-all">
+                  <ClipboardList className="w-4 h-4" /> Список секций
+                </button>
               </motion.div>
             ) : (
               <motion.div key={activeSection.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
@@ -1655,9 +1760,9 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                       <><Save className="w-4 h-4" /> Сохранить изменения</>
                     ) : 'Сохранить секцию'}
                   </button>
-                  <button onClick={() => openPreview('Производственный лист')}
+                  <button onClick={() => openPreview('Спецификация')}
                     className="flex-1 py-4 rounded-2xl bg-[#2a7a8a]/20 border border-[#2a7a8a]/40 hover:bg-[#2a7a8a]/40 text-[#4fd1c5] font-bold transition-all">
-                    Производственный лист
+                    СПЕЦИФИКАЦИЯ
                   </button>
                 </div>
               </motion.div>

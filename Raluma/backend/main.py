@@ -63,6 +63,16 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE sections ADD COLUMN handle_right VARCHAR",
             "ALTER TABLE projects ADD COLUMN extra_parts VARCHAR",
             "ALTER TABLE projects ADD COLUMN comments VARCHAR",
+            "ALTER TABLE projects ADD COLUMN production_stages INTEGER DEFAULT 1",
+            "ALTER TABLE projects ADD COLUMN current_stage INTEGER DEFAULT 1",
+            "ALTER TABLE projects ADD COLUMN status VARCHAR",
+            "ALTER TABLE projects ADD COLUMN glass_status VARCHAR",
+            "ALTER TABLE projects ADD COLUMN glass_invoice VARCHAR",
+            "ALTER TABLE projects ADD COLUMN glass_ready_date VARCHAR",
+            "ALTER TABLE projects ADD COLUMN paint_status VARCHAR",
+            "ALTER TABLE projects ADD COLUMN paint_ship_date VARCHAR",
+            "ALTER TABLE projects ADD COLUMN paint_received_date VARCHAR",
+            "ALTER TABLE projects ADD COLUMN order_items VARCHAR",
         ]:
             try:
                 conn.execute(text(col_sql))
@@ -79,6 +89,19 @@ async def lifespan(app: FastAPI):
             conn.commit()
         except Exception:
             pass
+    # Переименование замков (ТЗ6)
+    with engine.connect() as conn:
+        for sql in [
+            "UPDATE sections SET lock_left = 'ЗАМОК-ЗАЩЕЛКА 1стор' WHERE lock_left = '1-сторонний RS3018'",
+            "UPDATE sections SET lock_left = 'ЗАМОК-ЗАЩЕЛКА 2стор с ключом' WHERE lock_left = '2-сторонний с ключом RS3019'",
+            "UPDATE sections SET lock_right = 'ЗАМОК-ЗАЩЕЛКА 1стор' WHERE lock_right = '1-сторонний RS3018'",
+            "UPDATE sections SET lock_right = 'ЗАМОК-ЗАЩЕЛКА 2стор с ключом' WHERE lock_right = '2-сторонний с ключом RS3019'",
+        ]:
+            try:
+                conn.execute(text(sql))
+                conn.commit()
+            except Exception:
+                pass
     seed_superadmin()
     yield
     # Shutdown (ничего не нужно)

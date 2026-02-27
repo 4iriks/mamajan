@@ -33,6 +33,17 @@ class Project(Base):
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     extra_parts = Column(String, nullable=True)
     comments = Column(String, nullable=True)
+    # ТЗ5 — статус производства
+    production_stages = Column(Integer, default=1)      # 1 или 2
+    current_stage = Column(Integer, default=1)          # текущий этап для 2-этапных
+    status = Column(String, nullable=True)              # статус проекта
+    glass_status = Column(String, nullable=True)
+    glass_invoice = Column(String, nullable=True)       # номер счёта на стекло
+    glass_ready_date = Column(String, nullable=True)    # дата готовности стёкол (ISO)
+    paint_status = Column(String, nullable=True)
+    paint_ship_date = Column(String, nullable=True)     # отгружен на покраску
+    paint_received_date = Column(String, nullable=True) # получен с покраски
+    order_items = Column(String, nullable=True)         # JSON: [{id,name,invoice,paidDate,deliveredDate}]
 
     owner = relationship("User", back_populates="projects")
     sections = relationship("Section", back_populates="project", cascade="all, delete-orphan", order_by="Section.order")

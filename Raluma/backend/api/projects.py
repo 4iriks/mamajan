@@ -42,6 +42,7 @@ def create_project(
         customer=data.customer,
         system=data.system or '',   # '' satisfies legacy NOT NULL constraint
         subtype=data.subtype,
+        production_stages=data.production_stages,
         created_by=current_user.id,
     )
     db.add(project)
@@ -67,18 +68,8 @@ def update_project(
     current_user: models.User = Depends(get_current_user),
 ):
     project = _get_project_or_404(project_id, db, current_user)
-    if data.number is not None:
-        project.number = data.number
-    if data.customer is not None:
-        project.customer = data.customer
-    if data.system is not None:
-        project.system = data.system
-    if data.subtype is not None:
-        project.subtype = data.subtype
-    if data.extra_parts is not None:
-        project.extra_parts = data.extra_parts
-    if data.comments is not None:
-        project.comments = data.comments
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(project, field, value)
     project.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(project)
@@ -110,6 +101,16 @@ def copy_project(
         subtype=source.subtype,
         extra_parts=source.extra_parts,
         comments=source.comments,
+        production_stages=source.production_stages,
+        status=source.status,
+        glass_status=source.glass_status,
+        glass_invoice=source.glass_invoice,
+        glass_ready_date=source.glass_ready_date,
+        paint_status=source.paint_status,
+        paint_ship_date=source.paint_ship_date,
+        paint_received_date=source.paint_received_date,
+        current_stage=source.current_stage,
+        order_items=source.order_items,
         created_by=current_user.id,
     )
     db.add(new_project)

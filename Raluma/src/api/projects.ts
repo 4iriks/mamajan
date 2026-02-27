@@ -8,6 +8,16 @@ export interface ProjectList {
   subtype?: string;
   extra_parts?: string;
   comments?: string;
+  production_stages?: number;
+  current_stage?: number;
+  status?: string;
+  glass_status?: string;
+  glass_invoice?: string;
+  glass_ready_date?: string;
+  paint_status?: string;
+  paint_ship_date?: string;
+  paint_received_date?: string;
+  order_items?: string;
   created_at: string;
   updated_at: string;
   created_by: number;
@@ -80,10 +90,10 @@ export const getProjects = () =>
 export const getProject = (id: number) =>
   client.get<ProjectFull>(`/api/projects/${id}`).then(r => r.data);
 
-export const createProject = (data: { number: string; customer: string }) =>
+export const createProject = (data: { number: string; customer: string; production_stages?: number }) =>
   client.post<ProjectFull>('/api/projects', data).then(r => r.data);
 
-export const updateProject = (id: number, data: Partial<{ number: string; customer: string; system: string; extra_parts: string; comments: string }>) =>
+export const updateProject = (id: number, data: Partial<Omit<ProjectList, 'id' | 'created_at' | 'updated_at' | 'created_by'>>) =>
   client.put<ProjectFull>(`/api/projects/${id}`, data).then(r => r.data);
 
 export const deleteProject = (id: number) =>

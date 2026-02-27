@@ -116,13 +116,50 @@ function LoginPage() {
   );
 }
 
+// ── Status helpers ────────────────────────────────────────────────────────────
+
+const STATUS_COLORS: Record<string, string> = {
+  'РАСЧЕТ':                'bg-white/10 text-white/50',
+  'В работе':              'bg-blue-500/20 text-blue-300',
+  'Запущен в производство':'bg-teal-500/20 text-teal-300',
+  'Готов':                 'bg-emerald-500/20 text-emerald-300',
+  'Отгружен полностью':    'bg-emerald-600/25 text-emerald-200',
+  'Отгружен частично':     'bg-amber-500/20 text-amber-300',
+  'Отгружен 1 этап':       'bg-amber-500/20 text-amber-300',
+  'Рекламация':            'bg-red-500/20 text-red-300',
+  'Архив':                 'bg-white/5 text-white/30',
+};
+
+const GLASS_COLORS: Record<string, string> = {
+  'Без стекла':    'bg-white/5 text-white/30',
+  'Стекла заказаны': 'bg-amber-500/20 text-amber-300',
+  'Стекла в цеху': 'bg-emerald-500/20 text-emerald-300',
+};
+
+const PAINT_COLORS: Record<string, string> = {
+  'Без покраски':               'bg-white/5 text-white/30',
+  'Задание на покраску в цеху': 'bg-blue-500/20 text-blue-300',
+  'Отгружен на покраску':       'bg-amber-500/20 text-amber-300',
+  'Получен с покраски':         'bg-emerald-500/20 text-emerald-300',
+};
+
+function StatusBadge({ value, colors }: { value?: string; colors: Record<string, string> }) {
+  if (!value) return null;
+  const cls = colors[value] ?? 'bg-white/5 text-white/40';
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded-lg text-[10px] font-bold border border-white/5 whitespace-nowrap ${cls}`}>
+      {value}
+    </span>
+  );
+}
+
 // ── Skeleton Row ─────────────────────────────────────────────────────────────
 
 function SkeletonRow() {
   return (
     <tr className="border-b border-[#2a7a8a]/10">
-      {[60, 80, 55, 30].map((w, i) => (
-        <td key={i} className="px-8 py-5">
+      {[60, 80, 55, 30, 30, 20].map((w, i) => (
+        <td key={i} className="px-5 py-5">
           <div className="h-4 rounded-lg bg-white/[0.06] animate-pulse" style={{ width: `${w}%` }} />
         </td>
       ))}
@@ -146,6 +183,7 @@ function ProjectsPage() {
 
   const [newNumber, setNewNumber] = useState('');
   const [newCustomer, setNewCustomer] = useState('');
+  const [newStages, setNewStages] = useState<1 | 2>(1);
   const [showCustomerDrop, setShowCustomerDrop] = useState(false);
 
   // Маска номера: Х00-0-0000 → первый символ буква, потом 2+1+4 цифры с тире
@@ -188,6 +226,7 @@ function ProjectsPage() {
   const openCreateModal = () => {
     setNewNumber('');
     setNewCustomer('');
+    setNewStages(1);
     setShowCustomerDrop(false);
     setIsCreateModalOpen(true);
   };
@@ -196,7 +235,7 @@ function ProjectsPage() {
     if (isCreating) return;
     setIsCreating(true);
     try {
-      const project = await createProject({ number: newNumber, customer: newCustomer });
+      const project = await createProject({ number: newNumber, customer: newCustomer, production_stages: newStages });
       setIsCreateModalOpen(false);
       navigate(`/projects/${project.id}`);
     } catch (e: any) {
@@ -313,13 +352,15 @@ function ProjectsPage() {
 
         <div className="bg-[#1a4b54]/30 backdrop-blur-xl border border-[#2a7a8a]/30 rounded-[2rem] overflow-hidden shadow-2xl">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[480px] text-left border-collapse">
+            <table className="w-full min-w-[640px] text-left border-collapse">
               <thead>
                 <tr className="border-b border-[#2a7a8a]/20 bg-white/[0.02]">
-                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Проект</th>
-                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Заказчик</th>
-                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Дата</th>
-                  <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40 text-right">Действия</th>
+                  <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Проект</th>
+                  <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Заказчик</th>
+                  <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Дата</th>
+                  <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Статус</th>
+                  <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Покраска</th>
+                  <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40 text-right">Действия</th>
                 </tr>
               </thead>
               <tbody>
@@ -331,7 +372,7 @@ function ProjectsPage() {
                       onClick={() => navigate(`/projects/${project.id}`)}
                       className="border-b border-[#2a7a8a]/10 hover:bg-white/[0.03] transition-colors cursor-pointer group"
                     >
-                      <td className="px-8 py-5 font-mono text-sm text-[#4fd1c5] font-bold" onClick={e => e.stopPropagation()}>
+                      <td className="px-5 py-4 font-mono text-sm text-[#4fd1c5] font-bold" onClick={e => e.stopPropagation()}>
                         {renamingId === project.id ? (
                           <div className="flex items-center gap-1">
                             <input
@@ -347,16 +388,29 @@ function ProjectsPage() {
                             </button>
                           </div>
                         ) : (
-                          <span className="cursor-pointer hover:text-white transition-colors group-hover:underline" onDoubleClick={e => startRename(e, project)}>
-                            {project.number}
-                          </span>
+                          <div>
+                            <span className="cursor-pointer hover:text-white transition-colors group-hover:underline" onDoubleClick={e => startRename(e, project)}>
+                              {project.number}
+                            </span>
+                            {project.glass_status && project.glass_status !== 'Без стекла' && (
+                              <div className="mt-1">
+                                <StatusBadge value={project.glass_status} colors={GLASS_COLORS} />
+                              </div>
+                            )}
+                          </div>
                         )}
                       </td>
-                      <td className="px-8 py-5 text-sm font-medium">{project.customer}</td>
-                      <td className="px-8 py-5 text-sm text-white/40">
+                      <td className="px-5 py-4 text-sm font-medium">{project.customer}</td>
+                      <td className="px-5 py-4 text-sm text-white/40">
                         {new Date(project.created_at).toLocaleDateString('ru-RU')}
                       </td>
-                      <td className="px-8 py-5 text-right">
+                      <td className="px-5 py-4">
+                        <StatusBadge value={project.status} colors={STATUS_COLORS} />
+                      </td>
+                      <td className="px-5 py-4">
+                        <StatusBadge value={project.paint_status} colors={PAINT_COLORS} />
+                      </td>
+                      <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={e => startRename(e, project)}
                             className="p-2 rounded-lg hover:bg-[#2a7a8a]/20 text-[#4fd1c5] transition-colors" title="Переименовать">
@@ -457,6 +511,17 @@ function ProjectsPage() {
                     className="w-full bg-white/8 border border-[#2a7a8a]/35 rounded-2xl px-6 py-4 outline-none focus:border-[#4fd1c5]/50 transition-all font-mono text-lg text-white tracking-widest"
                     placeholder="Х00-0-0000"
                   />
+                </div>
+                <div className="space-y-3">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40 ml-1">Производство</label>
+                  <div className="flex gap-3">
+                    {([1, 2] as const).map(n => (
+                      <button key={n} type="button" onClick={() => setNewStages(n)}
+                        className={`flex-1 py-3.5 rounded-2xl border font-bold text-sm transition-all ${newStages === n ? 'bg-[#4fd1c5]/10 border-[#4fd1c5]/50 text-[#4fd1c5]' : 'bg-black/10 border-[#2a7a8a]/25 text-white/40 hover:border-[#2a7a8a]/50'}`}>
+                        {n} этап
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div className="space-y-3">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40 ml-1">Заказчик</label>
