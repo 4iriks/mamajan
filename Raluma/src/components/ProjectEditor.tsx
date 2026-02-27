@@ -799,6 +799,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(true);
   const [projectExtraParts, setProjectExtraParts] = useState('');
   const [projectComments, setProjectComments] = useState('');
+  const [notesOpen, setNotesOpen] = useState(false);
   const [showSystemPicker, setShowSystemPicker] = useState(false);
   const [slideSubVisible, setSlideSubVisible] = useState(false);
   const [bookSubVisible, setBookSubVisible] = useState(false);
@@ -1087,16 +1088,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40">Секции</h3>
               <button
-                onClick={() => {
-                  const next = !showSystemPicker;
-                  setShowSystemPicker(next);
-                  if (next) {
-                    setSlideSubVisible(true);
-                    setBookSubVisible(true);
-                    setLiftSubVisible(true);
-                    setCsSubVisible(true);
-                  }
-                }}
+                onClick={() => setShowSystemPicker(v => !v)}
                 className={`p-1.5 rounded-lg border transition-colors ${
                   showSystemPicker
                     ? 'bg-[#4fd1c5]/20 border-[#4fd1c5]/40 text-[#4fd1c5]'
@@ -1255,33 +1247,55 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
               )}
             </div>
 
-            {/* Sidebar project notes */}
+            {/* Sidebar project notes — collapsible */}
             <div className="mt-5 pt-4 border-t border-[#2a7a8a]/20">
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40 mb-3">Примечания</p>
-              <div className="space-y-2.5">
-                <div>
-                  <label className="text-[10px] text-white/25 uppercase tracking-wider block mb-1.5">Доп. комплектующие</label>
-                  <textarea
-                    value={projectExtraParts}
-                    onChange={e => setProjectExtraParts(e.target.value)}
-                    onBlur={handleSaveProjectNotes}
-                    rows={2}
-                    placeholder="..."
-                    className="w-full bg-white/[0.02] border border-[#2a7a8a]/20 rounded-xl px-3 py-2 text-[11px] text-white/60 placeholder-white/15 resize-none focus:outline-none focus:border-[#4fd1c5]/40 transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-white/25 uppercase tracking-wider block mb-1.5">Комментарии</label>
-                  <textarea
-                    value={projectComments}
-                    onChange={e => setProjectComments(e.target.value)}
-                    onBlur={handleSaveProjectNotes}
-                    rows={2}
-                    placeholder="..."
-                    className="w-full bg-white/[0.02] border border-[#2a7a8a]/20 rounded-xl px-3 py-2 text-[11px] text-white/60 placeholder-white/15 resize-none focus:outline-none focus:border-[#4fd1c5]/40 transition-colors"
-                  />
-                </div>
-              </div>
+              <button
+                onClick={() => setNotesOpen(v => !v)}
+                className="flex items-center justify-between w-full group mb-0"
+              >
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40 group-hover:text-[#4fd1c5]/70 transition-colors">
+                  Примечания
+                </span>
+                <span className={`text-[#4fd1c5]/30 group-hover:text-[#4fd1c5]/60 transition-all ${notesOpen ? 'rotate-180' : ''} duration-200`}>
+                  <ChevronRight className="w-3.5 h-3.5 rotate-90" />
+                </span>
+              </button>
+              <AnimatePresence initial={false}>
+                {notesOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: 'easeInOut' }}
+                    className="overflow-hidden"
+                  >
+                    <div className="space-y-2.5 pt-3">
+                      <div>
+                        <label className="text-[10px] text-white/25 uppercase tracking-wider block mb-1.5">Доп. комплектующие</label>
+                        <textarea
+                          value={projectExtraParts}
+                          onChange={e => setProjectExtraParts(e.target.value)}
+                          onBlur={handleSaveProjectNotes}
+                          rows={2}
+                          placeholder="..."
+                          className="w-full bg-white/[0.02] border border-[#2a7a8a]/20 rounded-xl px-3 py-2 text-[11px] text-white/60 placeholder-white/15 resize-none focus:outline-none focus:border-[#4fd1c5]/40 transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-white/25 uppercase tracking-wider block mb-1.5">Комментарии</label>
+                        <textarea
+                          value={projectComments}
+                          onChange={e => setProjectComments(e.target.value)}
+                          onBlur={handleSaveProjectNotes}
+                          rows={2}
+                          placeholder="..."
+                          className="w-full bg-white/[0.02] border border-[#2a7a8a]/20 rounded-xl px-3 py-2 text-[11px] text-white/60 placeholder-white/15 resize-none focus:outline-none focus:border-[#4fd1c5]/40 transition-colors"
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
 

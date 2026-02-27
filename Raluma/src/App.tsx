@@ -146,6 +146,7 @@ function ProjectsPage() {
 
   const [newNumber, setNewNumber] = useState('');
   const [newCustomer, setNewCustomer] = useState('');
+  const [showCustomerDrop, setShowCustomerDrop] = useState(false);
 
   // Маска номера: Х00-0-0000 → первый символ буква, потом 2+1+4 цифры с тире
   const formatProjectNumber = (raw: string) => {
@@ -171,6 +172,25 @@ function ProjectsPage() {
   const filteredProjects = useMemo(() => projects.filter(p => {
     return p.number.includes(searchQuery) || p.customer.toLowerCase().includes(searchQuery.toLowerCase());
   }), [projects, searchQuery]);
+
+  const customerOptions = useMemo(() => {
+    const seen = new Set<string>();
+    if (user?.customer) seen.add(user.customer);
+    projects.forEach(p => { if (p.customer) seen.add(p.customer); });
+    return [...seen];
+  }, [projects, user]);
+
+  const filteredCustomers = useMemo(() =>
+    customerOptions.filter(c => c.toLowerCase().includes(newCustomer.toLowerCase())),
+    [customerOptions, newCustomer]
+  );
+
+  const openCreateModal = () => {
+    setNewNumber('');
+    setNewCustomer('');
+    setShowCustomerDrop(false);
+    setIsCreateModalOpen(true);
+  };
 
   const handleCreate = async () => {
     if (isCreating) return;
@@ -284,7 +304,7 @@ function ProjectsPage() {
               className="w-full bg-[#1a4b54]/20 border border-[#2a7a8a]/20 rounded-2xl pl-12 pr-4 py-4 outline-none focus:border-[#4fd1c5]/50 focus:ring-2 focus:ring-[#4fd1c5]/10 transition-all"
             />
           </div>
-          <button onClick={() => { setNewNumber(''); setIsCreateModalOpen(true); }}
+          <button onClick={openCreateModal}
             className="w-full md:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-[#00b894] hover:bg-[#00d1a7] text-white font-bold rounded-2xl transition-all shadow-lg shadow-[#00b894]/20 whitespace-nowrap"
           >
             <Plus className="w-5 h-5" /> Новый проект
@@ -365,7 +385,7 @@ function ProjectsPage() {
                             <p className="text-white/40 text-sm">{searchQuery ? 'Попробуйте другой запрос' : 'Создайте свой первый проект'}</p>
                           </div>
                           {!searchQuery && (
-                            <button onClick={() => setIsCreateModalOpen(true)}
+                            <button onClick={openCreateModal}
                               className="mt-4 flex items-center gap-2 px-6 py-3 bg-[#00b894] hover:bg-[#00d1a7] text-white font-bold rounded-xl transition-all">
                               <Plus className="w-4 h-4" /> Новый проект
                             </button>
@@ -440,18 +460,27 @@ function ProjectsPage() {
                 </div>
                 <div className="space-y-3">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40 ml-1">Заказчик</label>
-                  <input
-                    list="customer-list"
-                    value={newCustomer}
-                    onChange={e => setNewCustomer(e.target.value)}
-                    className="w-full bg-white/8 border border-[#2a7a8a]/35 rounded-2xl px-6 py-4 outline-none focus:border-[#4fd1c5]/50 transition-all text-white"
-                    placeholder="Заказчик"
-                  />
-                  <datalist id="customer-list">
-                    <option value="ООО «ПРОЗРАЧНЫЕ РЕШЕНИЯ»" />
-                    <option value="ООО «КРОКНА ИНЖИНИРИНГ»" />
-                    <option value="ООО «СТУДИЯ СПК»" />
-                  </datalist>
+                  <div className="relative">
+                    <input
+                      value={newCustomer}
+                      onChange={e => { setNewCustomer(e.target.value); setShowCustomerDrop(true); }}
+                      onFocus={() => setShowCustomerDrop(true)}
+                      onBlur={() => setTimeout(() => setShowCustomerDrop(false), 150)}
+                      className="w-full bg-white/[0.08] border border-[#2a7a8a]/35 rounded-2xl px-6 py-4 outline-none focus:border-[#4fd1c5]/50 transition-all text-white placeholder-white/20"
+                      placeholder="Введите или выберите заказчика"
+                    />
+                    {showCustomerDrop && filteredCustomers.length > 0 && (
+                      <div className="absolute z-20 top-full mt-2 w-full bg-[#122433] border border-[#2a7a8a]/40 rounded-2xl overflow-hidden shadow-2xl shadow-black/50">
+                        {filteredCustomers.map(c => (
+                          <button key={c} type="button"
+                            onMouseDown={() => { setNewCustomer(c); setShowCustomerDrop(false); }}
+                            className="w-full text-left px-6 py-3.5 text-sm text-white/70 hover:bg-[#2a7a8a]/20 hover:text-white transition-colors border-b border-[#2a7a8a]/10 last:border-0">
+                            {c}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex gap-4 mt-6 sm:mt-10">
