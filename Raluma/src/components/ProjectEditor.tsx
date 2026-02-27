@@ -865,8 +865,8 @@ function SlideRoomViewSVG({ section }: { section: Section }) {
 
       {/* Per-panel widths */}
       {Array.from({ length: panels }).map((_, i) => {
-        const dx1 = fX + i * (fW / panels);
-        const dx2 = fX + (i + 1) * (fW / panels);
+        const dx1 = iX + i * pW;
+        const dx2 = iX + (i + 1) * pW;
         const dy  = fY + fH + 18;
         const cx  = (dx1 + dx2) / 2;
         return (
@@ -880,10 +880,10 @@ function SlideRoomViewSVG({ section }: { section: Section }) {
       })}
 
       {/* Total width */}
-      <line x1={fX} y1={fY + fH + 38} x2={fX + fW} y2={fY + fH + 38} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.3" />
-      <line x1={fX}       y1={fY + fH + 32} x2={fX}       y2={fY + fH + 44} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.3" />
-      <line x1={fX + fW}  y1={fY + fH + 32} x2={fX + fW}  y2={fY + fH + 44} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.3" />
-      <text x={fX + fW / 2} y={fY + fH + 52} textAnchor="middle" fontSize="10" fill="#4fd1c5" fillOpacity="0.5">{W}</text>
+      <line x1={iX} y1={fY + fH + 38} x2={iX + iW} y2={fY + fH + 38} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.3" />
+      <line x1={iX}        y1={fY + fH + 32} x2={iX}        y2={fY + fH + 44} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.3" />
+      <line x1={iX + iW}   y1={fY + fH + 32} x2={iX + iW}   y2={fY + fH + 44} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.3" />
+      <text x={iX + iW / 2} y={fY + fH + 52} textAnchor="middle" fontSize="10" fill="#4fd1c5" fillOpacity="0.5">{W}</text>
 
       {/* Height on right */}
       <line x1={fX + fW + 18} y1={fY} x2={fX + fW + 18} y2={fY + fH} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.3" />

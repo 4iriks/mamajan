@@ -67,7 +67,7 @@ def update_section(
     ).first()
     if not section:
         raise HTTPException(status_code=404, detail="Секция не найдена")
-    for field, value in data.model_dump(exclude_unset=True).items():
+    for field, value in data.model_dump().items():
         setattr(section, field, value)
     db.commit()
     db.refresh(section)
