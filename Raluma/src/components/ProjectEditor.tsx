@@ -753,39 +753,195 @@ function DoorSystemTab({ s, update }: { s: Section; update: (u: Partial<Section>
 // ── SVG Схема сверху (СЛАЙД) ──────────────────────────────────────────────────
 
 function SlideSchemeSVG({ section }: { section: Section }) {
-  const { panels, rails = 3, firstPanelInside = 'Справа' } = section;
+  const {
+    panels, rails = 3, firstPanelInside = 'Справа', unusedTrack, interGlassProfile,
+    profileLeftWall, profileLeftLockBar, profileLeftPBar, profileLeftHandleBar, profileLeftBubble,
+    profileRightWall, profileRightLockBar, profileRightPBar, profileRightHandleBar, profileRightBubble,
+  } = section;
   const railCount = rails as number;
-  const H = 20 + railCount * 22 + 20;
-  const trackYs = Array.from({ length: railCount }, (_, i) => 30 + i * 22);
-  const panelW = 330 / panels;
+
+  // Layout constants
+  const rowH   = 34;   // height per rail row
+  const topPad = 22;   // space for "УЛИЦА" label
+  const botPad = 22;   // space for "ПОМЕЩЕНИЕ" label + arrow
+  const leftW  = 58;   // space for left profiles
+  const rightW = 58;   // space for right profiles
+  const railAreaW = 380;
+  const svgW = leftW + railAreaW + rightW;
+  const svgH = topPad + railCount * rowH + botPad;
+
+  // Top = УЛИЦА (external/outermost rail, index 0)
+  // Bottom = ПОМЕЩЕНИЕ (internal/innermost rail, index railCount-1)
+  // unusedTrack 'Внешний'   → outermost = index 0        (top)
+  // unusedTrack 'Внутренний' → innermost = index railCount-1 (bottom)
+  const unusedRailIdx =
+    unusedTrack === 'Внешний'    ? 0 :
+    unusedTrack === 'Внутренний' ? railCount - 1 :
+    null;
+
+  // Panels go on all rails except unused, from top to bottom
+  const availableRails = Array.from({ length: railCount }, (_, i) => i)
+    .filter(i => i !== unusedRailIdx);
+  const panelRailMap = Array.from({ length: panels }, (_, pi) => availableRails[pi] ?? pi % railCount);
+
+  const panelW = railAreaW / panels;
+  const slideLeft = firstPanelInside === 'Справа';
+
+  // Draw a left-side profile at (xRight, cy) — shapes grow leftward from xRight
+  const drawLeftProfiles = (railIdx: number) => {
+    const cy = topPad + railIdx * rowH + rowH / 2;
+    const shapes: React.ReactElement[] = [];
+    let x = leftW - 4;
+
+    if (profileLeftWall) {
+      shapes.push(<rect key={`lw1-${railIdx}`} x={x - 14} y={cy - 8} width={7} height={16} rx="1" fill="#2a7a8a" fillOpacity="0.55" stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.5" />);
+      shapes.push(<rect key={`lw2-${railIdx}`} x={x - 7}  y={cy - 8} width={7} height={16} rx="1" fill="#2a7a8a" fillOpacity="0.35" stroke="#4fd1c5" strokeWidth="0.6" strokeOpacity="0.4" />);
+      x -= 16;
+    }
+    if (profileLeftLockBar) {
+      // H-shape: two vertical bars + horizontal bridge
+      shapes.push(<rect key={`ll1-${railIdx}`} x={x - 12} y={cy - 8} width={4} height={16} rx="1" fill="#2a7a8a" fillOpacity="0.5" stroke="#4fd1c5" strokeWidth="0.7" strokeOpacity="0.5" />);
+      shapes.push(<rect key={`ll2-${railIdx}`} x={x - 5}  y={cy - 8} width={4} height={16} rx="1" fill="#2a7a8a" fillOpacity="0.5" stroke="#4fd1c5" strokeWidth="0.7" strokeOpacity="0.5" />);
+      shapes.push(<line key={`ll3-${railIdx}`} x1={x - 10} y1={cy} x2={x - 3} y2={cy} stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.55" />);
+      x -= 14;
+    }
+    if (profileLeftPBar) {
+      // L-shape (corner)
+      shapes.push(<path key={`lp-${railIdx}`} d={`M${x - 12},${cy - 8} L${x - 2},${cy - 8} L${x - 2},${cy + 8}`} fill="none" stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.6" />);
+      x -= 14;
+    }
+    if (profileLeftHandleBar) {
+      // T-shape
+      shapes.push(<line key={`lh1-${railIdx}`} x1={x - 14} y1={cy} x2={x - 2} y2={cy} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.65" />);
+      shapes.push(<line key={`lh2-${railIdx}`} x1={x - 8}  y1={cy - 7} x2={x - 8} y2={cy + 7} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.65" />);
+      x -= 16;
+    }
+    if (profileLeftBubble) {
+      shapes.push(<circle key={`lb-${railIdx}`} cx={x - 7} cy={cy} r={5} fill="#4fd1c5" fillOpacity="0.2" stroke="#4fd1c5" strokeWidth="1" strokeOpacity="0.5" />);
+    }
+    return shapes;
+  };
+
+  // Draw a right-side profile at (xLeft, cy) — shapes grow rightward from xLeft
+  const drawRightProfiles = (railIdx: number) => {
+    const cy = topPad + railIdx * rowH + rowH / 2;
+    const shapes: React.ReactElement[] = [];
+    let x = leftW + railAreaW + 4;
+
+    if (profileRightWall) {
+      shapes.push(<rect key={`rw1-${railIdx}`} x={x}     y={cy - 8} width={7} height={16} rx="1" fill="#2a7a8a" fillOpacity="0.55" stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.5" />);
+      shapes.push(<rect key={`rw2-${railIdx}`} x={x + 7} y={cy - 8} width={7} height={16} rx="1" fill="#2a7a8a" fillOpacity="0.35" stroke="#4fd1c5" strokeWidth="0.6" strokeOpacity="0.4" />);
+      x += 16;
+    }
+    if (profileRightLockBar) {
+      shapes.push(<rect key={`rl1-${railIdx}`} x={x}     y={cy - 8} width={4} height={16} rx="1" fill="#2a7a8a" fillOpacity="0.5" stroke="#4fd1c5" strokeWidth="0.7" strokeOpacity="0.5" />);
+      shapes.push(<rect key={`rl2-${railIdx}`} x={x + 8} y={cy - 8} width={4} height={16} rx="1" fill="#2a7a8a" fillOpacity="0.5" stroke="#4fd1c5" strokeWidth="0.7" strokeOpacity="0.5" />);
+      shapes.push(<line key={`rl3-${railIdx}`} x1={x + 2} y1={cy} x2={x + 10} y2={cy} stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.55" />);
+      x += 14;
+    }
+    if (profileRightPBar) {
+      shapes.push(<path key={`rp-${railIdx}`} d={`M${x + 12},${cy - 8} L${x + 2},${cy - 8} L${x + 2},${cy + 8}`} fill="none" stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.6" />);
+      x += 14;
+    }
+    if (profileRightHandleBar) {
+      shapes.push(<line key={`rh1-${railIdx}`} x1={x + 2}  y1={cy} x2={x + 14} y2={cy} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.65" />);
+      shapes.push(<line key={`rh2-${railIdx}`} x1={x + 8}  y1={cy - 7} x2={x + 8} y2={cy + 7} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.65" />);
+      x += 16;
+    }
+    if (profileRightBubble) {
+      shapes.push(<circle key={`rb-${railIdx}`} cx={x + 7} cy={cy} r={5} fill="#4fd1c5" fillOpacity="0.2" stroke="#4fd1c5" strokeWidth="1" strokeOpacity="0.5" />);
+    }
+    return shapes;
+  };
 
   return (
-    <svg width="400" height={H} viewBox={`0 0 400 ${H}`} className="drop-shadow-[0_0_15px_rgba(79,209,197,0.1)]">
-      {trackYs.map((y, i) => (
-        <line key={i} x1="20" y1={y} x2="380" y2={y} stroke="#2a7a8a" strokeWidth="1.5" strokeDasharray="6 4" opacity="0.7" />
-      ))}
-      <rect x="14" y={trackYs[0] - 8} width="6" height={trackYs[trackYs.length - 1] - trackYs[0] + 16} rx="2" fill="#2a7a8a" opacity="0.5" />
-      <rect x="380" y={trackYs[0] - 8} width="6" height={trackYs[trackYs.length - 1] - trackYs[0] + 16} rx="2" fill="#2a7a8a" opacity="0.5" />
-      {Array.from({ length: panels }).map((_, i) => {
-        const trackIdx = i % railCount;
-        const y = trackYs[trackIdx];
-        const x = 25 + i * panelW;
-        const num = firstPanelInside === 'Слева' ? i + 1 : panels - i;
+    <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} className="w-full drop-shadow-[0_0_15px_rgba(79,209,197,0.08)]" style={{ maxWidth: svgW }}>
+
+      {/* УЛИЦА / ПОМЕЩЕНИЕ labels */}
+      <text x={svgW / 2} y={13} textAnchor="middle" fontSize="8.5" fill="#4fd1c5" fillOpacity="0.35" fontWeight="bold" letterSpacing="3">УЛИЦА</text>
+      <text x={svgW / 2} y={svgH - 5} textAnchor="middle" fontSize="8.5" fill="#4fd1c5" fillOpacity="0.35" fontWeight="bold" letterSpacing="3">ПОМЕЩЕНИЕ</text>
+
+      {/* Wall jambs */}
+      <rect x={leftW - 2} y={topPad - 2} width={4} height={railCount * rowH + 4} rx="1" fill="#2a7a8a" fillOpacity="0.4" />
+      <rect x={leftW + railAreaW - 2} y={topPad - 2} width={4} height={railCount * rowH + 4} rx="1" fill="#2a7a8a" fillOpacity="0.4" />
+
+      {/* Rails */}
+      {Array.from({ length: railCount }, (_, ri) => {
+        const cy = topPad + ri * rowH + rowH / 2;
+        const isUnused = ri === unusedRailIdx;
         return (
-          <g key={i}>
-            <rect x={x} y={y - 7} width={panelW - 6} height="14" rx="3"
-              fill="#4fd1c5" fillOpacity="0.15" stroke="#4fd1c5" strokeWidth="1.5" />
-            <text x={x + (panelW - 6) / 2} y={y + 4} textAnchor="middle" fontSize="9" fill="#4fd1c5" fontWeight="bold">
-              {num}
-            </text>
+          <g key={ri}>
+            <line
+              x1={leftW} y1={cy} x2={leftW + railAreaW} y2={cy}
+              stroke={isUnused ? '#2a7a8a' : '#4fd1c5'}
+              strokeWidth={isUnused ? 1 : 1.5}
+              strokeOpacity={isUnused ? 0.22 : 0.55}
+              strokeDasharray={isUnused ? '5 5' : undefined}
+            />
+            {isUnused && (
+              <text x={leftW + railAreaW / 2} y={cy - 5} textAnchor="middle" fontSize="7.5" fill="#2a7a8a" fillOpacity="0.55" fontWeight="bold" letterSpacing="1">
+                неиспользуемый рельс
+              </text>
+            )}
           </g>
         );
       })}
-      <g transform={`translate(${firstPanelInside === 'Справа' ? 340 : 40}, ${trackYs[Math.floor(railCount / 2)] + 14})`}>
-        <text fontSize="8" fill="#4fd1c5" opacity="0.5" textAnchor={firstPanelInside === 'Справа' ? 'end' : 'start'}>
-          {firstPanelInside === 'Справа' ? '◀ сдвиг' : 'сдвиг ▶'}
-        </text>
-      </g>
+
+      {/* Panels on their rails */}
+      {Array.from({ length: panels }, (_, pi) => {
+        const ri = panelRailMap[pi];
+        const cy = topPad + ri * rowH + rowH / 2;
+        const px = leftW + pi * panelW;
+        const panelNum = firstPanelInside === 'Справа' ? panels - pi : pi + 1;
+        return (
+          <g key={pi}>
+            <rect x={px + 5} y={cy - 9} width={panelW - 10} height={18} rx="2"
+              fill="#4fd1c5" fillOpacity="0.13" stroke="#4fd1c5" strokeWidth="1.4" strokeOpacity="0.75" />
+            <text x={px + panelW / 2} y={cy + 5} textAnchor="middle" fontSize="9" fill="#4fd1c5" fillOpacity="0.9" fontWeight="bold">{panelNum}</text>
+          </g>
+        );
+      })}
+
+      {/* Inter-glass profile RS1061 — thin vertical bar between panels in top-view */}
+      {interGlassProfile && Array.from({ length: panels - 1 }, (_, pi) => (
+        <rect key={pi}
+          x={leftW + (pi + 1) * panelW - 2} y={topPad}
+          width={4} height={railCount * rowH}
+          fill="#4fd1c5" fillOpacity="0.07" stroke="#4fd1c5" strokeWidth="0.5" strokeOpacity="0.3" />
+      ))}
+
+      {/* Left profiles per rail */}
+      {Array.from({ length: railCount }, (_, ri) => (
+        <g key={ri}>{drawLeftProfiles(ri)}</g>
+      ))}
+
+      {/* Right profiles per rail */}
+      {Array.from({ length: railCount }, (_, ri) => (
+        <g key={ri}>{drawRightProfiles(ri)}</g>
+      ))}
+
+      {/* Slide direction arrow */}
+      {(() => {
+        const ay = svgH - botPad / 2 + 2;
+        const ax = leftW + railAreaW / 2;
+        const aLen = 70;
+        return (
+          <g>
+            <line x1={ax - aLen / 2} y1={ay} x2={ax + aLen / 2} y2={ay} stroke="#4fd1c5" strokeWidth="1" strokeOpacity="0.28" />
+            {slideLeft ? (
+              <>
+                <polyline points={`${ax - aLen / 2 + 9},${ay - 4} ${ax - aLen / 2},${ay} ${ax - aLen / 2 + 9},${ay + 4}`} stroke="#4fd1c5" strokeWidth="1" fill="none" strokeOpacity="0.28" />
+                <text x={ax + aLen / 2 + 5} y={ay + 3} fontSize="7.5" fill="#4fd1c5" fillOpacity="0.3" fontWeight="bold">сдвиг</text>
+              </>
+            ) : (
+              <>
+                <polyline points={`${ax + aLen / 2 - 9},${ay - 4} ${ax + aLen / 2},${ay} ${ax + aLen / 2 - 9},${ay + 4}`} stroke="#4fd1c5" strokeWidth="1" fill="none" strokeOpacity="0.28" />
+                <text x={ax - aLen / 2 - 5} y={ay + 3} fontSize="7.5" fill="#4fd1c5" fillOpacity="0.3" fontWeight="bold" textAnchor="end">сдвиг</text>
+              </>
+            )}
+          </g>
+        );
+      })()}
     </svg>
   );
 }
