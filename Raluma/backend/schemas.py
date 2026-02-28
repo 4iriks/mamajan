@@ -111,6 +111,9 @@ class SectionBase(BaseModel):
     door_system: Optional[str] = None
     cs_shape: Optional[str] = None
     cs_width2: Optional[float] = None
+    # Примечания к секции
+    extra_parts: Optional[str] = None
+    comments: Optional[str] = None
 
 
 class SectionCreate(SectionBase):

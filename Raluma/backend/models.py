@@ -117,4 +117,8 @@ class Section(Base):
     cs_shape = Column(String, nullable=True)       # Треугольник | Прямоугольник | Трапеция | Сложная форма
     cs_width2 = Column(Float, nullable=True)       # вторая ширина для трапеции
 
+    # Примечания к секции
+    extra_parts = Column(String, nullable=True)
+    comments = Column(String, nullable=True)
+
     project = relationship("Project", back_populates="sections")

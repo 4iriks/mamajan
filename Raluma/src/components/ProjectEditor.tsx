@@ -73,6 +73,9 @@ export interface Section {
   doorSystem?: string;
   csShape?: string;
   csWidth2?: number;
+  // Примечания к секции
+  extraParts?: string;
+  comments?: string;
 }
 
 interface OrderItem {
@@ -169,6 +172,8 @@ function apiToLocal(s: SectionOut): Section {
     doorSystem: s.door_system,
     csShape: s.cs_shape,
     csWidth2: s.cs_width2,
+    extraParts: s.extra_parts,
+    comments: s.comments,
   };
 }
 
@@ -205,6 +210,7 @@ function localToApi(s: Section, order: number): Omit<SectionOut, 'id' | 'project
     door_opening: s.doorOpening, compensator: s.compensator,
     angle_left: s.angleLeft, angle_right: s.angleRight, book_system: s.bookSystem,
     door_system: s.doorSystem, cs_shape: s.csShape, cs_width2: s.csWidth2,
+    extra_parts: s.extraParts, comments: s.comments,
   };
 }
 
@@ -1364,6 +1370,33 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             </div>
           </div>
         )}
+
+        {/* Примечания к секции — для всех систем */}
+        <div>
+          <SectionDivider label="Примечания к секции" />
+          <div className="mt-5 space-y-4">
+            <div className="space-y-2">
+              <label className={LBL}>Доп. комплектующие</label>
+              <textarea
+                value={activeSection.extraParts || ''}
+                onChange={e => updateActiveSection({ extraParts: e.target.value || undefined })}
+                rows={3}
+                placeholder="Перечислите дополнительные комплектующие..."
+                className="w-full bg-white/8 border border-[#2a7a8a]/30 rounded-xl px-4 py-3 outline-none focus:border-[#4fd1c5]/50 transition-all text-white resize-none placeholder-white/20 text-sm"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className={LBL}>Комментарии</label>
+              <textarea
+                value={activeSection.comments || ''}
+                onChange={e => updateActiveSection({ comments: e.target.value || undefined })}
+                rows={3}
+                placeholder="Любые дополнительные комментарии..."
+                className="w-full bg-white/8 border border-[#2a7a8a]/30 rounded-xl px-4 py-3 outline-none focus:border-[#4fd1c5]/50 transition-all text-white resize-none placeholder-white/20 text-sm"
+              />
+            </div>
+          </div>
+        </div>
       </div>
     );
   };

@@ -81,6 +81,8 @@ export interface SectionOut {
   door_system?: string;
   cs_shape?: string;
   cs_width2?: number;
+  extra_parts?: string;
+  comments?: string;
 }
 
 // Projects

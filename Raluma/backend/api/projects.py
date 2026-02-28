@@ -141,6 +141,7 @@ def copy_project(
             door_opening=s.door_opening, compensator=s.compensator,
             angle_left=s.angle_left, angle_right=s.angle_right, book_system=s.book_system,
             door_system=s.door_system, cs_shape=s.cs_shape, cs_width2=s.cs_width2,
+            extra_parts=s.extra_parts, comments=s.comments,
         )
         db.add(new_section)
     db.commit()
