@@ -429,7 +429,7 @@ function ProjectsPage() {
                     </motion.tr>
                   )) : (
                     <tr>
-                      <td colSpan={4} className="py-20 text-center">
+                      <td colSpan={6} className="py-20 text-center">
                         <div className="flex flex-col items-center gap-4">
                           <div className="w-20 h-20 rounded-full bg-[#2a7a8a]/10 flex items-center justify-center border border-[#2a7a8a]/20">
                             {searchQuery ? <Search className="w-10 h-10 text-white/20" /> : <List className="w-10 h-10 text-white/20" />}
