@@ -400,7 +400,7 @@ function ProjectsPage() {
                         {new Date(project.created_at).toLocaleDateString('ru-RU')}
                       </td>
                       <td className="px-5 py-4 text-sm font-bold text-white/50">
-                        {project.production_stages === 2 ? project.current_stage ?? '' : ''}
+                        {project.production_stages === 2 ? (project.current_stage ?? 1) : ''}
                       </td>
                       <td className="px-5 py-4">
                         <StatusBadge value={project.status} colors={STATUS_COLORS} />
