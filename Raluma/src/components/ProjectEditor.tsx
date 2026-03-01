@@ -1914,7 +1914,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
               </motion.div>
             ) : (
               <motion.div key={activeSection.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
-                className="p-4 sm:p-8 max-w-4xl mx-auto w-full">
+                className="p-4 sm:p-6 w-full max-w-4xl xl:max-w-[1380px] mx-auto">
 
                 {/* Section title + system badge */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-5 gap-3">
@@ -1939,60 +1939,76 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   </div>
                 </div>
 
-                {/* All section content on one page */}
-                <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/35 rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 mb-4">
-                  {renderSectionContent()}
-                </div>
+                {/* Layout: xl = форма слева + схемы справа sticky; иначе — одна колонка */}
+                <div className={activeSection.system === 'СЛАЙД' ? 'xl:flex xl:gap-5 xl:items-start' : ''}>
 
-                {/* SVG schemes (only for СЛАЙД) */}
-                {activeSection.system === 'СЛАЙД' && (
-                  <>
-                    {/* Вид сверху */}
-                    <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2rem] p-4 sm:p-7 mb-4 overflow-x-auto">
-                      <div className="flex items-center justify-between mb-5 min-w-[360px]">
-                        <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Схема · Вид сверху</h4>
-                        <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">
-                          {activeSection.rails ?? 3}-рельсовая · {activeSection.panels} пан.
-                        </span>
-                      </div>
-                      <div className="flex justify-center py-4">
-                        <SlideSchemeSVG section={activeSection} />
-                      </div>
+                  {/* Левая колонка: форма + кнопки */}
+                  <div className={activeSection.system === 'СЛАЙД' ? 'xl:flex-1 xl:min-w-0' : ''}>
+                    <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/35 rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 mb-4">
+                      {renderSectionContent()}
                     </div>
 
-                    {/* Вид из помещения */}
-                    <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2rem] p-4 sm:p-7 mb-6 overflow-x-auto">
-                      <div className="flex items-center justify-between mb-4 min-w-[360px]">
-                        <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Вид из помещения</h4>
-                        <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">
-                          {activeSection.panels} пан. · {activeSection.width} × {activeSection.height} мм
-                        </span>
+                    {/* Схемы под формой на мобильных / не-xl */}
+                    {activeSection.system === 'СЛАЙД' && (
+                      <div className="xl:hidden space-y-4 mb-4">
+                        <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2rem] p-4 sm:p-7 overflow-x-auto">
+                          <div className="flex items-center justify-between mb-5 min-w-[360px]">
+                            <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Схема · Вид сверху</h4>
+                            <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">{activeSection.rails ?? 3}-рельс · {activeSection.panels} пан.</span>
+                          </div>
+                          <div className="flex justify-center py-4"><SlideSchemeSVG section={activeSection} /></div>
+                        </div>
+                        <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2rem] p-4 sm:p-7 overflow-x-auto">
+                          <div className="flex items-center justify-between mb-4 min-w-[360px]">
+                            <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Вид из помещения</h4>
+                            <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">{activeSection.panels} пан. · {activeSection.width}×{activeSection.height}</span>
+                          </div>
+                          <div className="flex justify-center py-2"><SlideRoomViewSVG section={activeSection} /></div>
+                        </div>
                       </div>
-                      <div className="flex justify-center py-2">
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex gap-4">
+                      <button onClick={handleSaveSection} disabled={isSaving}
+                        className={`flex-1 py-4 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed ${
+                          isDirty
+                            ? 'bg-amber-500 hover:bg-amber-400 shadow-lg shadow-amber-500/20'
+                            : 'bg-[#00b894] hover:bg-[#00d1a7] shadow-lg shadow-[#00b894]/20'
+                        }`}>
+                        {isSaving ? (
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : isDirty ? (
+                          <><Save className="w-4 h-4" /> Сохранить изменения</>
+                        ) : 'Сохранить секцию'}
+                      </button>
+                      <button onClick={() => openPreview('Спецификация')}
+                        className="flex-1 py-4 rounded-2xl bg-[#2a7a8a]/20 border border-[#2a7a8a]/40 hover:bg-[#2a7a8a]/40 text-[#4fd1c5] font-bold transition-all">
+                        СПЕЦИФИКАЦИЯ
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Правая колонка: схемы sticky — только xl+, только СЛАЙД */}
+                  {activeSection.system === 'СЛАЙД' && (
+                    <div className="hidden xl:flex xl:flex-col xl:gap-3 xl:w-[420px] xl:flex-shrink-0 xl:sticky xl:top-4">
+                      <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Схема · Вид сверху</span>
+                          <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">{activeSection.rails ?? 3}-рельс · {activeSection.panels} пан.</span>
+                        </div>
+                        <SlideSchemeSVG section={activeSection} />
+                      </div>
+                      <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Вид из помещения</span>
+                          <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">{activeSection.panels} пан. · {activeSection.width}×{activeSection.height}</span>
+                        </div>
                         <SlideRoomViewSVG section={activeSection} />
                       </div>
                     </div>
-                  </>
-                )}
+                  )}
 
-                {/* Actions */}
-                <div className="flex gap-4">
-                  <button onClick={handleSaveSection} disabled={isSaving}
-                    className={`flex-1 py-4 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed ${
-                      isDirty
-                        ? 'bg-amber-500 hover:bg-amber-400 shadow-lg shadow-amber-500/20'
-                        : 'bg-[#00b894] hover:bg-[#00d1a7] shadow-lg shadow-[#00b894]/20'
-                    }`}>
-                    {isSaving ? (
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : isDirty ? (
-                      <><Save className="w-4 h-4" /> Сохранить изменения</>
-                    ) : 'Сохранить секцию'}
-                  </button>
-                  <button onClick={() => openPreview('Спецификация')}
-                    className="flex-1 py-4 rounded-2xl bg-[#2a7a8a]/20 border border-[#2a7a8a]/40 hover:bg-[#2a7a8a]/40 text-[#4fd1c5] font-bold transition-all">
-                    СПЕЦИФИКАЦИЯ
-                  </button>
                 </div>
               </motion.div>
             )}
