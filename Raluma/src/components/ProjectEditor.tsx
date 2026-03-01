@@ -1131,6 +1131,8 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const [bookSubVisible, setBookSubVisible] = useState(false);
   const [liftSubVisible, setLiftSubVisible] = useState(false);
   const [csSubVisible, setCsSubVisible] = useState(false);
+  const [unsavedModalOpen, setUnsavedModalOpen] = useState(false);
+  const [pendingNavTarget, setPendingNavTarget] = useState<string | null>(null);
   const handleSaveSectionRef = useRef<() => Promise<void>>(async () => {});
 
   const activeSection = useMemo(() =>
@@ -1248,18 +1250,42 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
 
   handleSaveSectionRef.current = handleSaveSection;
 
+  const requestNavigate = (targetId: string | null) => {
+    if (isDirty) {
+      setPendingNavTarget(targetId);
+      setUnsavedModalOpen(true);
+    } else {
+      setActiveSectionId(targetId);
+    }
+  };
+
+  const confirmUnsavedSave = async () => {
+    await handleSaveSection();
+    setUnsavedModalOpen(false);
+    setActiveSectionId(pendingNavTarget);
+    setPendingNavTarget(null);
+  };
+
+  const confirmUnsavedDiscard = () => {
+    setIsDirty(false);
+    setUnsavedModalOpen(false);
+    setActiveSectionId(pendingNavTarget);
+    setPendingNavTarget(null);
+  };
+
   const handleDeleteSection = async () => {
     if (!sectionToDelete || !project) return;
     try {
       const sectionId = parseInt(sectionToDelete.id);
       if (!isNaN(sectionId)) await deleteSection(project.id, sectionId);
+      setSections(sections.filter(s => s.id !== sectionToDelete.id));
+      if (activeSectionId === sectionToDelete.id) setActiveSectionId(null);
     } catch (e: any) {
       toast.error(e.response?.data?.detail || 'Не удалось удалить секцию');
+    } finally {
+      setIsDeleteModalOpen(false);
+      setSectionToDelete(null);
     }
-    setSections(sections.filter(s => s.id !== sectionToDelete.id));
-    if (activeSectionId === sectionToDelete.id) setActiveSectionId(null);
-    setIsDeleteModalOpen(false);
-    setSectionToDelete(null);
   };
 
   const openPreview = (name: string) => { setPreviewDocName(name); setIsPreviewModalOpen(true); };
@@ -1602,7 +1628,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             <div className="space-y-2">
               {sections.map(section => (
                 <motion.div key={section.id} layoutId={section.id}
-                  onClick={() => setActiveSectionId(section.id)}
+                  onClick={() => requestNavigate(section.id)}
                   className={`relative group p-4 rounded-2xl border transition-all cursor-pointer ${
                     activeSectionId === section.id
                       ? 'bg-[#2a7a8a]/20 border-[#4fd1c5]/50 shadow-lg shadow-[#4fd1c5]/5'
@@ -1879,7 +1905,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                 {/* Section title + system badge */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-5 sm:mb-7 gap-3">
                   <div>
-                    <button onClick={() => setActiveSectionId(null)}
+                    <button onClick={() => requestNavigate(null)}
                       className="flex items-center gap-1.5 text-white/30 hover:text-[#4fd1c5] transition-colors group mb-3 text-xs font-bold uppercase tracking-wider">
                       <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
                       К проекту
@@ -1981,6 +2007,44 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
               <div className="flex gap-4">
                 <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 py-4 rounded-2xl bg-white/5 hover:bg-white/10 font-bold transition-all">Отмена</button>
                 <button onClick={handleDeleteSection} className="flex-1 py-4 rounded-2xl bg-red-500 hover:bg-red-400 text-white font-bold transition-all">Удалить</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Unsaved Changes Modal */}
+      <AnimatePresence>
+        {unsavedModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => { setUnsavedModalOpen(false); setPendingNavTarget(null); }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+            <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative w-full max-w-md bg-[#122433] border border-amber-500/30 rounded-[2rem] p-6 sm:p-8 shadow-2xl z-10">
+              <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-6">
+                <Save className="w-8 h-8 text-amber-400" />
+              </div>
+              <h2 className="text-2xl font-bold mb-2">Несохранённые изменения</h2>
+              <p className="text-white/60 leading-relaxed mb-8">
+                Секция <span className="text-white font-bold">{activeSection?.name}</span> содержит несохранённые изменения.
+              </p>
+              <div className="flex gap-3 flex-col sm:flex-row">
+                <button onClick={() => { setUnsavedModalOpen(false); setPendingNavTarget(null); }}
+                  className="flex-1 py-3 rounded-2xl bg-white/5 hover:bg-white/10 font-bold transition-all text-sm">
+                  Остаться
+                </button>
+                <button onClick={confirmUnsavedDiscard}
+                  className="flex-1 py-3 rounded-2xl bg-white/5 hover:bg-white/10 font-bold transition-all text-sm text-white/50">
+                  Не сохранять
+                </button>
+                <button onClick={confirmUnsavedSave} disabled={isSaving}
+                  className="flex-1 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-white font-bold transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2">
+                  {isSaving
+                    ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    : <><Save className="w-4 h-4" /> Сохранить</>
+                  }
+                </button>
               </div>
             </motion.div>
           </div>
