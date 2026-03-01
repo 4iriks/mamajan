@@ -308,29 +308,28 @@ function SectionDivider({ label }: { label: string }) {
 
 function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
   return (
-    <div className="space-y-4">
-      {/* Название / Кол-во / Ширина / Высота */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="col-span-2 sm:col-span-2 space-y-1.5">
-          <label className={LBL}>Название</label>
-          <input value={s.name} onChange={e => update({ name: e.target.value })} className={INP} />
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <label className={LBL}>Название</label>
+            <input value={s.name} onChange={e => update({ name: e.target.value })} className={INP} />
+          </div>
+          <div className="space-y-1.5">
+            <label className={LBL}>Кол-во, шт</label>
+            <input type="number" min="1" value={s.quantity} onChange={e => update({ quantity: parseInt(e.target.value) || 1 })} className={INP} />
+          </div>
         </div>
-        <div className="space-y-1.5">
-          <label className={LBL}>Кол-во, шт</label>
-          <input type="number" min="1" value={s.quantity} onChange={e => update({ quantity: parseInt(e.target.value) || 1 })} className={INP} />
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <label className={LBL}>Ширина, мм</label>
+            <input type="number" value={s.width} onChange={e => update({ width: parseInt(e.target.value) || 0 })} className={INP} />
+          </div>
+          <div className="space-y-1.5">
+            <label className={LBL}>Высота, мм</label>
+            <input type="number" value={s.height} onChange={e => update({ height: parseInt(e.target.value) || 0 })} className={INP} />
+          </div>
         </div>
-        <div className="hidden sm:block" />
-        <div className="space-y-1.5">
-          <label className={LBL}>Ширина, мм</label>
-          <input type="number" value={s.width} onChange={e => update({ width: parseInt(e.target.value) || 0 })} className={INP} />
-        </div>
-        <div className="space-y-1.5">
-          <label className={LBL}>Высота, мм</label>
-          <input type="number" value={s.height} onChange={e => update({ height: parseInt(e.target.value) || 0 })} className={INP} />
-        </div>
-      </div>
-      {/* Стекло / Окрашивание */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <label className={LBL}>Стекло</label>
           <select value={s.glassType} onChange={e => update({ glassType: e.target.value })} className={SEL}>
@@ -342,24 +341,26 @@ function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => v
             <option>6ММ ЗАКАЛЕННОЕ МАТОВОЕ</option>
           </select>
         </div>
+      </div>
+      <div className="space-y-4">
         <div className="space-y-1.5">
           <label className={LBL}>Окрашивание</label>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="space-y-1.5">
             {(['RAL стандарт', 'RAL нестандарт', 'Анодированный'] as const).map(type => (
               <button key={type} onClick={() => update({ paintingType: type })}
-                className={`flex items-center gap-1.5 flex-1 min-w-max px-2.5 py-1.5 rounded-xl border transition-all justify-center text-xs font-medium ${
+                className={`flex items-center gap-3 w-full px-3 py-2 rounded-xl border transition-all text-left ${
                   s.paintingType === type ? 'bg-[#4fd1c5]/10 border-[#4fd1c5]/50 text-[#4fd1c5]' : 'bg-black/10 border-[#2a7a8a]/20 text-white/40 hover:border-[#2a7a8a]/50'
                 }`}
               >
-                <div className={`w-3 h-3 rounded-full border flex items-center justify-center flex-shrink-0 ${s.paintingType === type ? 'border-[#4fd1c5]' : 'border-white/15'}`}>
-                  {s.paintingType === type && <div className="w-1.5 h-1.5 rounded-full bg-[#4fd1c5]" />}
+                <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${s.paintingType === type ? 'border-[#4fd1c5]' : 'border-white/10'}`}>
+                  {s.paintingType === type && <div className="w-2 h-2 rounded-full bg-[#4fd1c5]" />}
                 </div>
-                {type}
+                <span className="text-xs font-medium">{type}</span>
               </button>
             ))}
           </div>
           {s.paintingType.includes('RAL') && (
-            <div className="mt-1.5 space-y-1">
+            <div className="mt-2 space-y-1.5">
               <label className={LBL}>Цвет RAL</label>
               <input type="text" value={s.ralColor || ''} onChange={e => update({ ralColor: e.target.value })} className={INP} placeholder="Напр. 9016" />
             </div>
@@ -393,65 +394,61 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
 
   return (
     <div className="space-y-4">
-      {/* Рельсы / Панели / 1-я панель — одна строка */}
-      <div className="flex gap-3">
-        <div className="flex-1 space-y-1.5">
-          <label className={LBL}>Рельсы</label>
-          <ToggleGroup
-            value={s.rails === 5 ? '5ти рельсовая' : '3х рельсовая'}
-            options={['3х рельсовая', '5ти рельсовая']}
-            onChange={v => update({ rails: v.startsWith('3') ? 3 : 5 })}
-          />
-        </div>
-        <div className="w-[5.5rem] flex-shrink-0 space-y-1.5">
-          <label className={LBL}>Панели</label>
-          <select value={s.panels} onChange={e => update({ panels: parseInt(e.target.value) })} className={SEL}>
-            {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </div>
-        <div className="flex-1 space-y-1.5">
-          <label className={LBL}>1-я панель</label>
-          <ToggleGroup value={s.firstPanelInside} options={['Слева', 'Справа']}
-            onChange={v => update({ firstPanelInside: v })} />
-        </div>
-      </div>
-
-      {/* Порог / Межстекольный */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <label className={LBL}>Порог</label>
-          <select value={s.threshold || ''} onChange={e => update({ threshold: e.target.value || undefined })} className={SEL}>
-            <option value="">— Без порога —</option>
-            <option>Стандартный анод</option>
-            <option>Стандартный окраш</option>
-            <option>Накладной анод</option>
-            <option>Накладной окраш</option>
-          </select>
-          {!s.threshold && (
-            <p className="text-[10px] text-amber-400/70 font-bold uppercase tracking-wider pl-1">⚠ Без порога</p>
-          )}
-        </div>
-        <div className="space-y-1.5">
-          <label className={LBL}>Межстекольный профиль</label>
-          <select value={s.interGlassProfile || ''} onChange={e => update({ interGlassProfile: e.target.value || undefined })} className={SEL}>
-            <option value="">— Без —</option>
-            <option>Алюминиевый RS1061</option>
-            <option>Прозрачный с фетром RS1006</option>
-            <option>h-профиль RS1004</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Неиспользуемый рельс (только если есть неиспользуемые) */}
-      {((s.rails !== 5 && (s.panels ?? 3) < 3) || (s.rails === 5 && (s.panels ?? 3) < 5)) && (
-        <div className="grid grid-cols-2 gap-3">
+      {/* Верхний блок: рельсы, панели, 1-я панель, порог, межстек */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
+        <div className="space-y-4">
           <div className="space-y-1.5">
-            <label className={LBL}>Неиспользуемый рельс</label>
-            <ToggleGroup value={s.unusedTrack ?? 'Внутренний'} options={['Внутренний', 'Внешний']}
-              onChange={v => update({ unusedTrack: v })} />
+            <label className={LBL}>Рельсы</label>
+            <ToggleGroup
+              value={s.rails === 5 ? '5ти рельсовая' : '3х рельсовая'}
+              options={['3х рельсовая', '5ти рельсовая']}
+              onChange={v => update({ rails: v.startsWith('3') ? 3 : 5 })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className={LBL}>Кол-во панелей</label>
+            <select value={s.panels} onChange={e => update({ panels: parseInt(e.target.value) })} className={SEL}>
+              {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+          {((s.rails !== 5 && (s.panels ?? 3) < 3) || (s.rails === 5 && (s.panels ?? 3) < 5)) && (
+            <div className="space-y-1.5">
+              <label className={LBL}>Неиспользуемый рельс</label>
+              <ToggleGroup value={s.unusedTrack ?? 'Внутренний'} options={['Внутренний', 'Внешний']}
+                onChange={v => update({ unusedTrack: v })} />
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <label className={LBL}>1-я панель внутри помещения</label>
+            <ToggleGroup value={s.firstPanelInside} options={['Слева', 'Справа']}
+              onChange={v => update({ firstPanelInside: v })} />
           </div>
         </div>
-      )}
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <label className={LBL}>Порог</label>
+            <select value={s.threshold || ''} onChange={e => update({ threshold: e.target.value || undefined })} className={SEL}>
+              <option value="">— Без порога —</option>
+              <option>Стандартный анод</option>
+              <option>Стандартный окраш</option>
+              <option>Накладной анод</option>
+              <option>Накладной окраш</option>
+            </select>
+            {!s.threshold && (
+              <p className="text-[10px] text-amber-400/70 font-bold uppercase tracking-wider pl-1">⚠ Без порога система быть не может</p>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <label className={LBL}>Межстекольный профиль</label>
+            <select value={s.interGlassProfile || ''} onChange={e => update({ interGlassProfile: e.target.value || undefined })} className={SEL}>
+              <option value="">— Без межстекольного профиля —</option>
+              <option>Алюминиевый RS1061</option>
+              <option>Прозрачный с фетром RS1006</option>
+              <option>h-профиль RS1004</option>
+            </select>
+          </div>
+        </div>
+      </div>
 
       {/* Профили слева / справа */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
