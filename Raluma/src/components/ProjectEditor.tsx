@@ -770,7 +770,7 @@ function SlideSchemeSVG({ section }: { section: Section }) {
   // Layout constants
   const rowH   = 34;   // height per rail row
   const topPad = 22;   // space for "УЛИЦА" label
-  const botPad = 22;   // space for "ПОМЕЩЕНИЕ" label + arrow
+  const botPad = 36;   // space for "ПОМЕЩЕНИЕ" label + arrow
   const leftW  = 58;   // space for left profiles
   const rightW = 58;   // space for right profiles
   const railAreaW = 380;
@@ -783,14 +783,19 @@ function SlideSchemeSVG({ section }: { section: Section }) {
   // unusedTrack 'Внутренний' → innermost = index railCount-1 (bottom)
   // Apply same default as ToggleGroup: when panels < rails and track is unset → 'Внутренний'
   const effectiveUnusedTrack = unusedTrack ?? (panels < railCount ? 'Внутренний' : undefined);
-  const unusedRailIdx =
-    effectiveUnusedTrack === 'Внешний'    ? 0 :
-    effectiveUnusedTrack === 'Внутренний' ? railCount - 1 :
-    null;
+  // For multi-rail systems (5-rail) multiple rails may be unused on one side
+  const unusedCount = Math.max(0, railCount - panels);
+  const unusedRailSet = new Set<number>(
+    effectiveUnusedTrack === 'Внешний'
+      ? Array.from({ length: unusedCount }, (_, i) => i)                   // top rails (УЛИЦА side)
+      : effectiveUnusedTrack === 'Внутренний'
+        ? Array.from({ length: unusedCount }, (_, i) => railCount - 1 - i)  // bottom rails (ПОМЕЩЕНИЕ side)
+        : []
+  );
 
   // Panels go on all rails except unused, from top to bottom
   const availableRails = Array.from({ length: railCount }, (_, i) => i)
-    .filter(i => i !== unusedRailIdx);
+    .filter(i => !unusedRailSet.has(i));
   const panelRailMap = Array.from({ length: panels }, (_, pi) => availableRails[pi] ?? availableRails[pi % availableRails.length] ?? pi % railCount);
 
   const panelW = railAreaW / panels;
@@ -896,7 +901,7 @@ function SlideSchemeSVG({ section }: { section: Section }) {
       {/* Rails */}
       {Array.from({ length: railCount }, (_, ri) => {
         const cy = topPad + ri * rowH + rowH / 2;
-        const isUnused = ri === unusedRailIdx;
+        const isUnused = unusedRailSet.has(ri);
         return (
           <g key={ri}>
             <line
@@ -958,21 +963,21 @@ function SlideSchemeSVG({ section }: { section: Section }) {
 
       {/* Slide direction arrow */}
       {(() => {
-        const ay = svgH - botPad / 2 + 2;
+        const ay = svgH - botPad / 2 - 2;
         const ax = leftW + railAreaW / 2;
-        const aLen = 70;
+        const aLen = 100;
         return (
           <g>
-            <line x1={ax - aLen / 2} y1={ay} x2={ax + aLen / 2} y2={ay} stroke="#4fd1c5" strokeWidth="1" strokeOpacity="0.28" />
+            <line x1={ax - aLen / 2} y1={ay} x2={ax + aLen / 2} y2={ay} stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.5" />
             {slideLeft ? (
               <>
-                <polyline points={`${ax - aLen / 2 + 9},${ay - 4} ${ax - aLen / 2},${ay} ${ax - aLen / 2 + 9},${ay + 4}`} stroke="#4fd1c5" strokeWidth="1" fill="none" strokeOpacity="0.28" />
-                <text x={ax + aLen / 2 + 5} y={ay + 3} fontSize="7.5" fill="#4fd1c5" fillOpacity="0.3" fontWeight="bold">сдвиг</text>
+                <polyline points={`${ax - aLen / 2 + 12},${ay - 6} ${ax - aLen / 2},${ay} ${ax - aLen / 2 + 12},${ay + 6}`} stroke="#4fd1c5" strokeWidth="1.5" fill="none" strokeOpacity="0.5" />
+                <text x={ax + aLen / 2 + 6} y={ay + 4} fontSize="9" fill="#4fd1c5" fillOpacity="0.55" fontWeight="bold">сдвиг</text>
               </>
             ) : (
               <>
-                <polyline points={`${ax + aLen / 2 - 9},${ay - 4} ${ax + aLen / 2},${ay} ${ax + aLen / 2 - 9},${ay + 4}`} stroke="#4fd1c5" strokeWidth="1" fill="none" strokeOpacity="0.28" />
-                <text x={ax - aLen / 2 - 5} y={ay + 3} fontSize="7.5" fill="#4fd1c5" fillOpacity="0.3" fontWeight="bold" textAnchor="end">сдвиг</text>
+                <polyline points={`${ax + aLen / 2 - 12},${ay - 6} ${ax + aLen / 2},${ay} ${ax + aLen / 2 - 12},${ay + 6}`} stroke="#4fd1c5" strokeWidth="1.5" fill="none" strokeOpacity="0.5" />
+                <text x={ax - aLen / 2 - 6} y={ay + 4} fontSize="9" fill="#4fd1c5" fillOpacity="0.55" fontWeight="bold" textAnchor="end">сдвиг</text>
               </>
             )}
           </g>
@@ -1794,18 +1799,17 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   <div className="flex items-center gap-3 mb-4">
                     <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40">Статус</span>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {['РАСЧЕТ','В работе','Запущен в производство','Готов','Отгружен полностью','Отгружен частично','Отгружен 1 этап','Рекламация','Архив'].map(s => {
-                      const active = projectStatus === s;
-                      return (
-                        <button key={s} onClick={() => { setProjectStatus(s); saveStatus({ status: s }); }}
-                          className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${
-                            active ? 'bg-[#4fd1c5]/15 border-[#4fd1c5]/40 text-[#4fd1c5]'
-                                   : 'bg-black/10 border-[#2a7a8a]/20 text-white/40 hover:border-[#2a7a8a]/40'
-                          }`}>{s}</button>
-                      );
-                    })}
-                  </div>
+                  <select value={projectStatus} onChange={e => { setProjectStatus(e.target.value); saveStatus({ status: e.target.value }); }} className={SEL}>
+                    <option>РАСЧЕТ</option>
+                    <option>В работе</option>
+                    <option>Запущен в производство</option>
+                    <option>Готов</option>
+                    <option>Отгружен полностью</option>
+                    <option>Отгружен частично</option>
+                    <option>Отгружен 1 этап</option>
+                    <option>Рекламация</option>
+                    <option>Архив</option>
+                  </select>
                 </div>
 
                 {/* Glass — hidden for 2-stage stage 1 */}

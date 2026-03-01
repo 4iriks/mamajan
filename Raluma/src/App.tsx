@@ -158,7 +158,7 @@ function StatusBadge({ value, colors }: { value?: string; colors: Record<string,
 function SkeletonRow() {
   return (
     <tr className="border-b border-[#2a7a8a]/10">
-      {[60, 80, 55, 30, 20, 20, 20].map((w, i) => (
+      {[60, 80, 55, 15, 30, 20, 20, 20].map((w, i) => (
         <td key={i} className="px-5 py-5">
           <div className="h-4 rounded-lg bg-white/[0.06] animate-pulse" style={{ width: `${w}%` }} />
         </td>
@@ -212,7 +212,7 @@ function ProjectsPage() {
   }), [projects, searchQuery]);
 
   const customerOptions = useMemo(() => {
-    const seen = new Set<string>();
+    const seen = new Set<string>(['ООО КРОКНА ИНЖИНИРИНГ']);
     if (user?.customer) seen.add(user.customer);
     projects.forEach(p => { if (p.customer) seen.add(p.customer); });
     return [...seen];
@@ -352,12 +352,13 @@ function ProjectsPage() {
 
         <div className="bg-[#1a4b54]/30 backdrop-blur-xl border border-[#2a7a8a]/30 rounded-[2rem] overflow-hidden shadow-2xl">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left border-collapse">
+            <table className="w-full min-w-[840px] text-left border-collapse">
               <thead>
                 <tr className="border-b border-[#2a7a8a]/20 bg-white/[0.02]">
                   <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Проект</th>
                   <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Заказчик</th>
                   <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Дата</th>
+                  <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Этап</th>
                   <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Статус</th>
                   <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Стекла</th>
                   <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Покраска</th>
@@ -398,6 +399,9 @@ function ProjectsPage() {
                       <td className="px-5 py-4 text-sm text-white/40">
                         {new Date(project.created_at).toLocaleDateString('ru-RU')}
                       </td>
+                      <td className="px-5 py-4 text-sm font-bold text-white/50">
+                        {project.production_stages === 2 ? project.current_stage ?? '' : ''}
+                      </td>
                       <td className="px-5 py-4">
                         <StatusBadge value={project.status} colors={STATUS_COLORS} />
                       </td>
@@ -426,7 +430,7 @@ function ProjectsPage() {
                     </motion.tr>
                   )) : (
                     <tr>
-                      <td colSpan={7} className="py-20 text-center">
+                      <td colSpan={8} className="py-20 text-center">
                         <div className="flex flex-col items-center gap-4">
                           <div className="w-20 h-20 rounded-full bg-[#2a7a8a]/10 flex items-center justify-center border border-[#2a7a8a]/20">
                             {searchQuery ? <Search className="w-10 h-10 text-white/20" /> : <List className="w-10 h-10 text-white/20" />}
@@ -515,7 +519,7 @@ function ProjectsPage() {
                     {([1, 2] as const).map(n => (
                       <button key={n} type="button" onClick={() => setNewStages(n)}
                         className={`flex-1 py-3.5 rounded-2xl border font-bold text-sm transition-all ${newStages === n ? 'bg-[#4fd1c5]/10 border-[#4fd1c5]/50 text-[#4fd1c5]' : 'bg-black/10 border-[#2a7a8a]/25 text-white/40 hover:border-[#2a7a8a]/50'}`}>
-                        {n} этап
+                        {n === 1 ? 'в 1 этап' : 'в 2 этапа'}
                       </button>
                     ))}
                   </div>
