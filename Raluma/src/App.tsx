@@ -158,7 +158,7 @@ function StatusBadge({ value, colors }: { value?: string; colors: Record<string,
 function SkeletonRow() {
   return (
     <tr className="border-b border-[#2a7a8a]/10">
-      {[60, 80, 55, 30, 30, 20].map((w, i) => (
+      {[60, 80, 55, 30, 20, 20, 20].map((w, i) => (
         <td key={i} className="px-5 py-5">
           <div className="h-4 rounded-lg bg-white/[0.06] animate-pulse" style={{ width: `${w}%` }} />
         </td>
@@ -352,7 +352,7 @@ function ProjectsPage() {
 
         <div className="bg-[#1a4b54]/30 backdrop-blur-xl border border-[#2a7a8a]/30 rounded-[2rem] overflow-hidden shadow-2xl">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left border-collapse">
+            <table className="w-full min-w-[760px] text-left border-collapse">
               <thead>
                 <tr className="border-b border-[#2a7a8a]/20 bg-white/[0.02]">
                   <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Проект</th>
@@ -426,7 +426,7 @@ function ProjectsPage() {
                     </motion.tr>
                   )) : (
                     <tr>
-                      <td colSpan={6} className="py-20 text-center">
+                      <td colSpan={7} className="py-20 text-center">
                         <div className="flex flex-col items-center gap-4">
                           <div className="w-20 h-20 rounded-full bg-[#2a7a8a]/10 flex items-center justify-center border border-[#2a7a8a]/20">
                             {searchQuery ? <Search className="w-10 h-10 text-white/20" /> : <List className="w-10 h-10 text-white/20" />}

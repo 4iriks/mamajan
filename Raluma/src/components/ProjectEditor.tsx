@@ -781,9 +781,11 @@ function SlideSchemeSVG({ section }: { section: Section }) {
   // Bottom = ПОМЕЩЕНИЕ (internal/innermost rail, index railCount-1)
   // unusedTrack 'Внешний'   → outermost = index 0        (top)
   // unusedTrack 'Внутренний' → innermost = index railCount-1 (bottom)
+  // Apply same default as ToggleGroup: when panels < rails and track is unset → 'Внутренний'
+  const effectiveUnusedTrack = unusedTrack ?? (panels < railCount ? 'Внутренний' : undefined);
   const unusedRailIdx =
-    unusedTrack === 'Внешний'    ? 0 :
-    unusedTrack === 'Внутренний' ? railCount - 1 :
+    effectiveUnusedTrack === 'Внешний'    ? 0 :
+    effectiveUnusedTrack === 'Внутренний' ? railCount - 1 :
     null;
 
   // Panels go on all rails except unused, from top to bottom
