@@ -359,6 +359,7 @@ function ProjectsPage() {
                   <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Заказчик</th>
                   <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Дата</th>
                   <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Статус</th>
+                  <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Стекла</th>
                   <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40">Покраска</th>
                   <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-white/40 text-right">Действия</th>
                 </tr>
@@ -388,16 +389,9 @@ function ProjectsPage() {
                             </button>
                           </div>
                         ) : (
-                          <div>
-                            <span className="cursor-pointer hover:text-white transition-colors group-hover:underline" onDoubleClick={e => startRename(e, project)}>
-                              {project.number}
-                            </span>
-                            {project.glass_status && project.glass_status !== 'Без стекла' && (
-                              <div className="mt-1">
-                                <StatusBadge value={project.glass_status} colors={GLASS_COLORS} />
-                              </div>
-                            )}
-                          </div>
+                          <span className="cursor-pointer hover:text-white transition-colors group-hover:underline" onDoubleClick={e => startRename(e, project)}>
+                            {project.number}
+                          </span>
                         )}
                       </td>
                       <td className="px-5 py-4 text-sm font-medium">{project.customer}</td>
@@ -406,6 +400,9 @@ function ProjectsPage() {
                       </td>
                       <td className="px-5 py-4">
                         <StatusBadge value={project.status} colors={STATUS_COLORS} />
+                      </td>
+                      <td className="px-5 py-4">
+                        <StatusBadge value={project.glass_status} colors={GLASS_COLORS} />
                       </td>
                       <td className="px-5 py-4">
                         <StatusBadge value={project.paint_status} colors={PAINT_COLORS} />

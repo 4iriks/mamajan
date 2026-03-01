@@ -345,12 +345,6 @@ function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => v
       <div className="space-y-5">
         <div className="space-y-2">
           <label className={LBL}>Окрашивание</label>
-          {s.paintingType.includes('RAL') && (
-            <div className="space-y-1">
-              <label className={LBL}>Цвет RAL</label>
-              <input type="text" value={s.ralColor || ''} onChange={e => update({ ralColor: e.target.value })} className={INP} placeholder="Напр. 9016" />
-            </div>
-          )}
           <div className="space-y-1.5">
             {(['RAL стандарт', 'RAL нестандарт', 'Анодированный'] as const).map(type => (
               <button key={type} onClick={() => update({ paintingType: type })}
@@ -365,6 +359,12 @@ function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => v
               </button>
             ))}
           </div>
+          {s.paintingType.includes('RAL') && (
+            <div className="space-y-1">
+              <label className={LBL}>Цвет RAL</label>
+              <input type="text" value={s.ralColor || ''} onChange={e => update({ ralColor: e.target.value })} className={INP} placeholder="Напр. 9016" />
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -414,8 +414,8 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
           {((s.rails !== 5 && (s.panels ?? 3) < 3) || (s.rails === 5 && (s.panels ?? 3) < 5)) && (
             <div className="space-y-2">
               <label className={LBL}>Неиспользуемый рельс</label>
-              <ToggleGroup value={s.unusedTrack ?? 'Нет'} options={['Внутренний', 'Внешний', 'Нет']}
-                onChange={v => update({ unusedTrack: v === 'Нет' ? undefined : v })} />
+              <ToggleGroup value={s.unusedTrack ?? 'Внутренний'} options={['Внутренний', 'Внешний']}
+                onChange={v => update({ unusedTrack: v })} />
             </div>
           )}
           <div className="space-y-2">
@@ -763,6 +763,7 @@ function SlideSchemeSVG({ section }: { section: Section }) {
     panels, rails = 3, firstPanelInside = 'Справа', unusedTrack, interGlassProfile,
     profileLeftWall, profileLeftLockBar, profileLeftPBar, profileLeftHandleBar, profileLeftBubble,
     profileRightWall, profileRightLockBar, profileRightPBar, profileRightHandleBar, profileRightBubble,
+    width: sectionWidth, height: sectionHeight,
   } = section;
   const railCount = rails as number;
 
@@ -788,74 +789,93 @@ function SlideSchemeSVG({ section }: { section: Section }) {
   // Panels go on all rails except unused, from top to bottom
   const availableRails = Array.from({ length: railCount }, (_, i) => i)
     .filter(i => i !== unusedRailIdx);
-  const panelRailMap = Array.from({ length: panels }, (_, pi) => availableRails[pi] ?? pi % railCount);
+  const panelRailMap = Array.from({ length: panels }, (_, pi) => availableRails[pi] ?? availableRails[pi % availableRails.length] ?? pi % railCount);
 
   const panelW = railAreaW / panels;
   const slideLeft = firstPanelInside === 'Справа';
+  const glassW = sectionWidth ? Math.round(sectionWidth / panels) : null;
+  const glassH = sectionHeight ?? null;
 
-  // Draw a left-side profile at (xRight, cy) — shapes grow leftward from xRight
-  const drawLeftProfiles = (railIdx: number) => {
-    const cy = topPad + railIdx * rowH + rowH / 2;
+  // Draw left-side profiles spanning full construction height
+  const drawLeftProfiles = () => {
+    const y1 = topPad;
+    const h = railCount * rowH;
     const shapes: React.ReactElement[] = [];
     let x = leftW - 4;
 
     if (profileLeftWall) {
-      shapes.push(<rect key={`lw1-${railIdx}`} x={x - 14} y={cy - 8} width={7} height={16} rx="1" fill="#2a7a8a" fillOpacity="0.55" stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.5" />);
-      shapes.push(<rect key={`lw2-${railIdx}`} x={x - 7}  y={cy - 8} width={7} height={16} rx="1" fill="#2a7a8a" fillOpacity="0.35" stroke="#4fd1c5" strokeWidth="0.6" strokeOpacity="0.4" />);
+      shapes.push(<rect key="lw1" x={x - 14} y={y1} width={7} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.18" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
+      shapes.push(<rect key="lw2" x={x - 7}  y={y1} width={7} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.08" stroke="#4fd1c5" strokeWidth="1" strokeOpacity="0.7" />);
       x -= 16;
     }
     if (profileLeftLockBar) {
-      // H-shape: two vertical bars + horizontal bridge
-      shapes.push(<rect key={`ll1-${railIdx}`} x={x - 12} y={cy - 8} width={4} height={16} rx="1" fill="#2a7a8a" fillOpacity="0.5" stroke="#4fd1c5" strokeWidth="0.7" strokeOpacity="0.5" />);
-      shapes.push(<rect key={`ll2-${railIdx}`} x={x - 5}  y={cy - 8} width={4} height={16} rx="1" fill="#2a7a8a" fillOpacity="0.5" stroke="#4fd1c5" strokeWidth="0.7" strokeOpacity="0.5" />);
-      shapes.push(<line key={`ll3-${railIdx}`} x1={x - 10} y1={cy} x2={x - 3} y2={cy} stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.55" />);
+      shapes.push(<rect key="ll1" x={x - 12} y={y1} width={4} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.18" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
+      shapes.push(<rect key="ll2" x={x - 5}  y={y1} width={4} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.18" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
+      Array.from({ length: railCount }, (_, ri) => {
+        const cy = topPad + ri * rowH + rowH / 2;
+        shapes.push(<line key={`llb${ri}`} x1={x - 10} y1={cy} x2={x - 3} y2={cy} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.7" />);
+      });
       x -= 14;
     }
     if (profileLeftPBar) {
-      // L-shape (corner)
-      shapes.push(<path key={`lp-${railIdx}`} d={`M${x - 12},${cy - 8} L${x - 2},${cy - 8} L${x - 2},${cy + 8}`} fill="none" stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.6" />);
+      shapes.push(<path key="lp" d={`M${x-12},${y1} L${x-2},${y1} L${x-2},${y1+h} L${x-12},${y1+h}`} fill="none" stroke="#4fd1c5" strokeWidth="2.5" strokeOpacity="0.85" />);
       x -= 14;
     }
     if (profileLeftHandleBar) {
-      // T-shape
-      shapes.push(<line key={`lh1-${railIdx}`} x1={x - 14} y1={cy} x2={x - 2} y2={cy} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.65" />);
-      shapes.push(<line key={`lh2-${railIdx}`} x1={x - 8}  y1={cy - 7} x2={x - 8} y2={cy + 7} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.65" />);
+      shapes.push(<line key="lhv" x1={x-8} y1={y1} x2={x-8} y2={y1+h} stroke="#4fd1c5" strokeWidth="2.5" strokeOpacity="0.85" />);
+      Array.from({ length: railCount }, (_, ri) => {
+        const cy = topPad + ri * rowH + rowH / 2;
+        shapes.push(<line key={`lhh${ri}`} x1={x-14} y1={cy} x2={x-2} y2={cy} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.65" />);
+      });
       x -= 16;
     }
     if (profileLeftBubble) {
-      shapes.push(<circle key={`lb-${railIdx}`} cx={x - 7} cy={cy} r={5} fill="#4fd1c5" fillOpacity="0.2" stroke="#4fd1c5" strokeWidth="1" strokeOpacity="0.5" />);
+      Array.from({ length: railCount }, (_, ri) => {
+        const cy = topPad + ri * rowH + rowH / 2;
+        shapes.push(<circle key={`lb${ri}`} cx={x-7} cy={cy} r={5} fill="#4fd1c5" fillOpacity="0.25" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.85" />);
+      });
     }
     return shapes;
   };
 
-  // Draw a right-side profile at (xLeft, cy) — shapes grow rightward from xLeft
-  const drawRightProfiles = (railIdx: number) => {
-    const cy = topPad + railIdx * rowH + rowH / 2;
+  // Draw right-side profiles spanning full construction height
+  const drawRightProfiles = () => {
+    const y1 = topPad;
+    const h = railCount * rowH;
     const shapes: React.ReactElement[] = [];
     let x = leftW + railAreaW + 4;
 
     if (profileRightWall) {
-      shapes.push(<rect key={`rw1-${railIdx}`} x={x}     y={cy - 8} width={7} height={16} rx="1" fill="#2a7a8a" fillOpacity="0.55" stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.5" />);
-      shapes.push(<rect key={`rw2-${railIdx}`} x={x + 7} y={cy - 8} width={7} height={16} rx="1" fill="#2a7a8a" fillOpacity="0.35" stroke="#4fd1c5" strokeWidth="0.6" strokeOpacity="0.4" />);
+      shapes.push(<rect key="rw1" x={x}     y={y1} width={7} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.18" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
+      shapes.push(<rect key="rw2" x={x + 7} y={y1} width={7} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.08" stroke="#4fd1c5" strokeWidth="1" strokeOpacity="0.7" />);
       x += 16;
     }
     if (profileRightLockBar) {
-      shapes.push(<rect key={`rl1-${railIdx}`} x={x}     y={cy - 8} width={4} height={16} rx="1" fill="#2a7a8a" fillOpacity="0.5" stroke="#4fd1c5" strokeWidth="0.7" strokeOpacity="0.5" />);
-      shapes.push(<rect key={`rl2-${railIdx}`} x={x + 8} y={cy - 8} width={4} height={16} rx="1" fill="#2a7a8a" fillOpacity="0.5" stroke="#4fd1c5" strokeWidth="0.7" strokeOpacity="0.5" />);
-      shapes.push(<line key={`rl3-${railIdx}`} x1={x + 2} y1={cy} x2={x + 10} y2={cy} stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.55" />);
+      shapes.push(<rect key="rl1" x={x}     y={y1} width={4} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.18" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
+      shapes.push(<rect key="rl2" x={x + 8} y={y1} width={4} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.18" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
+      Array.from({ length: railCount }, (_, ri) => {
+        const cy = topPad + ri * rowH + rowH / 2;
+        shapes.push(<line key={`rlb${ri}`} x1={x+2} y1={cy} x2={x+10} y2={cy} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.7" />);
+      });
       x += 14;
     }
     if (profileRightPBar) {
-      shapes.push(<path key={`rp-${railIdx}`} d={`M${x + 12},${cy - 8} L${x + 2},${cy - 8} L${x + 2},${cy + 8}`} fill="none" stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.6" />);
+      shapes.push(<path key="rp" d={`M${x+12},${y1} L${x+2},${y1} L${x+2},${y1+h} L${x+12},${y1+h}`} fill="none" stroke="#4fd1c5" strokeWidth="2.5" strokeOpacity="0.85" />);
       x += 14;
     }
     if (profileRightHandleBar) {
-      shapes.push(<line key={`rh1-${railIdx}`} x1={x + 2}  y1={cy} x2={x + 14} y2={cy} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.65" />);
-      shapes.push(<line key={`rh2-${railIdx}`} x1={x + 8}  y1={cy - 7} x2={x + 8} y2={cy + 7} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.65" />);
+      shapes.push(<line key="rhv" x1={x+8} y1={y1} x2={x+8} y2={y1+h} stroke="#4fd1c5" strokeWidth="2.5" strokeOpacity="0.85" />);
+      Array.from({ length: railCount }, (_, ri) => {
+        const cy = topPad + ri * rowH + rowH / 2;
+        shapes.push(<line key={`rhh${ri}`} x1={x+2} y1={cy} x2={x+14} y2={cy} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.65" />);
+      });
       x += 16;
     }
     if (profileRightBubble) {
-      shapes.push(<circle key={`rb-${railIdx}`} cx={x + 7} cy={cy} r={5} fill="#4fd1c5" fillOpacity="0.2" stroke="#4fd1c5" strokeWidth="1" strokeOpacity="0.5" />);
+      Array.from({ length: railCount }, (_, ri) => {
+        const cy = topPad + ri * rowH + rowH / 2;
+        shapes.push(<circle key={`rb${ri}`} cx={x+7} cy={cy} r={5} fill="#4fd1c5" fillOpacity="0.25" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.85" />);
+      });
     }
     return shapes;
   };
@@ -899,11 +919,23 @@ function SlideSchemeSVG({ section }: { section: Section }) {
         const cy = topPad + ri * rowH + rowH / 2;
         const px = leftW + pi * panelW;
         const panelNum = firstPanelInside === 'Справа' ? panels - pi : pi + 1;
+        // Overlap: extend into neighbours except at frame edges
+        const rx = px + (pi === 0 ? 5 : -6);
+        const rRight = px + panelW + (pi === panels - 1 ? -5 : 6);
+        const rw = rRight - rx;
+        const cx = px + panelW / 2;
         return (
           <g key={pi}>
-            <rect x={px + 5} y={cy - 9} width={panelW - 10} height={18} rx="2"
+            <rect x={rx} y={cy - 9} width={rw} height={18} rx="2"
               fill="#4fd1c5" fillOpacity="0.13" stroke="#4fd1c5" strokeWidth="1.4" strokeOpacity="0.75" />
-            <text x={px + panelW / 2} y={cy + 5} textAnchor="middle" fontSize="9" fill="#4fd1c5" fillOpacity="0.9" fontWeight="bold">{panelNum}</text>
+            {glassW && glassH ? (
+              <>
+                <text x={cx} y={cy + 1} textAnchor="middle" fontSize="8" fill="#4fd1c5" fillOpacity="0.9" fontWeight="bold">{glassW}×{glassH}</text>
+                <text x={cx} y={cy + 11} textAnchor="middle" fontSize="6.5" fill="#4fd1c5" fillOpacity="0.55">№{panelNum}</text>
+              </>
+            ) : (
+              <text x={cx} y={cy + 5} textAnchor="middle" fontSize="9" fill="#4fd1c5" fillOpacity="0.9" fontWeight="bold">{panelNum}</text>
+            )}
           </g>
         );
       })}
@@ -913,18 +945,14 @@ function SlideSchemeSVG({ section }: { section: Section }) {
         <rect key={pi}
           x={leftW + (pi + 1) * panelW - 2} y={topPad}
           width={4} height={railCount * rowH}
-          fill="#4fd1c5" fillOpacity="0.07" stroke="#4fd1c5" strokeWidth="0.5" strokeOpacity="0.3" />
+          fill="#4fd1c5" fillOpacity="0.15" stroke="#4fd1c5" strokeWidth="1" strokeOpacity="0.55" />
       ))}
 
-      {/* Left profiles per rail */}
-      {Array.from({ length: railCount }, (_, ri) => (
-        <g key={ri}>{drawLeftProfiles(ri)}</g>
-      ))}
+      {/* Left profiles — full construction height */}
+      <g>{drawLeftProfiles()}</g>
 
-      {/* Right profiles per rail */}
-      {Array.from({ length: railCount }, (_, ri) => (
-        <g key={ri}>{drawRightProfiles(ri)}</g>
-      ))}
+      {/* Right profiles — full construction height */}
+      <g>{drawRightProfiles()}</g>
 
       {/* Slide direction arrow */}
       {(() => {
@@ -1782,14 +1810,12 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                 {!(productionStages === 2 && currentStage === 1) && (
                   <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/30 rounded-2xl p-5 sm:p-6 mb-4">
                     <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40 block mb-4">Стекла</span>
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {['Без стекла','Стекла заказаны','Стекла в цеху'].map(s => (
-                        <button key={s} onClick={() => { setGlassStatus(s); saveStatus({ glass_status: s }); }}
-                          className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${
-                            glassStatus === s ? 'bg-[#4fd1c5]/15 border-[#4fd1c5]/40 text-[#4fd1c5]'
-                                             : 'bg-black/10 border-[#2a7a8a]/20 text-white/40 hover:border-[#2a7a8a]/40'
-                          }`}>{s}</button>
-                      ))}
+                    <div className="mb-4">
+                      <select value={glassStatus} onChange={e => { setGlassStatus(e.target.value); saveStatus({ glass_status: e.target.value }); }} className={SEL}>
+                        <option>Без стекла</option>
+                        <option>Стекла заказаны</option>
+                        <option>Стекла в цеху</option>
+                      </select>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
@@ -1810,14 +1836,13 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                 {/* Paint */}
                 <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/30 rounded-2xl p-5 sm:p-6 mb-4">
                   <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40 block mb-4">Покраска</span>
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {['Без покраски','Задание на покраску в цеху','Отгружен на покраску','Получен с покраски'].map(s => (
-                      <button key={s} onClick={() => { setPaintStatus(s); saveStatus({ paint_status: s }); }}
-                        className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${
-                          paintStatus === s ? 'bg-[#4fd1c5]/15 border-[#4fd1c5]/40 text-[#4fd1c5]'
-                                           : 'bg-black/10 border-[#2a7a8a]/20 text-white/40 hover:border-[#2a7a8a]/40'
-                        }`}>{s}</button>
-                    ))}
+                  <div className="mb-4">
+                    <select value={paintStatus} onChange={e => { setPaintStatus(e.target.value); saveStatus({ paint_status: e.target.value }); }} className={SEL}>
+                      <option>Без покраски</option>
+                      <option>Задание на покраску в цеху</option>
+                      <option>Отгружен на покраску</option>
+                      <option>Получен с покраски</option>
+                    </select>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
@@ -1925,60 +1950,65 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   </div>
                 </div>
 
-                {/* All section content on one page */}
-                <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/35 rounded-2xl sm:rounded-[2rem] p-4 sm:p-8 mb-6">
-                  {renderSectionContent()}
-                </div>
-
-                {/* SVG schemes (only for СЛАЙД) */}
-                {activeSection.system === 'СЛАЙД' && (
-                  <>
-                    {/* Вид сверху */}
-                    <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2rem] p-4 sm:p-7 mb-4 overflow-x-auto">
-                      <div className="flex items-center justify-between mb-5 min-w-[360px]">
-                        <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Схема · Вид сверху</h4>
-                        <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">
-                          {activeSection.rails ?? 3}-рельсовая · {activeSection.panels} пан.
-                        </span>
-                      </div>
-                      <div className="flex justify-center py-4">
-                        <SlideSchemeSVG section={activeSection} />
-                      </div>
+                <div className="xl:flex xl:gap-6 xl:items-start">
+                  {/* Left column: form + actions */}
+                  <div className="xl:flex-1 min-w-0">
+                    {/* All section content on one page */}
+                    <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/35 rounded-2xl sm:rounded-[2rem] p-4 sm:p-8 mb-6">
+                      {renderSectionContent()}
                     </div>
 
-                    {/* Вид из помещения */}
-                    <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2rem] p-4 sm:p-7 mb-6 overflow-x-auto">
-                      <div className="flex items-center justify-between mb-4 min-w-[360px]">
-                        <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Вид из помещения</h4>
-                        <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">
-                          {activeSection.panels} пан. · {activeSection.width} × {activeSection.height} мм
-                        </span>
+                    {/* Actions */}
+                    <div className="flex gap-4">
+                      <button onClick={handleSaveSection} disabled={isSaving}
+                        className={`flex-1 py-4 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed ${
+                          isDirty
+                            ? 'bg-amber-500 hover:bg-amber-400 shadow-lg shadow-amber-500/20'
+                            : 'bg-[#00b894] hover:bg-[#00d1a7] shadow-lg shadow-[#00b894]/20'
+                        }`}>
+                        {isSaving ? (
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : isDirty ? (
+                          <><Save className="w-4 h-4" /> Сохранить изменения</>
+                        ) : 'Сохранить секцию'}
+                      </button>
+                      <button onClick={() => openPreview('Спецификация')}
+                        className="flex-1 py-4 rounded-2xl bg-[#2a7a8a]/20 border border-[#2a7a8a]/40 hover:bg-[#2a7a8a]/40 text-[#4fd1c5] font-bold transition-all">
+                        СПЕЦИФИКАЦИЯ
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Right column: SVG schemes — sticky on xl, stacked below on mobile */}
+                  {activeSection.system === 'СЛАЙД' && (
+                    <div className="xl:w-[440px] xl:flex-shrink-0 xl:sticky xl:top-4 mt-6 xl:mt-0">
+                      {/* Вид сверху */}
+                      <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2rem] p-4 sm:p-5 mb-4 overflow-x-auto">
+                        <div className="flex items-center justify-between mb-4 min-w-[360px]">
+                          <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Схема · Вид сверху</h4>
+                          <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">
+                            {activeSection.rails ?? 3}-рельсовая · {activeSection.panels} пан.
+                          </span>
+                        </div>
+                        <div className="flex justify-center py-2">
+                          <SlideSchemeSVG section={activeSection} />
+                        </div>
                       </div>
-                      <div className="flex justify-center py-2">
-                        <SlideRoomViewSVG section={activeSection} />
+
+                      {/* Вид из помещения */}
+                      <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2rem] p-4 sm:p-5 overflow-x-auto">
+                        <div className="flex items-center justify-between mb-4 min-w-[360px]">
+                          <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Вид из помещения</h4>
+                          <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">
+                            {activeSection.panels} пан. · {activeSection.width} × {activeSection.height} мм
+                          </span>
+                        </div>
+                        <div className="flex justify-center py-2">
+                          <SlideRoomViewSVG section={activeSection} />
+                        </div>
                       </div>
                     </div>
-                  </>
-                )}
-
-                {/* Actions */}
-                <div className="flex gap-4">
-                  <button onClick={handleSaveSection} disabled={isSaving}
-                    className={`flex-1 py-4 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed ${
-                      isDirty
-                        ? 'bg-amber-500 hover:bg-amber-400 shadow-lg shadow-amber-500/20'
-                        : 'bg-[#00b894] hover:bg-[#00d1a7] shadow-lg shadow-[#00b894]/20'
-                    }`}>
-                    {isSaving ? (
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : isDirty ? (
-                      <><Save className="w-4 h-4" /> Сохранить изменения</>
-                    ) : 'Сохранить секцию'}
-                  </button>
-                  <button onClick={() => openPreview('Спецификация')}
-                    className="flex-1 py-4 rounded-2xl bg-[#2a7a8a]/20 border border-[#2a7a8a]/40 hover:bg-[#2a7a8a]/40 text-[#4fd1c5] font-bold transition-all">
-                    СПЕЦИФИКАЦИЯ
-                  </button>
+                  )}
                 </div>
               </motion.div>
             )}
