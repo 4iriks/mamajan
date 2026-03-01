@@ -94,8 +94,8 @@ interface ProjectEditorProps {
 // ── Style constants ───────────────────────────────────────────────────────────
 
 const LBL = 'text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40 ml-1';
-const INP = 'w-full bg-white/8 border border-[#2a7a8a]/30 rounded-xl px-4 py-3 outline-none focus:border-[#4fd1c5]/50 transition-all font-mono text-white';
-const SEL = 'w-full bg-white/8 border border-[#2a7a8a]/30 rounded-xl px-4 py-3 outline-none focus:border-[#4fd1c5]/50 transition-all appearance-none text-white';
+const INP = 'w-full bg-white/8 border border-[#2a7a8a]/30 rounded-xl px-3 py-2 outline-none focus:border-[#4fd1c5]/50 transition-all font-mono text-white text-sm';
+const SEL = 'w-full bg-white/8 border border-[#2a7a8a]/30 rounded-xl px-3 py-2 outline-none focus:border-[#4fd1c5]/50 transition-all appearance-none text-white text-sm';
 
 // ── System colors ─────────────────────────────────────────────────────────────
 
@@ -234,7 +234,7 @@ function ToggleGroup({ value, options, onChange }: { value?: string; options: st
     <div className="flex gap-2 flex-wrap">
       {options.map(opt => (
         <button key={opt} onClick={() => onChange(opt)}
-          className={`flex-1 py-2.5 rounded-xl border font-bold text-xs transition-all min-w-0 ${
+          className={`flex-1 py-1.5 rounded-xl border font-bold text-xs transition-all min-w-0 ${
             value === opt ? 'bg-[#4fd1c5]/10 border-[#4fd1c5]/50 text-[#4fd1c5]' : 'bg-black/10 border-[#2a7a8a]/20 text-white/40 hover:border-[#2a7a8a]/50'
           }`}
         >{opt}</button>
@@ -254,7 +254,7 @@ function RadioList({ value, options, onChange, noneLabel }: { value?: string; op
         const active = isNone ? !value : value === opt;
         return (
           <button key={opt} onClick={() => onChange(isNone ? undefined : opt)}
-            className={`w-full text-left px-4 py-2.5 rounded-xl border transition-all text-xs ${
+            className={`w-full text-left px-3 py-1.5 rounded-xl border transition-all text-xs ${
               active ? 'bg-[#4fd1c5]/10 border-[#4fd1c5]/50 text-[#4fd1c5]' : 'border-[#2a7a8a]/20 bg-black/10 text-white/40 hover:border-[#4fd1c5]/30'
             }`}
           >{opt}</button>
@@ -297,7 +297,7 @@ function getSectionColorLabel(s: Section): string {
 
 function SectionDivider({ label }: { label: string }) {
   return (
-    <div className="flex items-center gap-3 pt-2">
+    <div className="flex items-center gap-3 pt-1">
       <span className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40 whitespace-nowrap">{label}</span>
       <div className="flex-1 h-px bg-[#2a7a8a]/20" />
     </div>
@@ -308,29 +308,30 @@ function SectionDivider({ label }: { label: string }) {
 
 function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
   return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-8">
-      <div className="space-y-5">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className={LBL}>Название</label>
-            <input value={s.name} onChange={e => update({ name: e.target.value })} className={INP} />
-          </div>
-          <div className="space-y-2">
-            <label className={LBL}>Кол-во, шт</label>
-            <input type="number" min="1" value={s.quantity} onChange={e => update({ quantity: parseInt(e.target.value) || 1 })} className={INP} />
-          </div>
+    <div className="space-y-4">
+      {/* Название / Кол-во / Ширина / Высота */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="col-span-2 sm:col-span-2 space-y-1.5">
+          <label className={LBL}>Название</label>
+          <input value={s.name} onChange={e => update({ name: e.target.value })} className={INP} />
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className={LBL}>Ширина, мм</label>
-            <input type="number" value={s.width} onChange={e => update({ width: parseInt(e.target.value) || 0 })} className={INP} />
-          </div>
-          <div className="space-y-2">
-            <label className={LBL}>Высота, мм</label>
-            <input type="number" value={s.height} onChange={e => update({ height: parseInt(e.target.value) || 0 })} className={INP} />
-          </div>
+        <div className="space-y-1.5">
+          <label className={LBL}>Кол-во, шт</label>
+          <input type="number" min="1" value={s.quantity} onChange={e => update({ quantity: parseInt(e.target.value) || 1 })} className={INP} />
         </div>
-        <div className="space-y-2">
+        <div className="hidden sm:block" />
+        <div className="space-y-1.5">
+          <label className={LBL}>Ширина, мм</label>
+          <input type="number" value={s.width} onChange={e => update({ width: parseInt(e.target.value) || 0 })} className={INP} />
+        </div>
+        <div className="space-y-1.5">
+          <label className={LBL}>Высота, мм</label>
+          <input type="number" value={s.height} onChange={e => update({ height: parseInt(e.target.value) || 0 })} className={INP} />
+        </div>
+      </div>
+      {/* Стекло / Окрашивание */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1.5">
           <label className={LBL}>Стекло</label>
           <select value={s.glassType} onChange={e => update({ glassType: e.target.value })} className={SEL}>
             <option>10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ</option>
@@ -341,26 +342,24 @@ function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => v
             <option>6ММ ЗАКАЛЕННОЕ МАТОВОЕ</option>
           </select>
         </div>
-      </div>
-      <div className="space-y-5">
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <label className={LBL}>Окрашивание</label>
-          <div className="space-y-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {(['RAL стандарт', 'RAL нестандарт', 'Анодированный'] as const).map(type => (
               <button key={type} onClick={() => update({ paintingType: type })}
-                className={`flex items-center gap-3 w-full px-4 py-2.5 rounded-xl border transition-all text-left ${
+                className={`flex items-center gap-1.5 flex-1 min-w-max px-2.5 py-1.5 rounded-xl border transition-all justify-center text-xs font-medium ${
                   s.paintingType === type ? 'bg-[#4fd1c5]/10 border-[#4fd1c5]/50 text-[#4fd1c5]' : 'bg-black/10 border-[#2a7a8a]/20 text-white/40 hover:border-[#2a7a8a]/50'
                 }`}
               >
-                <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${s.paintingType === type ? 'border-[#4fd1c5]' : 'border-white/10'}`}>
-                  {s.paintingType === type && <div className="w-2 h-2 rounded-full bg-[#4fd1c5]" />}
+                <div className={`w-3 h-3 rounded-full border flex items-center justify-center flex-shrink-0 ${s.paintingType === type ? 'border-[#4fd1c5]' : 'border-white/15'}`}>
+                  {s.paintingType === type && <div className="w-1.5 h-1.5 rounded-full bg-[#4fd1c5]" />}
                 </div>
-                <span className="text-xs font-medium">{type}</span>
+                {type}
               </button>
             ))}
           </div>
           {s.paintingType.includes('RAL') && (
-            <div className="space-y-1">
+            <div className="mt-1.5 space-y-1">
               <label className={LBL}>Цвет RAL</label>
               <input type="text" value={s.ralColor || ''} onChange={e => update({ ralColor: e.target.value })} className={INP} placeholder="Напр. 9016" />
             </div>
@@ -393,82 +392,69 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
   const showHandleRight = (s.profileRightPBar && s.profileRightBubble) || (s.profileRightBubble && !s.profileRightLockBar && !s.profileRightPBar && !s.profileRightHandleBar);
 
   return (
-    <div className="space-y-6">
-      {/* Верхний блок: рельсы, панели, 1-я панель, порог, межстек */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-8">
-        <div className="space-y-5">
-          <div className="space-y-2">
-            <label className={LBL}>Рельсы</label>
-            <ToggleGroup
-              value={s.rails === 5 ? '5ти рельсовая' : '3х рельсовая'}
-              options={['3х рельсовая', '5ти рельсовая']}
-              onChange={v => update({ rails: v.startsWith('3') ? 3 : 5 })}
-            />
-          </div>
-          <div className="space-y-2">
-            <label className={LBL}>Кол-во панелей</label>
-            <select value={s.panels} onChange={e => update({ panels: parseInt(e.target.value) })} className={SEL}>
-              {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </div>
-          {((s.rails !== 5 && (s.panels ?? 3) < 3) || (s.rails === 5 && (s.panels ?? 3) < 5)) && (
-            <div className="space-y-2">
-              <label className={LBL}>Неиспользуемый рельс</label>
-              <ToggleGroup value={s.unusedTrack ?? 'Внутренний'} options={['Внутренний', 'Внешний']}
-                onChange={v => update({ unusedTrack: v })} />
-            </div>
-          )}
-          <div className="space-y-2">
-            <label className={LBL}>1-я панель внутри помещения</label>
-            <ToggleGroup value={s.firstPanelInside} options={['Слева', 'Справа']}
-              onChange={v => update({ firstPanelInside: v })} />
-          </div>
+    <div className="space-y-4">
+      {/* Рельсы / Панели / 1-я панель — одна строка */}
+      <div className="flex gap-3">
+        <div className="flex-1 space-y-1.5">
+          <label className={LBL}>Рельсы</label>
+          <ToggleGroup
+            value={s.rails === 5 ? '5ти рельсовая' : '3х рельсовая'}
+            options={['3х рельсовая', '5ти рельсовая']}
+            onChange={v => update({ rails: v.startsWith('3') ? 3 : 5 })}
+          />
         </div>
-        <div className="space-y-5">
-          <div className="space-y-2">
-            <label className={LBL}>Порог</label>
-            <select value={s.threshold || ''} onChange={e => update({ threshold: e.target.value || undefined })} className={SEL}>
-              <option value="">— Без порога —</option>
-              <option>Стандартный анод</option>
-              <option>Стандартный окраш</option>
-              <option>Накладной анод</option>
-              <option>Накладной окраш</option>
-            </select>
-            {!s.threshold && (
-              <p className="text-[10px] text-amber-400/70 font-bold uppercase tracking-wider pl-1">⚠ Без порога система быть не может</p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <label className={LBL}>Межстекольный профиль</label>
-            <select value={s.interGlassProfile || ''} onChange={e => update({ interGlassProfile: e.target.value || undefined })} className={SEL}>
-              <option value="">— Без межстекольного профиля —</option>
-              <option>Алюминиевый RS1061</option>
-              <option>Прозрачный с фетром RS1006</option>
-              <option>h-профиль RS1004</option>
-            </select>
-          </div>
-          {false && (
-            <>
-              <div className="space-y-2">
-                <label className={LBL}>Угловое соединение</label>
-                <div className="flex gap-6 mt-1">
-                  <Checkbox checked={s.cornerLeft} onChange={() => update({ cornerLeft: !s.cornerLeft })} label="Левое" />
-                  <Checkbox checked={s.cornerRight} onChange={() => update({ cornerRight: !s.cornerRight })} label="Правое" />
-                </div>
-              </div>
-              {(s.cornerLeft || s.cornerRight) && (
-                <div className="space-y-2">
-                  <label className={LBL}>Внешняя ширина, мм</label>
-                  <input type="number" value={s.externalWidth || ''} onChange={e => update({ externalWidth: parseFloat(e.target.value) || undefined })} className={INP} placeholder="мм" />
-                </div>
-              )}
-            </>
-          )}
+        <div className="w-[5.5rem] flex-shrink-0 space-y-1.5">
+          <label className={LBL}>Панели</label>
+          <select value={s.panels} onChange={e => update({ panels: parseInt(e.target.value) })} className={SEL}>
+            {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+        <div className="flex-1 space-y-1.5">
+          <label className={LBL}>1-я панель</label>
+          <ToggleGroup value={s.firstPanelInside} options={['Слева', 'Справа']}
+            onChange={v => update({ firstPanelInside: v })} />
         </div>
       </div>
 
+      {/* Порог / Межстекольный */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <label className={LBL}>Порог</label>
+          <select value={s.threshold || ''} onChange={e => update({ threshold: e.target.value || undefined })} className={SEL}>
+            <option value="">— Без порога —</option>
+            <option>Стандартный анод</option>
+            <option>Стандартный окраш</option>
+            <option>Накладной анод</option>
+            <option>Накладной окраш</option>
+          </select>
+          {!s.threshold && (
+            <p className="text-[10px] text-amber-400/70 font-bold uppercase tracking-wider pl-1">⚠ Без порога</p>
+          )}
+        </div>
+        <div className="space-y-1.5">
+          <label className={LBL}>Межстекольный профиль</label>
+          <select value={s.interGlassProfile || ''} onChange={e => update({ interGlassProfile: e.target.value || undefined })} className={SEL}>
+            <option value="">— Без —</option>
+            <option>Алюминиевый RS1061</option>
+            <option>Прозрачный с фетром RS1006</option>
+            <option>h-профиль RS1004</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Неиспользуемый рельс (только если есть неиспользуемые) */}
+      {((s.rails !== 5 && (s.panels ?? 3) < 3) || (s.rails === 5 && (s.panels ?? 3) < 5)) && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <label className={LBL}>Неиспользуемый рельс</label>
+            <ToggleGroup value={s.unusedTrack ?? 'Внутренний'} options={['Внутренний', 'Внешний']}
+              onChange={v => update({ unusedTrack: v })} />
+          </div>
+        </div>
+      )}
+
       {/* Профили слева / справа */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-8">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {/* Профили слева */}
         <div className="space-y-2">
           <label className={LBL}>Профили слева</label>
@@ -1379,10 +1365,10 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const renderSectionContent = () => {
     if (!activeSection) return null;
     return (
-      <div className="space-y-8">
+      <div className="space-y-5">
         <div>
           <SectionDivider label="Основное" />
-          <div className="mt-5">
+          <div className="mt-3">
             <MainTab s={activeSection} update={updateActiveSection} />
           </div>
         </div>
@@ -1390,7 +1376,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         {activeSection.system === 'СЛАЙД' && (
           <div>
             <SectionDivider label="Система · Профили · Фурнитура" />
-            <div className="mt-5">
+            <div className="mt-3">
               <SlideSystemTab s={activeSection} update={updateActiveSection} />
             </div>
           </div>
@@ -1399,7 +1385,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         {activeSection.system === 'КНИЖКА' && (
           <div>
             <SectionDivider label="Система" />
-            <div className="mt-5">
+            <div className="mt-3">
               <BookSystemTab s={activeSection} update={updateActiveSection} />
             </div>
           </div>
@@ -1408,7 +1394,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         {activeSection.system === 'ЛИФТ' && (
           <div>
             <SectionDivider label="Система" />
-            <div className="mt-5">
+            <div className="mt-3">
               <LiftSystemTab s={activeSection} update={updateActiveSection} />
             </div>
           </div>
@@ -1417,7 +1403,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         {activeSection.system === 'ЦС' && (
           <div>
             <SectionDivider label="Форма" />
-            <div className="mt-5">
+            <div className="mt-3">
               <CsShapeTab s={activeSection} update={updateActiveSection} />
             </div>
           </div>
@@ -1426,7 +1412,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         {activeSection.system === 'КОМПЛЕКТАЦИЯ' && (
           <div>
             <SectionDivider label="Система" />
-            <div className="mt-5">
+            <div className="mt-3">
               <DoorSystemTab s={activeSection} update={updateActiveSection} />
             </div>
           </div>
@@ -1435,25 +1421,25 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         {/* Примечания к секции — для всех систем */}
         <div>
           <SectionDivider label="Примечания к секции" />
-          <div className="mt-5 space-y-4">
-            <div className="space-y-2">
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
               <label className={LBL}>Доп. комплектующие</label>
               <textarea
                 value={activeSection.extraParts || ''}
                 onChange={e => updateActiveSection({ extraParts: e.target.value || undefined })}
-                rows={3}
-                placeholder="Перечислите дополнительные комплектующие..."
-                className="w-full bg-white/8 border border-[#2a7a8a]/30 rounded-xl px-4 py-3 outline-none focus:border-[#4fd1c5]/50 transition-all text-white resize-none placeholder-white/20 text-sm"
+                rows={2}
+                placeholder="Дополнительные комплектующие..."
+                className="w-full bg-white/8 border border-[#2a7a8a]/30 rounded-xl px-3 py-2 outline-none focus:border-[#4fd1c5]/50 transition-all text-white resize-y placeholder-white/20 text-sm"
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label className={LBL}>Комментарии</label>
               <textarea
                 value={activeSection.comments || ''}
                 onChange={e => updateActiveSection({ comments: e.target.value || undefined })}
-                rows={3}
-                placeholder="Любые дополнительные комментарии..."
-                className="w-full bg-white/8 border border-[#2a7a8a]/30 rounded-xl px-4 py-3 outline-none focus:border-[#4fd1c5]/50 transition-all text-white resize-none placeholder-white/20 text-sm"
+                rows={2}
+                placeholder="Дополнительные комментарии..."
+                className="w-full bg-white/8 border border-[#2a7a8a]/30 rounded-xl px-3 py-2 outline-none focus:border-[#4fd1c5]/50 transition-all text-white resize-y placeholder-white/20 text-sm"
               />
             </div>
           </div>
@@ -1934,7 +1920,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                 className="p-4 sm:p-8 max-w-4xl mx-auto w-full">
 
                 {/* Section title + system badge */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-5 sm:mb-7 gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-5 gap-3">
                   <div>
                     <button onClick={() => requestNavigate(null)}
                       className="flex items-center gap-1.5 text-white/30 hover:text-[#4fd1c5] transition-colors group mb-3 text-xs font-bold uppercase tracking-wider">
@@ -1957,7 +1943,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                 </div>
 
                 {/* All section content on one page */}
-                <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/35 rounded-2xl sm:rounded-[2rem] p-4 sm:p-8 mb-6">
+                <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/35 rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 mb-4">
                   {renderSectionContent()}
                 </div>
 
