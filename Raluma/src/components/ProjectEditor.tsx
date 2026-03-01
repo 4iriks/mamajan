@@ -794,13 +794,13 @@ function SlideSchemeSVG({ section }: { section: Section }) {
     let x = leftW - 4;
 
     if (profileLeftWall) {
-      shapes.push(<rect key="lw1" x={x - 14} y={y1} width={7} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.18" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
-      shapes.push(<rect key="lw2" x={x - 7}  y={y1} width={7} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.08" stroke="#4fd1c5" strokeWidth="1" strokeOpacity="0.7" />);
+      shapes.push(<rect key="lw1" x={x - 14} y={y1} width={7} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.45" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
+      shapes.push(<rect key="lw2" x={x - 7}  y={y1} width={7} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.22" stroke="#4fd1c5" strokeWidth="1" strokeOpacity="0.8" />);
       x -= 16;
     }
     if (profileLeftLockBar) {
-      shapes.push(<rect key="ll1" x={x - 12} y={y1} width={4} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.18" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
-      shapes.push(<rect key="ll2" x={x - 5}  y={y1} width={4} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.18" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
+      shapes.push(<rect key="ll1" x={x - 12} y={y1} width={4} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.40" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
+      shapes.push(<rect key="ll2" x={x - 5}  y={y1} width={4} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.40" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
       Array.from({ length: railCount }, (_, ri) => {
         const cy = topPad + ri * rowH + rowH / 2;
         shapes.push(<line key={`llb${ri}`} x1={x - 10} y1={cy} x2={x - 3} y2={cy} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.7" />);
@@ -836,13 +836,13 @@ function SlideSchemeSVG({ section }: { section: Section }) {
     let x = leftW + railAreaW + 4;
 
     if (profileRightWall) {
-      shapes.push(<rect key="rw1" x={x}     y={y1} width={7} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.18" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
-      shapes.push(<rect key="rw2" x={x + 7} y={y1} width={7} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.08" stroke="#4fd1c5" strokeWidth="1" strokeOpacity="0.7" />);
+      shapes.push(<rect key="rw1" x={x}     y={y1} width={7} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.45" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
+      shapes.push(<rect key="rw2" x={x + 7} y={y1} width={7} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.22" stroke="#4fd1c5" strokeWidth="1" strokeOpacity="0.8" />);
       x += 16;
     }
     if (profileRightLockBar) {
-      shapes.push(<rect key="rl1" x={x}     y={y1} width={4} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.18" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
-      shapes.push(<rect key="rl2" x={x + 8} y={y1} width={4} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.18" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
+      shapes.push(<rect key="rl1" x={x}     y={y1} width={4} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.40" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
+      shapes.push(<rect key="rl2" x={x + 8} y={y1} width={4} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.40" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
       Array.from({ length: railCount }, (_, ri) => {
         const cy = topPad + ri * rowH + rowH / 2;
         shapes.push(<line key={`rlb${ri}`} x1={x+2} y1={cy} x2={x+10} y2={cy} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.7" />);
