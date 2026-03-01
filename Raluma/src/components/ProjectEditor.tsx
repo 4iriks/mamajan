@@ -1521,7 +1521,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       <div className="flex-1 flex flex-col sm:flex-row min-h-0 overflow-hidden">
 
         {/* Left: sections list */}
-        <aside className={`border-r border-[#2a7a8a]/30 flex-col bg-[#0c1d2d]/80 backdrop-blur-sm z-10 flex-shrink-0 w-full sm:w-[300px] ${mobileSidebarOpen ? 'flex' : 'hidden sm:flex'}`}>
+        <aside className={`border-r border-[#2a7a8a]/30 flex-col bg-[#0c1d2d]/80 backdrop-blur-sm z-10 flex-shrink-0 w-full sm:w-[260px] ${mobileSidebarOpen ? 'flex' : 'hidden sm:flex'}`}>
           <div className="p-5 flex-1 overflow-y-auto">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40">Секции</h3>
