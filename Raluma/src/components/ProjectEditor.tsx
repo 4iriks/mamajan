@@ -107,6 +107,14 @@ const SYSTEM_COLORS: Record<SystemType, string> = {
   'КОМПЛЕКТАЦИЯ': 'bg-rose-500/20 text-rose-300 border-rose-500/30',
 };
 
+const SYSTEM_ACCENT_BG: Record<SystemType, string> = {
+  'СЛАЙД':        'bg-blue-400',
+  'КНИЖКА':       'bg-emerald-400',
+  'ЛИФТ':         'bg-orange-400',
+  'ЦС':           'bg-violet-400',
+  'КОМПЛЕКТАЦИЯ': 'bg-rose-400',
+};
+
 const SYSTEM_PICKER_COLORS: Record<SystemType, string> = {
   'СЛАЙД':  'bg-blue-500/10 border-blue-500/30 text-blue-300 hover:bg-blue-500/20',
   'КНИЖКА': 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20',
@@ -375,12 +383,27 @@ function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => v
 
 function ProfileCheckbox({ checked, onChange, label, indent, disabled }: { checked: boolean; onChange: () => void; label: string; indent?: boolean; disabled?: boolean }) {
   return (
-    <label className={`flex items-center gap-2 py-1 ${indent ? 'pl-5' : ''} ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`} onClick={disabled ? undefined : onChange}>
-      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${checked ? 'bg-[#4fd1c5] border-[#4fd1c5]' : 'border-[#2a7a8a]/40 bg-black/20'}`}>
-        {checked && <div className="w-2 h-2 bg-[#0c1d2d] rounded-sm" />}
+    <button
+      type="button"
+      onClick={disabled ? undefined : onChange}
+      disabled={disabled}
+      className={`w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all text-xs my-0.5 ${
+        indent ? 'ml-4 w-[calc(100%-1rem)]' : ''
+      } ${
+        disabled
+          ? 'opacity-25 cursor-not-allowed border border-transparent text-white/30'
+          : checked
+            ? 'bg-[#4fd1c5]/10 border border-[#4fd1c5]/40 text-[#4fd1c5]'
+            : 'border border-[#2a7a8a]/20 bg-black/5 text-white/50 hover:border-[#2a7a8a]/40 hover:text-white/70'
+      }`}
+    >
+      <div className={`w-3.5 h-3.5 rounded-sm border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+        checked ? 'bg-[#4fd1c5] border-[#4fd1c5]' : 'border-[#2a7a8a]/40 bg-transparent'
+      }`}>
+        {checked && <div className="w-1.5 h-1.5 bg-[#0c1d2d] rounded-sm" />}
       </div>
-      <span className="text-xs text-white/60">{label}</span>
-    </label>
+      <span className="leading-tight">{label}</span>
+    </button>
   );
 }
 
@@ -407,9 +430,8 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
           </div>
           <div className="space-y-1.5">
             <label className={LBL}>Кол-во панелей</label>
-            <select value={s.panels} onChange={e => update({ panels: parseInt(e.target.value) })} className={SEL}>
-              {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
+            <ToggleGroup value={String(s.panels)} options={['1', '2', '3', '4', '5']}
+              onChange={v => update({ panels: parseInt(v) })} />
           </div>
           {((s.rails !== 5 && (s.panels ?? 3) < 3) || (s.rails === 5 && (s.panels ?? 3) < 5)) && (
             <div className="space-y-1.5">
@@ -455,7 +477,7 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
         {/* Профили слева */}
         <div className="space-y-2">
           <label className={LBL}>Профили слева</label>
-          <div className="bg-black/10 border border-[#2a7a8a]/20 rounded-xl px-3 py-2">
+          <div className="space-y-0.5">
             <ProfileCheckbox checked={s.profileLeftWall} onChange={() => update({ profileLeftWall: !s.profileLeftWall })} label="Пристеночный RS1333/1335" />
             <ProfileCheckbox checked={s.profileLeftLockBar} onChange={() => { if (!s.profileLeftLockBar) update({ profileLeftLockBar: true, profileLeftPBar: false, profileLeftHandleBar: true, profileLeftBubble: false }); else update({ profileLeftLockBar: false }); }} label="Боковой профиль-замок RS1081" indent />
             <ProfileCheckbox checked={s.profileLeftPBar} onChange={() => { if (!s.profileLeftPBar) update({ profileLeftPBar: true, profileLeftLockBar: false }); else update({ profileLeftPBar: false }); }} label="Боковой П-профиль RS1082" indent />
@@ -488,7 +510,7 @@ function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section
         {/* Профили справа */}
         <div className="space-y-2">
           <label className={LBL}>Профили справа</label>
-          <div className="bg-black/10 border border-[#2a7a8a]/20 rounded-xl px-3 py-2">
+          <div className="space-y-0.5">
             <ProfileCheckbox checked={s.profileRightWall} onChange={() => update({ profileRightWall: !s.profileRightWall })} label="Пристеночный RS1333/1335" />
             <ProfileCheckbox checked={s.profileRightLockBar} onChange={() => { if (!s.profileRightLockBar) update({ profileRightLockBar: true, profileRightPBar: false, profileRightHandleBar: true, profileRightBubble: false }); else update({ profileRightLockBar: false }); }} label="Боковой профиль-замок RS1081" indent />
             <ProfileCheckbox checked={s.profileRightPBar} onChange={() => { if (!s.profileRightPBar) update({ profileRightPBar: true, profileRightLockBar: false }); else update({ profileRightPBar: false }); }} label="Боковой П-профиль RS1082" indent />
@@ -1647,12 +1669,16 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
               {sections.map(section => (
                 <motion.div key={section.id} layoutId={section.id}
                   onClick={() => requestNavigate(section.id)}
-                  className={`relative group p-4 rounded-2xl border transition-all cursor-pointer ${
+                  className={`relative group p-4 rounded-2xl border transition-all cursor-pointer overflow-hidden ${
                     activeSectionId === section.id
                       ? 'bg-[#2a7a8a]/20 border-[#4fd1c5]/50 shadow-lg shadow-[#4fd1c5]/5'
                       : 'bg-white/[0.02] border-[#2a7a8a]/10 hover:border-[#2a7a8a]/40'
                   }`}
                 >
+                  {/* System color accent bar */}
+                  <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${SYSTEM_ACCENT_BG[section.system]} transition-opacity ${
+                    activeSectionId === section.id ? 'opacity-80' : 'opacity-30 group-hover:opacity-60'
+                  }`} />
                   <div className="flex justify-between items-start mb-2">
                     <span className={`text-sm font-bold leading-snug ${activeSectionId === section.id ? 'text-[#4fd1c5]' : 'text-white/80'}`}>
                       {section.name}

@@ -412,7 +412,7 @@ function ProjectsPage() {
                         <StatusBadge value={project.paint_status} colors={PAINT_COLORS} />
                       </td>
                       <td className="px-5 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-end gap-2 opacity-20 group-hover:opacity-100 transition-opacity">
                           <button onClick={e => startRename(e, project)}
                             className="p-2 rounded-lg hover:bg-[#2a7a8a]/20 text-[#4fd1c5] transition-colors" title="Переименовать">
                             <Edit2 className="w-4 h-4" />
