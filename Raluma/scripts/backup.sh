@@ -5,7 +5,7 @@
 
 set -e
 
-DB_FILE="/opt/mamajan/Raluma/backend/raluma.db"
+DB_FILE="/var/lib/docker/volumes/raluma_db_data/_data/raluma.db"
 BACKUP_DIR="/opt/mamajan/backups"
 KEEP_DAYS=30
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
