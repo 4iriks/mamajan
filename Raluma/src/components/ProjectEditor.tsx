@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Save, Plus, Trash2, FileText,
   ClipboardList, Square as WindowIcon, Palette,
-  ChevronRight, Loader2, X, ArrowRight,
+  ChevronRight, Loader2, X, ArrowRight, Map,
 } from 'lucide-react';
 import { getProject, updateProject, createSection, updateSection, deleteSection } from '../api/projects';
 import { toast } from '../store/toastStore';
@@ -340,17 +340,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
 
         <div>
           <SectionDivider label="Примечания к секции" />
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className={LBL}>Доп. комплектующие</label>
-              <textarea
-                value={activeSection.extraParts || ''}
-                onChange={e => updateActiveSection({ extraParts: e.target.value || undefined })}
-                rows={2}
-                placeholder="Дополнительные комплектующие..."
-                className="w-full bg-white/8 border border-[#2a7a8a]/30 rounded-xl px-3 py-2 outline-none focus:border-[#4fd1c5]/50 transition-all text-white resize-y placeholder-white/20 text-sm"
-              />
-            </div>
+          <div className="mt-3">
             <div className="space-y-1.5">
               <label className={LBL}>Комментарии</label>
               <textarea
@@ -421,21 +411,25 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         </div>
       </div>
 
-      {/* Document buttons sub-bar */}
-      <div className="hidden sm:flex items-center gap-1 px-4 sm:px-8 py-2 border-b border-[#2a7a8a]/20 bg-[#1a4b54]/20 flex-shrink-0">
-        {[
-          { name: 'Спецификация', icon: FileText },
-          { name: 'Накладная', icon: ClipboardList },
-          { name: 'Заказ стекла', icon: WindowIcon },
-          { name: 'Заявка покр.', icon: Palette },
-        ].map(doc => (
-          <button key={doc.name} onClick={() => openPreview(doc.name)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.06] hover:bg-[#2a7a8a]/20 hover:border-[#2a7a8a]/40 transition-all group">
-            <doc.icon className="w-3 h-3 text-[#4fd1c5]/50 group-hover:text-[#4fd1c5] transition-colors flex-shrink-0" />
-            <span className="text-[10px] font-bold text-white/40 group-hover:text-white transition-colors whitespace-nowrap">{doc.name}</span>
-          </button>
-        ))}
-      </div>
+      {/* Document buttons sub-bar — only visible at project level (no active section) */}
+      {!activeSectionId && (
+        <div className="hidden sm:flex items-center gap-1 px-4 sm:px-8 py-2 border-b border-[#2a7a8a]/20 bg-[#1a4b54]/20 flex-shrink-0">
+          {[
+            { name: 'Спецификация', icon: FileText },
+            { name: 'Накладная', icon: ClipboardList },
+            { name: 'Заказ стекла', icon: WindowIcon },
+            { name: 'Заявка покр.', icon: Palette },
+            { name: 'Производственный лист', icon: ClipboardList },
+            { name: 'Схема', icon: Map },
+          ].map(doc => (
+            <button key={doc.name} onClick={() => openPreview(doc.name)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.06] hover:bg-[#2a7a8a]/20 hover:border-[#2a7a8a]/40 transition-all group">
+              <doc.icon className="w-3 h-3 text-[#4fd1c5]/50 group-hover:text-[#4fd1c5] transition-colors flex-shrink-0" />
+              <span className="text-[10px] font-bold text-white/40 group-hover:text-white transition-colors whitespace-nowrap">{doc.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Body */}
       <div className="flex-1 flex flex-col sm:flex-row min-h-0 overflow-hidden">
@@ -866,18 +860,18 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                     {activeSection.system === 'СЛАЙД' && (
                       <div className="xl:hidden space-y-4 mb-4">
                         <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2rem] p-4 sm:p-7 overflow-x-auto">
-                          <div className="flex items-center justify-between mb-5 min-w-[360px]">
-                            <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Схема · Вид сверху</h4>
-                            <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">{activeSection.rails ?? 3}-рельс · {activeSection.panels} пан.</span>
-                          </div>
-                          <div className="flex justify-center py-4"><SlideSchemeSVG section={activeSection} /></div>
-                        </div>
-                        <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2rem] p-4 sm:p-7 overflow-x-auto">
                           <div className="flex items-center justify-between mb-4 min-w-[360px]">
                             <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Вид из помещения</h4>
                             <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">{activeSection.panels} пан. · {activeSection.width}×{activeSection.height}</span>
                           </div>
                           <div className="flex justify-center py-2"><SlideRoomViewSVG section={activeSection} /></div>
+                        </div>
+                        <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2rem] p-4 sm:p-7 overflow-x-auto">
+                          <div className="flex items-center justify-between mb-5 min-w-[360px]">
+                            <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Схема · Вид сверху</h4>
+                            <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">{activeSection.rails ?? 3}-рельс · {activeSection.panels} пан.</span>
+                          </div>
+                          <div className="flex justify-center py-4"><SlideSchemeSVG section={activeSection} /></div>
                         </div>
                       </div>
                     )}
@@ -906,17 +900,17 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                     <div className="hidden xl:flex xl:flex-col xl:gap-3 xl:w-[420px] xl:flex-shrink-0 xl:sticky xl:top-4">
                       <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl p-4">
                         <div className="flex items-center justify-between mb-3">
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Схема · Вид сверху</span>
-                          <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">{activeSection.rails ?? 3}-рельс · {activeSection.panels} пан.</span>
-                        </div>
-                        <SlideSchemeSVG section={activeSection} />
-                      </div>
-                      <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl p-4">
-                        <div className="flex items-center justify-between mb-3">
                           <span className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Вид из помещения</span>
                           <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">{activeSection.panels} пан. · {activeSection.width}×{activeSection.height}</span>
                         </div>
                         <SlideRoomViewSVG section={activeSection} />
+                      </div>
+                      <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Схема · Вид сверху</span>
+                          <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">{activeSection.rails ?? 3}-рельс · {activeSection.panels} пан.</span>
+                        </div>
+                        <SlideSchemeSVG section={activeSection} />
                       </div>
                     </div>
                   )}

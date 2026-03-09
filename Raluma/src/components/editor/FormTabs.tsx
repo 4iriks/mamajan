@@ -87,12 +87,17 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
             <ToggleGroup
               value={s.rails === 5 ? '5ти рельсовая' : '3х рельсовая'}
               options={['3х рельсовая', '5ти рельсовая']}
-              onChange={v => update({ rails: v.startsWith('3') ? 3 : 5 })}
+              onChange={v => {
+                const newRails = v.startsWith('3') ? 3 : 5;
+                const maxPanels = newRails;
+                update({ rails: newRails, panels: Math.min(s.panels ?? 3, maxPanels) });
+              }}
             />
           </div>
           <div className="space-y-1.5">
             <label className={LBL}>Кол-во панелей</label>
-            <ToggleGroup value={String(s.panels)} options={['1', '2', '3', '4', '5']}
+            <ToggleGroup value={String(s.panels)}
+              options={s.rails === 5 ? ['1', '2', '3', '4', '5'] : ['1', '2', '3']}
               onChange={v => update({ panels: parseInt(v) })} />
           </div>
           {((s.rails !== 5 && (s.panels ?? 3) < 3) || (s.rails === 5 && (s.panels ?? 3) < 5)) && (
@@ -126,7 +131,7 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
             <label className={LBL}>Межстекольный профиль</label>
             <select value={s.interGlassProfile || ''} onChange={e => update({ interGlassProfile: e.target.value || undefined })} className={SEL}>
               <option value="">— Без межстекольного профиля —</option>
-              <option>Алюминиевый RS1061</option>
+              <option>Алюминиевый RS2061</option>
               <option>Прозрачный с фетром RS1006</option>
               <option>h-профиль RS1004</option>
             </select>
@@ -139,8 +144,8 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
         <div className="space-y-2">
           <label className={LBL}>Профили слева</label>
           <div className="space-y-0.5">
-            <ProfileCheckbox checked={s.profileLeftWall} onChange={() => update({ profileLeftWall: !s.profileLeftWall })} label="Пристеночный RS1333/1335" />
-            <ProfileCheckbox checked={s.profileLeftLockBar} onChange={() => { if (!s.profileLeftLockBar) update({ profileLeftLockBar: true, profileLeftPBar: false, profileLeftHandleBar: true, profileLeftBubble: false }); else update({ profileLeftLockBar: false }); }} label="Боковой профиль-замок RS1081" indent />
+            <ProfileCheckbox checked={s.profileLeftWall} onChange={() => update({ profileLeftWall: !s.profileLeftWall })} label="Пристеночный RS2333/2335" />
+            <ProfileCheckbox checked={s.profileLeftLockBar} onChange={() => { if (!s.profileLeftLockBar) update({ profileLeftLockBar: true, profileLeftPBar: false, profileLeftHandleBar: true, profileLeftBubble: false }); else update({ profileLeftLockBar: false }); }} label="Боковой профиль-замок RS2081" indent />
             <ProfileCheckbox checked={s.profileLeftPBar} onChange={() => { if (!s.profileLeftPBar) update({ profileLeftPBar: true, profileLeftLockBar: false }); else update({ profileLeftPBar: false }); }} label="Боковой П-профиль RS1082" indent />
             <ProfileCheckbox checked={s.profileLeftHandleBar} onChange={() => { if (!s.profileLeftHandleBar) update({ profileLeftHandleBar: true, profileLeftBubble: false }); else update({ profileLeftHandleBar: false }); }} label="Ручка-профиль RS112" />
             <ProfileCheckbox checked={s.profileLeftBubble} onChange={() => { if (!s.profileLeftBubble) update({ profileLeftBubble: true, profileLeftHandleBar: false }); else update({ profileLeftBubble: false }); }} label="Пузырьковый уплотнитель RS1002" disabled={s.profileLeftLockBar} />
@@ -172,8 +177,8 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
         <div className="space-y-2">
           <label className={LBL}>Профили справа</label>
           <div className="space-y-0.5">
-            <ProfileCheckbox checked={s.profileRightWall} onChange={() => update({ profileRightWall: !s.profileRightWall })} label="Пристеночный RS1333/1335" />
-            <ProfileCheckbox checked={s.profileRightLockBar} onChange={() => { if (!s.profileRightLockBar) update({ profileRightLockBar: true, profileRightPBar: false, profileRightHandleBar: true, profileRightBubble: false }); else update({ profileRightLockBar: false }); }} label="Боковой профиль-замок RS1081" indent />
+            <ProfileCheckbox checked={s.profileRightWall} onChange={() => update({ profileRightWall: !s.profileRightWall })} label="Пристеночный RS2333/2335" />
+            <ProfileCheckbox checked={s.profileRightLockBar} onChange={() => { if (!s.profileRightLockBar) update({ profileRightLockBar: true, profileRightPBar: false, profileRightHandleBar: true, profileRightBubble: false }); else update({ profileRightLockBar: false }); }} label="Боковой профиль-замок RS2081" indent />
             <ProfileCheckbox checked={s.profileRightPBar} onChange={() => { if (!s.profileRightPBar) update({ profileRightPBar: true, profileRightLockBar: false }); else update({ profileRightPBar: false }); }} label="Боковой П-профиль RS1082" indent />
             <ProfileCheckbox checked={s.profileRightHandleBar} onChange={() => { if (!s.profileRightHandleBar) update({ profileRightHandleBar: true, profileRightBubble: false }); else update({ profileRightHandleBar: false }); }} label="Ручка-профиль RS112" />
             <ProfileCheckbox checked={s.profileRightBubble} onChange={() => { if (!s.profileRightBubble) update({ profileRightBubble: true, profileRightHandleBar: false }); else update({ profileRightBubble: false }); }} label="Пузырьковый уплотнитель RS1002" disabled={s.profileRightLockBar} />

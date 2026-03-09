@@ -8,14 +8,13 @@ export function SlideSchemeSVG({ section }: { section: Section }) {
     panels, rails = 3, firstPanelInside = 'Справа', unusedTrack, interGlassProfile,
     profileLeftWall, profileLeftLockBar, profileLeftPBar, profileLeftHandleBar, profileLeftBubble,
     profileRightWall, profileRightLockBar, profileRightPBar, profileRightHandleBar, profileRightBubble,
-    width: sectionWidth, height: sectionHeight,
+    width: sectionWidth,
   } = section;
   const railCount = rails as number;
 
-  // Layout constants
   const rowH   = 34;
-  const topPad = 22;
-  const botPad = 36;
+  const topPad = 18;
+  const botPad = 42;
   const leftW  = 58;
   const rightW = 58;
   const railAreaW = 380;
@@ -34,12 +33,16 @@ export function SlideSchemeSVG({ section }: { section: Section }) {
 
   const availableRails = Array.from({ length: railCount }, (_, i) => i)
     .filter(i => !unusedRailSet.has(i));
-  const panelRailMap = Array.from({ length: panels }, (_, pi) => availableRails[pi] ?? availableRails[pi % availableRails.length] ?? pi % railCount);
+
+  const mirrorRails = firstPanelInside === 'Слева';
+  const panelRailMap = Array.from({ length: panels }, (_, pi) => {
+    const railIdx = mirrorRails ? (availableRails.length - 1 - pi) : pi;
+    return availableRails[railIdx] ?? availableRails[railIdx % Math.max(availableRails.length, 1)] ?? pi % railCount;
+  });
 
   const panelW = railAreaW / panels;
   const slideLeft = firstPanelInside === 'Справа';
   const glassW = sectionWidth ? Math.round(sectionWidth / panels) : null;
-  const glassH = sectionHeight ?? null;
 
   const drawLeftProfiles = () => {
     const y1 = topPad;
@@ -126,33 +129,26 @@ export function SlideSchemeSVG({ section }: { section: Section }) {
   return (
     <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} className="w-full drop-shadow-[0_0_15px_rgba(79,209,197,0.08)]" style={{ maxWidth: svgW }}>
 
-      <text x={svgW / 2} y={13} textAnchor="middle" fontSize="8.5" fill="#4fd1c5" fillOpacity="0.35" fontWeight="bold" letterSpacing="3">УЛИЦА</text>
-      <text x={svgW / 2} y={svgH - 5} textAnchor="middle" fontSize="8.5" fill="#4fd1c5" fillOpacity="0.35" fontWeight="bold" letterSpacing="3">ПОМЕЩЕНИЕ</text>
+      {/* Boundary lines */}
+      <line x1={leftW} y1={topPad - 4} x2={leftW} y2={topPad + railCount * rowH + 4} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.5" />
+      <line x1={leftW + railAreaW} y1={topPad - 4} x2={leftW + railAreaW} y2={topPad + railCount * rowH + 4} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.5" />
 
-      <rect x={leftW - 2} y={topPad - 2} width={4} height={railCount * rowH + 4} rx="1" fill="#2a7a8a" fillOpacity="0.4" />
-      <rect x={leftW + railAreaW - 2} y={topPad - 2} width={4} height={railCount * rowH + 4} rx="1" fill="#2a7a8a" fillOpacity="0.4" />
-
+      {/* Rails */}
       {Array.from({ length: railCount }, (_, ri) => {
         const cy = topPad + ri * rowH + rowH / 2;
         const isUnused = unusedRailSet.has(ri);
         return (
-          <g key={ri}>
-            <line
-              x1={leftW} y1={cy} x2={leftW + railAreaW} y2={cy}
-              stroke={isUnused ? '#2a7a8a' : '#4fd1c5'}
-              strokeWidth={isUnused ? 1 : 1.5}
-              strokeOpacity={isUnused ? 0.22 : 0.55}
-              strokeDasharray={isUnused ? '5 5' : undefined}
-            />
-            {isUnused && (
-              <text x={leftW + railAreaW / 2} y={cy - 5} textAnchor="middle" fontSize="7.5" fill="#2a7a8a" fillOpacity="0.55" fontWeight="bold" letterSpacing="1">
-                неиспользуемый рельс
-              </text>
-            )}
-          </g>
+          <line key={ri}
+            x1={leftW} y1={cy} x2={leftW + railAreaW} y2={cy}
+            stroke={isUnused ? '#2a7a8a' : '#4fd1c5'}
+            strokeWidth={isUnused ? 1 : 1.5}
+            strokeOpacity={isUnused ? 0.22 : 0.55}
+            strokeDasharray={isUnused ? '5 5' : undefined}
+          />
         );
       })}
 
+      {/* Panels */}
       {Array.from({ length: panels }, (_, pi) => {
         const ri = panelRailMap[pi];
         const cy = topPad + ri * rowH + rowH / 2;
@@ -166,11 +162,8 @@ export function SlideSchemeSVG({ section }: { section: Section }) {
           <g key={pi}>
             <rect x={rx} y={cy - 9} width={rw} height={18} rx="2"
               fill="#4fd1c5" fillOpacity="0.13" stroke="#4fd1c5" strokeWidth="1.4" strokeOpacity="0.75" />
-            {glassW && glassH ? (
-              <>
-                <text x={cx} y={cy + 1} textAnchor="middle" fontSize="8" fill="#4fd1c5" fillOpacity="0.9" fontWeight="bold">{glassW}×{glassH}</text>
-                <text x={cx} y={cy + 11} textAnchor="middle" fontSize="6.5" fill="#4fd1c5" fillOpacity="0.55">№{panelNum}</text>
-              </>
+            {glassW ? (
+              <text x={cx} y={cy + 5} textAnchor="middle" fontSize="8" fill="#4fd1c5" fillOpacity="0.9" fontWeight="bold">{glassW} · №{panelNum}</text>
             ) : (
               <text x={cx} y={cy + 5} textAnchor="middle" fontSize="9" fill="#4fd1c5" fillOpacity="0.9" fontWeight="bold">{panelNum}</text>
             )}
@@ -178,6 +171,7 @@ export function SlideSchemeSVG({ section }: { section: Section }) {
         );
       })}
 
+      {/* Inter-glass profile */}
       {interGlassProfile && Array.from({ length: panels - 1 }, (_, pi) => (
         <rect key={pi}
           x={leftW + (pi + 1) * panelW - 2} y={topPad}
@@ -188,23 +182,19 @@ export function SlideSchemeSVG({ section }: { section: Section }) {
       <g>{drawLeftProfiles()}</g>
       <g>{drawRightProfiles()}</g>
 
+      {/* Direction arrow — bigger */}
       {(() => {
-        const ay = svgH - botPad / 2 - 2;
+        const ay = topPad + railCount * rowH + 22;
         const ax = leftW + railAreaW / 2;
-        const aLen = 100;
+        const aLen = 130;
+        const arrowHead = 10;
         return (
           <g>
-            <line x1={ax - aLen / 2} y1={ay} x2={ax + aLen / 2} y2={ay} stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.5" />
+            <line x1={ax - aLen / 2} y1={ay} x2={ax + aLen / 2} y2={ay} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.6" />
             {slideLeft ? (
-              <>
-                <polyline points={`${ax - aLen / 2 + 12},${ay - 6} ${ax - aLen / 2},${ay} ${ax - aLen / 2 + 12},${ay + 6}`} stroke="#4fd1c5" strokeWidth="1.5" fill="none" strokeOpacity="0.5" />
-                <text x={ax + aLen / 2 + 6} y={ay + 4} fontSize="9" fill="#4fd1c5" fillOpacity="0.55" fontWeight="bold">сдвиг</text>
-              </>
+              <polyline points={`${ax - aLen/2 + arrowHead},${ay - arrowHead/1.5} ${ax - aLen/2},${ay} ${ax - aLen/2 + arrowHead},${ay + arrowHead/1.5}`} stroke="#4fd1c5" strokeWidth="2" fill="none" strokeOpacity="0.6" />
             ) : (
-              <>
-                <polyline points={`${ax + aLen / 2 - 12},${ay - 6} ${ax + aLen / 2},${ay} ${ax + aLen / 2 - 12},${ay + 6}`} stroke="#4fd1c5" strokeWidth="1.5" fill="none" strokeOpacity="0.5" />
-                <text x={ax - aLen / 2 - 6} y={ay + 4} fontSize="9" fill="#4fd1c5" fillOpacity="0.55" fontWeight="bold" textAnchor="end">сдвиг</text>
-              </>
+              <polyline points={`${ax + aLen/2 - arrowHead},${ay - arrowHead/1.5} ${ax + aLen/2},${ay} ${ax + aLen/2 - arrowHead},${ay + arrowHead/1.5}`} stroke="#4fd1c5" strokeWidth="2" fill="none" strokeOpacity="0.6" />
             )}
           </g>
         );

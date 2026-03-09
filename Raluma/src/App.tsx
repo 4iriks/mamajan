@@ -185,6 +185,7 @@ function ProjectsPage() {
   const [newCustomer, setNewCustomer] = useState('');
   const [newStages, setNewStages] = useState<1 | 2>(1);
   const [showCustomerDrop, setShowCustomerDrop] = useState(false);
+  const [viewTab, setViewTab] = useState<'current' | 'archive'>('current');
 
   // Маска номера: Х00-0-0000 → первый символ буква, потом 2+1+4 цифры с тире
   const formatProjectNumber = (raw: string) => {
@@ -207,12 +208,13 @@ function ProjectsPage() {
     finally { setLoading(false); }
   };
 
-  const filteredProjects = useMemo(() => projects.filter(p => {
-    return p.number.includes(searchQuery) || p.customer.toLowerCase().includes(searchQuery.toLowerCase());
-  }), [projects, searchQuery]);
+  const filteredProjects = useMemo(() => {
+    const byTab = projects.filter(p => viewTab === 'archive' ? p.status === 'Архив' : p.status !== 'Архив');
+    return byTab.filter(p => p.number.includes(searchQuery) || p.customer.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [projects, searchQuery, viewTab]);
 
   const customerOptions = useMemo(() => {
-    const seen = new Set<string>(['ООО КРОКНА ИНЖИНИРИНГ']);
+    const seen = new Set<string>(['ООО КРОКНА ИНЖИНИРИНГ', 'ООО ПРОЗРАЧНЫЕ РЕШЕНИЯ', 'ООО СТУДИЯ СПК']);
     if (user?.customer) seen.add(user.customer);
     projects.forEach(p => { if (p.customer) seen.add(p.customer); });
     return [...seen];
@@ -350,6 +352,15 @@ function ProjectsPage() {
           </button>
         </div>
 
+        <div className="flex gap-2 mb-4">
+          {(['current', 'archive'] as const).map(tab => (
+            <button key={tab} onClick={() => setViewTab(tab)}
+              className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all border ${viewTab === tab ? 'bg-[#4fd1c5]/10 border-[#4fd1c5]/40 text-[#4fd1c5]' : 'bg-white/[0.03] border-white/[0.08] text-white/40 hover:border-[#2a7a8a]/40'}`}>
+              {tab === 'current' ? 'Текущие проекты' : 'Архив'}
+            </button>
+          ))}
+        </div>
+
         <div className="bg-[#1a4b54]/30 backdrop-blur-xl border border-[#2a7a8a]/30 rounded-[2rem] overflow-hidden shadow-2xl">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[840px] text-left border-collapse">
@@ -397,7 +408,7 @@ function ProjectsPage() {
                       </td>
                       <td className="px-5 py-4 text-sm font-medium">{project.customer}</td>
                       <td className="px-5 py-4 text-sm text-white/40">
-                        {new Date(project.created_at).toLocaleDateString('ru-RU')}
+                        {new Date(project.updated_at).toLocaleDateString('ru-RU')}
                       </td>
                       <td className="px-5 py-4 text-sm font-bold text-white/50">
                         {project.production_stages === 2 ? (project.current_stage ?? 1) : ''}
