@@ -1,6 +1,6 @@
 # Ралюма — Статус проекта
 
-> Последнее обновление: 2026-02-26
+> Последнее обновление: 2026-03-09
 
 ---
 
@@ -10,7 +10,7 @@
 |------|-----------|
 | Frontend | React 18, TypeScript, Vite, Tailwind CSS, Framer Motion, Zustand, Axios, lucide-react |
 | Backend | FastAPI, SQLAlchemy (ORM), SQLite, bcrypt, python-jose (JWT) |
-| Инфра | Docker Compose, Caddy (reverse proxy + auto-SSL), GitHub → прямой деплой через git push |
+| Инфра | Docker Compose, Caddy (reverse proxy + auto-SSL), GitHub Actions CI, pre-commit hooks |
 
 ---
 
@@ -30,6 +30,14 @@ mamajan/
     │       ├── projects.py   — CRUD + copy /api/projects
     │       ├── sections.py   — CRUD /api/projects/{id}/sections
     │       └── users.py      — CRUD + reset-password /api/users
+    ├── tests/
+    │   ├── conftest.py       — фикстуры: client, admin_headers, project, section
+    │   ├── test_health.py    — 1 тест
+    │   ├── test_auth.py      — 6 тестов
+    │   ├── test_projects.py  — 8 тестов
+    │   └── test_sections.py  — 7 тестов
+    ├── pytest.ini            — testpaths, pythonpath
+    ├── requirements-dev.txt  — pytest + httpx
     └── src/
         ├── App.tsx           — Роутер, LoginPage, ProjectsPage, EditorPage
         ├── main.tsx          — StrictMode + BrowserRouter root
@@ -42,7 +50,13 @@ mamajan/
         │   ├── authStore.ts  — Zustand: user, token, setAuth, clearAuth, isAdmin, isSuperAdmin
         │   └── toastStore.ts — Zustand: toast очередь (success/error/info), auto-dismiss 4.5s
         ├── components/
-        │   ├── ProjectEditor.tsx — Редактор секций (СЛАЙД/КНИЖКА/ЛИФТ/ЦС/ДВЕРЬ)
+        │   ├── ProjectEditor.tsx — Редактор секций (СЛАЙД/КНИЖКА/ЛИФТ/ЦС/ДВЕРЬ) — 1046 строк
+        │   ├── editor/
+        │   │   ├── types.ts          — Section, OrderItem, интерфейсы, стилевые константы, цвета систем
+        │   │   ├── converters.ts     — apiToLocal(), localToApi()
+        │   │   ├── FormInputs.tsx    — Checkbox, ToggleGroup, RadioList, SectionDivider, ProfileCheckbox
+        │   │   ├── FormTabs.tsx      — MainTab, SlideSystemTab, BookSystemTab, LiftSystemTab, CsShapeTab, DoorSystemTab
+        │   │   └── SlideDiagrams.tsx — SlideSchemeSVG, SlideRoomViewSVG
         │   └── Toast.tsx         — Toast-контейнер с анимациями и прогресс-баром
         └── pages/
             └── AdminPage.tsx — Управление пользователями (admin/superadmin)
@@ -342,6 +356,32 @@ mamajan/
 
 ---
 
+### 2026-03-09 — CI/CD, тесты, инфраструктура
+
+#### CI/CD
+- **GitHub Actions** (`.github/workflows/ci.yml`): frontend (tsc + eslint) + backend (ruff + pytest) на каждый push/PR в main
+- **pre-commit** (`.pre-commit-config.yaml`): ruff + ruff-format для Python, tsc + eslint для TypeScript — блокирует коммит при ошибках
+- **ESLint 9** (`eslint.config.js`): flat config с typescript-eslint, react-hooks, react-refresh
+
+#### Тесты (22 теста, 100% pass)
+- `tests/conftest.py` — session-scoped TestClient + fixtures; `engine.dispose()` перед удалением test DB (fix Windows PermissionError)
+- `test_health.py` — health endpoint
+- `test_auth.py` — login success/fail, /me, invalid token
+- `test_projects.py` — CRUD + copy + auth guard
+- `test_sections.py` — CRUD + order increment after delete + auth guard
+
+#### Рефакторинг ProjectEditor.tsx
+- 2160 строк → 1046 строк
+- Вынесено в `editor/`: types.ts, converters.ts, FormInputs.tsx, FormTabs.tsx, SlideDiagrams.tsx
+
+#### Инфра сервера
+- `scripts/backup.sh` — ежедневный бэкап SQLite (`/var/lib/docker/volumes/raluma_db_data/_data/raluma.db`), хранить 30 дней, логи в `/var/log/raluma-backup.log`
+- Cron: `0 3 * * * /opt/mamajan/Raluma/scripts/backup.sh >> /var/log/raluma-backup.log 2>&1`
+- `/etc/docker/daemon.json` — лимиты логов контейнеров: `max-size: 10m`, `max-file: 3`
+- `/etc/logrotate.d/raluma` — ротация backup.log: еженедельно, 8 недель, compress
+
+---
+
 ### 2026-01-xx — Ранние версии
 - Базовая аутентификация JWT
 - CRUD проектов и секций
@@ -363,16 +403,16 @@ mamajan/
 - [ ] Пагинация/виртуальный список при большом количестве проектов
 
 ### Архитектура
-- [ ] Разбить `ProjectEditor.tsx` (1950+ строк) на подкомпоненты: `SectionList`, `SectionEditor`, `ProjectNotes`, `StatusPanel`
 - [ ] Вынести дублирующийся код профилей слева/справа в компонент `ProfilePanel` с параметром `side: 'left' | 'right'`
 
 ### Backend
 - [ ] Миграции через Alembic (сейчас — ручные ALTER TABLE в lifespan)
 - [ ] Rate limiting на `/api/auth/login` (защита от brute-force)
 - [ ] Экспорт в PDF (производственный лист — UI есть, бэкенд не реализован)
+- [ ] E2E тесты (Playwright)
 
 ### Инфра / Безопасность
 - [ ] JWT в httpOnly cookie вместо localStorage (защита от XSS) — некритично для внутреннего инструмента
-- [ ] Тесты (pytest для API, Playwright для E2E)
 - [ ] Refresh token (сейчас JWT без expiry refresh)
 - [ ] История изменений секции
+- [ ] Мониторинг (uptime check, алерты)
