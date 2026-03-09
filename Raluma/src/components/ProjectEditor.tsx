@@ -10,1115 +10,17 @@ import {
   ClipboardList, Square as WindowIcon, Palette,
   ChevronRight, Loader2, X, ArrowRight,
 } from 'lucide-react';
-import { getProject, updateProject, createSection, updateSection, deleteSection, SectionOut } from '../api/projects';
+import { getProject, updateProject, createSection, updateSection, deleteSection } from '../api/projects';
 import { toast } from '../store/toastStore';
 
-// ── Types ────────────────────────────────────────────────────────────────────
-
-export type SystemType = 'СЛАЙД' | 'КНИЖКА' | 'ЛИФТ' | 'ЦС' | 'КОМПЛЕКТАЦИЯ';
-
-export interface Section {
-  id: string;
-  name: string;
-  system: SystemType;
-  width: number;
-  height: number;
-  panels: number;
-  quantity: number;
-  glassType: string;
-  paintingType: 'RAL стандарт' | 'RAL нестандарт' | 'Анодированный';
-  ralColor?: string;
-  cornerLeft: boolean;
-  cornerRight: boolean;
-  externalWidth?: number;
-  // СЛАЙД
-  rails?: 3 | 5;
-  threshold?: string;
-  firstPanelInside?: string;
-  unusedTrack?: string;
-  interGlassProfile?: string;
-  profileLeft?: string;
-  profileRight?: string;
-  lock?: string;
-  handle?: string;
-  floorLatchesLeft: boolean;
-  floorLatchesRight: boolean;
-  handleOffset?: number;
-  // СЛАЙД — профили
-  profileLeftWall: boolean;
-  profileLeftLockBar: boolean;
-  profileLeftPBar: boolean;
-  profileLeftHandleBar: boolean;
-  profileLeftBubble: boolean;
-  profileRightWall: boolean;
-  profileRightLockBar: boolean;
-  profileRightPBar: boolean;
-  profileRightHandleBar: boolean;
-  profileRightBubble: boolean;
-  lockLeft?: string;
-  lockRight?: string;
-  bookSubtype?: string;
-  handleLeft?: string;
-  handleRight?: string;
-  // КНИЖКА
-  doors?: number;
-  doorSide?: string;
-  doorType?: string;
-  doorOpening?: string;
-  compensator?: string;
-  angleLeft?: number;
-  angleRight?: number;
-  bookSystem?: string;
-  // ДВЕРЬ / ЦС
-  doorSystem?: string;
-  csShape?: string;
-  csWidth2?: number;
-  // Примечания к секции
-  extraParts?: string;
-  comments?: string;
-}
-
-interface OrderItem {
-  id: string;
-  name: string;
-  invoice: string;
-  paidDate: string;
-  deliveredDate: string;
-}
-
-interface ProjectEditorProps {
-  projectId: number;
-  onBack: () => void;
-}
-
-// ── Style constants ───────────────────────────────────────────────────────────
-
-const LBL = 'text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40 ml-1';
-const INP = 'w-full bg-white/8 border border-[#2a7a8a]/30 rounded-xl px-3 py-2 outline-none focus:border-[#4fd1c5]/50 transition-all font-mono text-white text-sm';
-const SEL = 'w-full bg-white/8 border border-[#2a7a8a]/30 rounded-xl px-3 py-2 outline-none focus:border-[#4fd1c5]/50 transition-all appearance-none text-white text-sm';
-
-// ── System colors ─────────────────────────────────────────────────────────────
-
-const SYSTEM_COLORS: Record<SystemType, string> = {
-  'СЛАЙД':  'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  'КНИЖКА': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-  'ЛИФТ':   'bg-orange-500/20 text-orange-300 border-orange-500/30',
-  'ЦС':     'bg-purple-500/20 text-purple-300 border-purple-500/30',
-  'КОМПЛЕКТАЦИЯ': 'bg-rose-500/20 text-rose-300 border-rose-500/30',
-};
-
-const SYSTEM_ACCENT_BG: Record<SystemType, string> = {
-  'СЛАЙД':        'bg-blue-400',
-  'КНИЖКА':       'bg-emerald-400',
-  'ЛИФТ':         'bg-orange-400',
-  'ЦС':           'bg-violet-400',
-  'КОМПЛЕКТАЦИЯ': 'bg-rose-400',
-};
-
-const SYSTEM_PICKER_COLORS: Record<SystemType, string> = {
-  'СЛАЙД':  'bg-blue-500/10 border-blue-500/30 text-blue-300 hover:bg-blue-500/20',
-  'КНИЖКА': 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20',
-  'ЛИФТ':   'bg-orange-500/10 border-orange-500/30 text-orange-300 hover:bg-orange-500/20',
-  'ЦС':     'bg-purple-500/10 border-purple-500/30 text-purple-300 hover:bg-purple-500/20',
-  'КОМПЛЕКТАЦИЯ': 'bg-rose-500/10 border-rose-500/30 text-rose-300 hover:bg-rose-500/20',
-};
-
-// ── Converters ────────────────────────────────────────────────────────────────
-
-function apiToLocal(s: SectionOut): Section {
-  // Backwards compat: migrate legacy 'ДВЕРЬ' value
-  const rawSystem = s.system === 'ДВЕРЬ' ? 'КОМПЛЕКТАЦИЯ' : s.system;
-  return {
-    id: String(s.id),
-    name: s.name,
-    system: (rawSystem as SystemType) || 'СЛАЙД',
-    width: s.width,
-    height: s.height,
-    panels: s.panels,
-    quantity: s.quantity,
-    glassType: s.glass_type,
-    paintingType: s.painting_type as Section['paintingType'],
-    ralColor: s.ral_color,
-    cornerLeft: s.corner_left,
-    cornerRight: s.corner_right,
-    externalWidth: s.external_width,
-    rails: s.rails as 3 | 5 | undefined,
-    threshold: s.threshold,
-    firstPanelInside: s.first_panel_inside,
-    unusedTrack: s.unused_track,
-    interGlassProfile: s.inter_glass_profile,
-    profileLeft: s.profile_left,
-    profileRight: s.profile_right,
-    lock: s.lock,
-    handle: s.handle,
-    floorLatchesLeft: s.floor_latches_left,
-    floorLatchesRight: s.floor_latches_right,
-    handleOffset: s.handle_offset,
-    profileLeftWall: s.profile_left_wall ?? false,
-    profileLeftLockBar: s.profile_left_lock_bar ?? false,
-    profileLeftPBar: s.profile_left_p_bar ?? false,
-    profileLeftHandleBar: s.profile_left_handle_bar ?? false,
-    profileLeftBubble: s.profile_left_bubble ?? false,
-    profileRightWall: s.profile_right_wall ?? false,
-    profileRightLockBar: s.profile_right_lock_bar ?? false,
-    profileRightPBar: s.profile_right_p_bar ?? false,
-    profileRightHandleBar: s.profile_right_handle_bar ?? false,
-    profileRightBubble: s.profile_right_bubble ?? false,
-    lockLeft: s.lock_left,
-    lockRight: s.lock_right,
-    bookSubtype: s.book_subtype,
-    handleLeft: s.handle_left,
-    handleRight: s.handle_right,
-    doors: s.doors,
-    doorSide: s.door_side,
-    doorType: s.door_type,
-    doorOpening: s.door_opening,
-    compensator: s.compensator,
-    angleLeft: s.angle_left,
-    angleRight: s.angle_right,
-    bookSystem: s.book_system,
-    doorSystem: s.door_system,
-    csShape: s.cs_shape,
-    csWidth2: s.cs_width2,
-    extraParts: s.extra_parts,
-    comments: s.comments,
-  };
-}
-
-function localToApi(s: Section, order: number): Omit<SectionOut, 'id' | 'project_id'> {
-  return {
-    name: s.name, order,
-    system: s.system,
-    width: s.width, height: s.height, panels: s.panels, quantity: s.quantity,
-    glass_type: s.glassType, painting_type: s.paintingType,
-    ral_color: s.ralColor, corner_left: s.cornerLeft, corner_right: s.cornerRight,
-    external_width: s.externalWidth,
-    rails: s.rails, threshold: s.threshold, first_panel_inside: s.firstPanelInside,
-    unused_track: s.unusedTrack, inter_glass_profile: s.interGlassProfile,
-    profile_left: s.profileLeft, profile_right: s.profileRight,
-    lock: s.lock, handle: s.handle,
-    floor_latches_left: s.floorLatchesLeft, floor_latches_right: s.floorLatchesRight,
-    handle_offset: s.handleOffset,
-    profile_left_wall: s.profileLeftWall,
-    profile_left_lock_bar: s.profileLeftLockBar,
-    profile_left_p_bar: s.profileLeftPBar,
-    profile_left_handle_bar: s.profileLeftHandleBar,
-    profile_left_bubble: s.profileLeftBubble,
-    profile_right_wall: s.profileRightWall,
-    profile_right_lock_bar: s.profileRightLockBar,
-    profile_right_p_bar: s.profileRightPBar,
-    profile_right_handle_bar: s.profileRightHandleBar,
-    profile_right_bubble: s.profileRightBubble,
-    lock_left: s.lockLeft,
-    lock_right: s.lockRight,
-    book_subtype: s.bookSubtype,
-    handle_left: s.handleLeft,
-    handle_right: s.handleRight,
-    doors: s.doors, door_side: s.doorSide, door_type: s.doorType,
-    door_opening: s.doorOpening, compensator: s.compensator,
-    angle_left: s.angleLeft, angle_right: s.angleRight, book_system: s.bookSystem,
-    door_system: s.doorSystem, cs_shape: s.csShape, cs_width2: s.csWidth2,
-    extra_parts: s.extraParts, comments: s.comments,
-  };
-}
-
-// ── Checkbox helper ───────────────────────────────────────────────────────────
-
-function Checkbox({ checked, onChange, label }: { checked: boolean; onChange: () => void; label: string }) {
-  return (
-    <label className="flex items-center gap-2 cursor-pointer" onClick={onChange}>
-      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all flex-shrink-0 ${checked ? 'bg-[#4fd1c5] border-[#4fd1c5]' : 'border-[#2a7a8a]/40 bg-black/20'}`}>
-        {checked && <div className="w-2.5 h-2.5 bg-[#0c1d2d] rounded-sm" />}
-      </div>
-      <span className="text-xs font-medium text-white/60">{label}</span>
-    </label>
-  );
-}
-
-// ── Toggle buttons ────────────────────────────────────────────────────────────
-
-function ToggleGroup({ value, options, onChange }: { value?: string; options: string[]; onChange: (v: string) => void }) {
-  return (
-    <div className="flex gap-2 flex-wrap">
-      {options.map(opt => (
-        <button key={opt} onClick={() => onChange(opt)}
-          className={`flex-1 py-1.5 rounded-xl border font-bold text-xs transition-all min-w-0 ${
-            value === opt ? 'bg-[#4fd1c5]/10 border-[#4fd1c5]/50 text-[#4fd1c5]' : 'bg-black/10 border-[#2a7a8a]/20 text-white/40 hover:border-[#2a7a8a]/50'
-          }`}
-        >{opt}</button>
-      ))}
-    </div>
-  );
-}
-
-// ── Radio list ────────────────────────────────────────────────────────────────
-
-function RadioList({ value, options, onChange, noneLabel }: { value?: string; options: string[]; onChange: (v: string | undefined) => void; noneLabel?: string }) {
-  const allOptions = noneLabel ? [noneLabel, ...options] : options;
-  return (
-    <div className="space-y-1.5">
-      {allOptions.map(opt => {
-        const isNone = opt === noneLabel;
-        const active = isNone ? !value : value === opt;
-        return (
-          <button key={opt} onClick={() => onChange(isNone ? undefined : opt)}
-            className={`w-full text-left px-3 py-1.5 rounded-xl border transition-all text-xs ${
-              active ? 'bg-[#4fd1c5]/10 border-[#4fd1c5]/50 text-[#4fd1c5]' : 'border-[#2a7a8a]/20 bg-black/10 text-white/40 hover:border-[#4fd1c5]/30'
-            }`}
-          >{opt}</button>
-        );
-      })}
-    </div>
-  );
-}
-
-// ── Section card helpers ──────────────────────────────────────────────────────
-
-function getSectionTypeLabel(s: Section): string {
-  switch (s.system) {
-    case 'СЛАЙД': {
-      const rows = s.rails === 5 ? '2 ряда от центра' : '1 ряд';
-      return `${rows} · ${s.panels ?? 3} пан.`;
-    }
-    case 'КНИЖКА': {
-      const sub = s.bookSubtype === 'angle' ? 'с углом' : s.bookSubtype === 'doors_and_angle' ? 'с дв. и углом' : 'с дверями';
-      return `${sub} · ${s.panels ?? 3} пан.`;
-    }
-    case 'ЛИФТ':
-      return `${s.panels ?? 2} пан.`;
-    case 'ЦС':
-      return s.csShape || '';
-    case 'КОМПЛЕКТАЦИЯ':
-      return s.doorSystem || '';
-    default:
-      return '';
-  }
-}
-
-function getSectionColorLabel(s: Section): string {
-  if (s.paintingType === 'Анодированный') return 'Анод.';
-  if (s.paintingType.includes('RAL')) return s.ralColor ? `RAL ${s.ralColor}` : 'RAL';
-  return '';
-}
-
-// ── Section divider ───────────────────────────────────────────────────────────
-
-function SectionDivider({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-3 pt-1">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40 whitespace-nowrap">{label}</span>
-      <div className="flex-1 h-px bg-[#2a7a8a]/20" />
-    </div>
-  );
-}
-
-// ── Tab: Основное (общая для всех систем) ────────────────────────────────────
-
-function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
-  return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <label className={LBL}>Название</label>
-            <input value={s.name} onChange={e => update({ name: e.target.value })} className={INP} />
-          </div>
-          <div className="space-y-1.5">
-            <label className={LBL}>Кол-во, шт</label>
-            <input type="number" min="1" value={s.quantity} onChange={e => update({ quantity: parseInt(e.target.value) || 1 })} className={INP} />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <label className={LBL}>Ширина, мм</label>
-            <input type="number" value={s.width} onChange={e => update({ width: parseInt(e.target.value) || 0 })} className={INP} />
-          </div>
-          <div className="space-y-1.5">
-            <label className={LBL}>Высота, мм</label>
-            <input type="number" value={s.height} onChange={e => update({ height: parseInt(e.target.value) || 0 })} className={INP} />
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          <label className={LBL}>Стекло</label>
-          <select value={s.glassType} onChange={e => update({ glassType: e.target.value })} className={SEL}>
-            <option>10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ</option>
-            <option>10ММ ЗАКАЛЕННОЕ МАТОВОЕ</option>
-            <option>8ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ</option>
-            <option>8ММ ЗАКАЛЕННОЕ МАТОВОЕ</option>
-            <option>6ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ</option>
-            <option>6ММ ЗАКАЛЕННОЕ МАТОВОЕ</option>
-          </select>
-        </div>
-      </div>
-      <div className="space-y-4">
-        <div className="space-y-1.5">
-          <label className={LBL}>Окрашивание</label>
-          <div className="space-y-1.5">
-            {(['RAL стандарт', 'RAL нестандарт', 'Анодированный'] as const).map(type => (
-              <button key={type} onClick={() => update({ paintingType: type })}
-                className={`flex items-center gap-3 w-full px-3 py-2 rounded-xl border transition-all text-left ${
-                  s.paintingType === type ? 'bg-[#4fd1c5]/10 border-[#4fd1c5]/50 text-[#4fd1c5]' : 'bg-black/10 border-[#2a7a8a]/20 text-white/40 hover:border-[#2a7a8a]/50'
-                }`}
-              >
-                <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${s.paintingType === type ? 'border-[#4fd1c5]' : 'border-white/10'}`}>
-                  {s.paintingType === type && <div className="w-2 h-2 rounded-full bg-[#4fd1c5]" />}
-                </div>
-                <span className="text-xs font-medium">{type}</span>
-              </button>
-            ))}
-          </div>
-          {s.paintingType.includes('RAL') && (
-            <div className="mt-2 space-y-1.5">
-              <label className={LBL}>Цвет RAL</label>
-              <input type="text" value={s.ralColor || ''} onChange={e => update({ ralColor: e.target.value })} className={INP} placeholder="Напр. 9016" />
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Tab: СЛАЙД — Система + Профили + Фурнитура ────────────────────────────────
-
-function ProfileCheckbox({ checked, onChange, label, indent, disabled }: { checked: boolean; onChange: () => void; label: string; indent?: boolean; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      onClick={disabled ? undefined : onChange}
-      disabled={disabled}
-      className={`w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all text-xs my-0.5 ${
-        indent ? 'ml-4 w-[calc(100%-1rem)]' : ''
-      } ${
-        disabled
-          ? 'opacity-25 cursor-not-allowed border border-transparent text-white/30'
-          : checked
-            ? 'bg-[#4fd1c5]/10 border border-[#4fd1c5]/40 text-[#4fd1c5]'
-            : 'border border-[#2a7a8a]/20 bg-black/5 text-white/50 hover:border-[#2a7a8a]/40 hover:text-white/70'
-      }`}
-    >
-      <div className={`w-3.5 h-3.5 rounded-sm border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-        checked ? 'bg-[#4fd1c5] border-[#4fd1c5]' : 'border-[#2a7a8a]/40 bg-transparent'
-      }`}>
-        {checked && <div className="w-1.5 h-1.5 bg-[#0c1d2d] rounded-sm" />}
-      </div>
-      <span className="leading-tight">{label}</span>
-    </button>
-  );
-}
-
-function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
-  const showLockLeft  = (s.profileLeftLockBar  || s.profileLeftHandleBar)  && !(s.profileLeftPBar  && s.profileLeftHandleBar);
-  const showNoLockLeft  = s.profileLeftPBar  && s.profileLeftHandleBar;
-  const showHandleLeft  = (s.profileLeftPBar  && s.profileLeftBubble)  || (s.profileLeftBubble  && !s.profileLeftLockBar  && !s.profileLeftPBar  && !s.profileLeftHandleBar);
-  const showLockRight = (s.profileRightLockBar || s.profileRightHandleBar) && !(s.profileRightPBar && s.profileRightHandleBar);
-  const showNoLockRight = s.profileRightPBar && s.profileRightHandleBar;
-  const showHandleRight = (s.profileRightPBar && s.profileRightBubble) || (s.profileRightBubble && !s.profileRightLockBar && !s.profileRightPBar && !s.profileRightHandleBar);
-
-  return (
-    <div className="space-y-4">
-      {/* Верхний блок: рельсы, панели, 1-я панель, порог, межстек */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <label className={LBL}>Рельсы</label>
-            <ToggleGroup
-              value={s.rails === 5 ? '5ти рельсовая' : '3х рельсовая'}
-              options={['3х рельсовая', '5ти рельсовая']}
-              onChange={v => update({ rails: v.startsWith('3') ? 3 : 5 })}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className={LBL}>Кол-во панелей</label>
-            <ToggleGroup value={String(s.panels)} options={['1', '2', '3', '4', '5']}
-              onChange={v => update({ panels: parseInt(v) })} />
-          </div>
-          {((s.rails !== 5 && (s.panels ?? 3) < 3) || (s.rails === 5 && (s.panels ?? 3) < 5)) && (
-            <div className="space-y-1.5">
-              <label className={LBL}>Неиспользуемый рельс</label>
-              <ToggleGroup value={s.unusedTrack ?? 'Внутренний'} options={['Внутренний', 'Внешний']}
-                onChange={v => update({ unusedTrack: v })} />
-            </div>
-          )}
-          <div className="space-y-1.5">
-            <label className={LBL}>1-я панель внутри помещения</label>
-            <ToggleGroup value={s.firstPanelInside} options={['Слева', 'Справа']}
-              onChange={v => update({ firstPanelInside: v })} />
-          </div>
-        </div>
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <label className={LBL}>Порог</label>
-            <select value={s.threshold || ''} onChange={e => update({ threshold: e.target.value || undefined })} className={SEL}>
-              <option value="">— Без порога —</option>
-              <option>Стандартный анод</option>
-              <option>Стандартный окраш</option>
-              <option>Накладной анод</option>
-              <option>Накладной окраш</option>
-            </select>
-            {!s.threshold && (
-              <p className="text-[10px] text-amber-400/70 font-bold uppercase tracking-wider pl-1">⚠ Без порога система быть не может</p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <label className={LBL}>Межстекольный профиль</label>
-            <select value={s.interGlassProfile || ''} onChange={e => update({ interGlassProfile: e.target.value || undefined })} className={SEL}>
-              <option value="">— Без межстекольного профиля —</option>
-              <option>Алюминиевый RS1061</option>
-              <option>Прозрачный с фетром RS1006</option>
-              <option>h-профиль RS1004</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Профили слева / справа */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {/* Профили слева */}
-        <div className="space-y-2">
-          <label className={LBL}>Профили слева</label>
-          <div className="space-y-0.5">
-            <ProfileCheckbox checked={s.profileLeftWall} onChange={() => update({ profileLeftWall: !s.profileLeftWall })} label="Пристеночный RS1333/1335" />
-            <ProfileCheckbox checked={s.profileLeftLockBar} onChange={() => { if (!s.profileLeftLockBar) update({ profileLeftLockBar: true, profileLeftPBar: false, profileLeftHandleBar: true, profileLeftBubble: false }); else update({ profileLeftLockBar: false }); }} label="Боковой профиль-замок RS1081" indent />
-            <ProfileCheckbox checked={s.profileLeftPBar} onChange={() => { if (!s.profileLeftPBar) update({ profileLeftPBar: true, profileLeftLockBar: false }); else update({ profileLeftPBar: false }); }} label="Боковой П-профиль RS1082" indent />
-            <ProfileCheckbox checked={s.profileLeftHandleBar} onChange={() => { if (!s.profileLeftHandleBar) update({ profileLeftHandleBar: true, profileLeftBubble: false }); else update({ profileLeftHandleBar: false }); }} label="Ручка-профиль RS112" />
-            <ProfileCheckbox checked={s.profileLeftBubble} onChange={() => { if (!s.profileLeftBubble) update({ profileLeftBubble: true, profileLeftHandleBar: false }); else update({ profileLeftBubble: false }); }} label="Пузырьковый уплотнитель RS1002" disabled={s.profileLeftLockBar} />
-          </div>
-          {showLockLeft && (
-            <div className="mt-2 space-y-1">
-              <label className={LBL}>Замок слева</label>
-              <RadioList value={s.lockLeft} noneLabel="Без замка"
-                options={['ЗАМОК-ЗАЩЕЛКА 1стор', 'ЗАМОК-ЗАЩЕЛКА 2стор с ключом']}
-                onChange={v => update({ lockLeft: v })} />
-            </div>
-          )}
-          {showNoLockLeft && (
-            <div className="mt-2 px-4 py-2 bg-black/10 border border-[#2a7a8a]/20 rounded-xl">
-              <span className="text-xs text-white/40 font-bold">Без замков</span>
-            </div>
-          )}
-          {showHandleLeft && (
-            <div className="mt-2 space-y-1">
-              <label className={LBL}>Ручка слева</label>
-              <RadioList value={s.handleLeft} noneLabel="Без ручки (глухая)"
-                options={['Без ручки (подвижная)', 'Ручка-кноб RS3014', 'Стеклянная ручка RS3017', 'Ручка-скоба']}
-                onChange={v => update({ handleLeft: v })} />
-            </div>
-          )}
-        </div>
-
-        {/* Профили справа */}
-        <div className="space-y-2">
-          <label className={LBL}>Профили справа</label>
-          <div className="space-y-0.5">
-            <ProfileCheckbox checked={s.profileRightWall} onChange={() => update({ profileRightWall: !s.profileRightWall })} label="Пристеночный RS1333/1335" />
-            <ProfileCheckbox checked={s.profileRightLockBar} onChange={() => { if (!s.profileRightLockBar) update({ profileRightLockBar: true, profileRightPBar: false, profileRightHandleBar: true, profileRightBubble: false }); else update({ profileRightLockBar: false }); }} label="Боковой профиль-замок RS1081" indent />
-            <ProfileCheckbox checked={s.profileRightPBar} onChange={() => { if (!s.profileRightPBar) update({ profileRightPBar: true, profileRightLockBar: false }); else update({ profileRightPBar: false }); }} label="Боковой П-профиль RS1082" indent />
-            <ProfileCheckbox checked={s.profileRightHandleBar} onChange={() => { if (!s.profileRightHandleBar) update({ profileRightHandleBar: true, profileRightBubble: false }); else update({ profileRightHandleBar: false }); }} label="Ручка-профиль RS112" />
-            <ProfileCheckbox checked={s.profileRightBubble} onChange={() => { if (!s.profileRightBubble) update({ profileRightBubble: true, profileRightHandleBar: false }); else update({ profileRightBubble: false }); }} label="Пузырьковый уплотнитель RS1002" disabled={s.profileRightLockBar} />
-          </div>
-          {showLockRight && (
-            <div className="mt-2 space-y-1">
-              <label className={LBL}>Замок справа</label>
-              <RadioList value={s.lockRight} noneLabel="Без замка"
-                options={['ЗАМОК-ЗАЩЕЛКА 1стор', 'ЗАМОК-ЗАЩЕЛКА 2стор с ключом']}
-                onChange={v => update({ lockRight: v })} />
-            </div>
-          )}
-          {showNoLockRight && (
-            <div className="mt-2 px-4 py-2 bg-black/10 border border-[#2a7a8a]/20 rounded-xl">
-              <span className="text-xs text-white/40 font-bold">Без замков</span>
-            </div>
-          )}
-          {showHandleRight && (
-            <div className="mt-2 space-y-1">
-              <label className={LBL}>Ручка справа</label>
-              <RadioList value={s.handleRight} noneLabel="Без ручки (глухая)"
-                options={['Без ручки (подвижная)', 'Ручка-кноб RS3014', 'Стеклянная ручка RS3017', 'Ручка-скоба']}
-                onChange={v => update({ handleRight: v })} />
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Напольные защёлки */}
-      <div className="space-y-2">
-        <label className={LBL}>Защёлки в пол</label>
-        <div className="flex gap-6">
-          <Checkbox checked={s.floorLatchesLeft} onChange={() => update({ floorLatchesLeft: !s.floorLatchesLeft })} label="Слева" />
-          <Checkbox checked={s.floorLatchesRight} onChange={() => update({ floorLatchesRight: !s.floorLatchesRight })} label="Справа" />
-        </div>
-      </div>
-
-      {/* Отступ под ручку */}
-      {(s.handleLeft === 'Стеклянная ручка RS3017' || s.handleLeft === 'Ручка-скоба' || s.handleRight === 'Стеклянная ручка RS3017' || s.handleRight === 'Ручка-скоба') && (
-        <div className="space-y-2">
-          <label className={LBL}>Отступ под ручку, мм</label>
-          <input type="number" value={s.handleOffset || ''} onChange={e => update({ handleOffset: parseFloat(e.target.value) || undefined })} className={INP} placeholder="мм" />
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Tab: КНИЖКА — Система ────────────────────────────────────────────────────
-
-function BookSystemTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
-  const hasDoors = !s.bookSubtype || s.bookSubtype === 'doors' || s.bookSubtype === 'doors_and_angle';
-  const hasAngle = s.bookSubtype === 'angle' || s.bookSubtype === 'doors_and_angle';
-  return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-8">
-      <div className="space-y-5">
-        {hasDoors && (
-          <>
-            <div className="space-y-2">
-              <label className={LBL}>Кол-во дверей</label>
-              <ToggleGroup value={s.doors?.toString()} options={['1', '2']}
-                onChange={v => update({ doors: parseInt(v) })} />
-            </div>
-            <div className="space-y-2">
-              <label className={LBL}>Сторона двери</label>
-              <ToggleGroup value={s.doorSide} options={['Левая', 'Правая']}
-                onChange={v => update({ doorSide: v })} />
-            </div>
-            <div className="space-y-2">
-              <label className={LBL}>Тип двери</label>
-              <RadioList value={s.doorType}
-                options={['Тип 1', 'Тип 4']}
-                onChange={v => update({ doorType: v })} />
-            </div>
-            <div className="space-y-2">
-              <label className={LBL}>Открывание</label>
-              <ToggleGroup value={s.doorOpening} options={['Внутрь', 'Наружу']}
-                onChange={v => update({ doorOpening: v })} />
-            </div>
-          </>
-        )}
-        <div className="space-y-2">
-          <label className={LBL}>Кол-во панелей</label>
-          <select value={s.panels} onChange={e => update({ panels: parseInt(e.target.value) })} className={SEL}>
-            {[2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </div>
-      </div>
-      <div className="space-y-5">
-        {hasDoors && (
-          <>
-            <div className="space-y-2">
-              <label className={LBL}>Система книжки</label>
-              <RadioList value={s.bookSystem} noneLabel="— Стандарт —"
-                options={['С кареткой', 'Без каретки']}
-                onChange={v => update({ bookSystem: v })} />
-            </div>
-            <div className="space-y-2">
-              <label className={LBL}>Компенсатор</label>
-              <RadioList value={s.compensator} noneLabel="— Нет —"
-                options={['Левый', 'Правый', 'Оба']}
-                onChange={v => update({ compensator: v })} />
-            </div>
-          </>
-        )}
-        {(hasDoors || hasAngle) && (
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className={LBL}>Угол лев., °</label>
-              <input type="number" value={s.angleLeft || ''} onChange={e => update({ angleLeft: parseFloat(e.target.value) || undefined })} className={INP} placeholder="0" />
-            </div>
-            <div className="space-y-2">
-              <label className={LBL}>Угол пр., °</label>
-              <input type="number" value={s.angleRight || ''} onChange={e => update({ angleRight: parseFloat(e.target.value) || undefined })} className={INP} placeholder="0" />
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Tab: ЛИФТ — Система ──────────────────────────────────────────────────────
-
-function LiftSystemTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
-  return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-8">
-      <div className="space-y-5">
-        <div className="space-y-2">
-          <label className={LBL}>Кол-во панелей</label>
-          <ToggleGroup value={s.panels?.toString()} options={['2', '3', '4']}
-            onChange={v => update({ panels: parseInt(v) })} />
-        </div>
-        <div className="space-y-2">
-          <label className={LBL}>1-я панель</label>
-          <ToggleGroup value={s.firstPanelInside} options={['Слева', 'Справа']}
-            onChange={v => update({ firstPanelInside: v })} />
-        </div>
-        <div className="space-y-2">
-          <label className={LBL}>Замок</label>
-          <RadioList value={s.lock} noneLabel="Без замка"
-            options={['RS3018 Замок-защёлка', 'С ключом']}
-            onChange={v => update({ lock: v })} />
-        </div>
-      </div>
-      <div className="space-y-5">
-        <div className="space-y-2">
-          <label className={LBL}>Профиль левый</label>
-          <select value={s.profileLeft || ''} onChange={e => update({ profileLeft: e.target.value || undefined })} className={SEL}>
-            <option value="">— Нет —</option>
-            <option>Стойка</option>
-            <option>Угол</option>
-            <option>Торец</option>
-          </select>
-        </div>
-        <div className="space-y-2">
-          <label className={LBL}>Профиль правый</label>
-          <select value={s.profileRight || ''} onChange={e => update({ profileRight: e.target.value || undefined })} className={SEL}>
-            <option value="">— Нет —</option>
-            <option>Стойка</option>
-            <option>Угол</option>
-            <option>Торец</option>
-          </select>
-        </div>
-        <div className="space-y-2">
-          <label className={LBL}>Ручка</label>
-          <RadioList value={s.handle} noneLabel="Без ручки"
-            options={['RS3014 Ручка-кноб', 'RS3017 Стеклянная ручка']}
-            onChange={v => update({ handle: v })} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Tab: ЦС — Форма ──────────────────────────────────────────────────────────
-
-function CsShapeTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
-  return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <label className={LBL}>Форма секции</label>
-        <div className="grid grid-cols-2 gap-3">
-          {['Треугольник', 'Прямоугольник', 'Трапеция', 'Сложная форма'].map(shape => (
-            <button key={shape} onClick={() => update({ csShape: shape })}
-              className={`py-4 rounded-xl border font-bold text-xs transition-all ${
-                s.csShape === shape ? 'bg-[#4fd1c5]/10 border-[#4fd1c5]/50 text-[#4fd1c5]' : 'bg-black/10 border-[#2a7a8a]/20 text-white/40 hover:border-[#2a7a8a]/50'
-              }`}
-            >{shape}</button>
-          ))}
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <label className={LBL}>Ширина (осн.), мм</label>
-          <input type="number" value={s.width} onChange={e => update({ width: parseInt(e.target.value) || 0 })} className={INP} />
-        </div>
-        <div className="space-y-2">
-          <label className={LBL}>Высота, мм</label>
-          <input type="number" value={s.height} onChange={e => update({ height: parseInt(e.target.value) || 0 })} className={INP} />
-        </div>
-        {s.csShape === 'Трапеция' && (
-          <div className="space-y-2">
-            <label className={LBL}>Ширина 2, мм</label>
-            <input type="number" value={s.csWidth2 || ''} onChange={e => update({ csWidth2: parseFloat(e.target.value) || undefined })} className={INP} placeholder="мм" />
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Tab: ДВЕРЬ — Система ─────────────────────────────────────────────────────
-
-function DoorSystemTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
-  return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-8">
-      <div className="space-y-5">
-        <div className="space-y-2">
-          <label className={LBL}>Тип системы</label>
-          <RadioList value={s.doorSystem}
-            options={['Одностворчатая', 'Двустворчатая', 'Маятниковая']}
-            onChange={v => update({ doorSystem: v })} />
-        </div>
-        <div className="space-y-2">
-          <label className={LBL}>Открывание</label>
-          <ToggleGroup value={s.doorOpening} options={['Внутрь', 'Наружу']}
-            onChange={v => update({ doorOpening: v })} />
-        </div>
-      </div>
-      <div className="space-y-5">
-        <div className="space-y-2">
-          <label className={LBL}>Замок</label>
-          <RadioList value={s.lock} noneLabel="Без замка"
-            options={['RS3018 Защёлка', 'RS3019 С ключом', 'Магнитный']}
-            onChange={v => update({ lock: v })} />
-        </div>
-        <div className="space-y-2">
-          <label className={LBL}>Ручка</label>
-          <RadioList value={s.handle} noneLabel="Без ручки"
-            options={['RS3014 Ручка-кноб', 'RS3017 Стеклянная ручка', 'Ручка-скоба', 'Ручка-раковина']}
-            onChange={v => update({ handle: v })} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── SVG Схема сверху (СЛАЙД) ──────────────────────────────────────────────────
-
-function SlideSchemeSVG({ section }: { section: Section }) {
-  const {
-    panels, rails = 3, firstPanelInside = 'Справа', unusedTrack, interGlassProfile,
-    profileLeftWall, profileLeftLockBar, profileLeftPBar, profileLeftHandleBar, profileLeftBubble,
-    profileRightWall, profileRightLockBar, profileRightPBar, profileRightHandleBar, profileRightBubble,
-    width: sectionWidth, height: sectionHeight,
-  } = section;
-  const railCount = rails as number;
-
-  // Layout constants
-  const rowH   = 34;   // height per rail row
-  const topPad = 22;   // space for "УЛИЦА" label
-  const botPad = 36;   // space for "ПОМЕЩЕНИЕ" label + arrow
-  const leftW  = 58;   // space for left profiles
-  const rightW = 58;   // space for right profiles
-  const railAreaW = 380;
-  const svgW = leftW + railAreaW + rightW;
-  const svgH = topPad + railCount * rowH + botPad;
-
-  // Top = УЛИЦА (external/outermost rail, index 0)
-  // Bottom = ПОМЕЩЕНИЕ (internal/innermost rail, index railCount-1)
-  // unusedTrack 'Внешний'   → outermost = index 0        (top)
-  // unusedTrack 'Внутренний' → innermost = index railCount-1 (bottom)
-  // Apply same default as ToggleGroup: when panels < rails and track is unset → 'Внутренний'
-  const effectiveUnusedTrack = unusedTrack ?? (panels < railCount ? 'Внутренний' : undefined);
-  // For multi-rail systems (5-rail) multiple rails may be unused on one side
-  const unusedCount = Math.max(0, railCount - panels);
-  const unusedRailSet = new Set<number>(
-    effectiveUnusedTrack === 'Внешний'
-      ? Array.from({ length: unusedCount }, (_, i) => i)                   // top rails (УЛИЦА side)
-      : effectiveUnusedTrack === 'Внутренний'
-        ? Array.from({ length: unusedCount }, (_, i) => railCount - 1 - i)  // bottom rails (ПОМЕЩЕНИЕ side)
-        : []
-  );
-
-  // Panels go on all rails except unused, from top to bottom
-  const availableRails = Array.from({ length: railCount }, (_, i) => i)
-    .filter(i => !unusedRailSet.has(i));
-  const panelRailMap = Array.from({ length: panels }, (_, pi) => availableRails[pi] ?? availableRails[pi % availableRails.length] ?? pi % railCount);
-
-  const panelW = railAreaW / panels;
-  const slideLeft = firstPanelInside === 'Справа';
-  const glassW = sectionWidth ? Math.round(sectionWidth / panels) : null;
-  const glassH = sectionHeight ?? null;
-
-  // Draw left-side profiles spanning full construction height
-  const drawLeftProfiles = () => {
-    const y1 = topPad;
-    const h = railCount * rowH;
-    const shapes: React.ReactElement[] = [];
-    let x = leftW - 4;
-
-    if (profileLeftWall) {
-      shapes.push(<rect key="lw1" x={x - 14} y={y1} width={7} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.45" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
-      shapes.push(<rect key="lw2" x={x - 7}  y={y1} width={7} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.22" stroke="#4fd1c5" strokeWidth="1" strokeOpacity="0.8" />);
-      x -= 16;
-    }
-    if (profileLeftLockBar) {
-      shapes.push(<rect key="ll1" x={x - 12} y={y1} width={4} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.40" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
-      shapes.push(<rect key="ll2" x={x - 5}  y={y1} width={4} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.40" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
-      Array.from({ length: railCount }, (_, ri) => {
-        const cy = topPad + ri * rowH + rowH / 2;
-        shapes.push(<line key={`llb${ri}`} x1={x - 10} y1={cy} x2={x - 3} y2={cy} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.7" />);
-      });
-      x -= 14;
-    }
-    if (profileLeftPBar) {
-      shapes.push(<path key="lp" d={`M${x-12},${y1} L${x-2},${y1} L${x-2},${y1+h} L${x-12},${y1+h}`} fill="none" stroke="#4fd1c5" strokeWidth="2.5" strokeOpacity="0.85" />);
-      x -= 14;
-    }
-    if (profileLeftHandleBar) {
-      shapes.push(<line key="lhv" x1={x-8} y1={y1} x2={x-8} y2={y1+h} stroke="#4fd1c5" strokeWidth="2.5" strokeOpacity="0.85" />);
-      Array.from({ length: railCount }, (_, ri) => {
-        const cy = topPad + ri * rowH + rowH / 2;
-        shapes.push(<line key={`lhh${ri}`} x1={x-14} y1={cy} x2={x-2} y2={cy} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.65" />);
-      });
-      x -= 16;
-    }
-    if (profileLeftBubble) {
-      Array.from({ length: railCount }, (_, ri) => {
-        const cy = topPad + ri * rowH + rowH / 2;
-        shapes.push(<circle key={`lb${ri}`} cx={x-7} cy={cy} r={5} fill="#4fd1c5" fillOpacity="0.25" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.85" />);
-      });
-    }
-    return shapes;
-  };
-
-  // Draw right-side profiles spanning full construction height
-  const drawRightProfiles = () => {
-    const y1 = topPad;
-    const h = railCount * rowH;
-    const shapes: React.ReactElement[] = [];
-    let x = leftW + railAreaW + 4;
-
-    if (profileRightWall) {
-      shapes.push(<rect key="rw1" x={x}     y={y1} width={7} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.45" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
-      shapes.push(<rect key="rw2" x={x + 7} y={y1} width={7} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.22" stroke="#4fd1c5" strokeWidth="1" strokeOpacity="0.8" />);
-      x += 16;
-    }
-    if (profileRightLockBar) {
-      shapes.push(<rect key="rl1" x={x}     y={y1} width={4} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.40" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
-      shapes.push(<rect key="rl2" x={x + 8} y={y1} width={4} height={h} rx="1" fill="#4fd1c5" fillOpacity="0.40" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.9" />);
-      Array.from({ length: railCount }, (_, ri) => {
-        const cy = topPad + ri * rowH + rowH / 2;
-        shapes.push(<line key={`rlb${ri}`} x1={x+2} y1={cy} x2={x+10} y2={cy} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.7" />);
-      });
-      x += 14;
-    }
-    if (profileRightPBar) {
-      shapes.push(<path key="rp" d={`M${x+12},${y1} L${x+2},${y1} L${x+2},${y1+h} L${x+12},${y1+h}`} fill="none" stroke="#4fd1c5" strokeWidth="2.5" strokeOpacity="0.85" />);
-      x += 14;
-    }
-    if (profileRightHandleBar) {
-      shapes.push(<line key="rhv" x1={x+8} y1={y1} x2={x+8} y2={y1+h} stroke="#4fd1c5" strokeWidth="2.5" strokeOpacity="0.85" />);
-      Array.from({ length: railCount }, (_, ri) => {
-        const cy = topPad + ri * rowH + rowH / 2;
-        shapes.push(<line key={`rhh${ri}`} x1={x+2} y1={cy} x2={x+14} y2={cy} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.65" />);
-      });
-      x += 16;
-    }
-    if (profileRightBubble) {
-      Array.from({ length: railCount }, (_, ri) => {
-        const cy = topPad + ri * rowH + rowH / 2;
-        shapes.push(<circle key={`rb${ri}`} cx={x+7} cy={cy} r={5} fill="#4fd1c5" fillOpacity="0.25" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.85" />);
-      });
-    }
-    return shapes;
-  };
-
-  return (
-    <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} className="w-full drop-shadow-[0_0_15px_rgba(79,209,197,0.08)]" style={{ maxWidth: svgW }}>
-
-      {/* УЛИЦА / ПОМЕЩЕНИЕ labels */}
-      <text x={svgW / 2} y={13} textAnchor="middle" fontSize="8.5" fill="#4fd1c5" fillOpacity="0.35" fontWeight="bold" letterSpacing="3">УЛИЦА</text>
-      <text x={svgW / 2} y={svgH - 5} textAnchor="middle" fontSize="8.5" fill="#4fd1c5" fillOpacity="0.35" fontWeight="bold" letterSpacing="3">ПОМЕЩЕНИЕ</text>
-
-      {/* Wall jambs */}
-      <rect x={leftW - 2} y={topPad - 2} width={4} height={railCount * rowH + 4} rx="1" fill="#2a7a8a" fillOpacity="0.4" />
-      <rect x={leftW + railAreaW - 2} y={topPad - 2} width={4} height={railCount * rowH + 4} rx="1" fill="#2a7a8a" fillOpacity="0.4" />
-
-      {/* Rails */}
-      {Array.from({ length: railCount }, (_, ri) => {
-        const cy = topPad + ri * rowH + rowH / 2;
-        const isUnused = unusedRailSet.has(ri);
-        return (
-          <g key={ri}>
-            <line
-              x1={leftW} y1={cy} x2={leftW + railAreaW} y2={cy}
-              stroke={isUnused ? '#2a7a8a' : '#4fd1c5'}
-              strokeWidth={isUnused ? 1 : 1.5}
-              strokeOpacity={isUnused ? 0.22 : 0.55}
-              strokeDasharray={isUnused ? '5 5' : undefined}
-            />
-            {isUnused && (
-              <text x={leftW + railAreaW / 2} y={cy - 5} textAnchor="middle" fontSize="7.5" fill="#2a7a8a" fillOpacity="0.55" fontWeight="bold" letterSpacing="1">
-                неиспользуемый рельс
-              </text>
-            )}
-          </g>
-        );
-      })}
-
-      {/* Panels on their rails */}
-      {Array.from({ length: panels }, (_, pi) => {
-        const ri = panelRailMap[pi];
-        const cy = topPad + ri * rowH + rowH / 2;
-        const px = leftW + pi * panelW;
-        const panelNum = firstPanelInside === 'Справа' ? panels - pi : pi + 1;
-        // Overlap: extend into neighbours except at frame edges
-        const rx = px + (pi === 0 ? 5 : -6);
-        const rRight = px + panelW + (pi === panels - 1 ? -5 : 6);
-        const rw = rRight - rx;
-        const cx = px + panelW / 2;
-        return (
-          <g key={pi}>
-            <rect x={rx} y={cy - 9} width={rw} height={18} rx="2"
-              fill="#4fd1c5" fillOpacity="0.13" stroke="#4fd1c5" strokeWidth="1.4" strokeOpacity="0.75" />
-            {glassW && glassH ? (
-              <>
-                <text x={cx} y={cy + 1} textAnchor="middle" fontSize="8" fill="#4fd1c5" fillOpacity="0.9" fontWeight="bold">{glassW}×{glassH}</text>
-                <text x={cx} y={cy + 11} textAnchor="middle" fontSize="6.5" fill="#4fd1c5" fillOpacity="0.55">№{panelNum}</text>
-              </>
-            ) : (
-              <text x={cx} y={cy + 5} textAnchor="middle" fontSize="9" fill="#4fd1c5" fillOpacity="0.9" fontWeight="bold">{panelNum}</text>
-            )}
-          </g>
-        );
-      })}
-
-      {/* Inter-glass profile RS1061 — thin vertical bar between panels in top-view */}
-      {interGlassProfile && Array.from({ length: panels - 1 }, (_, pi) => (
-        <rect key={pi}
-          x={leftW + (pi + 1) * panelW - 2} y={topPad}
-          width={4} height={railCount * rowH}
-          fill="#4fd1c5" fillOpacity="0.15" stroke="#4fd1c5" strokeWidth="1" strokeOpacity="0.55" />
-      ))}
-
-      {/* Left profiles — full construction height */}
-      <g>{drawLeftProfiles()}</g>
-
-      {/* Right profiles — full construction height */}
-      <g>{drawRightProfiles()}</g>
-
-      {/* Slide direction arrow */}
-      {(() => {
-        const ay = svgH - botPad / 2 - 2;
-        const ax = leftW + railAreaW / 2;
-        const aLen = 100;
-        return (
-          <g>
-            <line x1={ax - aLen / 2} y1={ay} x2={ax + aLen / 2} y2={ay} stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.5" />
-            {slideLeft ? (
-              <>
-                <polyline points={`${ax - aLen / 2 + 12},${ay - 6} ${ax - aLen / 2},${ay} ${ax - aLen / 2 + 12},${ay + 6}`} stroke="#4fd1c5" strokeWidth="1.5" fill="none" strokeOpacity="0.5" />
-                <text x={ax + aLen / 2 + 6} y={ay + 4} fontSize="9" fill="#4fd1c5" fillOpacity="0.55" fontWeight="bold">сдвиг</text>
-              </>
-            ) : (
-              <>
-                <polyline points={`${ax + aLen / 2 - 12},${ay - 6} ${ax + aLen / 2},${ay} ${ax + aLen / 2 - 12},${ay + 6}`} stroke="#4fd1c5" strokeWidth="1.5" fill="none" strokeOpacity="0.5" />
-                <text x={ax - aLen / 2 - 6} y={ay + 4} fontSize="9" fill="#4fd1c5" fillOpacity="0.55" fontWeight="bold" textAnchor="end">сдвиг</text>
-              </>
-            )}
-          </g>
-        );
-      })()}
-    </svg>
-  );
-}
-
-// ── SVG: Вид из помещения ─────────────────────────────────────────────────────
-
-function SlideRoomViewSVG({ section }: { section: Section }) {
-  const panels  = section.panels;
-  const firstRight = (section.firstPanelInside ?? 'Справа') === 'Справа';
-  const W  = section.width;
-  const Hh = section.height;
-
-  // SVG canvas
-  const vbW = 540, vbH = 330;
-  // Frame position
-  const fX = 50, fY = 35, fW = 400, fH = 210;
-  const pt = 10; // profile (frame border) thickness
-
-  // Inner glass area
-  const iX = fX + pt, iY = fY + pt;
-  const iW = fW - 2 * pt, iH = fH - 2 * pt;
-  const pW = iW / panels; // panel draw-width per panel
-
-  const panelWmm = Math.round(W / panels);
-  const arrowLeft = firstRight; // true = all arrows ←, false = all →
-
-  return (
-    <svg viewBox={`0 0 ${vbW} ${vbH}`} className="w-full" style={{ maxWidth: 540, maxHeight: 330 }}>
-
-      {/* ── Outer frame ── */}
-      {/* Top rail */}
-      <rect x={fX} y={fY} width={fW} height={pt} fill="#1a4b54" stroke="#4fd1c5" strokeWidth="0.6" strokeOpacity="0.4" />
-      {/* Bottom rail */}
-      <rect x={fX} y={fY + fH - pt} width={fW} height={pt} fill="#1a4b54" stroke="#4fd1c5" strokeWidth="0.6" strokeOpacity="0.4" />
-      {/* Left jamb */}
-      <rect x={fX} y={fY} width={pt} height={fH} fill="#1a4b54" stroke="#4fd1c5" strokeWidth="0.6" strokeOpacity="0.4" />
-      {/* Right jamb */}
-      <rect x={fX + fW - pt} y={fY} width={pt} height={fH} fill="#1a4b54" stroke="#4fd1c5" strokeWidth="0.6" strokeOpacity="0.4" />
-      {/* Outer border */}
-      <rect x={fX} y={fY} width={fW} height={fH} fill="none" stroke="#4fd1c5" strokeWidth="1.5" strokeOpacity="0.5" />
-
-      {/* ── Panels ── */}
-      {Array.from({ length: panels }).map((_, i) => {
-        const px = iX + i * pW;
-        const cx = px + pW / 2;
-        const cy = iY + iH / 2;
-        const num = firstRight ? panels - i : i + 1;
-        const aLen = Math.min(22, pW * 0.45);
-
-        return (
-          <g key={i}>
-            {/* Glass fill */}
-            <rect x={px} y={iY} width={pW} height={iH}
-              fill="#4fd1c5" fillOpacity="0.07" />
-            {/* Glass highlight */}
-            <rect x={px + 3} y={iY + 3} width={pW * 0.28} height={iH - 6}
-              fill="white" fillOpacity="0.025" rx="1" />
-
-            {/* Inter-panel profile (not after last panel) */}
-            {i < panels - 1 && (
-              <rect x={px + pW - 2} y={iY} width={4} height={iH}
-                fill="#0d1e2d" stroke="#4fd1c5" strokeWidth="0.4" strokeOpacity="0.25" />
-            )}
-
-            {/* Panel number */}
-            <text x={cx} y={cy - 12} textAnchor="middle" fontSize="14"
-              fill="#4fd1c5" fillOpacity="0.85" fontWeight="bold" fontFamily="monospace">
-              {num}
-            </text>
-
-            {/* Slide arrow */}
-            <line
-              x1={arrowLeft ? cx + aLen / 2 : cx - aLen / 2}
-              y1={cy + 5}
-              x2={arrowLeft ? cx - aLen / 2 : cx + aLen / 2}
-              y2={cy + 5}
-              stroke="#4fd1c5" strokeWidth="1.3" strokeOpacity="0.55"
-            />
-            {arrowLeft ? (
-              <polyline
-                points={`${cx - aLen / 2 + 6},${cy + 1} ${cx - aLen / 2},${cy + 5} ${cx - aLen / 2 + 6},${cy + 9}`}
-                stroke="#4fd1c5" strokeWidth="1.3" fill="none" strokeOpacity="0.55"
-              />
-            ) : (
-              <polyline
-                points={`${cx + aLen / 2 - 6},${cy + 1} ${cx + aLen / 2},${cy + 5} ${cx + aLen / 2 - 6},${cy + 9}`}
-                stroke="#4fd1c5" strokeWidth="1.3" fill="none" strokeOpacity="0.55"
-              />
-            )}
-          </g>
-        );
-      })}
-
-      {/* ── Dimension lines ── */}
-
-      {/* Per-panel widths */}
-      {Array.from({ length: panels }).map((_, i) => {
-        const dx1 = iX + i * pW;
-        const dx2 = iX + (i + 1) * pW;
-        const dy  = fY + fH + 18;
-        const cx  = (dx1 + dx2) / 2;
-        return (
-          <g key={i}>
-            <line x1={dx1 + 3} y1={dy} x2={dx2 - 3} y2={dy} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.35" />
-            <line x1={dx1 + 3} y1={dy - 4} x2={dx1 + 3} y2={dy + 4} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.35" />
-            <line x1={dx2 - 3} y1={dy - 4} x2={dx2 - 3} y2={dy + 4} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.35" />
-            <text x={cx} y={dy + 12} textAnchor="middle" fontSize="9" fill="#4fd1c5" fillOpacity="0.45">{panelWmm}</text>
-          </g>
-        );
-      })}
-
-      {/* Total width */}
-      <line x1={iX} y1={fY + fH + 38} x2={iX + iW} y2={fY + fH + 38} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.3" />
-      <line x1={iX}        y1={fY + fH + 32} x2={iX}        y2={fY + fH + 44} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.3" />
-      <line x1={iX + iW}   y1={fY + fH + 32} x2={iX + iW}   y2={fY + fH + 44} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.3" />
-      <text x={iX + iW / 2} y={fY + fH + 52} textAnchor="middle" fontSize="10" fill="#4fd1c5" fillOpacity="0.5">{W}</text>
-
-      {/* Height on right */}
-      <line x1={fX + fW + 18} y1={fY} x2={fX + fW + 18} y2={fY + fH} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.3" />
-      <line x1={fX + fW + 12} y1={fY}      x2={fX + fW + 24} y2={fY}      stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.3" />
-      <line x1={fX + fW + 12} y1={fY + fH} x2={fX + fW + 24} y2={fY + fH} stroke="#4fd1c5" strokeWidth="0.8" strokeOpacity="0.3" />
-      <text
-        x={fX + fW + 34} y={fY + fH / 2}
-        textAnchor="middle" fontSize="10" fill="#4fd1c5" fillOpacity="0.5"
-        transform={`rotate(90,${fX + fW + 34},${fY + fH / 2})`}
-      >{Hh}</text>
-    </svg>
-  );
-}
-
-// ── ProjectEditor ─────────────────────────────────────────────────────────────
+import { Section, OrderItem, ProjectEditorProps, SystemType, LBL, INP, SEL, SYSTEM_COLORS, SYSTEM_ACCENT_BG, SYSTEM_PICKER_COLORS } from './editor/types';
+import { apiToLocal, localToApi } from './editor/converters';
+import { getSectionTypeLabel, getSectionColorLabel, SectionDivider } from './editor/FormInputs';
+import { MainTab, SlideSystemTab, BookSystemTab, LiftSystemTab, CsShapeTab, DoorSystemTab } from './editor/FormTabs';
+import { SlideSchemeSVG, SlideRoomViewSVG } from './editor/SlideDiagrams';
+
+export type { SystemType };
+export type { Section };
 
 export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack }) => {
   const [project, setProject] = useState<{ id: number; number: string; customer: string } | null>(null);
@@ -1143,7 +45,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       setSections(p.sections.map(s => apiToLocal(s)));
       setLoadingProject(false);
     }).catch(() => { setLoadingProject(false); onBack(); });
-  }, [projectId]);
+  }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -1180,14 +82,12 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     [sections, activeSectionId]
   );
 
-  // Reset dirty flag when switching sections; auto-close sidebar on mobile
   useEffect(() => {
     setIsDirty(false);
     setShowSystemPicker(false);
     if (activeSectionId) setMobileSidebarOpen(false);
   }, [activeSectionId]);
 
-  // Ctrl+S → сохранить секцию
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -1199,7 +99,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  // Предупреждение при закрытии вкладки с несохранёнными изменениями
   useEffect(() => {
     if (!isDirty) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
@@ -1260,8 +159,9 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       const local = apiToLocal(created);
       setSections(prev => [...prev, local]);
       setActiveSectionId(local.id);
-    } catch (e: any) {
-      toast.error(e.response?.data?.detail || 'Не удалось создать секцию');
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } };
+      toast.error(err.response?.data?.detail || 'Не удалось создать секцию');
     }
   };
 
@@ -1281,8 +181,9 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       await updateSection(project.id, sectionId, localToApi(activeSection, idx));
       setIsDirty(false);
       toast.success('Секция сохранена');
-    } catch (e: any) {
-      toast.error(e.response?.data?.detail || 'Не удалось сохранить секцию');
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } };
+      toast.error(err.response?.data?.detail || 'Не удалось сохранить секцию');
     } finally {
       setIsSaving(false);
     }
@@ -1320,8 +221,9 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       if (!isNaN(sectionId)) await deleteSection(project.id, sectionId);
       setSections(sections.filter(s => s.id !== sectionToDelete.id));
       if (activeSectionId === sectionToDelete.id) setActiveSectionId(null);
-    } catch (e: any) {
-      toast.error(e.response?.data?.detail || 'Не удалось удалить секцию');
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } };
+      toast.error(err.response?.data?.detail || 'Не удалось удалить секцию');
     } finally {
       setIsDeleteModalOpen(false);
       setSectionToDelete(null);
@@ -1380,7 +282,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     saveStatus({ order_items: orderItems.length > 0 ? JSON.stringify(orderItems) : undefined });
   };
 
-  // Рендер всего содержимого секции на одной странице
   const renderSectionContent = () => {
     if (!activeSection) return null;
     return (
@@ -1437,7 +338,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           </div>
         )}
 
-        {/* Примечания к секции — для всех систем */}
         <div>
           <SectionDivider label="Примечания к секции" />
           <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1482,7 +382,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
 
       {/* Header */}
       <div className="bg-[#1a4b54]/40 border-b border-[#2a7a8a]/30 px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between z-20 flex-shrink-0 gap-3">
-        {/* Left: back + title */}
         <div className="flex items-center gap-3 min-w-0 flex-shrink-0">
           <button onClick={onBack} className="flex items-center gap-2 text-white/40 hover:text-[#4fd1c5] transition-colors group flex-shrink-0">
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
@@ -1498,7 +397,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           </div>
         </div>
 
-        {/* Right: actions */}
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
             className="sm:hidden p-2.5 rounded-xl bg-[#2a7a8a]/15 border border-[#2a7a8a]/30 text-[#4fd1c5] hover:bg-[#2a7a8a]/30 transition-colors"
@@ -1675,7 +573,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                       : 'bg-white/[0.02] border-[#2a7a8a]/10 hover:border-[#2a7a8a]/40'
                   }`}
                 >
-                  {/* System color accent bar */}
                   <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${SYSTEM_ACCENT_BG[section.system]} transition-opacity ${
                     activeSectionId === section.id ? 'opacity-80' : 'opacity-30 group-hover:opacity-60'
                   }`} />
@@ -1688,7 +585,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  {/* Тип */}
                   <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${SYSTEM_COLORS[section.system]}`}>
                       {section.system}
@@ -1697,7 +593,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                       <span className="text-[11px] text-white/40 font-medium">{getSectionTypeLabel(section)}</span>
                     )}
                   </div>
-                  {/* Размеры + цвет */}
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-[11px] font-mono text-white/35">{section.width} × {section.height} мм</span>
                     {getSectionColorLabel(section) && (
@@ -1711,7 +606,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
               )}
             </div>
 
-            {/* Sidebar project notes — collapsible */}
+            {/* Sidebar project notes */}
             <div className="mt-5 pt-4 border-t border-[#2a7a8a]/20">
               <button
                 onClick={() => setNotesOpen(v => !v)}
@@ -1763,7 +658,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             </div>
           </div>
 
-          {/* Mobile: go to editor button */}
           {activeSectionId && (
             <div className="sm:hidden p-3 border-t border-[#2a7a8a]/20 flex-shrink-0">
               <button onClick={() => setMobileSidebarOpen(false)}
@@ -1772,7 +666,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
               </button>
             </div>
           )}
-
         </aside>
 
         {/* Right: editor */}
@@ -1782,7 +675,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
               <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 className="p-4 sm:p-8 max-w-3xl mx-auto w-full">
 
-                {/* Production stages badge + Stage selector */}
                 {productionStages === 2 && (
                   <div className="flex items-center gap-3 mb-6">
                     <span className="text-xs font-bold text-amber-300/70 border border-amber-500/20 bg-amber-500/5 rounded-xl px-3 py-1.5">
@@ -1821,7 +713,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   </select>
                 </div>
 
-                {/* Glass — hidden for 2-stage stage 1 */}
+                {/* Glass */}
                 {!(productionStages === 2 && currentStage === 1) && (
                   <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/30 rounded-2xl p-5 sm:p-6 mb-4">
                     <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40 block mb-4">Стекла</span>
@@ -1942,7 +834,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
               <motion.div key={activeSection.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
                 className="p-4 sm:p-6 w-full max-w-4xl xl:max-w-[1380px] mx-auto">
 
-                {/* Section title + system badge */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-5 gap-3">
                   <div>
                     <button onClick={() => requestNavigate(null)}
@@ -1965,16 +856,13 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   </div>
                 </div>
 
-                {/* Layout: xl = форма слева + схемы справа sticky; иначе — одна колонка */}
                 <div className={activeSection.system === 'СЛАЙД' ? 'xl:flex xl:gap-5 xl:items-start' : ''}>
 
-                  {/* Левая колонка: форма + кнопки */}
                   <div className={activeSection.system === 'СЛАЙД' ? 'xl:flex-1 xl:min-w-0' : ''}>
                     <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/35 rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 mb-4">
                       {renderSectionContent()}
                     </div>
 
-                    {/* Схемы под формой на мобильных / не-xl */}
                     {activeSection.system === 'СЛАЙД' && (
                       <div className="xl:hidden space-y-4 mb-4">
                         <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2rem] p-4 sm:p-7 overflow-x-auto">
@@ -1994,7 +882,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                       </div>
                     )}
 
-                    {/* Actions */}
                     <div className="flex gap-4">
                       <button onClick={handleSaveSection} disabled={isSaving}
                         className={`flex-1 py-4 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed ${
@@ -2015,7 +902,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                     </div>
                   </div>
 
-                  {/* Правая колонка: схемы sticky — только xl+, только СЛАЙД */}
                   {activeSection.system === 'СЛАЙД' && (
                     <div className="hidden xl:flex xl:flex-col xl:gap-3 xl:w-[420px] xl:flex-shrink-0 xl:sticky xl:top-4">
                       <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl p-4">
