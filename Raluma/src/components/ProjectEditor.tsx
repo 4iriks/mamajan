@@ -889,10 +889,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                           <><Save className="w-4 h-4" /> Сохранить изменения</>
                         ) : 'Сохранить секцию'}
                       </button>
-                      <button onClick={() => openPreview('Спецификация')}
-                        className="flex-1 py-4 rounded-2xl bg-[#2a7a8a]/20 border border-[#2a7a8a]/40 hover:bg-[#2a7a8a]/40 text-[#4fd1c5] font-bold transition-all">
-                        СПЕЦИФИКАЦИЯ
-                      </button>
                     </div>
                   </div>
 

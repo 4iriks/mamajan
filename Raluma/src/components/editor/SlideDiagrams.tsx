@@ -182,12 +182,13 @@ export function SlideSchemeSVG({ section }: { section: Section }) {
       <g>{drawLeftProfiles()}</g>
       <g>{drawRightProfiles()}</g>
 
-      {/* Direction arrow — bigger */}
+      {/* Direction arrow — bigger + "сдвиг" label */}
       {(() => {
         const ay = topPad + railCount * rowH + 22;
         const ax = leftW + railAreaW / 2;
         const aLen = 130;
         const arrowHead = 10;
+        const labelX = slideLeft ? ax - aLen / 2 - 6 : ax + aLen / 2 + 6;
         return (
           <g>
             <line x1={ax - aLen / 2} y1={ay} x2={ax + aLen / 2} y2={ay} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.6" />
@@ -196,6 +197,7 @@ export function SlideSchemeSVG({ section }: { section: Section }) {
             ) : (
               <polyline points={`${ax + aLen/2 - arrowHead},${ay - arrowHead/1.5} ${ax + aLen/2},${ay} ${ax + aLen/2 - arrowHead},${ay + arrowHead/1.5}`} stroke="#4fd1c5" strokeWidth="2" fill="none" strokeOpacity="0.6" />
             )}
+            <text x={labelX} y={ay + 4} textAnchor={slideLeft ? 'end' : 'start'} fontSize="8" fill="#4fd1c5" fillOpacity="0.5" fontWeight="bold">сдвиг</text>
           </g>
         );
       })()}
