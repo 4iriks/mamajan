@@ -28,7 +28,8 @@ ssh root@89.111.142.17 "cd /opt/mamajan/Raluma && git pull && docker compose bui
 ### Backend
 | Файл | Назначение |
 |------|-----------|
-| `Raluma/backend/main.py` | FastAPI app + миграции (ALTER TABLE в lifespan) |
+| `Raluma/backend/main.py` | FastAPI app, lifespan, CORS, роутеры (~86 строк) |
+| `Raluma/backend/migrations.py` | ALTER TABLE миграции + миграции данных (~85 строк) |
 | `Raluma/backend/models.py` | SQLAlchemy модели |
 | `Raluma/backend/schemas.py` | Pydantic схемы |
 | `Raluma/backend/api/projects.py` | CRUD эндпоинты проектов/секций |
@@ -49,7 +50,10 @@ ssh root@89.111.142.17 "cd /opt/mamajan/Raluma && git pull && docker compose bui
 ### Другие важные файлы
 | Файл | Назначение |
 |------|-----------|
-| `src/components/App.tsx` | Список проектов, авторизация, StatusBadge |
+| `src/App.tsx` | Чистый роутер (~53 строки) |
+| `src/pages/LoginPage.tsx` | Страница авторизации (~106 строк) |
+| `src/pages/ProjectsPage.tsx` | Список проектов, StatusBadge, CRUD модалки (~477 строк) |
+| `src/pages/AdminPage.tsx` | Админка: управление пользователями |
 | `src/api/projects.ts` | TypeScript типы API + axios-вызовы |
 | `PROGRESS.md` | Полная документация проекта |
 | `REPORT.md` | Технический отчёт по всему проекту |
@@ -59,7 +63,7 @@ ssh root@89.111.142.17 "cd /opt/mamajan/Raluma && git pull && docker compose bui
 ### Новые поля в БД — чеклист:
 1. `backend/models.py` — добавить `Column` в класс
 2. `backend/schemas.py` — добавить поле в `Base`-схему
-3. `backend/main.py` — добавить `ALTER TABLE ... ADD COLUMN` в список миграций lifespan
+3. `backend/migrations.py` — добавить `ALTER TABLE ... ADD COLUMN` в `_ADD_COLUMNS`
 4. `src/api/projects.ts` — добавить в интерфейс `SectionOut` или `ProjectList`
 5. `src/components/editor/types.ts` — добавить в `Section` interface
 6. `src/components/editor/converters.ts` — добавить маппинг в `apiToLocal()` и `localToApi()`
@@ -88,6 +92,8 @@ ssh root@89.111.142.17 "cd /opt/mamajan/Raluma && git pull && docker compose bui
 - ТЗ6: взаимоисключение RS112/RS1002, автовыбор RS112 при RS1081, переименование замков
 - SlideRoomViewSVG — вид из помещения с размерными линиями
 - Рефакторинг: ProjectEditor разбит на 8 модулей в `editor/`
+- Рефакторинг: App.tsx → чистый роутер + LoginPage + ProjectsPage
+- Рефакторинг: миграции из main.py вынесены в migrations.py
 
 ## Бэклог (не реализовано)
 - Валидация размеров (min=1 на числовых инпутах)
