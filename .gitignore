@@ -1,35 +1,43 @@
-# Claude session data
+# ── AppGlass (архив, не трекаем) ────────────────────────
+/appglass/
+
+# ── Claude ──────────────────────────────────────────────
 .claude/
 
-# Misc / другие папки проекта
-nul
-output/
-output;C/
-APPGLASS_REPORT.md
-docs/
-engine/
-scraper/
-scraper;C/
-*.docx
-/docker-compose.yml
+# ── Node ────────────────────────────────────────────────
+node_modules/
+dist/
+.env
+.env.local
+.env.production
 
-# Node
-Raluma/node_modules/
-Raluma/dist/
-Raluma/.env.local
-Raluma/.env
-
-# Python
-Raluma/backend/__pycache__/
-Raluma/backend/**/__pycache__/
-**/__pycache__/
+# ── Python ──────────────────────────────────────────────
+__pycache__/
 *.pyc
 *.pyo
+.venv/
+venv/
 
-# SQLite database (локальная БД, не коммитим)
-Raluma/backend/*.db
-Raluma/backend/*.sqlite
+# ── Database ────────────────────────────────────────────
+*.db
+*.sqlite
 
-# OS
+# ── Logs ────────────────────────────────────────────────
+*.log
+
+# ── Documents (оригиналы в Google Drive) ────────────────
+*.docx
+
+# ── OS ──────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+nul
+
+# ── IDE ─────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── Docker (корневой compose — legacy) ──────────────────
+/docker-compose.yml
