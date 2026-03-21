@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, FileText, ClipboardList, Map } from 'lucide-react';
 import { Section, LBL, SYSTEM_COLORS } from './types';
 import { SectionDivider } from './FormInputs';
 import { MainTab, SlideSystemTab, BookSystemTab, LiftSystemTab, CsShapeTab, DoorSystemTab } from './FormTabs';
@@ -17,10 +17,11 @@ export interface SectionFormWrapperProps {
   onBack: () => void;
   isSaving: boolean;
   isDirty: boolean;
+  onOpenDoc?: (docName: string) => void;
 }
 
 export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
-  section, onUpdate, onSave, onBack, isSaving, isDirty,
+  section, onUpdate, onSave, onBack, isSaving, isDirty, onOpenDoc,
 }) => {
   // Ctrl+S → сохранить секцию
   const onSaveRef = useRef(onSave);
@@ -160,10 +161,10 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
           {/* Мобильный визуализатор */}
           <EditorVisualizer section={section} variant="mobile" />
 
-          {/* Кнопка сохранить */}
-          <div className="flex gap-4">
+          {/* Нижняя панель: сохранить + кнопки документов */}
+          <div className="flex flex-wrap gap-2 sm:gap-3 items-stretch">
             <button onClick={onSave} disabled={isSaving}
-              className={`flex-1 py-4 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed ${
+              className={`flex-1 min-w-[180px] py-3 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed ${
                 isDirty
                   ? 'bg-amber-500 hover:bg-amber-400 shadow-lg shadow-amber-500/20'
                   : 'bg-[#00b894] hover:bg-[#00d1a7] shadow-lg shadow-[#00b894]/20'
@@ -174,6 +175,17 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
                 <><Save className="w-4 h-4" /> Сохранить изменения</>
               ) : 'Сохранить секцию'}
             </button>
+            {[
+              { name: 'Спецификация', icon: FileText },
+              { name: 'Производственный лист', icon: ClipboardList },
+              { name: 'Схема', icon: Map },
+            ].map(doc => (
+              <button key={doc.name} onClick={() => onOpenDoc?.(doc.name)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#1a4b54]/60 border border-[#2a7a8a]/30 hover:bg-[#2a7a8a]/30 hover:border-[#4fd1c5]/40 transition-all group">
+                <doc.icon className="w-3.5 h-3.5 text-[#4fd1c5]/50 group-hover:text-[#4fd1c5] transition-colors flex-shrink-0" />
+                <span className="text-[10px] font-bold text-white/50 group-hover:text-white transition-colors whitespace-nowrap uppercase tracking-wider">{doc.name}</span>
+              </button>
+            ))}
           </div>
         </div>
 

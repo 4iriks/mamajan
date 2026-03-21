@@ -13,7 +13,7 @@ export function SlideSchemeSVG({ section }: { section: Section }) {
   const railCount = rails as number;
 
   const rowH   = 34;
-  const topPad = 18;
+  const topPad = 28;
   const botPad = 42;
   const leftW  = 58;
   const rightW = 58;
@@ -129,7 +129,15 @@ export function SlideSchemeSVG({ section }: { section: Section }) {
   return (
     <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} className="w-full drop-shadow-[0_0_15px_rgba(79,209,197,0.08)]" style={{ maxWidth: svgW }}>
 
-      {/* Boundary lines */}
+      {/* Labels: ПОМЕЩЕНИЕ / УЛИЦА */}
+      <text x={leftW + railAreaW / 2} y={12} textAnchor="middle" fontSize="8" fill="#4fd1c5" fillOpacity="0.45" fontWeight="bold" letterSpacing="1.5">ПОМЕЩЕНИЕ</text>
+      <text x={leftW + railAreaW / 2} y={topPad + railCount * rowH + 14} textAnchor="middle" fontSize="8" fill="#4fd1c5" fillOpacity="0.45" fontWeight="bold" letterSpacing="1.5">УЛИЦА</text>
+
+      {/* Red boundary lines (top + bottom of opening) */}
+      <line x1={leftW - 8} y1={topPad - 2} x2={leftW + railAreaW + 8} y2={topPad - 2} stroke="#ef4444" strokeWidth="1.5" strokeOpacity="0.7" />
+      <line x1={leftW - 8} y1={topPad + railCount * rowH + 2} x2={leftW + railAreaW + 8} y2={topPad + railCount * rowH + 2} stroke="#ef4444" strokeWidth="1.5" strokeOpacity="0.7" />
+
+      {/* Vertical boundary lines */}
       <line x1={leftW} y1={topPad - 4} x2={leftW} y2={topPad + railCount * rowH + 4} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.5" />
       <line x1={leftW + railAreaW} y1={topPad - 4} x2={leftW + railAreaW} y2={topPad + railCount * rowH + 4} stroke="#4fd1c5" strokeWidth="2" strokeOpacity="0.5" />
 

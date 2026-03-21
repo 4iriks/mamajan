@@ -513,6 +513,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   onBack={() => requestNavigate(null)}
                   isSaving={isSaving}
                   isDirty={isDirty}
+                  onOpenDoc={openPreview}
                 />
               </motion.div>
             )}
