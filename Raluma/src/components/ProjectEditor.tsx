@@ -3,21 +3,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Save, Plus, Trash2, FileText,
   ClipboardList, Square as WindowIcon, Palette,
-  ChevronRight, Loader2, X, ArrowRight, Map,
+  Loader2, X, ArrowRight, Map,
 } from 'lucide-react';
 import { getProject, updateProject, createSection, updateSection, deleteSection } from '../api/projects';
 import { toast } from '../store/toastStore';
 
-import { Section, OrderItem, ProjectEditorProps, SystemType, LBL, INP, SEL, SYSTEM_COLORS, SYSTEM_ACCENT_BG, SYSTEM_PICKER_COLORS } from './editor/types';
+import { Section, OrderItem, ProjectEditorProps, SystemType, LBL, INP, SEL } from './editor/types';
 import { apiToLocal, localToApi } from './editor/converters';
-import { getSectionTypeLabel, getSectionColorLabel, SectionDivider } from './editor/FormInputs';
-import { MainTab, SlideSystemTab, BookSystemTab, LiftSystemTab, CsShapeTab, DoorSystemTab } from './editor/FormTabs';
-import { SlideSchemeSVG, SlideRoomViewSVG } from './editor/SlideDiagrams';
+import { EditorSidebar } from './editor/EditorSidebar';
+import { SectionFormWrapper } from './editor/SectionFormWrapper';
 
 export type { SystemType };
 export type { Section };
@@ -67,15 +66,8 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const [paintShipDate, setPaintShipDate] = useState('');
   const [paintReceivedDate, setPaintReceivedDate] = useState('');
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [notesOpen, setNotesOpen] = useState(false);
-  const [showSystemPicker, setShowSystemPicker] = useState(false);
-  const [slideSubVisible, setSlideSubVisible] = useState(false);
-  const [bookSubVisible, setBookSubVisible] = useState(false);
-  const [liftSubVisible, setLiftSubVisible] = useState(false);
-  const [csSubVisible, setCsSubVisible] = useState(false);
   const [unsavedModalOpen, setUnsavedModalOpen] = useState(false);
   const [pendingNavTarget, setPendingNavTarget] = useState<string | null>(null);
-  const handleSaveSectionRef = useRef<() => Promise<void>>(async () => {});
 
   const activeSection = useMemo(() =>
     sections.find(s => s.id === activeSectionId) || null,
@@ -84,27 +76,9 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
 
   useEffect(() => {
     setIsDirty(false);
-    setShowSystemPicker(false);
     if (activeSectionId) setMobileSidebarOpen(false);
   }, [activeSectionId]);
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        handleSaveSectionRef.current();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
-
-  useEffect(() => {
-    if (!isDirty) return;
-    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
-    window.addEventListener('beforeunload', onBeforeUnload);
-    return () => window.removeEventListener('beforeunload', onBeforeUnload);
-  }, [isDirty]);
 
   const defaultsForSystem = (system: SystemType, opts?: { bookSubtype?: string; liftPanels?: number; csShape?: string }): Partial<Section> => {
     switch (system) {
@@ -127,11 +101,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
 
   const handleAddSection = async (system: SystemType, opts?: { slideRails?: 3 | 5; bookSubtype?: string; liftPanels?: number; csShape?: string }) => {
     if (!project) return;
-    setShowSystemPicker(false);
-    setSlideSubVisible(false);
-    setBookSubVisible(false);
-    setLiftSubVisible(false);
-    setCsSubVisible(false);
     const extra: Partial<Section> = {};
     if (system === 'СЛАЙД' && opts?.slideRails) extra.rails = opts.slideRails;
     if (system === 'КНИЖКА' && opts?.bookSubtype) extra.bookSubtype = opts.bookSubtype;
@@ -188,8 +157,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       setIsSaving(false);
     }
   };
-
-  handleSaveSectionRef.current = handleSaveSection;
 
   const requestNavigate = (targetId: string | null) => {
     if (isDirty) {
@@ -282,81 +249,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     saveStatus({ order_items: orderItems.length > 0 ? JSON.stringify(orderItems) : undefined });
   };
 
-  const renderSectionContent = () => {
-    if (!activeSection) return null;
-    return (
-      <div className="space-y-5">
-        <div>
-          <SectionDivider label="Основное" />
-          <div className="mt-3">
-            <MainTab s={activeSection} update={updateActiveSection} />
-          </div>
-        </div>
-
-        {activeSection.system === 'СЛАЙД' && (
-          <div>
-            <SectionDivider label="Система · Профили · Фурнитура" />
-            <div className="mt-3">
-              <SlideSystemTab s={activeSection} update={updateActiveSection} />
-            </div>
-          </div>
-        )}
-
-        {activeSection.system === 'КНИЖКА' && (
-          <div>
-            <SectionDivider label="Система" />
-            <div className="mt-3">
-              <BookSystemTab s={activeSection} update={updateActiveSection} />
-            </div>
-          </div>
-        )}
-
-        {activeSection.system === 'ЛИФТ' && (
-          <div>
-            <SectionDivider label="Система" />
-            <div className="mt-3">
-              <LiftSystemTab s={activeSection} update={updateActiveSection} />
-            </div>
-          </div>
-        )}
-
-        {activeSection.system === 'ЦС' && (
-          <div>
-            <SectionDivider label="Форма" />
-            <div className="mt-3">
-              <CsShapeTab s={activeSection} update={updateActiveSection} />
-            </div>
-          </div>
-        )}
-
-        {activeSection.system === 'КОМПЛЕКТАЦИЯ' && (
-          <div>
-            <SectionDivider label="Система" />
-            <div className="mt-3">
-              <DoorSystemTab s={activeSection} update={updateActiveSection} />
-            </div>
-          </div>
-        )}
-
-        <div>
-          <SectionDivider label="Примечания к секции" />
-          <div className="mt-3">
-            <div className="space-y-1.5">
-              <label className={LBL}>Комментарии</label>
-              <textarea
-                value={activeSection.comments || ''}
-                onChange={e => updateActiveSection({ comments: e.target.value || undefined })}
-                rows={2}
-                placeholder="Дополнительные комментарии..."
-                className="w-full bg-white/8 border border-[#2a7a8a]/30 rounded-xl px-3 py-2 outline-none focus:border-[#4fd1c5]/50 transition-all text-white resize-y placeholder-white/20 text-sm"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   if (loadingProject) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#0c1d2d]">
@@ -434,233 +326,20 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       {/* Body */}
       <div className="flex-1 flex flex-col sm:flex-row min-h-0 overflow-hidden">
 
-        {/* Left: sections list */}
-        <aside className={`border-r border-[#2a7a8a]/30 flex-col bg-[#0c1d2d]/80 backdrop-blur-sm z-10 flex-shrink-0 w-full sm:w-[260px] ${mobileSidebarOpen ? 'flex' : 'hidden sm:flex'}`}>
-          <div className="p-5 flex-1 overflow-y-auto">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40">Секции</h3>
-              <button
-                onClick={() => setShowSystemPicker(v => !v)}
-                className={`p-1.5 rounded-lg border transition-colors ${
-                  showSystemPicker
-                    ? 'bg-[#4fd1c5]/20 border-[#4fd1c5]/40 text-[#4fd1c5]'
-                    : 'bg-[#2a7a8a]/20 border-[#2a7a8a]/30 text-[#4fd1c5] hover:bg-[#2a7a8a]/40'
-                }`}
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* System picker */}
-            <AnimatePresence>
-              {showSystemPicker && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden mb-4"
-                >
-                  <div className="flex flex-col gap-1.5 pt-1 pb-3">
-                    {/* СЛАЙД */}
-                    <div className={`rounded-xl border overflow-hidden transition-all ${slideSubVisible ? 'border-[#2a7a8a]/50' : 'border-[#2a7a8a]/25'}`}>
-                      <button onClick={() => setSlideSubVisible(v => !v)}
-                        className={`w-full py-2.5 px-3 font-bold text-[11px] transition-all flex items-center justify-between ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
-                        <span>СЛАЙД</span>
-                        <ChevronRight className={`w-3.5 h-3.5 transition-transform ${slideSubVisible ? 'rotate-90' : ''}`} />
-                      </button>
-                      {slideSubVisible && (
-                        <div className="grid grid-cols-2 border-t border-[#2a7a8a]/25">
-                          <button onClick={() => handleAddSection('СЛАЙД', { slideRails: 3 })}
-                            className={`py-2 font-bold text-[11px] transition-all border-r border-[#2a7a8a]/25 ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
-                            Стандарт 1 ряд
-                          </button>
-                          <button onClick={() => handleAddSection('СЛАЙД', { slideRails: 5 })}
-                            className={`py-2 font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
-                            2 ряда от центра
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    {/* КНИЖКА */}
-                    <div className={`rounded-xl border overflow-hidden transition-all ${bookSubVisible ? 'border-[#7a4a2a]/50' : 'border-[#7a4a2a]/25'}`}>
-                      <button onClick={() => setBookSubVisible(v => !v)}
-                        className={`w-full py-2.5 px-3 font-bold text-[11px] transition-all flex items-center justify-between ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
-                        <span>КНИЖКА</span>
-                        <ChevronRight className={`w-3.5 h-3.5 transition-transform ${bookSubVisible ? 'rotate-90' : ''}`} />
-                      </button>
-                      {bookSubVisible && (
-                        <div className="border-t border-[#7a4a2a]/25">
-                          <div className="grid grid-cols-2">
-                            <button onClick={() => handleAddSection('КНИЖКА', { bookSubtype: 'doors' })}
-                              className={`py-2 font-bold text-[11px] transition-all border-r border-b border-[#7a4a2a]/25 ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
-                              С дверями
-                            </button>
-                            <button onClick={() => handleAddSection('КНИЖКА', { bookSubtype: 'angle' })}
-                              className={`py-2 font-bold text-[11px] transition-all border-b border-[#7a4a2a]/25 ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
-                              С углом
-                            </button>
-                          </div>
-                          <button onClick={() => handleAddSection('КНИЖКА', { bookSubtype: 'doors_and_angle' })}
-                            className={`w-full py-2 font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
-                            С дверями и углом
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    {/* ЛИФТ */}
-                    <div className={`rounded-xl border overflow-hidden transition-all ${liftSubVisible ? 'border-[#4a2a7a]/50' : 'border-[#4a2a7a]/25'}`}>
-                      <button onClick={() => setLiftSubVisible(v => !v)}
-                        className={`w-full py-2.5 px-3 font-bold text-[11px] transition-all flex items-center justify-between ${SYSTEM_PICKER_COLORS['ЛИФТ']}`}>
-                        <span>ЛИФТ</span>
-                        <ChevronRight className={`w-3.5 h-3.5 transition-transform ${liftSubVisible ? 'rotate-90' : ''}`} />
-                      </button>
-                      {liftSubVisible && (
-                        <div className="grid grid-cols-3 border-t border-[#4a2a7a]/25">
-                          {[2, 3, 4].map((n, i) => (
-                            <button key={n} onClick={() => handleAddSection('ЛИФТ', { liftPanels: n })}
-                              className={`py-2 font-bold text-[11px] transition-all ${i < 2 ? 'border-r border-[#4a2a7a]/25' : ''} ${SYSTEM_PICKER_COLORS['ЛИФТ']}`}>
-                              {n} пан.
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    {/* ЦС */}
-                    <div className={`rounded-xl border overflow-hidden transition-all ${csSubVisible ? 'border-[#2a4a7a]/50' : 'border-[#2a4a7a]/25'}`}>
-                      <button onClick={() => setCsSubVisible(v => !v)}
-                        className={`w-full py-2.5 px-3 font-bold text-[11px] transition-all flex items-center justify-between ${SYSTEM_PICKER_COLORS['ЦС']}`}>
-                        <span>ЦС</span>
-                        <ChevronRight className={`w-3.5 h-3.5 transition-transform ${csSubVisible ? 'rotate-90' : ''}`} />
-                      </button>
-                      {csSubVisible && (
-                        <div className="grid grid-cols-2 border-t border-[#2a4a7a]/25">
-                          {['Треугольник', 'Прямоугольник', 'Трапеция', 'Сложная форма'].map((shape, i) => (
-                            <button key={shape} onClick={() => handleAddSection('ЦС', { csShape: shape })}
-                              className={`py-2 font-bold text-[11px] transition-all
-                                ${i % 2 === 0 ? 'border-r border-[#2a4a7a]/25' : ''}
-                                ${i < 2 ? 'border-b border-[#2a4a7a]/25' : ''}
-                                ${SYSTEM_PICKER_COLORS['ЦС']}`}>
-                              {shape}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    {/* КОМПЛЕКТАЦИЯ */}
-                    <button onClick={() => handleAddSection('КОМПЛЕКТАЦИЯ')}
-                      className={`py-2.5 rounded-xl border font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['КОМПЛЕКТАЦИЯ']}`}>
-                      КОМПЛЕКТАЦИЯ
-                    </button>
-                  </div>
-                  <div className="h-px bg-[#2a7a8a]/20" />
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <div className="space-y-2">
-              {sections.map(section => (
-                <motion.div key={section.id} layoutId={section.id}
-                  onClick={() => requestNavigate(section.id)}
-                  className={`relative group p-4 rounded-2xl border transition-all cursor-pointer overflow-hidden ${
-                    activeSectionId === section.id
-                      ? 'bg-[#2a7a8a]/20 border-[#4fd1c5]/50 shadow-lg shadow-[#4fd1c5]/5'
-                      : 'bg-white/[0.02] border-[#2a7a8a]/10 hover:border-[#2a7a8a]/40'
-                  }`}
-                >
-                  <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${SYSTEM_ACCENT_BG[section.system]} transition-opacity ${
-                    activeSectionId === section.id ? 'opacity-80' : 'opacity-30 group-hover:opacity-60'
-                  }`} />
-                  <div className="flex justify-between items-start mb-2">
-                    <span className={`text-sm font-bold leading-snug ${activeSectionId === section.id ? 'text-[#4fd1c5]' : 'text-white/80'}`}>
-                      {section.name}
-                    </span>
-                    <button onClick={e => { e.stopPropagation(); setSectionToDelete(section); setIsDeleteModalOpen(true); }}
-                      className="p-1 rounded-lg hover:bg-red-500/20 text-red-400 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0 ml-1">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${SYSTEM_COLORS[section.system]}`}>
-                      {section.system}
-                    </span>
-                    {getSectionTypeLabel(section) && (
-                      <span className="text-[11px] text-white/40 font-medium">{getSectionTypeLabel(section)}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[11px] font-mono text-white/35">{section.width} × {section.height} мм</span>
-                    {getSectionColorLabel(section) && (
-                      <span className="text-[11px] text-white/35">{getSectionColorLabel(section)}</span>
-                    )}
-                  </div>
-                </motion.div>
-              ))}
-              {sections.length === 0 && !showSystemPicker && (
-                <div className="text-center py-8 text-white/20 text-xs">Нажмите + чтобы добавить секцию</div>
-              )}
-            </div>
-
-            {/* Sidebar project notes */}
-            <div className="mt-5 pt-4 border-t border-[#2a7a8a]/20">
-              <button
-                onClick={() => setNotesOpen(v => !v)}
-                className="flex items-center justify-between w-full group mb-0"
-              >
-                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40 group-hover:text-[#4fd1c5]/70 transition-colors">
-                  Примечания
-                </span>
-                <span className={`text-[#4fd1c5]/30 group-hover:text-[#4fd1c5]/60 transition-all ${notesOpen ? 'rotate-180' : ''} duration-200`}>
-                  <ChevronRight className="w-3.5 h-3.5 rotate-90" />
-                </span>
-              </button>
-              <AnimatePresence initial={false}>
-                {notesOpen && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2, ease: 'easeInOut' }}
-                    className="overflow-hidden"
-                  >
-                    <div className="space-y-2.5 pt-3">
-                      <div>
-                        <label className="text-[10px] text-white/25 uppercase tracking-wider block mb-1.5">Доп. комплектующие</label>
-                        <textarea
-                          value={projectExtraParts}
-                          onChange={e => setProjectExtraParts(e.target.value)}
-                          onBlur={handleSaveProjectNotes}
-                          rows={2}
-                          placeholder="..."
-                          className="w-full bg-white/[0.02] border border-[#2a7a8a]/20 rounded-xl px-3 py-2 text-[11px] text-white/60 placeholder-white/15 resize-none focus:outline-none focus:border-[#4fd1c5]/40 transition-colors"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-white/25 uppercase tracking-wider block mb-1.5">Комментарии</label>
-                        <textarea
-                          value={projectComments}
-                          onChange={e => setProjectComments(e.target.value)}
-                          onBlur={handleSaveProjectNotes}
-                          rows={2}
-                          placeholder="..."
-                          className="w-full bg-white/[0.02] border border-[#2a7a8a]/20 rounded-xl px-3 py-2 text-[11px] text-white/60 placeholder-white/15 resize-none focus:outline-none focus:border-[#4fd1c5]/40 transition-colors"
-                        />
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-
-          {activeSectionId && (
-            <div className="sm:hidden p-3 border-t border-[#2a7a8a]/20 flex-shrink-0">
-              <button onClick={() => setMobileSidebarOpen(false)}
-                className="w-full py-3 rounded-xl bg-[#2a7a8a]/20 border border-[#2a7a8a]/40 text-[#4fd1c5] font-bold text-sm flex items-center justify-center gap-2">
-                <ChevronRight className="w-4 h-4" /> Редактировать
-              </button>
-            </div>
-          )}
-        </aside>
+        <EditorSidebar
+          sections={sections}
+          activeSectionId={activeSectionId}
+          onSelectSection={requestNavigate}
+          onAddSection={handleAddSection}
+          onDeleteSection={section => { setSectionToDelete(section); setIsDeleteModalOpen(true); }}
+          mobileSidebarOpen={mobileSidebarOpen}
+          setMobileSidebarOpen={setMobileSidebarOpen}
+          projectExtraParts={projectExtraParts}
+          setProjectExtraParts={setProjectExtraParts}
+          projectComments={projectComments}
+          setProjectComments={setProjectComments}
+          onSaveProjectNotes={handleSaveProjectNotes}
+        />
 
         {/* Right: editor */}
         <main className={`flex-1 overflow-y-auto bg-[#0c1d2d]/50 ${mobileSidebarOpen ? 'hidden sm:block' : 'block'}`}>
@@ -827,91 +506,14 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             ) : (
               <motion.div key={activeSection.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
                 className="p-4 sm:p-6 w-full max-w-4xl xl:max-w-[1380px] mx-auto">
-
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-5 gap-3">
-                  <div>
-                    <button onClick={() => requestNavigate(null)}
-                      className="flex items-center gap-1.5 text-white/30 hover:text-[#4fd1c5] transition-colors group mb-3 text-xs font-bold uppercase tracking-wider">
-                      <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
-                      К проекту
-                    </button>
-                    <h2 className="text-xl sm:text-2xl font-bold mb-1.5">{activeSection.name}</h2>
-                    <span className={`px-3 py-1 rounded-lg text-[11px] font-bold border ${SYSTEM_COLORS[activeSection.system]}`}>
-                      {activeSection.system === 'СЛАЙД'
-                        ? `СЛАЙД стандарт ${activeSection.rails === 5 ? '2 ряда от центра' : '1 ряд'}`
-                        : activeSection.system === 'КНИЖКА' && activeSection.bookSubtype
-                          ? `КНИЖКА ${activeSection.bookSubtype === 'doors' ? 'с дверями' : activeSection.bookSubtype === 'angle' ? 'с углом' : 'с дверями и углом'}`
-                          : activeSection.system === 'ЛИФТ'
-                            ? `ЛИФТ · ${activeSection.panels ?? 2} пан.`
-                            : activeSection.system === 'ЦС' && activeSection.csShape
-                              ? `ЦС · ${activeSection.csShape}`
-                              : activeSection.system}
-                    </span>
-                  </div>
-                </div>
-
-                <div className={activeSection.system === 'СЛАЙД' ? 'xl:flex xl:gap-5 xl:items-start' : ''}>
-
-                  <div className={activeSection.system === 'СЛАЙД' ? 'xl:flex-1 xl:min-w-0' : ''}>
-                    <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/35 rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 mb-4">
-                      {renderSectionContent()}
-                    </div>
-
-                    {activeSection.system === 'СЛАЙД' && (
-                      <div className="xl:hidden space-y-4 mb-4">
-                        <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2rem] p-4 sm:p-7 overflow-x-auto">
-                          <div className="flex items-center justify-between mb-4 min-w-[360px]">
-                            <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Вид из помещения</h4>
-                            <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">{activeSection.panels} пан. · {activeSection.width}×{activeSection.height}</span>
-                          </div>
-                          <div className="flex justify-center py-2"><SlideRoomViewSVG section={activeSection} /></div>
-                        </div>
-                        <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2rem] p-4 sm:p-7 overflow-x-auto">
-                          <div className="flex items-center justify-between mb-5 min-w-[360px]">
-                            <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Схема · Вид сверху</h4>
-                            <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">{activeSection.rails ?? 3}-рельс · {activeSection.panels} пан.</span>
-                          </div>
-                          <div className="flex justify-center py-4"><SlideSchemeSVG section={activeSection} /></div>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex gap-4">
-                      <button onClick={handleSaveSection} disabled={isSaving}
-                        className={`flex-1 py-4 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed ${
-                          isDirty
-                            ? 'bg-amber-500 hover:bg-amber-400 shadow-lg shadow-amber-500/20'
-                            : 'bg-[#00b894] hover:bg-[#00d1a7] shadow-lg shadow-[#00b894]/20'
-                        }`}>
-                        {isSaving ? (
-                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        ) : isDirty ? (
-                          <><Save className="w-4 h-4" /> Сохранить изменения</>
-                        ) : 'Сохранить секцию'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {activeSection.system === 'СЛАЙД' && (
-                    <div className="hidden xl:flex xl:flex-col xl:gap-3 xl:w-[420px] xl:flex-shrink-0 xl:sticky xl:top-4">
-                      <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Вид из помещения</span>
-                          <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">{activeSection.panels} пан. · {activeSection.width}×{activeSection.height}</span>
-                        </div>
-                        <SlideRoomViewSVG section={activeSection} />
-                      </div>
-                      <div className="bg-[#1a4b54]/25 border border-[#2a7a8a]/30 rounded-2xl p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40">Схема · Вид сверху</span>
-                          <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">{activeSection.rails ?? 3}-рельс · {activeSection.panels} пан.</span>
-                        </div>
-                        <SlideSchemeSVG section={activeSection} />
-                      </div>
-                    </div>
-                  )}
-
-                </div>
+                <SectionFormWrapper
+                  section={activeSection}
+                  onUpdate={updateActiveSection}
+                  onSave={handleSaveSection}
+                  onBack={() => requestNavigate(null)}
+                  isSaving={isSaving}
+                  isDirty={isDirty}
+                />
               </motion.div>
             )}
           </AnimatePresence>
