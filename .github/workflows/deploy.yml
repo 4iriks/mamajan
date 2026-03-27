@@ -16,54 +16,19 @@ jobs:
       github.event.workflow_run.event == 'push'
 
     steps:
-      - name: Setup SSH key
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
-          cat >> ~/.ssh/config << EOF
-          Host deploy-target
-            HostName $SERVER_HOST
-            User ${{ secrets.SERVER_USER }}
-            IdentityFile ~/.ssh/id_ed25519
-            ServerAliveInterval 15
-            ServerAliveCountMax 20
-            ConnectTimeout 10
-            StrictHostKeyChecking accept-new
-          EOF
-
-      - name: Git pull
-        run: ssh deploy-target 'cd /opt/mamajan && git fetch origin main 2>&1 && git reset --hard origin/main 2>&1'
-
-      - name: Docker build backend
-        timeout-minutes: 8
-        run: ssh deploy-target "cd /opt/mamajan/Raluma && docker compose build backend"
-
-      - name: Docker build frontend
-        timeout-minutes: 8
-        run: ssh deploy-target "cd /opt/mamajan/Raluma && docker compose build frontend"
-
-      - name: Restart services
-        run: ssh deploy-target "cd /opt/mamajan/Raluma && docker compose up -d"
-
-      - name: Health check
-        run: |
-          sleep 5
-          for i in 1 2 3 4 5 6; do
-            if ssh deploy-target "curl -sf http://localhost/health" > /dev/null 2>&1; then
-              echo "Health check passed!"
-              exit 0
-            fi
-            echo "Attempt $i failed, retrying in 5s..."
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          command_timeout: 10m
+          script: |
+            cd /opt/mamajan
+            git fetch origin main 2>&1
+            git reset --hard origin/main 2>&1
+            cd Raluma
+            docker compose build 2>&1
+            docker compose up -d 2>&1
             sleep 5
-          done
-          echo "Health check failed!"
-          exit 1
-
-      - name: Cleanup
-        if: success()
-        run: ssh deploy-target "docker image prune -f" || true
+            curl -sf http://localhost/health && echo "Deploy OK" || echo "Health check failed"
