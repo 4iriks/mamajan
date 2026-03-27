@@ -8,14 +8,16 @@ PATCH /api/projects/{pid}/sections/{sid}/overrides → сохранить пра
 import io
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database import get_db
 import models
-from auth import get_current_user
+from auth import get_current_user, decode_token
 from engine.slide_calc import calculate_slide
 from engine.pdf import render_preview, render_pdf_html, generate_pdf
 
@@ -37,13 +39,25 @@ def _get_section_or_404(project_id: int, section_id: int, db: Session, current_u
     return project, section
 
 
+def _get_user_by_token(token: Optional[str], db: Session) -> models.User:
+    """Аутентификация через query-параметр ?token= (для iframe)."""
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    payload = decode_token(token)
+    user = db.query(models.User).filter(models.User.id == int(payload["sub"])).first()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return user
+
+
 @router.get("/{project_id}/sections/{section_id}/preview", response_class=HTMLResponse)
 def preview_section(
     project_id: int,
     section_id: int,
+    token: Optional[str] = Query(default=None),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
 ):
+    current_user = _get_user_by_token(token, db)
     project, section = _get_section_or_404(project_id, section_id, db, current_user)
     if section.system != "СЛАЙД":
         return HTMLResponse("<p style='padding:20px;font-family:sans-serif'>Производственный лист доступен только для системы СЛАЙД</p>")

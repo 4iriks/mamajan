@@ -21,7 +21,8 @@ export default function ProductionSheetModal({
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  const previewUrl = getPreviewUrl(projectId, sectionId);
+  const token = localStorage.getItem('access_token') ?? '';
+  const previewUrl = `${getPreviewUrl(projectId, sectionId)}?token=${encodeURIComponent(token)}`;
 
   // Слушаем сообщения из iframe (dirty state)
   useEffect(() => {
