@@ -10,60 +10,41 @@ jobs:
   deploy:
     name: Deploy to production
     runs-on: ubuntu-latest
-    # Only deploy if CI passed AND it was a push (not PR)
     if: >
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push'
 
     steps:
-      - name: Setup SSH
+      - name: Setup SSH key
         run: |
-          mkdir -p ~/.ssh
+          install -m 600 -D /dev/null ~/.ssh/id_ed25519
           echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Deploy via SSH
+      - name: Pull and build
+        env:
+          SSH_TARGET: ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}
         run: |
-          ssh -o StrictHostKeyChecking=accept-new ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'DEPLOY_SCRIPT'
-          set -e
-          cd /opt/mamajan/Raluma
+          ssh $SSH_TARGET "cd /opt/mamajan/Raluma && git pull origin main && docker compose build && docker compose up -d"
 
-          echo "=== Saving current commit for rollback ==="
-          OLD_COMMIT=$(git rev-parse HEAD)
-
-          echo "=== Pulling latest code ==="
-          git pull origin main
-
-          echo "=== Building images ==="
-          docker compose build
-
-          echo "=== Starting services ==="
-          docker compose up -d
-
-          echo "=== Waiting for backend to start ==="
+      - name: Health check
+        env:
+          SSH_TARGET: ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}
+        run: |
           sleep 5
-
-          echo "=== Health check ==="
-          HEALTH_OK=false
           for i in 1 2 3 4 5; do
-            if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
-              HEALTH_OK=true
-              break
+            if ssh $SSH_TARGET "curl -sf http://localhost:8000/health" > /dev/null 2>&1; then
+              echo "Health check passed!"
+              exit 0
             fi
-            echo "Health check attempt $i failed, retrying in 3s..."
+            echo "Attempt $i failed, retrying in 3s..."
             sleep 3
           done
+          echo "Health check failed after 5 attempts!"
+          exit 1
 
-          if [ "$HEALTH_OK" = "true" ]; then
-            echo "=== Deploy successful! ==="
-            docker image prune -f
-          else
-            echo "=== HEALTH CHECK FAILED — ROLLING BACK ==="
-            git checkout "$OLD_COMMIT"
-            docker compose build
-            docker compose up -d
-            echo "=== Rolled back to $OLD_COMMIT ==="
-            exit 1
-          fi
-          DEPLOY_SCRIPT
+      - name: Cleanup old images
+        if: success()
+        env:
+          SSH_TARGET: ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}
+        run: ssh $SSH_TARGET "docker image prune -f" || true
