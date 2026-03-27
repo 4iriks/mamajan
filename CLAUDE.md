@@ -123,7 +123,39 @@ ssh root@89.111.142.17 "cd /opt/mamajan/Raluma && git pull && docker compose bui
 - P=1 (глухая): `middle_W = W - ppr - ppl - pzl - pzr`
 - `glass_H = H - 106` (стандартный порог) или `H - 94` (накладной)
 
+## Производственный лист — детали реализации
+
+### Авторизация для iframe
+iframe не отправляет `Authorization: Bearer` заголовок. Решение: JWT передаётся через `?token=` query param.
+- Фронтенд: `src="${getPreviewUrl(pid, sid)}?token=${encodeURIComponent(token)}"`
+- Бэкенд (`api/documents.py`): `_get_user_by_token()` читает токен из query param вместо заголовка
+
+### Зум в предпросмотре
+`section_sheet.html` задаёт `body { width: 287mm }` (A4 минус поля).
+JS при загрузке применяет `transform: scale()` к `body` чтобы вписать в ширину iframe.
+Высота передаётся через `postMessage({type:'height', height: N})` → `ProductionSheetModal` меняет `iframeHeight`.
+
+### Картинки профилей в ассетах (`assets/profiles/`)
+Jinja2-фильтр `img_b64` конвертирует имя файла → `data:image/jpeg;base64,...`.
+Файлы есть: RS1002, RS1004, RS1006, RS1021, RS105, RS106, RS107, RS107L, RS107R, RS1082,
+RS112, RS122, RS1325, RS205, RS2061, RS2081, RS2323, RS2333, RS2335, RS3014, RS3017,
+RS3018, RS3019, RS3020, RSD1, RSD2, RU005, RU007.
+**Отсутствуют** (image=None в slide_calc.py): RS1313, RS1315, RS2021, RS1121, RU008.
+Временные замены: RS1313/RS1315 → RS1325.jpg; RU008 → RU007.jpg.
+
+### Шаблон section_sheet.html — структура
+A4 альбомная, Jinja2 + contenteditable. Секции:
+1. Шапка (проект / секция / система)
+2. Параметры + размеры стёкол | SVG схема сверху
+3. Нарезка профилей (2 колонки)
+4. Фурнитура | Крепёж | Чек-лист
+
+**Pending**: пользователь сделает новый дизайн шаблона в чистом HTML,
+нужно будет интегрировать — заменить хардкод на Jinja2-переменные и добавить
+contenteditable + JS зума.
+
 ## Бэклог (не реализовано)
+- **Новый дизайн section_sheet.html** — пользователь пришлёт HTML, нужна интеграция
 - Валидация размеров (min=1 на числовых инпутах)
 - Alembic вместо ручных миграций
 - Rate limiting на `/api/auth/login`
