@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -83,7 +83,9 @@ class Section(Base):
     handle = Column(String, nullable=True)
     floor_latches_left = Column(Boolean, default=False)
     floor_latches_right = Column(Boolean, default=False)
-    handle_offset = Column(Integer, nullable=True)
+    handle_offset = Column(Integer, nullable=True)       # legacy — оставлен для совместимости
+    handle_offset_left = Column(Integer, nullable=True)  # отступ a (левое стекло)
+    handle_offset_right = Column(Integer, nullable=True) # отступ b (правое стекло)
 
     # СЛАЙД — профили (чекбоксы)
     profile_left_wall = Column(Boolean, default=False)          # Пристеночный RS1333/1335
@@ -120,5 +122,8 @@ class Section(Base):
     # Примечания к секции
     extra_parts = Column(String, nullable=True)
     comments = Column(String, nullable=True)
+
+    # Производственный лист — ручные правки поверх расчёта
+    document_overrides = Column(Text, default='{}')
 
     project = relationship("Project", back_populates="sections")

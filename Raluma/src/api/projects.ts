@@ -55,6 +55,8 @@ export interface SectionOut {
   floor_latches_left: boolean;
   floor_latches_right: boolean;
   handle_offset?: number;
+  handle_offset_left?: number;
+  handle_offset_right?: number;
   profile_left_wall?: boolean;
   profile_left_lock_bar?: boolean;
   profile_left_p_bar?: boolean;
@@ -83,7 +85,28 @@ export interface SectionOut {
   cs_width2?: number;
   extra_parts?: string;
   comments?: string;
+  document_overrides?: string;
 }
+
+// Documents
+export const getPreviewUrl = (projectId: number, sectionId: number) =>
+  `/api/projects/${projectId}/sections/${sectionId}/preview`;
+
+export const saveDocumentOverrides = (projectId: number, sectionId: number, overrides: Record<string, string>) =>
+  client.patch(`/api/projects/${projectId}/sections/${sectionId}/overrides`, { overrides });
+
+export const clearDocumentOverrides = (projectId: number, sectionId: number) =>
+  client.delete(`/api/projects/${projectId}/sections/${sectionId}/overrides`);
+
+export const downloadPdf = async (projectId: number, sectionId: number, filename: string) => {
+  const resp = await client.get(`/api/projects/${projectId}/sections/${sectionId}/pdf`, { responseType: 'blob' });
+  const url = URL.createObjectURL(resp.data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
 
 // Projects
 export const getProjects = () =>

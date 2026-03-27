@@ -28,11 +28,16 @@ ssh root@89.111.142.17 "cd /opt/mamajan/Raluma && git pull && docker compose bui
 ### Backend
 | Файл | Назначение |
 |------|-----------|
-| `Raluma/backend/main.py` | FastAPI app, lifespan, CORS, роутеры (~86 строк) |
-| `Raluma/backend/migrations.py` | ALTER TABLE миграции + миграции данных (~85 строк) |
+| `Raluma/backend/main.py` | FastAPI app, lifespan, CORS, роутеры |
+| `Raluma/backend/migrations.py` | ALTER TABLE миграции + миграции данных |
 | `Raluma/backend/models.py` | SQLAlchemy модели |
 | `Raluma/backend/schemas.py` | Pydantic схемы |
 | `Raluma/backend/api/projects.py` | CRUD эндпоинты проектов/секций |
+| `Raluma/backend/api/documents.py` | preview/pdf/overrides эндпоинты (производственный лист) |
+| `Raluma/backend/engine/slide_calc.py` | Расчётный движок СЛАЙД → SlideCalcResult |
+| `Raluma/backend/engine/pdf.py` | Jinja2 → WeasyPrint рендеринг HTML/PDF |
+| `Raluma/backend/templates/section_sheet.html` | A4-шаблон производственного листа (Jinja2, contenteditable) |
+| `Raluma/backend/assets/profiles/` | Картинки профилей (base64 в PDF) |
 
 ### Frontend — editor/ модули
 | Файл | Строк | Назначение |
@@ -94,10 +99,33 @@ ssh root@89.111.142.17 "cd /opt/mamajan/Raluma && git pull && docker compose bui
 - Рефакторинг: ProjectEditor разбит на 8 модулей в `editor/`
 - Рефакторинг: App.tsx → чистый роутер + LoginPage + ProjectsPage
 - Рефакторинг: миграции из main.py вынесены в migrations.py
+- **Производственный лист СЛАЙД**: расчётный движок + WeasyPrint PDF + iframe-предпросмотр с contenteditable редактированием, сохранение правок в БД (`document_overrides`), скачивание PDF
+
+## Производственный лист — архитектура
+
+```
+[Кнопка "Производственный лист"] → ProductionSheetModal
+  → <iframe src="/api/projects/{pid}/sections/{sid}/preview">
+     — slide_calc.py считает профили/стёкла/фурнитуру/саморезы
+     — section_sheet.html: contenteditable + data-field + data-original
+     — JS postMessage({type:'dirty'}) при изменении
+  → [Сохранить]: читает iframe DOM, PATCH /overrides → JSON в section.document_overrides
+  → [Отменить]: iframe.reload()
+  → [Скачать PDF]: GET /pdf → WeasyPrint → blob → <a download>
+```
+
+### Ключевые формулы СЛАЙД (1 ряд):
+- `ppl/ppr = 16` если пристеночный; `pzl/pzr = 5` если пузырьковый
+- `rpl/rpr = 59.5` если ручка-профиль+замок, `= 27` если ручка-профиль+П-профиль
+- `krlr/krrr = 8` если ручка-профиль; `krlp/krrp = 16` если П-профиль+пузырьковый
+- `a = handle_offset_left`, `b = handle_offset_right` (два отдельных отступа под ручку)
+- P≥2: `middle_W = (W - ppr - ppl - rpr - rpl - pzl - pzr - krlr - krlp - krrr - krrp - a - b + 9.5*(P-1)) / P`
+- P=1 (глухая): `middle_W = W - ppr - ppl - pzl - pzr`
+- `glass_H = H - 106` (стандартный порог) или `H - 94` (накладной)
 
 ## Бэклог (не реализовано)
 - Валидация размеров (min=1 на числовых инпутах)
 - Alembic вместо ручных миграций
 - Rate limiting на `/api/auth/login`
 - JWT в httpOnly cookie
-- PDF экспорт
+- Производственные листы для других систем (КНИЖКА, ЛИФТ, ЦС)

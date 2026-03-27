@@ -30,6 +30,8 @@ export function apiToLocal(s: SectionOut): Section {
     floorLatchesLeft: s.floor_latches_left,
     floorLatchesRight: s.floor_latches_right,
     handleOffset: s.handle_offset,
+    handleOffsetLeft: s.handle_offset_left,
+    handleOffsetRight: s.handle_offset_right,
     profileLeftWall: s.profile_left_wall ?? false,
     profileLeftLockBar: s.profile_left_lock_bar ?? false,
     profileLeftPBar: s.profile_left_p_bar ?? false,
@@ -58,6 +60,7 @@ export function apiToLocal(s: SectionOut): Section {
     csWidth2: s.cs_width2,
     extraParts: s.extra_parts,
     comments: s.comments,
+    documentOverrides: s.document_overrides,
   };
 }
 
@@ -75,6 +78,8 @@ export function localToApi(s: Section, order: number): Omit<SectionOut, 'id' | '
     lock: s.lock, handle: s.handle,
     floor_latches_left: s.floorLatchesLeft, floor_latches_right: s.floorLatchesRight,
     handle_offset: s.handleOffset,
+    handle_offset_left: s.handleOffsetLeft,
+    handle_offset_right: s.handleOffsetRight,
     profile_left_wall: s.profileLeftWall,
     profile_left_lock_bar: s.profileLeftLockBar,
     profile_left_p_bar: s.profileLeftPBar,
@@ -95,5 +100,6 @@ export function localToApi(s: Section, order: number): Omit<SectionOut, 'id' | '
     angle_left: s.angleLeft, angle_right: s.angleRight, book_system: s.bookSystem,
     door_system: s.doorSystem, cs_shape: s.csShape, cs_width2: s.csWidth2,
     extra_parts: s.extraParts, comments: s.comments,
+    document_overrides: s.documentOverrides,
   };
 }

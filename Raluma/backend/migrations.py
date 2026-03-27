@@ -50,6 +50,9 @@ _ADD_COLUMNS = [
     "ALTER TABLE sections ADD COLUMN handle_right VARCHAR",
     "ALTER TABLE sections ADD COLUMN extra_parts VARCHAR",
     "ALTER TABLE sections ADD COLUMN comments VARCHAR",
+    "ALTER TABLE sections ADD COLUMN handle_offset_left INTEGER",
+    "ALTER TABLE sections ADD COLUMN handle_offset_right INTEGER",
+    "ALTER TABLE sections ADD COLUMN document_overrides TEXT DEFAULT '{}'",
 ]
 
 

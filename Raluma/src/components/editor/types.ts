@@ -29,6 +29,8 @@ export interface Section {
   floorLatchesLeft: boolean;
   floorLatchesRight: boolean;
   handleOffset?: number;
+  handleOffsetLeft?: number;
+  handleOffsetRight?: number;
   // СЛАЙД — профили
   profileLeftWall: boolean;
   profileLeftLockBar: boolean;
@@ -61,6 +63,7 @@ export interface Section {
   // Примечания к секции
   extraParts?: string;
   comments?: string;
+  documentOverrides?: string;
 }
 
 export interface OrderItem {

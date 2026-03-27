@@ -11,6 +11,7 @@ import {
   Loader2, X, ArrowRight, Map,
 } from 'lucide-react';
 import { getProject, updateProject, createSection, updateSection, deleteSection } from '../api/projects';
+import ProductionSheetModal from './ProductionSheetModal';
 import { toast } from '../store/toastStore';
 
 import { Section, OrderItem, ProjectEditorProps, SystemType, LBL, INP, SEL } from './editor/types';
@@ -586,9 +587,21 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         )}
       </AnimatePresence>
 
-      {/* Document Preview Modal */}
+      {/* Производственный лист — полноценная модалка с iframe */}
+      {previewDocName === 'Производственный лист' && activeSection && (
+        <ProductionSheetModal
+          isOpen={isPreviewModalOpen}
+          onClose={() => setIsPreviewModalOpen(false)}
+          projectId={projectId}
+          sectionId={Number(activeSection.id)}
+          projectNumber={project.number}
+          sectionOrder={activeSection.id ? sections.findIndex(s => s.id === activeSection.id) + 1 : 1}
+        />
+      )}
+
+      {/* Плейсхолдер для остальных документов */}
       <AnimatePresence>
-        {isPreviewModalOpen && (
+        {isPreviewModalOpen && previewDocName !== 'Производственный лист' && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setIsPreviewModalOpen(false)} className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
@@ -602,33 +615,16 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
               </div>
               <div className="flex-1 p-4 sm:p-10 overflow-y-auto bg-black/20">
                 <div className="aspect-[1/1.414] w-full bg-white rounded-lg shadow-inner p-5 sm:p-12 text-black flex flex-col">
-                  <div className="flex justify-between items-start border-b-2 border-black pb-8 mb-8">
-                    <div>
-                      <h1 className="text-4xl font-black uppercase tracking-tighter">Ралюма</h1>
-                      <p className="text-xs font-bold uppercase tracking-widest text-black/40">
-                        {previewDocName} · {activeSection?.system ?? '—'}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold">Проект № {project.number}</p>
-                      <p className="text-xs text-black/60">{project.customer}</p>
-                      <p className="text-xs text-black/40">{new Date().toLocaleDateString('ru-RU')}</p>
-                    </div>
-                  </div>
                   <div className="flex-1 border-2 border-dashed border-black/10 rounded-xl flex items-center justify-center">
                     <div className="text-center">
                       <FileText className="w-16 h-16 text-black/10 mx-auto mb-4" />
                       <p className="text-sm font-medium text-black/40">Визуализация в разработке</p>
-                      <p className="text-xs text-black/20 mt-1">{sections.length} секц. · {activeSection ? activeSection.name : '—'}</p>
                     </div>
                   </div>
                 </div>
               </div>
-              <div className="px-5 py-4 sm:px-10 sm:py-6 bg-black/40 border-t border-[#2a7a8a]/20 flex justify-end gap-4 flex-shrink-0">
+              <div className="px-5 py-4 sm:px-10 sm:py-6 bg-black/40 border-t border-[#2a7a8a]/20 flex justify-end flex-shrink-0">
                 <button onClick={() => setIsPreviewModalOpen(false)} className="px-8 py-3 rounded-xl bg-white/5 hover:bg-white/10 font-bold transition-all">Закрыть</button>
-                <button className="px-8 py-3 rounded-xl bg-[#00b894] hover:bg-[#00d1a7] text-white font-bold transition-all">
-                  <ArrowRight className="w-4 h-4 inline mr-2" />Скачать PDF
-                </button>
               </div>
             </motion.div>
           </div>

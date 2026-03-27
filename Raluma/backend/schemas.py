@@ -82,6 +82,8 @@ class SectionBase(BaseModel):
     floor_latches_left: bool = False
     floor_latches_right: bool = False
     handle_offset: Optional[int] = None
+    handle_offset_left: Optional[int] = None
+    handle_offset_right: Optional[int] = None
     # СЛАЙД — профили (чекбоксы)
     profile_left_wall: bool = False
     profile_left_lock_bar: bool = False
@@ -114,6 +116,8 @@ class SectionBase(BaseModel):
     # Примечания к секции
     extra_parts: Optional[str] = None
     comments: Optional[str] = None
+    # Производственный лист — ручные правки
+    document_overrides: Optional[str] = '{}'
 
 
 class SectionCreate(SectionBase):

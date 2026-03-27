@@ -216,9 +216,27 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
       </div>
 
       {(s.handleLeft === 'Стеклянная ручка RS3017' || s.handleLeft === 'Ручка-скоба' || s.handleRight === 'Стеклянная ручка RS3017' || s.handleRight === 'Ручка-скоба') && (
-        <div className="space-y-2">
-          <label className={LBL}>Отступ под ручку, мм</label>
-          <input type="number" value={s.handleOffset || ''} onChange={e => update({ handleOffset: parseFloat(e.target.value) || undefined })} className={INP} placeholder="мм" />
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <label className={LBL}>Отступ A (левое), мм</label>
+            <input
+              type="number"
+              value={s.handleOffsetLeft ?? (s.handleLeft === 'Ручка-скоба' ? '' : '')}
+              onChange={e => update({ handleOffsetLeft: parseFloat(e.target.value) || undefined })}
+              className={INP}
+              placeholder={s.handleLeft === 'Ручка-скоба' ? '100' : '0'}
+            />
+          </div>
+          <div className="space-y-2">
+            <label className={LBL}>Отступ B (правое), мм</label>
+            <input
+              type="number"
+              value={s.handleOffsetRight ?? ''}
+              onChange={e => update({ handleOffsetRight: parseFloat(e.target.value) || undefined })}
+              className={INP}
+              placeholder={s.handleRight === 'Ручка-скоба' ? '100' : '0'}
+            />
+          </div>
         </div>
       )}
     </div>
