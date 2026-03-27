@@ -29,7 +29,13 @@ jobs:
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Test SSH connection
-        run: ssh $SSH_OPTS ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "echo OK && whoami && hostname"
+        run: |
+          echo "=== known_hosts ==="
+          cat ~/.ssh/known_hosts || echo "EMPTY"
+          echo "=== key file ==="
+          ls -la ~/.ssh/id_ed25519
+          echo "=== ssh attempt ==="
+          ssh -vvv $SSH_OPTS ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "echo OK" 2>&1 | tail -30
 
       - name: Git pull
         run: ssh $SSH_OPTS ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd /opt/mamajan && git pull origin main"
