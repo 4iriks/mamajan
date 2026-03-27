@@ -1,5 +1,14 @@
 from datetime import datetime
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -26,27 +35,36 @@ class Project(Base):
     id = Column(Integer, primary_key=True, index=True)
     number = Column(String, nullable=False)
     customer = Column(String, nullable=False)
-    system = Column(String, nullable=True)    # СЛАЙД | КНИЖКА | ЛИФТ | ЦС | ДВЕРЬ (legacy, теперь на секцию)
-    subtype = Column(String, nullable=True)   # подтип системы
+    system = Column(
+        String, nullable=True
+    )  # СЛАЙД | КНИЖКА | ЛИФТ | ЦС | ДВЕРЬ (legacy, теперь на секцию)
+    subtype = Column(String, nullable=True)  # подтип системы
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     extra_parts = Column(String, nullable=True)
     comments = Column(String, nullable=True)
     # ТЗ5 — статус производства
-    production_stages = Column(Integer, default=1)      # 1 или 2
-    current_stage = Column(Integer, default=1)          # текущий этап для 2-этапных
-    status = Column(String, nullable=True)              # статус проекта
+    production_stages = Column(Integer, default=1)  # 1 или 2
+    current_stage = Column(Integer, default=1)  # текущий этап для 2-этапных
+    status = Column(String, nullable=True)  # статус проекта
     glass_status = Column(String, nullable=True)
-    glass_invoice = Column(String, nullable=True)       # номер счёта на стекло
-    glass_ready_date = Column(String, nullable=True)    # дата готовности стёкол (ISO)
+    glass_invoice = Column(String, nullable=True)  # номер счёта на стекло
+    glass_ready_date = Column(String, nullable=True)  # дата готовности стёкол (ISO)
     paint_status = Column(String, nullable=True)
-    paint_ship_date = Column(String, nullable=True)     # отгружен на покраску
-    paint_received_date = Column(String, nullable=True) # получен с покраски
-    order_items = Column(String, nullable=True)         # JSON: [{id,name,invoice,paidDate,deliveredDate}]
+    paint_ship_date = Column(String, nullable=True)  # отгружен на покраску
+    paint_received_date = Column(String, nullable=True)  # получен с покраски
+    order_items = Column(
+        String, nullable=True
+    )  # JSON: [{id,name,invoice,paidDate,deliveredDate}]
 
     owner = relationship("User", back_populates="projects")
-    sections = relationship("Section", back_populates="project", cascade="all, delete-orphan", order_by="Section.order")
+    sections = relationship(
+        "Section",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="Section.order",
+    )
 
 
 class Section(Base):
@@ -57,7 +75,7 @@ class Section(Base):
     order = Column(Integer, default=0)
     name = Column(String, nullable=False)
 
-    system = Column(String, nullable=True)       # СЛАЙД | КНИЖКА | ЛИФТ | ЦС | ДВЕРЬ
+    system = Column(String, nullable=True)  # СЛАЙД | КНИЖКА | ЛИФТ | ЦС | ДВЕРЬ
 
     # Общие поля
     width = Column(Float, default=2000)
@@ -72,10 +90,10 @@ class Section(Base):
     external_width = Column(Float, nullable=True)
 
     # СЛАЙД
-    rails = Column(Integer, nullable=True)               # 3 или 5
+    rails = Column(Integer, nullable=True)  # 3 или 5
     threshold = Column(String, nullable=True)
-    first_panel_inside = Column(String, nullable=True)   # Слева | Справа
-    unused_track = Column(String, nullable=True)         # Без | Внешний | Внутренний
+    first_panel_inside = Column(String, nullable=True)  # Слева | Справа
+    unused_track = Column(String, nullable=True)  # Без | Внешний | Внутренний
     inter_glass_profile = Column(String, nullable=True)
     profile_left = Column(String, nullable=True)
     profile_right = Column(String, nullable=True)
@@ -83,26 +101,32 @@ class Section(Base):
     handle = Column(String, nullable=True)
     floor_latches_left = Column(Boolean, default=False)
     floor_latches_right = Column(Boolean, default=False)
-    handle_offset = Column(Integer, nullable=True)       # legacy — оставлен для совместимости
+    handle_offset = Column(
+        Integer, nullable=True
+    )  # legacy — оставлен для совместимости
     handle_offset_left = Column(Integer, nullable=True)  # отступ a (левое стекло)
-    handle_offset_right = Column(Integer, nullable=True) # отступ b (правое стекло)
+    handle_offset_right = Column(Integer, nullable=True)  # отступ b (правое стекло)
 
     # СЛАЙД — профили (чекбоксы)
-    profile_left_wall = Column(Boolean, default=False)          # Пристеночный RS1333/1335
-    profile_left_lock_bar = Column(Boolean, default=False)      # Боковой профиль-замок RS1081
-    profile_left_p_bar = Column(Boolean, default=False)         # Боковой П-профиль RS1082
-    profile_left_handle_bar = Column(Boolean, default=False)    # Ручка-профиль RS112
-    profile_left_bubble = Column(Boolean, default=False)        # Пузырьковый уплотнитель RS1002
+    profile_left_wall = Column(Boolean, default=False)  # Пристеночный RS1333/1335
+    profile_left_lock_bar = Column(
+        Boolean, default=False
+    )  # Боковой профиль-замок RS1081
+    profile_left_p_bar = Column(Boolean, default=False)  # Боковой П-профиль RS1082
+    profile_left_handle_bar = Column(Boolean, default=False)  # Ручка-профиль RS112
+    profile_left_bubble = Column(
+        Boolean, default=False
+    )  # Пузырьковый уплотнитель RS1002
     profile_right_wall = Column(Boolean, default=False)
     profile_right_lock_bar = Column(Boolean, default=False)
     profile_right_p_bar = Column(Boolean, default=False)
     profile_right_handle_bar = Column(Boolean, default=False)
     profile_right_bubble = Column(Boolean, default=False)
-    lock_left = Column(String, nullable=True)    # Без замка / 1-сторонний / 2-сторонний
+    lock_left = Column(String, nullable=True)  # Без замка / 1-сторонний / 2-сторонний
     lock_right = Column(String, nullable=True)
-    book_subtype = Column(String, nullable=True)   # doors | angle | doors_and_angle
-    handle_left = Column(String, nullable=True)    # ручка слева
-    handle_right = Column(String, nullable=True)   # ручка справа
+    book_subtype = Column(String, nullable=True)  # doors | angle | doors_and_angle
+    handle_left = Column(String, nullable=True)  # ручка слева
+    handle_right = Column(String, nullable=True)  # ручка справа
 
     # КНИЖКА
     doors = Column(Integer, nullable=True)
@@ -115,15 +139,17 @@ class Section(Base):
     book_system = Column(String, nullable=True)  # B25 | B16 | B17 | C16 | C17
 
     # ДВЕРЬ / ЦС
-    door_system = Column(String, nullable=True)   # одностворчатая | двустворчатая
-    cs_shape = Column(String, nullable=True)       # Треугольник | Прямоугольник | Трапеция | Сложная форма
-    cs_width2 = Column(Float, nullable=True)       # вторая ширина для трапеции
+    door_system = Column(String, nullable=True)  # одностворчатая | двустворчатая
+    cs_shape = Column(
+        String, nullable=True
+    )  # Треугольник | Прямоугольник | Трапеция | Сложная форма
+    cs_width2 = Column(Float, nullable=True)  # вторая ширина для трапеции
 
     # Примечания к секции
     extra_parts = Column(String, nullable=True)
     comments = Column(String, nullable=True)
 
     # Производственный лист — ручные правки поверх расчёта
-    document_overrides = Column(Text, default='{}')
+    document_overrides = Column(Text, default="{}")
 
     project = relationship("Project", back_populates="sections")

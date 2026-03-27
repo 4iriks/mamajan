@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
 import models
 import schemas
-from auth import get_current_user, require_admin, hash_password, generate_password
+from auth import require_admin, hash_password, generate_password
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -17,7 +17,12 @@ def list_users(
     # admin видит всех user; superadmin видит всех
     if current_user.role == "superadmin":
         return db.query(models.User).order_by(models.User.id).all()
-    return db.query(models.User).filter(models.User.role == "user").order_by(models.User.id).all()
+    return (
+        db.query(models.User)
+        .filter(models.User.role == "user")
+        .order_by(models.User.id)
+        .all()
+    )
 
 
 @router.post("", response_model=schemas.UserOut, status_code=201)
@@ -28,7 +33,9 @@ def create_user(
 ):
     # admin может создавать только user
     if current_user.role == "admin" and data.role != "user":
-        raise HTTPException(status_code=403, detail="Администратор может создавать только пользователей")
+        raise HTTPException(
+            status_code=403, detail="Администратор может создавать только пользователей"
+        )
     if db.query(models.User).filter(models.User.username == data.username).first():
         raise HTTPException(status_code=400, detail="Логин уже занят")
     user = models.User(

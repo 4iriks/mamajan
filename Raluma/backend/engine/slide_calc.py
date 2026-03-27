@@ -22,7 +22,7 @@ class ProfileItem:
 
 @dataclass
 class GlassItem:
-    position: str       # "Левое" | "Промежуточное" | "Правое"
+    position: str  # "Левое" | "Промежуточное" | "Правое"
     width_mm: float
     height_mm: float
     qty: int
@@ -34,7 +34,7 @@ class HardwareItem:
     article: str
     name: str
     value: float
-    unit: str           # "шт" | "м"
+    unit: str  # "шт" | "м"
     image: str | None = None
     field_key: str = ""
 
@@ -153,8 +153,16 @@ def calculate_slide(section) -> SlideCalcResult:
     lock_l = section.lock_left or "Без"
     lock_r = section.lock_right or "Без"
 
-    left_is_deaf = (handle_l.lower() == "глухая" or handle_l == "Без") and lock_l == "Без" and not handle_bar_l
-    right_is_deaf = (handle_r.lower() == "глухая" or handle_r == "Без") and lock_r == "Без" and not handle_bar_r
+    left_is_deaf = (
+        (handle_l.lower() == "глухая" or handle_l == "Без")
+        and lock_l == "Без"
+        and not handle_bar_l
+    )
+    right_is_deaf = (
+        (handle_r.lower() == "глухая" or handle_r == "Без")
+        and lock_r == "Без"
+        and not handle_bar_r
+    )
 
     # ── Длины профилей ────────────────────────────────────────────────────────
 
@@ -181,64 +189,95 @@ def calculate_slide(section) -> SlideCalcResult:
     if P == 1:
         # Особый случай: одна глухая панель
         middle_W = W - ppr - ppl - pzl - pzr
-        result.glass.append(GlassItem("Промежуточное", round(middle_W, 1), round(glass_H, 1), Q))
+        result.glass.append(
+            GlassItem("Промежуточное", round(middle_W, 1), round(glass_H, 1), Q)
+        )
     else:
-        middle_W = (W - ppr - ppl - rpr - rpl - pzl - pzr - krlr - krlp - krrr - krrp - a - b + 9.5 * (P - 1)) / P
+        middle_W = (
+            W
+            - ppr
+            - ppl
+            - rpr
+            - rpl
+            - pzl
+            - pzr
+            - krlr
+            - krlp
+            - krrr
+            - krrp
+            - a
+            - b
+            + 9.5 * (P - 1)
+        ) / P
         left_W = middle_W + a + krlr + krlp
         right_W = middle_W + b + krrr + krrp
 
         result.glass.append(GlassItem("Левое", round(left_W, 1), round(glass_H, 1), Q))
         if P > 2:
-            result.glass.append(GlassItem("Промежуточное", round(middle_W, 1), round(glass_H, 1), (P - 2) * Q))
-        result.glass.append(GlassItem("Правое", round(right_W, 1), round(glass_H, 1), Q))
+            result.glass.append(
+                GlassItem(
+                    "Промежуточное", round(middle_W, 1), round(glass_H, 1), (P - 2) * Q
+                )
+            )
+        result.glass.append(
+            GlassItem("Правое", round(right_W, 1), round(glass_H, 1), Q)
+        )
 
     # ── Профили ───────────────────────────────────────────────────────────────
 
     # Порог
     threshold_articles = {
-        (3, True): "RS2323", (3, False): "RS23231",
-        (5, True): "RS2325", (5, False): "RS23251",
+        (3, True): "RS2323",
+        (3, False): "RS23231",
+        (5, True): "RS2325",
+        (5, False): "RS23251",
     }
     threshold_article = threshold_articles.get((rails, std), "RS2323")
-    result.profiles.append(ProfileItem(
-        article=threshold_article,
-        name=f"Порог {rails}-рельсовый",
-        length_mm=round(threshold_len, 1),
-        qty=Q,
-        painted=painted,
-        image=f"{threshold_article}.jpg",
-        field_key="threshold_length",
-        note="рассверлить дренажные отверстия" if rails == 5 else "",
-    ))
+    result.profiles.append(
+        ProfileItem(
+            article=threshold_article,
+            name=f"Порог {rails}-рельсовый",
+            length_mm=round(threshold_len, 1),
+            qty=Q,
+            painted=painted,
+            image=f"{threshold_article}.jpg",
+            field_key="threshold_length",
+            note="рассверлить дренажные отверстия" if rails == 5 else "",
+        )
+    )
 
     # Верхний направляющий
     top_article = "RS1313" if rails == 3 else "RS1315"
     top_len = threshold_len
-    result.profiles.append(ProfileItem(
-        article=top_article,
-        name="Верхний направляющий",
-        length_mm=round(top_len, 1),
-        qty=Q,
-        painted=painted,
-        image="RS1325.jpg",  # RS1313/RS1315 нет в ассетах, используем RS1325
-        field_key="top_guide_length",
-        note="вставить фетровое уплотнение",
-    ))
+    result.profiles.append(
+        ProfileItem(
+            article=top_article,
+            name="Верхний направляющий",
+            length_mm=round(top_len, 1),
+            qty=Q,
+            painted=painted,
+            image="RS1325.jpg",  # RS1313/RS1315 нет в ассетах, используем RS1325
+            field_key="top_guide_length",
+            note="вставить фетровое уплотнение",
+        )
+    )
 
     # Пристеночный
     if wall_l or wall_r:
         wall_article = "RS2333" if rails == 3 else "RS2335"
         wall_qty = Q * wall_count
-        result.profiles.append(ProfileItem(
-            article=wall_article,
-            name="Пристеночный профиль",
-            length_mm=round(H, 1),
-            qty=wall_qty,
-            painted=painted,
-            image=f"{wall_article}.jpg",
-            field_key="wall_profile_length",
-            note="рассверлить крепежные отверстия",
-        ))
+        result.profiles.append(
+            ProfileItem(
+                article=wall_article,
+                name="Пристеночный профиль",
+                length_mm=round(H, 1),
+                qty=wall_qty,
+                painted=painted,
+                image=f"{wall_article}.jpg",
+                field_key="wall_profile_length",
+                note="рассверлить крепежные отверстия",
+            )
+        )
 
     # Межстекольный
     if inter_glass_type != "Без" and P > 1:
@@ -248,88 +287,104 @@ def calculate_slide(section) -> SlideCalcResult:
             "h-профиль RS1004": "RS1004",
         }
         ig_article = ig_articles.get(inter_glass_type, "RS2061")
-        ig_note = "вставить фетровое уплотнение" if ig_article in ("RS2061", "RS1006") else ""
-        result.profiles.append(ProfileItem(
-            article=ig_article,
-            name="Межстекольный профиль (штапик)",
-            length_mm=round(inter_glass_len, 1),
-            qty=(P - 1) * Q,
-            painted=(painted and ig_article == "RS2061"),
-            image=f"{ig_article}.jpg",
-            field_key="inter_glass_length",
-            note=ig_note,
-        ))
+        ig_note = (
+            "вставить фетровое уплотнение" if ig_article in ("RS2061", "RS1006") else ""
+        )
+        result.profiles.append(
+            ProfileItem(
+                article=ig_article,
+                name="Межстекольный профиль (штапик)",
+                length_mm=round(inter_glass_len, 1),
+                qty=(P - 1) * Q,
+                painted=(painted and ig_article == "RS2061"),
+                image=f"{ig_article}.jpg",
+                field_key="inter_glass_length",
+                note=ig_note,
+            )
+        )
 
     # Боковой профиль-замок RS2081
     lb_count = (1 if lock_bar_l else 0) + (1 if lock_bar_r else 0)
     if lb_count > 0:
-        result.profiles.append(ProfileItem(
-            article="RS2081",
-            name="Боковой профиль-замок",
-            length_mm=round(lock_bar_len, 1),
-            qty=lb_count * Q,
-            painted=painted,
-            image="RS2081.jpg",
-            field_key="lock_bar_length",
-            note="рассверлить крепежные отверстия, фрезеровать паз в нижней части, врезать защёлку",
-        ))
+        result.profiles.append(
+            ProfileItem(
+                article="RS2081",
+                name="Боковой профиль-замок",
+                length_mm=round(lock_bar_len, 1),
+                qty=lb_count * Q,
+                painted=painted,
+                image="RS2081.jpg",
+                field_key="lock_bar_length",
+                note="рассверлить крепежные отверстия, фрезеровать паз в нижней части, врезать защёлку",
+            )
+        )
 
     # Ручка-профиль RS112
     hb_count = (1 if handle_bar_l else 0) + (1 if handle_bar_r else 0)
     if hb_count > 0:
-        result.profiles.append(ProfileItem(
-            article="RS112",
-            name="Профиль-ручка",
-            length_mm=round(handle_bar_len, 1),
-            qty=hb_count * Q,
-            painted=painted,
-            image="RS112.jpg",
-            field_key="handle_bar_length",
-            note="вставить фетровое уплотнение",
-        ))
+        result.profiles.append(
+            ProfileItem(
+                article="RS112",
+                name="Профиль-ручка",
+                length_mm=round(handle_bar_len, 1),
+                qty=hb_count * Q,
+                painted=painted,
+                image="RS112.jpg",
+                field_key="handle_bar_length",
+                note="вставить фетровое уплотнение",
+            )
+        )
 
     # П-профиль RS1082
     pb_count = (1 if p_bar_l else 0) + (1 if p_bar_r else 0)
     if pb_count > 0:
-        result.profiles.append(ProfileItem(
-            article="RS1082",
-            name="Боковой П-профиль",
-            length_mm=round(p_bar_len, 1),
-            qty=pb_count * Q,
-            painted=painted,
-            image="RS1082.jpg",
-            field_key="p_bar_length",
-            note="",
-        ))
+        result.profiles.append(
+            ProfileItem(
+                article="RS1082",
+                name="Боковой П-профиль",
+                length_mm=round(p_bar_len, 1),
+                qty=pb_count * Q,
+                painted=painted,
+                image="RS1082.jpg",
+                field_key="p_bar_length",
+                note="",
+            )
+        )
 
     # Пузырьковый RS1002
     bub_count = (1 if bubble_l else 0) + (1 if bubble_r else 0)
     if bub_count > 0:
         bub_len = glass_H - 17
-        result.profiles.append(ProfileItem(
-            article="RS1002",
-            name="Пузырьковый уплотнитель",
-            length_mm=round(bub_len, 1),
-            qty=bub_count * Q,
-            painted=False,
-            image="RS1002.jpg",
-            field_key="bubble_length",
-            note="",
-        ))
+        result.profiles.append(
+            ProfileItem(
+                article="RS1002",
+                name="Пузырьковый уплотнитель",
+                length_mm=round(bub_len, 1),
+                qty=bub_count * Q,
+                painted=False,
+                image="RS1002.jpg",
+                field_key="bubble_length",
+                note="",
+            )
+        )
 
     # Защёлка в пол RS205
-    latch_count = (1 if section.floor_latches_left else 0) + (1 if section.floor_latches_right else 0)
+    latch_count = (1 if section.floor_latches_left else 0) + (
+        1 if section.floor_latches_right else 0
+    )
     if latch_count > 0:
-        result.profiles.append(ProfileItem(
-            article="RS205",
-            name="Защёлка в пол",
-            length_mm=0,
-            qty=latch_count * Q,
-            painted=False,
-            image="RS205.jpg",
-            field_key="floor_latches_qty",
-            note="",
-        ))
+        result.profiles.append(
+            ProfileItem(
+                article="RS205",
+                name="Защёлка в пол",
+                length_mm=0,
+                qty=latch_count * Q,
+                painted=False,
+                image="RS205.jpg",
+                field_key="floor_latches_qty",
+                note="",
+            )
+        )
 
     # Стекольный профиль RS2021
     for g in result.glass:
@@ -358,16 +413,18 @@ def calculate_slide(section) -> SlideCalcResult:
         glass_profile_items[key] += g.qty
 
     for length, qty in glass_profile_items.items():
-        result.profiles.append(ProfileItem(
-            article="RS2021",
-            name="Стекольный профиль",
-            length_mm=length,
-            qty=qty,
-            painted=painted,
-            image=None,  # RS2021.jpg нет в ассетах
-            field_key=f"glass_profile_{length}",
-            note="прикрутить ролики и заглушки",
-        ))
+        result.profiles.append(
+            ProfileItem(
+                article="RS2021",
+                name="Стекольный профиль",
+                length_mm=length,
+                qty=qty,
+                painted=painted,
+                image=None,  # RS2021.jpg нет в ассетах
+                field_key=f"glass_profile_{length}",
+                note="прикрутить ролики и заглушки",
+            )
+        )
 
     # ── Фурнитура ─────────────────────────────────────────────────────────────
 
@@ -375,24 +432,48 @@ def calculate_slide(section) -> SlideCalcResult:
     handle_bar_len_m = handle_bar_len / 1000
     top_len_m = top_len / 1000
     ru008_m = top_len_m * P * 2 * Q + (handle_bar_len_m + 0.03) * hb_count * Q
-    result.hardware.append(HardwareItem("RU008", "Щётка 7×6мм", round(ru008_m, 3), "м", "RU007.jpg", "ru008"))  # RU008.jpg нет, используем RU007
+    result.hardware.append(
+        HardwareItem(
+            "RU008", "Щётка 7×6мм", round(ru008_m, 3), "м", "RU007.jpg", "ru008"
+        )
+    )  # RU008.jpg нет, используем RU007
 
     # RU007 щётка 7×12мм — только RS2061 и RS1006
     inter_glass_cnt = (P - 1) * Q if P > 1 else 0
-    if inter_glass_cnt > 0 and inter_glass_type in ("Алюминиевый RS2061", "Прозрачный RS1006"):
+    if inter_glass_cnt > 0 and inter_glass_type in (
+        "Алюминиевый RS2061",
+        "Прозрачный RS1006",
+    ):
         ig_len_m = inter_glass_len / 1000
         ru007_m = ig_len_m * inter_glass_cnt
-        result.hardware.append(HardwareItem("RU007", "Щётка 7×12мм", round(ru007_m, 3), "м", "RU007.jpg", "ru007"))
+        result.hardware.append(
+            HardwareItem(
+                "RU007", "Щётка 7×12мм", round(ru007_m, 3), "м", "RU007.jpg", "ru007"
+            )
+        )
 
     # RSD1 демпфер + RSD2 компенсатор
     damper_qty = (P - 1) * 2 * Q if P > 1 else 0
     if damper_qty > 0:
-        result.hardware.append(HardwareItem("RSD1", "Демпфер", damper_qty, "шт", "RSD1.jpg", "rsd1"))
-        result.hardware.append(HardwareItem("RSD2", "Компенсатор", damper_qty, "шт", "RSD2.jpg", "rsd2"))
+        result.hardware.append(
+            HardwareItem("RSD1", "Демпфер", damper_qty, "шт", "RSD1.jpg", "rsd1")
+        )
+        result.hardware.append(
+            HardwareItem("RSD2", "Компенсатор", damper_qty, "шт", "RSD2.jpg", "rsd2")
+        )
 
     # RS1121 накладка на ручку-профиль
     if hb_count > 0:
-        result.hardware.append(HardwareItem("RS1121", "Накладка на ручку-профиль", hb_count * Q, "шт", None, "rs1121"))  # RS1121.jpg нет в ассетах
+        result.hardware.append(
+            HardwareItem(
+                "RS1121",
+                "Накладка на ручку-профиль",
+                hb_count * Q,
+                "шт",
+                None,
+                "rs1121",
+            )
+        )  # RS1121.jpg нет в ассетах
 
     # RS3018 защёлка 1-сторонняя
     lock3018 = 0
@@ -404,19 +485,47 @@ def calculate_slide(section) -> SlideCalcResult:
             lock3019 += 1
 
     if lock3018 > 0:
-        result.hardware.append(HardwareItem("RS3018", "Замок-защёлка 1-стор", lock3018 * Q, "шт", "RS3018.jpg", "rs3018"))
+        result.hardware.append(
+            HardwareItem(
+                "RS3018",
+                "Замок-защёлка 1-стор",
+                lock3018 * Q,
+                "шт",
+                "RS3018.jpg",
+                "rs3018",
+            )
+        )
     if lock3019 > 0:
-        result.hardware.append(HardwareItem("RS3019", "Замок-защёлка 2-стор с ключом", lock3019 * Q, "шт", "RS3019.jpg", "rs3019"))
+        result.hardware.append(
+            HardwareItem(
+                "RS3019",
+                "Замок-защёлка 2-стор с ключом",
+                lock3019 * Q,
+                "шт",
+                "RS3019.jpg",
+                "rs3019",
+            )
+        )
 
     rs122_qty = (lock3018 + lock3019) * Q
     rs3020_qty = rs122_qty
     if rs122_qty > 0:
-        result.hardware.append(HardwareItem("RS122", "Ответная планка замка", rs122_qty, "шт", "RS122.jpg", "rs122"))
-        result.hardware.append(HardwareItem("RS3020", "Проставка замка", rs3020_qty, "шт", "RS3020.jpg", "rs3020"))
+        result.hardware.append(
+            HardwareItem(
+                "RS122", "Ответная планка замка", rs122_qty, "шт", "RS122.jpg", "rs122"
+            )
+        )
+        result.hardware.append(
+            HardwareItem(
+                "RS3020", "Проставка замка", rs3020_qty, "шт", "RS3020.jpg", "rs3020"
+            )
+        )
 
     # RU005 ролики
     ru005_qty = P * 2 * Q
-    result.hardware.append(HardwareItem("RU005", "Ролик", ru005_qty, "шт", "RU005.jpg", "ru005"))
+    result.hardware.append(
+        HardwareItem("RU005", "Ролик", ru005_qty, "шт", "RU005.jpg", "ru005")
+    )
 
     # Стеклянные ручки RS3017 и кнобы RS3014
     rs3017_qty = 0
@@ -428,19 +537,53 @@ def calculate_slide(section) -> SlideCalcResult:
             rs3014_qty += 1
 
     if rs3017_qty > 0:
-        result.hardware.append(HardwareItem("RS3017", "Стеклянная ручка", rs3017_qty * Q, "шт", "RS3017.jpg", "rs3017"))
+        result.hardware.append(
+            HardwareItem(
+                "RS3017",
+                "Стеклянная ручка",
+                rs3017_qty * Q,
+                "шт",
+                "RS3017.jpg",
+                "rs3017",
+            )
+        )
     if rs3014_qty > 0:
-        result.hardware.append(HardwareItem("RS3014", "Ручка-кноб", rs3014_qty * Q, "шт", "RS3014.jpg", "rs3014"))
+        result.hardware.append(
+            HardwareItem(
+                "RS3014", "Ручка-кноб", rs3014_qty * Q, "шт", "RS3014.jpg", "rs3014"
+            )
+        )
 
     # RS107R/L заглушка межстекольного
     first_panel = section.first_panel_inside or "Справа"
-    if inter_glass_cnt > 0 and inter_glass_type in ("Алюминиевый RS2061", "Прозрачный RS1006"):
+    if inter_glass_cnt > 0 and inter_glass_type in (
+        "Алюминиевый RS2061",
+        "Прозрачный RS1006",
+    ):
         if first_panel == "Справа":
             # 1-я панель справа → сдвиг влево → RS107L
-            result.hardware.append(HardwareItem("RS107L", "Заглушка межстекольного (лев)", inter_glass_cnt, "шт", "RS107L.jpg", "rs107l"))
+            result.hardware.append(
+                HardwareItem(
+                    "RS107L",
+                    "Заглушка межстекольного (лев)",
+                    inter_glass_cnt,
+                    "шт",
+                    "RS107L.jpg",
+                    "rs107l",
+                )
+            )
         else:
             # 1-я панель слева → сдвиг вправо → RS107R
-            result.hardware.append(HardwareItem("RS107R", "Заглушка межстекольного (прав)", inter_glass_cnt, "шт", "RS107R.jpg", "rs107r"))
+            result.hardware.append(
+                HardwareItem(
+                    "RS107R",
+                    "Заглушка межстекольного (прав)",
+                    inter_glass_cnt,
+                    "шт",
+                    "RS107R.jpg",
+                    "rs107r",
+                )
+            )
 
     # RS105 заглушка стекольного
     rs105_qty = (P - 1) * 2 * Q if P > 1 else 0
@@ -449,45 +592,79 @@ def calculate_slide(section) -> SlideCalcResult:
     rs106_qty = ((0 if left_is_deaf else 1) + (0 if right_is_deaf else 1)) * Q
 
     if rs105_qty > 0:
-        result.hardware.append(HardwareItem("RS105", "Заглушка стекольного (внутр)", rs105_qty, "шт", "RS105.jpg", "rs105"))
+        result.hardware.append(
+            HardwareItem(
+                "RS105",
+                "Заглушка стекольного (внутр)",
+                rs105_qty,
+                "шт",
+                "RS105.jpg",
+                "rs105",
+            )
+        )
     if rs106_qty > 0:
-        result.hardware.append(HardwareItem("RS106", "Заглушка стекольного (крайн)", rs106_qty, "шт", "RS106.jpg", "rs106"))
+        result.hardware.append(
+            HardwareItem(
+                "RS106",
+                "Заглушка стекольного (крайн)",
+                rs106_qty,
+                "шт",
+                "RS106.jpg",
+                "rs106",
+            )
+        )
 
     # RS107 заглушка запорная
     rs107_qty = (rs105_qty + rs106_qty) * Q
     if rs107_qty > 0:
-        result.hardware.append(HardwareItem("RS107", "Заглушка запорная", rs107_qty, "шт", "RS107.jpg", "rs107"))
+        result.hardware.append(
+            HardwareItem(
+                "RS107", "Заглушка запорная", rs107_qty, "шт", "RS107.jpg", "rs107"
+            )
+        )
 
     # ── Саморезы ─────────────────────────────────────────────────────────────
 
     # 4,8×19 A2
     screw4819 = (rs105_qty + rs106_qty) * 2 * Q
-    result.screws.append(ScrewItem("Саморез 4,8×19 A2 (DIN7982)", "4,8×19 A2", screw4819))
+    result.screws.append(
+        ScrewItem("Саморез 4,8×19 A2 (DIN7982)", "4,8×19 A2", screw4819)
+    )
 
     # 3,9×13 A2 (DIN7504M) — для роликов
     screw3913m = ru005_qty * 2 + math.ceil((H - 200) / 300) * 4 * Q
-    result.screws.append(ScrewItem("Саморез 3,9×13 A2 (DIN7504M)", "3,9×13 A2 DIN7504M", screw3913m))
+    result.screws.append(
+        ScrewItem("Саморез 3,9×13 A2 (DIN7504M)", "3,9×13 A2 DIN7504M", screw3913m)
+    )
 
     # 4,8×38 A2
     screw4838_map = {(3, True): 8, (5, True): 12, (3, False): 4, (5, False): 6}
     screw4838 = screw4838_map.get((rails, std), 8)
-    result.screws.append(ScrewItem("Саморез 4,8×38 A2 (DIN7982)", "4,8×38 A2", screw4838))
+    result.screws.append(
+        ScrewItem("Саморез 4,8×38 A2 (DIN7982)", "4,8×38 A2", screw4838)
+    )
 
     # 3,9×13 A2 (DIN7504О) — для П-профиля RS1082
     screw3913o = pb_count * Q * 7
     if screw3913o > 0:
-        result.screws.append(ScrewItem("Саморез 3,9×13 A2 (DIN7504О)", "3,9×13 A2 DIN7504O", screw3913o))
+        result.screws.append(
+            ScrewItem("Саморез 3,9×13 A2 (DIN7504О)", "3,9×13 A2 DIN7504O", screw3913o)
+        )
 
     # 5,4×25 A2 — глухие панели
     deaf_count = (1 if left_is_deaf else 0) + (1 if right_is_deaf else 0)
     screw5425 = deaf_count * Q
     if screw5425 > 0:
-        result.screws.append(ScrewItem("Саморез 5,4×25 A2 (DIN912SW)", "5,4×25 A2", screw5425))
+        result.screws.append(
+            ScrewItem("Саморез 5,4×25 A2 (DIN912SW)", "5,4×25 A2", screw5425)
+        )
 
     # 3,5×13 A2 — ответная планка
     screw3513 = rs122_qty * 2 * Q
     if screw3513 > 0:
-        result.screws.append(ScrewItem("Саморез 3,5×13 A2 (DIN7982)", "3,5×13 A2", screw3513))
+        result.screws.append(
+            ScrewItem("Саморез 3,5×13 A2 (DIN7982)", "3,5×13 A2", screw3513)
+        )
 
     # Наклейка и инструкция
     result.screws.append(ScrewItem("Наклейка RALUMA", "Наклейка", Q))

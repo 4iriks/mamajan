@@ -1,5 +1,7 @@
 def test_login_success(client):
-    r = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    r = client.post(
+        "/api/auth/login", json={"username": "admin", "password": "admin123"}
+    )
     assert r.status_code == 200
     data = r.json()
     assert "access_token" in data
@@ -7,7 +9,9 @@ def test_login_success(client):
 
 
 def test_login_wrong_password(client):
-    r = client.post("/api/auth/login", json={"username": "admin", "password": "wrongpass"})
+    r = client.post(
+        "/api/auth/login", json={"username": "admin", "password": "wrongpass"}
+    )
     assert r.status_code == 401
 
 
@@ -30,5 +34,7 @@ def test_me_requires_auth(client):
 
 
 def test_me_invalid_token(client):
-    r = client.get("/api/auth/me", headers={"Authorization": "Bearer invalid.token.here"})
+    r = client.get(
+        "/api/auth/me", headers={"Authorization": "Bearer invalid.token.here"}
+    )
     assert r.status_code == 401

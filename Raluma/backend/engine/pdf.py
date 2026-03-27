@@ -24,7 +24,9 @@ def _img_b64(filename: str) -> str:
     with open(path, "rb") as f:
         data = base64.b64encode(f.read()).decode()
     ext = filename.rsplit(".", 1)[-1].lower()
-    mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png"}.get(ext, "image/jpeg")
+    mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png"}.get(
+        ext, "image/jpeg"
+    )
     return f"data:{mime};base64,{data}"
 
 
@@ -81,4 +83,5 @@ def render_pdf_html(project, section, calc) -> str:
 def generate_pdf(html: str) -> bytes:
     """HTML строка → PDF байты через WeasyPrint."""
     from weasyprint import HTML as WH
+
     return WH(string=html, base_url=ASSETS_DIR).write_pdf()

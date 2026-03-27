@@ -1,8 +1,12 @@
 def test_create_project(client, admin_headers):
-    r = client.post("/api/projects", headers=admin_headers, json={
-        "number": "P-CREATE-TEST",
-        "customer": "ПРОЗРАЧНЫЕ РЕШЕНИЯ",
-    })
+    r = client.post(
+        "/api/projects",
+        headers=admin_headers,
+        json={
+            "number": "P-CREATE-TEST",
+            "customer": "ПРОЗРАЧНЫЕ РЕШЕНИЯ",
+        },
+    )
     assert r.status_code == 201
     data = r.json()
     assert data["number"] == "P-CREATE-TEST"
@@ -31,10 +35,14 @@ def test_get_project_not_found(client, admin_headers):
 
 
 def test_update_project(client, admin_headers, project):
-    r = client.put(f"/api/projects/{project['id']}", headers=admin_headers, json={
-        "number": "P-UPDATED",
-        "status": "В работе",
-    })
+    r = client.put(
+        f"/api/projects/{project['id']}",
+        headers=admin_headers,
+        json={
+            "number": "P-UPDATED",
+            "status": "В работе",
+        },
+    )
     assert r.status_code == 200
     assert r.json()["number"] == "P-UPDATED"
     assert r.json()["status"] == "В работе"
@@ -52,10 +60,14 @@ def test_copy_project(client, admin_headers, project, section):
 
 
 def test_delete_project(client, admin_headers):
-    r = client.post("/api/projects", headers=admin_headers, json={
-        "number": "P-TO-DELETE",
-        "customer": "КРОКНА ИНЖИНИРИНГ",
-    })
+    r = client.post(
+        "/api/projects",
+        headers=admin_headers,
+        json={
+            "number": "P-TO-DELETE",
+            "customer": "КРОКНА ИНЖИНИРИНГ",
+        },
+    )
     project_id = r.json()["id"]
     r = client.delete(f"/api/projects/{project_id}", headers=admin_headers)
     assert r.status_code == 204

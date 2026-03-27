@@ -2,7 +2,6 @@ import os
 import secrets
 import string
 from datetime import datetime, timedelta
-from typing import Optional
 
 import bcrypt
 from jose import JWTError, jwt
@@ -56,19 +55,27 @@ def get_current_user(
     payload = decode_token(credentials.credentials)
     user = db.query(models.User).filter(models.User.id == int(payload["sub"])).first()
     if not user or not user.is_active:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Пользователь не найден")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Пользователь не найден"
+        )
     return user
 
 
 def require_admin(current_user: models.User = Depends(get_current_user)) -> models.User:
     if current_user.role not in ("admin", "superadmin"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав"
+        )
     return current_user
 
 
-def require_superadmin(current_user: models.User = Depends(get_current_user)) -> models.User:
+def require_superadmin(
+    current_user: models.User = Depends(get_current_user),
+) -> models.User:
     if current_user.role != "superadmin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только для суперадмина")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Только для суперадмина"
+        )
     return current_user
 
 

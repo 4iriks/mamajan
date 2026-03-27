@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
+
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -16,6 +17,7 @@ class TokenResponse(BaseModel):
 
 
 # ── User ──────────────────────────────────────────────────────────────────────
+
 
 class UserBase(BaseModel):
     username: str
@@ -54,6 +56,7 @@ class ResetPasswordResponse(BaseModel):
 
 
 # ── Section ───────────────────────────────────────────────────────────────────
+
 
 class SectionBase(BaseModel):
     name: str
@@ -117,7 +120,7 @@ class SectionBase(BaseModel):
     extra_parts: Optional[str] = None
     comments: Optional[str] = None
     # Производственный лист — ручные правки
-    document_overrides: Optional[str] = '{}'
+    document_overrides: Optional[str] = "{}"
 
 
 class SectionCreate(SectionBase):
@@ -136,6 +139,7 @@ class SectionOut(SectionBase):
 
 
 # ── Project ───────────────────────────────────────────────────────────────────
+
 
 class ProjectBase(BaseModel):
     number: str

@@ -18,6 +18,7 @@ def client():
         yield c
     # Dispose engine to release SQLite file lock (required on Windows)
     from database import engine
+
     engine.dispose()
     # Clean up test DB file after session
     if os.path.exists("./test_raluma.db"):
@@ -27,7 +28,9 @@ def client():
 @pytest.fixture(scope="session")
 def admin_headers(client):
     """Auth headers for the seeded superadmin account."""
-    r = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    r = client.post(
+        "/api/auth/login", json={"username": "admin", "password": "admin123"}
+    )
     assert r.status_code == 200, f"Admin login failed: {r.text}"
     return {"Authorization": f"Bearer {r.json()['access_token']}"}
 
@@ -35,10 +38,14 @@ def admin_headers(client):
 @pytest.fixture
 def project(client, admin_headers):
     """Creates a test project and deletes it after the test."""
-    r = client.post("/api/projects", headers=admin_headers, json={
-        "number": "TEST-001",
-        "customer": "ПРОЗРАЧНЫЕ РЕШЕНИЯ",
-    })
+    r = client.post(
+        "/api/projects",
+        headers=admin_headers,
+        json={
+            "number": "TEST-001",
+            "customer": "ПРОЗРАЧНЫЕ РЕШЕНИЯ",
+        },
+    )
     assert r.status_code == 201
     data = r.json()
     yield data

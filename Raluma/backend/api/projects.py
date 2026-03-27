@@ -10,7 +10,9 @@ from auth import get_current_user
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 
-def _get_project_or_404(project_id: int, db: Session, current_user: models.User) -> models.Project:
+def _get_project_or_404(
+    project_id: int, db: Session, current_user: models.User
+) -> models.Project:
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Проект не найден")
@@ -40,7 +42,7 @@ def create_project(
     project = models.Project(
         number=data.number,
         customer=data.customer,
-        system=data.system or '',   # '' satisfies legacy NOT NULL constraint
+        system=data.system or "",  # '' satisfies legacy NOT NULL constraint
         subtype=data.subtype,
         production_stages=data.production_stages,
         created_by=current_user.id,
@@ -118,30 +120,59 @@ def copy_project(
     for s in source.sections:
         new_section = models.Section(
             project_id=new_project.id,
-            order=s.order, name=s.name, system=s.system,
-            width=s.width, height=s.height, panels=s.panels, quantity=s.quantity,
-            glass_type=s.glass_type, painting_type=s.painting_type, ral_color=s.ral_color,
-            corner_left=s.corner_left, corner_right=s.corner_right, external_width=s.external_width,
-            rails=s.rails, threshold=s.threshold, first_panel_inside=s.first_panel_inside,
-            unused_track=s.unused_track, inter_glass_profile=s.inter_glass_profile,
-            profile_left=s.profile_left, profile_right=s.profile_right,
-            lock=s.lock, handle=s.handle,
-            floor_latches_left=s.floor_latches_left, floor_latches_right=s.floor_latches_right,
+            order=s.order,
+            name=s.name,
+            system=s.system,
+            width=s.width,
+            height=s.height,
+            panels=s.panels,
+            quantity=s.quantity,
+            glass_type=s.glass_type,
+            painting_type=s.painting_type,
+            ral_color=s.ral_color,
+            corner_left=s.corner_left,
+            corner_right=s.corner_right,
+            external_width=s.external_width,
+            rails=s.rails,
+            threshold=s.threshold,
+            first_panel_inside=s.first_panel_inside,
+            unused_track=s.unused_track,
+            inter_glass_profile=s.inter_glass_profile,
+            profile_left=s.profile_left,
+            profile_right=s.profile_right,
+            lock=s.lock,
+            handle=s.handle,
+            floor_latches_left=s.floor_latches_left,
+            floor_latches_right=s.floor_latches_right,
             handle_offset=s.handle_offset,
-            profile_left_wall=s.profile_left_wall, profile_left_lock_bar=s.profile_left_lock_bar,
-            profile_left_p_bar=s.profile_left_p_bar, profile_left_handle_bar=s.profile_left_handle_bar,
+            profile_left_wall=s.profile_left_wall,
+            profile_left_lock_bar=s.profile_left_lock_bar,
+            profile_left_p_bar=s.profile_left_p_bar,
+            profile_left_handle_bar=s.profile_left_handle_bar,
             profile_left_bubble=s.profile_left_bubble,
-            profile_right_wall=s.profile_right_wall, profile_right_lock_bar=s.profile_right_lock_bar,
-            profile_right_p_bar=s.profile_right_p_bar, profile_right_handle_bar=s.profile_right_handle_bar,
+            profile_right_wall=s.profile_right_wall,
+            profile_right_lock_bar=s.profile_right_lock_bar,
+            profile_right_p_bar=s.profile_right_p_bar,
+            profile_right_handle_bar=s.profile_right_handle_bar,
             profile_right_bubble=s.profile_right_bubble,
-            lock_left=s.lock_left, lock_right=s.lock_right,
+            lock_left=s.lock_left,
+            lock_right=s.lock_right,
             book_subtype=s.book_subtype,
-            handle_left=s.handle_left, handle_right=s.handle_right,
-            doors=s.doors, door_side=s.door_side, door_type=s.door_type,
-            door_opening=s.door_opening, compensator=s.compensator,
-            angle_left=s.angle_left, angle_right=s.angle_right, book_system=s.book_system,
-            door_system=s.door_system, cs_shape=s.cs_shape, cs_width2=s.cs_width2,
-            extra_parts=s.extra_parts, comments=s.comments,
+            handle_left=s.handle_left,
+            handle_right=s.handle_right,
+            doors=s.doors,
+            door_side=s.door_side,
+            door_type=s.door_type,
+            door_opening=s.door_opening,
+            compensator=s.compensator,
+            angle_left=s.angle_left,
+            angle_right=s.angle_right,
+            book_system=s.book_system,
+            door_system=s.door_system,
+            cs_shape=s.cs_shape,
+            cs_width2=s.cs_width2,
+            extra_parts=s.extra_parts,
+            comments=s.comments,
         )
         db.add(new_section)
     db.commit()

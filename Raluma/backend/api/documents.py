@@ -24,16 +24,22 @@ from engine.pdf import render_preview, render_pdf_html, generate_pdf
 router = APIRouter(prefix="/api/projects", tags=["documents"])
 
 
-def _get_section_or_404(project_id: int, section_id: int, db: Session, current_user: models.User):
+def _get_section_or_404(
+    project_id: int, section_id: int, db: Session, current_user: models.User
+):
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Проект не найден")
     if current_user.role == "user" and project.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Нет доступа")
-    section = db.query(models.Section).filter(
-        models.Section.id == section_id,
-        models.Section.project_id == project_id,
-    ).first()
+    section = (
+        db.query(models.Section)
+        .filter(
+            models.Section.id == section_id,
+            models.Section.project_id == project_id,
+        )
+        .first()
+    )
     if not section:
         raise HTTPException(status_code=404, detail="Секция не найдена")
     return project, section
@@ -60,7 +66,9 @@ def preview_section(
     current_user = _get_user_by_token(token, db)
     project, section = _get_section_or_404(project_id, section_id, db, current_user)
     if section.system != "СЛАЙД":
-        return HTMLResponse("<p style='padding:20px;font-family:sans-serif'>Производственный лист доступен только для системы СЛАЙД</p>")
+        return HTMLResponse(
+            "<p style='padding:20px;font-family:sans-serif'>Производственный лист доступен только для системы СЛАЙД</p>"
+        )
     calc = calculate_slide(section)
     html = render_preview(project, section, calc)
     return HTMLResponse(html)
@@ -75,7 +83,9 @@ def download_pdf(
 ):
     project, section = _get_section_or_404(project_id, section_id, db, current_user)
     if section.system != "СЛАЙД":
-        raise HTTPException(status_code=400, detail="PDF доступен только для системы СЛАЙД")
+        raise HTTPException(
+            status_code=400, detail="PDF доступен только для системы СЛАЙД"
+        )
     calc = calculate_slide(section)
     html = render_pdf_html(project, section, calc)
     pdf_bytes = generate_pdf(html)
