@@ -20,14 +20,18 @@ export default function ProductionSheetModal({
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [iframeHeight, setIframeHeight] = useState(600);
 
   const token = localStorage.getItem('access_token') ?? '';
   const previewUrl = `${getPreviewUrl(projectId, sectionId)}?token=${encodeURIComponent(token)}`;
 
-  // Слушаем сообщения из iframe (dirty state)
+  // Слушаем сообщения из iframe (dirty state + height)
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.data?.type === 'dirty') setIsDirty(true);
+      if (e.data?.type === 'height' && typeof e.data.height === 'number') {
+        setIframeHeight(Math.ceil(e.data.height) + 16);
+      }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
@@ -124,13 +128,14 @@ export default function ProductionSheetModal({
             </div>
 
             {/* iframe */}
-            <div className="flex-1 overflow-hidden bg-gray-100 min-h-0">
+            <div className="overflow-y-auto bg-gray-100" style={{ maxHeight: 'calc(90vh - 130px)' }}>
               <iframe
                 ref={iframeRef}
                 src={previewUrl}
-                className="w-full h-full border-0"
-                style={{ minHeight: '60vh' }}
+                className="w-full border-0 block"
+                style={{ height: iframeHeight }}
                 title="Производственный лист"
+                scrolling="no"
               />
             </div>
 

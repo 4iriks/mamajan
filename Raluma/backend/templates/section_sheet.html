@@ -163,6 +163,10 @@
 
   /* ── contenteditable ── */
   {% if not is_pdf %}
+  html, body {
+    width: 194mm;
+    transform-origin: top left;
+  }
   [contenteditable] {
     outline: none;
     cursor: text;
@@ -257,9 +261,7 @@
   {% set fk_qty = "profile_" ~ loop.index ~ "_qty" %}
   <tr>
     <td class="img-cell">
-      {% if p.image %}
-      <img src="{{ p.image | img_b64 }}" alt="{{ p.article }}">
-      {% endif %}
+      {% if p.image %}{% set src = p.image | img_b64 %}{% if src %}<img src="{{ src }}" alt="{{ p.article }}">{% endif %}{% endif %}
     </td>
     <td><strong>{{ p.article }}</strong></td>
     <td>{{ p.name }}</td>
@@ -339,9 +341,7 @@
   {% set hk = "hw_" ~ loop.index %}
   <tr>
     <td class="img-cell">
-      {% if h.image %}
-      <img src="{{ h.image | img_b64 }}" alt="{{ h.article }}">
-      {% endif %}
+      {% if h.image %}{% set src = h.image | img_b64 %}{% if src %}<img src="{{ src }}" alt="{{ h.article }}">{% endif %}{% endif %}
     </td>
     <td><strong>{{ h.article }}</strong></td>
     <td>{{ h.name }}</td>
@@ -399,12 +399,31 @@
 
 {% if not is_pdf %}
 <script>
-// Подсветка изменённых ячеек и уведомление родительского окна
+// Авто-масштаб: подогнать ширину документа под viewport
+function applyZoom() {
+  var docW = 194 * 3.7795; // 194mm → px (~733px)
+  var vw = window.innerWidth || document.documentElement.clientWidth;
+  var scale = Math.min(1, (vw - 8) / docW);
+  document.documentElement.style.transform = 'scale(' + scale + ')';
+  document.documentElement.style.transformOrigin = 'top left';
+  document.documentElement.style.width = (100 / scale) + '%';
+  // сообщаем реальную высоту родителю для подгонки iframe
+  var h = document.documentElement.getBoundingClientRect().height * scale;
+  window.parent && window.parent.postMessage({ type: 'height', height: h }, '*');
+}
+applyZoom();
+window.addEventListener('resize', applyZoom);
+
+// Подсветка изменённых ячеек + debounce уведомления родителя
+var dirtyTimer = null;
 document.querySelectorAll('[data-field]').forEach(el => {
   el.addEventListener('input', () => {
     const changed = el.textContent.trim() !== (el.dataset.original || '');
     el.classList.toggle('changed', changed);
-    window.parent && window.parent.postMessage({ type: 'dirty', dirty: true }, '*');
+    clearTimeout(dirtyTimer);
+    dirtyTimer = setTimeout(() => {
+      window.parent && window.parent.postMessage({ type: 'dirty', dirty: true }, '*');
+    }, 150);
   });
 });
 </script>
