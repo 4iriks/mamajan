@@ -16,54 +16,54 @@ jobs:
       github.event.workflow_run.event == 'push'
 
     steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          script_stop: true
-          script: |
-            set -e
-            cd /opt/mamajan/Raluma
+        run: |
+          ssh -o StrictHostKeyChecking=accept-new ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'DEPLOY_SCRIPT'
+          set -e
+          cd /opt/mamajan/Raluma
 
-            echo "=== Saving current image IDs for rollback ==="
-            OLD_BACKEND=$(docker compose images backend -q 2>/dev/null || echo "")
-            OLD_FRONTEND=$(docker compose images frontend -q 2>/dev/null || echo "")
+          echo "=== Saving current commit for rollback ==="
+          OLD_COMMIT=$(git rev-parse HEAD)
 
-            echo "=== Pulling latest code ==="
-            git pull origin main
+          echo "=== Pulling latest code ==="
+          git pull origin main
 
-            echo "=== Building images ==="
-            docker compose build
+          echo "=== Building images ==="
+          docker compose build
 
-            echo "=== Starting services ==="
-            docker compose up -d
+          echo "=== Starting services ==="
+          docker compose up -d
 
-            echo "=== Waiting for backend to start ==="
-            sleep 5
+          echo "=== Waiting for backend to start ==="
+          sleep 5
 
-            echo "=== Health check ==="
-            HEALTH_OK=false
-            for i in 1 2 3 4 5; do
-              if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
-                HEALTH_OK=true
-                break
-              fi
-              echo "Health check attempt $i failed, retrying in 3s..."
-              sleep 3
-            done
-
-            if [ "$HEALTH_OK" = "true" ]; then
-              echo "=== Deploy successful! ==="
-              docker image prune -f
-            else
-              echo "=== HEALTH CHECK FAILED — ROLLING BACK ==="
-              if [ -n "$OLD_BACKEND" ]; then
-                git checkout HEAD~1
-                docker compose build
-                docker compose up -d
-                echo "=== Rolled back to previous version ==="
-              fi
-              exit 1
+          echo "=== Health check ==="
+          HEALTH_OK=false
+          for i in 1 2 3 4 5; do
+            if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+              HEALTH_OK=true
+              break
             fi
+            echo "Health check attempt $i failed, retrying in 3s..."
+            sleep 3
+          done
+
+          if [ "$HEALTH_OK" = "true" ]; then
+            echo "=== Deploy successful! ==="
+            docker image prune -f
+          else
+            echo "=== HEALTH CHECK FAILED — ROLLING BACK ==="
+            git checkout "$OLD_COMMIT"
+            docker compose build
+            docker compose up -d
+            echo "=== Rolled back to $OLD_COMMIT ==="
+            exit 1
+          fi
+          DEPLOY_SCRIPT
