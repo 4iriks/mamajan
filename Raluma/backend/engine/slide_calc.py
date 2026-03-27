@@ -17,6 +17,7 @@ class ProfileItem:
     painted: bool
     image: str | None = None
     field_key: str = ""
+    note: str = ""
 
 
 @dataclass
@@ -51,6 +52,7 @@ class SlideCalcResult:
     glass: list[GlassItem] = field(default_factory=list)
     hardware: list[HardwareItem] = field(default_factory=list)
     screws: list[ScrewItem] = field(default_factory=list)
+    checklist: list[str] = field(default_factory=list)
     color_text: str = ""
     glass_type: str = ""
     threshold_text: str = ""
@@ -206,6 +208,7 @@ def calculate_slide(section) -> SlideCalcResult:
         painted=painted,
         image=f"{threshold_article}.jpg",
         field_key="threshold_length",
+        note="рассверлить дренажные отверстия" if rails == 5 else "",
     ))
 
     # Верхний направляющий
@@ -219,6 +222,7 @@ def calculate_slide(section) -> SlideCalcResult:
         painted=painted,
         image=f"{top_article}.jpg",
         field_key="top_guide_length",
+        note="вставить фетровое уплотнение",
     ))
 
     # Пристеночный
@@ -233,6 +237,7 @@ def calculate_slide(section) -> SlideCalcResult:
             painted=painted,
             image=f"{wall_article}.jpg",
             field_key="wall_profile_length",
+            note="рассверлить крепежные отверстия",
         ))
 
     # Межстекольный
@@ -243,14 +248,16 @@ def calculate_slide(section) -> SlideCalcResult:
             "h-профиль RS1004": "RS1004",
         }
         ig_article = ig_articles.get(inter_glass_type, "RS2061")
+        ig_note = "вставить фетровое уплотнение" if ig_article in ("RS2061", "RS1006") else ""
         result.profiles.append(ProfileItem(
             article=ig_article,
-            name="Межстекольный профиль",
+            name="Межстекольный профиль (штапик)",
             length_mm=round(inter_glass_len, 1),
             qty=(P - 1) * Q,
             painted=(painted and ig_article == "RS2061"),
             image=f"{ig_article}.jpg",
             field_key="inter_glass_length",
+            note=ig_note,
         ))
 
     # Боковой профиль-замок RS2081
@@ -264,6 +271,7 @@ def calculate_slide(section) -> SlideCalcResult:
             painted=painted,
             image="RS2081.jpg",
             field_key="lock_bar_length",
+            note="рассверлить крепежные отверстия, фрезеровать паз в нижней части, врезать защёлку",
         ))
 
     # Ручка-профиль RS112
@@ -271,12 +279,13 @@ def calculate_slide(section) -> SlideCalcResult:
     if hb_count > 0:
         result.profiles.append(ProfileItem(
             article="RS112",
-            name="Ручка-профиль",
+            name="Профиль-ручка",
             length_mm=round(handle_bar_len, 1),
             qty=hb_count * Q,
             painted=painted,
             image="RS112.jpg",
             field_key="handle_bar_length",
+            note="вставить фетровое уплотнение",
         ))
 
     # П-профиль RS1082
@@ -284,12 +293,13 @@ def calculate_slide(section) -> SlideCalcResult:
     if pb_count > 0:
         result.profiles.append(ProfileItem(
             article="RS1082",
-            name="П-профиль",
+            name="Боковой П-профиль",
             length_mm=round(p_bar_len, 1),
             qty=pb_count * Q,
             painted=painted,
             image="RS1082.jpg",
             field_key="p_bar_length",
+            note="",
         ))
 
     # Пузырьковый RS1002
@@ -304,6 +314,7 @@ def calculate_slide(section) -> SlideCalcResult:
             painted=False,
             image="RS1002.jpg",
             field_key="bubble_length",
+            note="",
         ))
 
     # Защёлка в пол RS205
@@ -317,6 +328,7 @@ def calculate_slide(section) -> SlideCalcResult:
             painted=False,
             image="RS205.jpg",
             field_key="floor_latches_qty",
+            note="",
         ))
 
     # Стекольный профиль RS2021
@@ -354,6 +366,7 @@ def calculate_slide(section) -> SlideCalcResult:
             painted=painted,
             image="RS2021.jpg",
             field_key=f"glass_profile_{length}",
+            note="прикрутить ролики и заглушки",
         ))
 
     # ── Фурнитура ─────────────────────────────────────────────────────────────
@@ -479,5 +492,34 @@ def calculate_slide(section) -> SlideCalcResult:
     # Наклейка и инструкция
     result.screws.append(ScrewItem("Наклейка RALUMA", "Наклейка", Q))
     result.screws.append(ScrewItem("Инструкция СЛАЙД", "Инструкция", Q))
+
+    # ── Чеклист ───────────────────────────────────────────────────────────────
+
+    ig = section.inter_glass_profile or "Без"
+    ig_article_map = {
+        "Алюминиевый RS2061": "RS2061",
+        "Прозрачный RS1006": "RS1006",
+        "h-профиль RS1004": "RS1004",
+    }
+    ig_a = ig_article_map.get(ig, "")
+    if ig_a in ("RS2061", "RS1006") and P > 1:
+        result.checklist.append(f"Вставить фетровое уплотнение 7×12 в {ig_a}")
+
+    result.checklist.append(f"Вставить фетровое уплотнение 7×6 в {top_article}")
+
+    if hb_count > 0:
+        result.checklist.append("Вставить фетровое уплотнение 7×6 в RS112")
+
+    result.checklist.append("Установить ролики")
+
+    if lb_count > 0:
+        result.checklist.append("Отфрезеровать пазы в RS2081")
+
+    if wall_count > 0 or lb_count > 0:
+        result.checklist.append("Рассверлить крепежные отверстия")
+
+    result.checklist.append("Установить заглушки")
+    result.checklist.append("Поклеить стекла")
+    result.checklist.append("Приклеить наклейку РАЛЮМА (верх, право)")
 
     return result

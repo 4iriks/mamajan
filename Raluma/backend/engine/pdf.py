@@ -31,6 +31,7 @@ def _img_b64(filename: str) -> str:
 def _get_env() -> Environment:
     env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=False)
     env.filters["img_b64"] = _img_b64
+    env.filters["enumerate"] = enumerate
     return env
 
 
