@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: raluma
+        working-directory: Raluma
 
     steps:
       - uses: actions/checkout@v4
@@ -21,7 +21,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: raluma/package-lock.json
+          cache-dependency-path: Raluma/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: raluma/backend
+        working-directory: Raluma/backend
 
     steps:
       - uses: actions/checkout@v4
@@ -49,7 +49,7 @@ jobs:
         with:
           python-version: '3.12'
           cache: 'pip'
-          cache-dependency-path: raluma/backend/requirements-dev.txt
+          cache-dependency-path: Raluma/backend/requirements-dev.txt
 
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
@@ -74,7 +74,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build frontend image
-        run: docker build -t raluma-frontend-test ./raluma
+        run: docker build -t raluma-frontend-test ./Raluma
 
       - name: Build backend image
-        run: docker build -t raluma-backend-test ./raluma/backend
+        run: docker build -t raluma-backend-test ./Raluma/backend
