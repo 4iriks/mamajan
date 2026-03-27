@@ -220,7 +220,7 @@ def calculate_slide(section) -> SlideCalcResult:
         length_mm=round(top_len, 1),
         qty=Q,
         painted=painted,
-        image=f"{top_article}.jpg",
+        image="RS1325.jpg",  # RS1313/RS1315 нет в ассетах, используем RS1325
         field_key="top_guide_length",
         note="вставить фетровое уплотнение",
     ))
@@ -364,7 +364,7 @@ def calculate_slide(section) -> SlideCalcResult:
             length_mm=length,
             qty=qty,
             painted=painted,
-            image="RS2021.jpg",
+            image=None,  # RS2021.jpg нет в ассетах
             field_key=f"glass_profile_{length}",
             note="прикрутить ролики и заглушки",
         ))
@@ -375,7 +375,7 @@ def calculate_slide(section) -> SlideCalcResult:
     handle_bar_len_m = handle_bar_len / 1000
     top_len_m = top_len / 1000
     ru008_m = top_len_m * P * 2 * Q + (handle_bar_len_m + 0.03) * hb_count * Q
-    result.hardware.append(HardwareItem("RU008", "Щётка 7×6мм", round(ru008_m, 3), "м", "RU008.jpg", "ru008"))
+    result.hardware.append(HardwareItem("RU008", "Щётка 7×6мм", round(ru008_m, 3), "м", "RU007.jpg", "ru008"))  # RU008.jpg нет, используем RU007
 
     # RU007 щётка 7×12мм — только RS2061 и RS1006
     inter_glass_cnt = (P - 1) * Q if P > 1 else 0
@@ -392,7 +392,7 @@ def calculate_slide(section) -> SlideCalcResult:
 
     # RS1121 накладка на ручку-профиль
     if hb_count > 0:
-        result.hardware.append(HardwareItem("RS1121", "Накладка на ручку-профиль", hb_count * Q, "шт", "RS1121.jpg", "rs1121"))
+        result.hardware.append(HardwareItem("RS1121", "Накладка на ручку-профиль", hb_count * Q, "шт", None, "rs1121"))  # RS1121.jpg нет в ассетах
 
     # RS3018 защёлка 1-сторонняя
     lock3018 = 0
