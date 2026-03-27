@@ -15,39 +15,46 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push'
 
-    env:
-      SSH_OPTS: -o ServerAliveInterval=15 -o ServerAliveCountMax=20 -o ConnectTimeout=10
-
     steps:
       - name: Setup SSH key
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
         run: |
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          cat >> ~/.ssh/config << EOF
+          Host deploy-target
+            HostName $SERVER_HOST
+            User ${{ secrets.SERVER_USER }}
+            IdentityFile ~/.ssh/id_ed25519
+            ServerAliveInterval 15
+            ServerAliveCountMax 20
+            ConnectTimeout 10
+            StrictHostKeyChecking accept-new
+          EOF
 
       - name: Git pull
-        run: |
-          ssh $SSH_OPTS ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd /opt/mamajan && git fetch origin main && git reset --hard origin/main"
+        run: ssh deploy-target "cd /opt/mamajan && git fetch origin main && git reset --hard origin/main"
 
       - name: Docker build backend
         timeout-minutes: 8
-        run: ssh $SSH_OPTS ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd /opt/mamajan/Raluma && docker compose build backend"
+        run: ssh deploy-target "cd /opt/mamajan/Raluma && docker compose build backend"
 
       - name: Docker build frontend
         timeout-minutes: 8
-        run: ssh $SSH_OPTS ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd /opt/mamajan/Raluma && docker compose build frontend"
+        run: ssh deploy-target "cd /opt/mamajan/Raluma && docker compose build frontend"
 
       - name: Restart services
-        run: ssh $SSH_OPTS ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd /opt/mamajan/Raluma && docker compose up -d"
+        run: ssh deploy-target "cd /opt/mamajan/Raluma && docker compose up -d"
 
       - name: Health check
         run: |
           sleep 5
           for i in 1 2 3 4 5 6; do
-            if ssh $SSH_OPTS ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "curl -sf http://localhost/health" > /dev/null 2>&1; then
+            if ssh deploy-target "curl -sf http://localhost/health" > /dev/null 2>&1; then
               echo "Health check passed!"
               exit 0
             fi
@@ -59,4 +66,4 @@ jobs:
 
       - name: Cleanup
         if: success()
-        run: ssh $SSH_OPTS ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "docker image prune -f" || true
+        run: ssh deploy-target "docker image prune -f" || true
