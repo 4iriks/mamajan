@@ -37,7 +37,7 @@ jobs:
           EOF
 
       - name: Git pull
-        run: ssh deploy-target "cd /opt/mamajan && git fetch origin main && git reset --hard origin/main"
+        run: ssh deploy-target 'cd /opt/mamajan && git fetch origin main 2>&1 && git reset --hard origin/main 2>&1'
 
       - name: Docker build backend
         timeout-minutes: 8
