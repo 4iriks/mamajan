@@ -10,9 +10,13 @@ jobs:
   deploy:
     name: Deploy to production
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: >
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push'
+
+    env:
+      SSH_OPTS: -o ServerAliveInterval=15 -o ServerAliveCountMax=20 -o ConnectTimeout=10
 
     steps:
       - name: Setup SSH key
@@ -21,31 +25,34 @@ jobs:
           echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_ed25519
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Pull and build
-        timeout-minutes: 10
-        env:
-          SSH_TARGET: ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}
-        run: |
-          ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=10 $SSH_TARGET "cd /opt/mamajan && git pull origin main && cd Raluma && docker compose build && docker compose up -d"
+      - name: Git pull
+        run: ssh $SSH_OPTS ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd /opt/mamajan && git pull origin main"
+
+      - name: Docker build backend
+        timeout-minutes: 8
+        run: ssh $SSH_OPTS ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd /opt/mamajan/Raluma && docker compose build backend"
+
+      - name: Docker build frontend
+        timeout-minutes: 8
+        run: ssh $SSH_OPTS ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd /opt/mamajan/Raluma && docker compose build frontend"
+
+      - name: Restart services
+        run: ssh $SSH_OPTS ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "cd /opt/mamajan/Raluma && docker compose up -d"
 
       - name: Health check
-        env:
-          SSH_TARGET: ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}
         run: |
           sleep 5
-          for i in 1 2 3 4 5; do
-            if ssh $SSH_TARGET "curl -sf http://localhost/health" > /dev/null 2>&1; then
+          for i in 1 2 3 4 5 6; do
+            if ssh $SSH_OPTS ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "curl -sf http://localhost/health" > /dev/null 2>&1; then
               echo "Health check passed!"
               exit 0
             fi
-            echo "Attempt $i failed, retrying in 3s..."
-            sleep 3
+            echo "Attempt $i failed, retrying in 5s..."
+            sleep 5
           done
-          echo "Health check failed after 5 attempts!"
+          echo "Health check failed!"
           exit 1
 
-      - name: Cleanup old images
+      - name: Cleanup
         if: success()
-        env:
-          SSH_TARGET: ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}
-        run: ssh $SSH_TARGET "docker image prune -f" || true
+        run: ssh $SSH_OPTS ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "docker image prune -f" || true
