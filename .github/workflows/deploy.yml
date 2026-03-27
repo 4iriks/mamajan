@@ -25,7 +25,7 @@ jobs:
         env:
           SSH_TARGET: ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}
         run: |
-          ssh $SSH_TARGET "cd /opt/mamajan/Raluma && git pull origin main && docker compose build && docker compose up -d"
+          ssh $SSH_TARGET "cd /opt/mamajan && git pull origin main && cd Raluma && docker compose build && docker compose up -d"
 
       - name: Health check
         env:
