@@ -46,15 +46,14 @@
   /* ── Схема ── */
   .scheme-label { font-size: 7pt; font-weight: 700; margin: 0.5mm 0; }
 
-  /* ── Нарезка профилей (3 колонки) ── */
+  /* ── Нарезка профилей (9 колонок: 3 группы по img+info+len+qty... но упрощённо 3 td) ── */
   .prof-tbl { width: 100%; }
-  .prof-tbl td { border: 1px solid #000; border-top: none; padding: 0.8mm 1mm; vertical-align: top; }
-  .prof-tbl td + td { border-left: none; }
-  .prof-tbl tr + tr td { border-top: none; }
-  .prof-img  { float: left; width: 14mm; height: 9mm; object-fit: contain; margin-right: 1mm; }
+  .prof-tbl td { border: 1px solid #000; padding: 0.8mm 1.5mm; vertical-align: top; }
+  .prof-tbl .bar-row td { background: #000; color: #fff; font-size: 7pt; font-weight: 700; border-color: #000; padding: 0.5mm 1.5mm; }
+  .prof-img  { float: left; width: 14mm; height: 9mm; object-fit: contain; margin-right: 1.5mm; }
   .prof-name { font-size: 7pt; font-weight: 700; }
   .prof-line { font-size: 7pt; margin-top: 0.2mm; }
-  .prof-line .art { font-weight: 900; margin-right: 2mm; }
+  .prof-line .art { font-weight: 900; margin-right: 3mm; }
   .prof-note { font-size: 5pt; font-style: italic; color: #555; margin-top: 0.2mm; }
 
   /* ── Стекольный профиль подтаблица ── */
@@ -65,7 +64,7 @@
   /* ── Фурнитура ── */
   .hw-tbl { width: 100%; border-collapse: collapse; }
   .hw-tbl td { border: 1px solid #000; padding: 0.5mm 1mm; vertical-align: top; }
-  .hw-tbl tr + tr td { border-top: none; }
+  .hw-tbl .bar-row td { background: #000; color: #fff; font-size: 7pt; font-weight: 700; border-color: #000; padding: 0.5mm 1.5mm; }
   .hw-img  { float: left; width: 12mm; height: 8mm; object-fit: contain; margin-right: 1mm; }
   .hw-name { font-size: 7pt; font-weight: 700; }
   .hw-line { font-size: 6.5pt; margin-top: 0.2mm; }
@@ -178,19 +177,6 @@
 </table>
 
 <!-- ══════ НАРЕЗКА ПРОФИЛЕЙ (3 колонки) ══════ -->
-<div class="bar">
-  <table><tr>
-    <td style="width:33.33%;"><b>НАРЕЗКА ПРОФИЛЯ</b></td>
-    <td style="width:8%; text-align:right;">Длина, мм</td>
-    <td style="width:6%; text-align:right;">Кол, шт</td>
-    <td style="width:19%;"></td>
-    <td style="width:8%; text-align:right;">Длина, мм</td>
-    <td style="width:6%; text-align:right;">Кол, шт</td>
-    <td style="width:14%;"></td>
-    <td style="width:6%; text-align:right;">Кол, шт</td>
-  </tr></table>
-</div>
-
 {% set reg_profiles = [] %}
 {% set glass_profiles = [] %}
 {% for p in calc.profiles %}
@@ -203,6 +189,11 @@
 {% set all_profiles = reg_profiles[:] %}
 
 <table class="prof-tbl">
+  <tr class="bar-row">
+    <td><b>НАРЕЗКА ПРОФИЛЯ</b>&ensp;<span style="float:right;">Длина, мм&ensp;&ensp;Кол, шт</span></td>
+    <td><span style="float:right;">Длина, мм&ensp;&ensp;Кол, шт</span></td>
+    <td><span style="float:right;">Кол, шт</span></td>
+  </tr>
   {% set cols = 3 %}
   {% set total = all_profiles | length %}
   {% set rows_count = ((total + cols - 1) // cols) %}
@@ -269,17 +260,12 @@
 {% set col_right = all_items[half:] %}
 {% set max_rows = [col_left|length, col_right|length, calc.checklist|length] | max %}
 
-<div class="bar">
-  <table><tr>
-    <td style="width:36%;"><b>ФУРНИТУРА</b></td>
-    <td style="width:6%; text-align:right;">Кол, шт</td>
-    <td style="width:30%;"></td>
-    <td style="width:6%; text-align:right;">Кол, шт</td>
-    <td style="width:22%;"><b>ЧЕК-ЛИСТ</b></td>
-  </tr></table>
-</div>
-
 <table class="hw-tbl">
+  <tr class="bar-row">
+    <td style="width:42%;"><b>ФУРНИТУРА</b><span style="float:right;">Кол, шт</span></td>
+    <td style="width:36%;"><span style="float:right;">Кол, шт</span></td>
+    <td style="width:22%;"><b>ЧЕК-ЛИСТ</b></td>
+  </tr>
   {% for r in range(max_rows) %}
   {% set item_l = col_left[r] if r < col_left|length else none %}
   {% set item_r = col_right[r] if r < col_right|length else none %}
@@ -328,12 +314,14 @@
 </table>
 
 <!-- ══════ КОММЕНТАРИИ К СЕКЦИИ ══════ -->
-<div class="bar" style="font-size:7pt;">КОММЕНТАРИИ К СЕКЦИИ:</div>
-<div class="comments">
-  {% if section.comments %}{{ section.comments }}{% endif %}
-  {% if section.extra_parts %}<br>Доп. комплектующие: {{ section.extra_parts }}{% endif %}
-  &nbsp;
-</div>
+<table style="width:100%; border-collapse:collapse;">
+  <tr><td style="background:#000; color:#fff; font-size:7pt; font-weight:700; padding:0.5mm 2mm; border:1px solid #000;">КОММЕНТАРИИ К СЕКЦИИ:</td></tr>
+  <tr><td class="comments">
+    {% if section.comments %}{{ section.comments }}{% endif %}
+    {% if section.extra_parts %}<br>Доп. комплектующие: {{ section.extra_parts }}{% endif %}
+    &nbsp;
+  </td></tr>
+</table>
 
 {% if not is_pdf %}
 <script>

@@ -214,12 +214,14 @@ def calculate_slide(section) -> SlideCalcResult:
         right_W = middle_W + b + krrr + krrp
 
         result.glass.append(GlassItem("Левое", round(left_W, 1), round(glass_H, 1), Q))
-        if P > 2:
-            result.glass.append(
-                GlassItem(
-                    "Промежуточное", round(middle_W, 1), round(glass_H, 1), (P - 2) * Q
-                )
+        result.glass.append(
+            GlassItem(
+                "Промежуточные",
+                round(middle_W, 1),
+                round(glass_H, 1),
+                (P - 2) * Q if P > 2 else 0,
             )
+        )
         result.glass.append(
             GlassItem("Правое", round(right_W, 1), round(glass_H, 1), Q)
         )
