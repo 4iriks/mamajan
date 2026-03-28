@@ -72,10 +72,10 @@
   .hw-inner td { border: none; padding: 0; vertical-align: top; }
   .hw-inner .hw-img-cell { width: 15mm; padding-right: 1mm; }
   .hw-img  { width: 14mm; height: 9mm; object-fit: contain; }
-  .hw-name { font-size: 7pt; font-weight: 700; }
-  .hw-art  { font-weight: 900; font-size: 9pt; text-align: center; margin-top: 0.2mm; }
-  .hw-qty  { float: right; font-size: 10pt; font-weight: 900; }
-  .hw-note { font-size: 6.5pt; font-style: italic; color: #555; margin-top: 0.2mm; }
+  .hw-name { font-size: 8pt; font-weight: 700; }
+  .hw-art  { font-weight: 900; font-size: 10pt; text-align: center; margin-top: 0.2mm; }
+  .hw-qty  { float: right; font-size: 11pt; font-weight: 900; }
+  .hw-note { font-size: 7pt; font-style: italic; color: #555; margin-top: 0.2mm; }
 
   /* ── Чеклист ── */
   .chk-cell { font-size: 6.5pt; line-height: 1.3; vertical-align: middle !important; }
@@ -250,7 +250,7 @@
       {% set gp = glass_profiles[0] %}
       <table style="width:100%; border:none; border-collapse:collapse;"><tr>
         <td style="border:none; padding:0; width:20mm; vertical-align:top;">
-          {% if gp.image %}{% set src = gp.image | img_b64 %}{% if src %}<img src="{{ src }}" style="width:18mm; height:auto; object-fit:contain;">{% endif %}{% endif %}
+          {% if gp.image %}{% set src = gp.image | img_b64 %}{% if src %}<img src="{{ src }}" class="prof-img">{% endif %}{% endif %}
         </td>
         <td style="border:none; padding:0 0 0 1mm; vertical-align:top;">
           <div class="prof-name">Стекольный профиль</div>
