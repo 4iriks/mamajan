@@ -19,17 +19,17 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
           </div>
           <div className="space-y-1.5">
             <label className={LBL}>Кол-во, шт</label>
-            <input type="number" min="1" value={s.quantity} onChange={e => update({ quantity: parseInt(e.target.value) || 1 })} className={INP} />
+            <input type="number" min="1" value={s.quantity || ''} onChange={e => update({ quantity: parseInt(e.target.value) || 0 })} className={INP} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <label className={LBL}>Ширина, мм</label>
-            <input type="number" value={s.width} onChange={e => update({ width: parseInt(e.target.value) || 0 })} className={INP} />
+            <input type="number" value={s.width || ''} onChange={e => update({ width: parseInt(e.target.value) || 0 })} className={INP} />
           </div>
           <div className="space-y-1.5">
             <label className={LBL}>Высота, мм</label>
-            <input type="number" value={s.height} onChange={e => update({ height: parseInt(e.target.value) || 0 })} className={INP} />
+            <input type="number" value={s.height || ''} onChange={e => update({ height: parseInt(e.target.value) || 0 })} className={INP} />
           </div>
         </div>
         <div className="space-y-1.5">
@@ -395,11 +395,11 @@ export function CsShapeTab({ s, update }: { s: Section; update: (u: Partial<Sect
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <label className={LBL}>Ширина (осн.), мм</label>
-          <input type="number" value={s.width} onChange={e => update({ width: parseInt(e.target.value) || 0 })} className={INP} />
+          <input type="number" value={s.width || ''} onChange={e => update({ width: parseInt(e.target.value) || 0 })} className={INP} />
         </div>
         <div className="space-y-2">
           <label className={LBL}>Высота, мм</label>
-          <input type="number" value={s.height} onChange={e => update({ height: parseInt(e.target.value) || 0 })} className={INP} />
+          <input type="number" value={s.height || ''} onChange={e => update({ height: parseInt(e.target.value) || 0 })} className={INP} />
         </div>
         {s.csShape === 'Трапеция' && (
           <div className="space-y-2">

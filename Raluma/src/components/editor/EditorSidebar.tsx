@@ -104,7 +104,7 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
                       </button>
                       <button onClick={() => handleAdd('СЛАЙД', { slideRails: 5 })}
                         className={`py-2 font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
-                        2 ряда от центра
+                        Стандарт 5 рельс
                       </button>
                     </div>
                   )}

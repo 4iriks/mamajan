@@ -50,7 +50,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
   const systemLabel = (() => {
     switch (section.system) {
       case 'СЛАЙД':
-        return `СЛАЙД стандарт ${section.rails === 5 ? '2 ряда от центра' : '1 ряд'}`;
+        return 'СЛАЙД стандарт 1 ряд';
       case 'КНИЖКА':
         return section.bookSubtype
           ? `КНИЖКА ${section.bookSubtype === 'doors' ? 'с дверями' : section.bookSubtype === 'angle' ? 'с углом' : 'с дверями и углом'}`

@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* Убрать спиннеры у number-инпутов */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 /* Глобальный цвет текста в полях ввода */
 input, select, textarea {
   color: white;
