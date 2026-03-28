@@ -706,11 +706,13 @@ def calculate_slide(section) -> SlideCalcResult:
 
     result.checklist.append("Установить ролики")
 
-    if lb_count > 0:
-        result.checklist.append("Отфрезеровать пазы в RS2081")
+    if lock3018 > 0 or lock3019 > 0:
+        result.checklist.append("Сделать фрезеровку под защелки")
 
-    if wall_count > 0 or lb_count > 0:
-        result.checklist.append("Рассверлить крепежные отверстия")
+    if lb_count > 0:
+        result.checklist.append("Отфрезеровать пазы в RS1081")
+
+    result.checklist.append("Рассверлить крепежные отверстия")
 
     result.checklist.append("Установить заглушки")
     result.checklist.append("Поклеить стекла")
