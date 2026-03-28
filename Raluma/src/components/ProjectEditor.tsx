@@ -113,6 +113,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       name: `Секция ${maxNum + 1}`,
       system,
       width: 2000, height: 2400, panels: 3, quantity: 1,
+      threshold: 'Стандартный анод',
       glassType: '10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ',
       paintingType: 'RAL стандарт', ralColor: '9016',
       cornerLeft: false, cornerRight: false,

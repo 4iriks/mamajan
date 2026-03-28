@@ -12,7 +12,7 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
             <label className={LBL}>Секция №</label>
             <input
               type="number" min="1"
-              value={parseInt(s.name.replace(/\D/g, '')) || 1}
+              value={s.name.replace(/\D/g, '')}
               onChange={e => update({ name: `Секция ${e.target.value}` })}
               className={INP}
             />
@@ -128,9 +128,6 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
               <option>Накладной анод</option>
               <option>Накладной окраш</option>
             </select>
-            {!s.threshold && (
-              <p className="text-[10px] text-amber-400/70 font-bold uppercase tracking-wider pl-1">⚠ Без порога система быть не может</p>
-            )}
           </div>
           <div className="space-y-1.5">
             <label className={LBL}>Межстекольный профиль</label>
