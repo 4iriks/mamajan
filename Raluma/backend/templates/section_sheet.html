@@ -73,23 +73,24 @@
   .gp-tbl td { border: 1px solid #bbb; padding: 0.3mm 1.5mm; font-size: 7pt; }
   .gp-tbl td:nth-child(2), .gp-tbl td:nth-child(3) { text-align: center; font-weight: 700; }
 
-  /* ── Фурнитура (объединённая таблица) ── */
+  /* ── Фурнитура: 3 колонки (hw-left | hw-right | checklist) ── */
   .hw-tbl { width: 100%; border-collapse: collapse; }
-  .hw-tbl td { border: 1px solid #000; padding: 1mm 1.5mm; vertical-align: middle; }
-  .hw-tbl td + td { border-left: none; }
+  .hw-tbl td { border: 1px solid #000; padding: 0.8mm 1.5mm; vertical-align: top; }
   .hw-tbl tr + tr td { border-top: none; }
-  .hw-img-cell { width: 18mm; text-align: center; }
-  .hw-img  { width: 16mm; height: 11mm; object-fit: contain; }
+  .hw-cell { display: flex; align-items: flex-start; gap: 1.5mm; min-height: 10mm; }
+  .hw-img  { width: 14mm; height: 10mm; object-fit: contain; flex-shrink: 0; }
+  .hw-info { flex: 1; }
   .hw-name { font-size: 7pt; font-weight: 700; }
-  .hw-sub  { font-size: 6.5pt; color: #333; }
-  .hw-art-cell { text-align: center; font-size: 7pt; }
-  .hw-qty-cell { width: 14mm; text-align: center; font-size: 9pt; font-weight: 900; }
+  .hw-row  { display: flex; justify-content: space-between; align-items: baseline; font-size: 6.5pt; margin-top: 0.3mm; }
+  .hw-row-sub { font-size: 6pt; color: #333; }
+  .hw-art  { flex: 1; text-align: center; }
+  .hw-qty  { font-size: 8pt; font-weight: 900; min-width: 8mm; text-align: right; }
+  .hw-note { font-size: 5pt; font-style: italic; color: #555; margin-top: 0.3mm; }
 
-  /* ── Чеклист ── */
-  .chk-tbl { width: 100%; border-collapse: collapse; margin-top: 1mm; }
-  .chk-tbl td { border: 1px solid #000; padding: 1mm 2mm; font-size: 7pt; }
-  .chk-title-cell { font-weight: 900; font-size: 8pt; text-transform: uppercase; background: #000; color: #fff; }
-  .chk-box { display: inline-block; width: 3mm; height: 3mm; border: 1px solid #000; vertical-align: middle; margin-right: 1mm; }
+  /* ── Чеклист (3-я колонка) ── */
+  .chk-hdr { font-weight: 900; font-size: 7pt; text-transform: uppercase; }
+  .chk-cell { font-size: 6pt; line-height: 1.4; }
+  .chk-box { display: inline-block; width: 3mm; height: 3mm; border: 1px solid #000; vertical-align: middle; margin-right: 0.8mm; }
 
   /* ── Комментарии ── */
   .comments-row { border-top: 1px solid #000; margin-top: 1mm; padding-top: 1mm; font-size: 6.5pt; }
@@ -298,51 +299,104 @@
   {% endif %}
 </table>
 
-<!-- ══════ ФУРНИТУРА ══════ -->
-<div class="bar" style="margin-top:1mm;">
-  <div class="bar-cols">
-    <span>ФУРНИТУРА</span>
-    <span>Кол, шт</span>
-  </div>
-</div>
+<!-- ══════ ФУРНИТУРА + ЧЕК-ЛИСТ (3 колонки) ══════ -->
+{# Объединяем hardware + screws в один список #}
+{% set all_items = [] %}
+{% for h in calc.hardware %}
+  {% set _ = all_items.append({'type':'hw','name':h.name,'article':h.article,'value':h.value,'unit':h.unit,'image':h.image,'idx':loop.index}) %}
+{% endfor %}
+{% for s in calc.screws %}
+  {% set _ = all_items.append({'type':'screw','name':s.name,'article':s.article,'value':s.qty,'unit':'шт','image':s.image,'idx':loop.index}) %}
+{% endfor %}
 
-<table class="hw-tbl">
-  {# ── Фурнитура ── #}
-  {% for h in calc.hardware %}
+{# Делим на 2 колонки: первая половина — левая, вторая — правая #}
+{% set half = ((all_items|length) + 1) // 2 %}
+{% set col_left = all_items[:half] %}
+{% set col_right = all_items[half:] %}
+{% set rows = [col_left|length, col_right|length] | max %}
+
+<table class="hw-tbl" style="margin-top:1mm;">
+  {# Шапка #}
   <tr>
-    <td class="hw-img-cell">
-      {% if h.image %}{% set src = h.image | img_b64 %}{% if src %}<img src="{{ src }}" class="hw-img" alt="{{ h.article }}">{% endif %}{% endif %}
+    <td style="width:38%; padding:0.5mm 1.5mm;">
+      <span style="font-size:8pt; font-weight:900;">ФУРНИТУРА</span>
     </td>
-    <td>
-      <div class="hw-name">{{ h.name }}</div>
-      {% if h.unit == 'м' %}<div class="hw-sub">{{ h.value }} {{ h.unit }}</div>{% endif %}
+    <td style="width:6%; text-align:right; font-size:6pt; font-weight:700; padding:0.5mm 1.5mm;">Кол, шт</td>
+    <td style="width:38%; padding:0.5mm 1.5mm;"></td>
+    <td style="width:6%; text-align:right; font-size:6pt; font-weight:700; padding:0.5mm 1.5mm;">Кол, шт</td>
+    <td style="width:12%; padding:0.5mm 1.5mm;">
+      <span class="chk-hdr">ЧЕК-ЛИСТ</span>
     </td>
-    <td class="hw-art-cell">{{ h.article }}</td>
-    <td class="hw-qty-cell" {{ ce("hw_" ~ loop.index ~ "_val", h.value) }}>{{ ov("hw_" ~ loop.index ~ "_val", h.value) }}</td>
   </tr>
-  {% endfor %}
 
-  {# ── Саморезы и расходники (продолжение таблицы) ── #}
-  {% for s in calc.screws %}
-  {% set sfk = "screw_" ~ loop.index %}
+  {% for r in range(rows) %}
+  {% set item_l = col_left[r] if r < col_left|length else none %}
+  {% set item_r = col_right[r] if r < col_right|length else none %}
+  {% set chk = calc.checklist[r] if r < calc.checklist|length else none %}
   <tr>
-    <td class="hw-img-cell">
-      {% if s.image %}{% set src = s.image | img_b64 %}{% if src %}<img src="{{ src }}" class="hw-img" alt="{{ s.article }}">{% endif %}{% endif %}
-    </td>
+    {# ── Левая ячейка (item + qty) ── #}
     <td>
-      <div class="hw-name">{{ s.name }}</div>
+      {% if item_l %}
+      <div class="hw-cell">
+        {% if item_l.image %}{% set src = item_l.image | img_b64 %}{% if src %}<img src="{{ src }}" class="hw-img" alt="{{ item_l.article }}">{% endif %}{% endif %}
+        <div class="hw-info">
+          <div class="hw-name">{{ item_l.name }}</div>
+          {% if item_l.type == 'hw' and item_l.unit == 'м' %}
+          <div class="hw-row hw-row-sub">
+            <span>{{ item_l.value }} {{ item_l.unit }}</span>
+            <span class="hw-art">{{ item_l.article }}</span>
+          </div>
+          {% else %}
+          <div class="hw-row">
+            <span class="hw-art">{{ item_l.article }}</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
     </td>
-    <td class="hw-art-cell">{{ s.article }}</td>
-    <td class="hw-qty-cell" {{ ce(sfk, s.qty) }}>{{ ov(sfk, s.qty) }}</td>
-  </tr>
-  {% endfor %}
-</table>
+    <td style="text-align:right; vertical-align:middle;">
+      {% if item_l %}
+      {% set fk_l = ("hw_" ~ item_l.idx ~ "_val") if item_l.type == 'hw' else ("screw_" ~ item_l.idx) %}
+      {% set fv_l = item_l.value %}
+      <span class="hw-qty" {{ ce(fk_l, fv_l) }}>{{ ov(fk_l, fv_l) }}</span>
+      {% endif %}
+    </td>
 
-<!-- ══════ ЧЕК-ЛИСТ ══════ -->
-<table class="chk-tbl">
-  <tr><td class="chk-title-cell" colspan="1">ЧЕК-ЛИСТ</td></tr>
-  {% for item in calc.checklist %}
-  <tr><td><span class="chk-box"></span>{{ item }}</td></tr>
+    {# ── Правая ячейка (item + qty) ── #}
+    <td>
+      {% if item_r %}
+      <div class="hw-cell">
+        {% if item_r.image %}{% set src = item_r.image | img_b64 %}{% if src %}<img src="{{ src }}" class="hw-img" alt="{{ item_r.article }}">{% endif %}{% endif %}
+        <div class="hw-info">
+          <div class="hw-name">{{ item_r.name }}</div>
+          {% if item_r.type == 'hw' and item_r.unit == 'м' %}
+          <div class="hw-row hw-row-sub">
+            <span>{{ item_r.value }} {{ item_r.unit }}</span>
+            <span class="hw-art">{{ item_r.article }}</span>
+          </div>
+          {% else %}
+          <div class="hw-row">
+            <span class="hw-art">{{ item_r.article }}</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </td>
+    <td style="text-align:right; vertical-align:middle;">
+      {% if item_r %}
+      {% set fk_r = ("hw_" ~ item_r.idx ~ "_val") if item_r.type == 'hw' else ("screw_" ~ item_r.idx) %}
+      {% set fv_r = item_r.value %}
+      <span class="hw-qty" {{ ce(fk_r, fv_r) }}>{{ ov(fk_r, fv_r) }}</span>
+      {% endif %}
+    </td>
+
+    {# ── Чеклист ── #}
+    <td class="chk-cell">
+      {% if chk %}<span class="chk-box"></span>{{ chk }}{% endif %}
+    </td>
+  </tr>
   {% endfor %}
 </table>
 

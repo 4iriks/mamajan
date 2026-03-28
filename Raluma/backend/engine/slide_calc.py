@@ -668,8 +668,8 @@ def calculate_slide(section) -> SlideCalcResult:
         )
 
     # Наклейка и инструкция
-    result.screws.append(ScrewItem("Наклейка RALUMA", "Наклейка", Q))
-    result.screws.append(ScrewItem("Инструкция СЛАЙД", "Инструкция", Q))
+    result.screws.append(ScrewItem("Наклейка RALUMA", "RU1039", Q))
+    result.screws.append(ScrewItem("Инструкция СЛАЙД", "RS150", Q))
 
     # ── Чеклист ───────────────────────────────────────────────────────────────
 
