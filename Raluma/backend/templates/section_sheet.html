@@ -283,13 +283,15 @@
         {% if item_l.image %}{% set src = item_l.image | img_b64 %}{% if src %}<img src="{{ src }}" class="hw-img" alt="{{ item_l.article }}">{% endif %}{% endif %}
         <div class="hw-name">{{ item_l.name }}</div>
         {% if item_l.sub_items %}
+          <table style="width:100%; border:none; border-collapse:collapse;">
           {% for si in item_l.sub_items %}
-          <div>
-            <span class="hw-qty" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</span>
-            <span class="hw-name">{{ si.label }}</span>
-            <div class="hw-art">{{ si.article }}</div>
-          </div>
+            <tr>
+              <td style="border:none; padding:0 1mm; font-size:7pt;">{{ si.label }}</td>
+              <td style="border:none; padding:0 1mm; font-weight:900; font-size:9pt; text-align:center;">{{ si.article }}</td>
+              <td style="border:none; padding:0 1mm; font-weight:900; font-size:10pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</td>
+            </tr>
           {% endfor %}
+          </table>
         {% else %}
           {% set fk_l = ("hw_" ~ item_l.idx ~ "_val") if item_l.type == 'hw' else ("screw_" ~ item_l.idx) %}
           {% set fv_l = item_l.value %}
@@ -307,13 +309,15 @@
         {% if item_r.image %}{% set src = item_r.image | img_b64 %}{% if src %}<img src="{{ src }}" class="hw-img" alt="{{ item_r.article }}">{% endif %}{% endif %}
         <div class="hw-name">{{ item_r.name }}</div>
         {% if item_r.sub_items %}
+          <table style="width:100%; border:none; border-collapse:collapse;">
           {% for si in item_r.sub_items %}
-          <div>
-            <span class="hw-qty" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</span>
-            <span class="hw-name">{{ si.label }}</span>
-            <div class="hw-art">{{ si.article }}</div>
-          </div>
+            <tr>
+              <td style="border:none; padding:0 1mm; font-size:7pt;">{{ si.label }}</td>
+              <td style="border:none; padding:0 1mm; font-weight:900; font-size:9pt; text-align:center;">{{ si.article }}</td>
+              <td style="border:none; padding:0 1mm; font-weight:900; font-size:10pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</td>
+            </tr>
           {% endfor %}
+          </table>
         {% else %}
           {% set fk_r = ("hw_" ~ item_r.idx ~ "_val") if item_r.type == 'hw' else ("screw_" ~ item_r.idx) %}
           {% set fv_r = item_r.value %}
