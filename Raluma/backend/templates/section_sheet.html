@@ -84,6 +84,20 @@
   /* ── Комментарии ── */
   .comments { border: 1px solid #000; border-top: none; padding: 1.5mm; min-height: 8mm; font-size: 7pt; }
 
+  /* ── Страница 2: Доп. комплектующие ── */
+  .page-break { page-break-before: always; }
+  {% if not is_pdf %}
+  .page-break { border-top: 3px dashed #999; margin-top: 5mm; padding-top: 3mm; }
+  {% endif %}
+  .ec-tbl { width: 100%; border-collapse: collapse; }
+  .ec-tbl th { background: #e0e0e0; border: 1px solid #999; padding: 0.5mm 1.5mm; font-size: 7pt; text-align: center; font-weight: 700; }
+  .ec-tbl td { border: 1px solid #bbb; padding: 0.5mm 1.5mm; font-size: 7.5pt; min-height: 4mm; }
+  .ec-tbl td[contenteditable]:empty::before { content: '\00a0'; }
+  .add-row-btn { margin-top: 2mm; padding: 1mm 3mm; font-size: 7pt; cursor: pointer; border: 1px dashed #999; background: #f5f5f5; color: #333; }
+  .add-row-btn:hover { background: #e0e0e0; }
+  .del-row-btn { cursor: pointer; color: #c00; font-size: 8pt; border: none; background: none; padding: 0 1mm; }
+  .del-row-btn:hover { color: #f00; }
+
   {% if not is_pdf %}
   [contenteditable] { outline: none; cursor: text; border-radius: 1px; transition: background 0.1s; }
   [contenteditable]:hover { background: #fffde7 !important; }
@@ -361,6 +375,51 @@
   </td></tr>
 </table>
 
+<!-- ══════ СТРАНИЦА 2: ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ ══════ -->
+<div class="page-break">
+  <div class="bar" style="margin-bottom:0;">
+    ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ - ПРОЕКТ №{{ project.number }}
+  </div>
+  <table class="ec-tbl" id="ec-table">
+    <thead>
+      <tr>
+        {% if not is_pdf %}<th style="width:5%;">&nbsp;</th>{% endif %}
+        <th style="width:{% if is_pdf %}15{% else %}13{% endif %}%;">артикул</th>
+        <th style="width:{% if is_pdf %}37{% else %}34{% endif %}%;">название</th>
+        <th style="width:{% if is_pdf %}18{% else %}17{% endif %}%;">размер</th>
+        <th style="width:{% if is_pdf %}12{% else %}11{% endif %}%;">кол-во</th>
+        <th style="width:{% if is_pdf %}18{% else %}17{% endif %}%;">цвет</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% set ec_rows = overrides.get('extra_components', []) %}
+      {% for row in ec_rows %}
+      <tr class="ec-row">
+        {% if not is_pdf %}<td style="text-align:center;"><button class="del-row-btn" title="Удалить">✕</button></td>{% endif %}
+        <td contenteditable="true" data-field="ec_{{ loop.index0 }}_art" data-original="{{ row.get('art','') }}">{{ row.get('art','') }}</td>
+        <td contenteditable="true" data-field="ec_{{ loop.index0 }}_name" data-original="{{ row.get('name','') }}">{{ row.get('name','') }}</td>
+        <td contenteditable="true" data-field="ec_{{ loop.index0 }}_size" data-original="{{ row.get('size','') }}">{{ row.get('size','') }}</td>
+        <td contenteditable="true" data-field="ec_{{ loop.index0 }}_qty" data-original="{{ row.get('qty','') }}">{{ row.get('qty','') }}</td>
+        <td contenteditable="true" data-field="ec_{{ loop.index0 }}_color" data-original="{{ row.get('color','') }}">{{ row.get('color','') }}</td>
+      </tr>
+      {% endfor %}
+      {% if not is_pdf and ec_rows|length == 0 %}
+      <tr class="ec-row">
+        <td style="text-align:center;"><button class="del-row-btn" title="Удалить">✕</button></td>
+        <td contenteditable="true" data-field="ec_0_art" data-original=""></td>
+        <td contenteditable="true" data-field="ec_0_name" data-original=""></td>
+        <td contenteditable="true" data-field="ec_0_size" data-original=""></td>
+        <td contenteditable="true" data-field="ec_0_qty" data-original=""></td>
+        <td contenteditable="true" data-field="ec_0_color" data-original=""></td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+  {% if not is_pdf %}
+  <button class="add-row-btn" id="add-ec-row">+ добавить строку</button>
+  {% endif %}
+</div>
+
 {% if not is_pdf %}
 <script>
 (function() {
@@ -385,6 +444,64 @@
       window.parent && window.parent.postMessage({ type: 'dirty', dirty: true }, '*');
     });
   });
+
+  // ── Доп. комплектующие: добавление/удаление строк ──
+  function bindDelBtn(btn) {
+    btn.addEventListener('click', function() {
+      var tr = btn.closest('tr');
+      if (tr) { tr.remove(); reindexRows(); markDirty(); zoom(); }
+    });
+  }
+  function markDirty() {
+    window.parent && window.parent.postMessage({ type: 'dirty', dirty: true }, '*');
+  }
+  function reindexRows() {
+    var rows = document.querySelectorAll('#ec-table .ec-row');
+    var fields = ['art','name','size','qty','color'];
+    for (var i = 0; i < rows.length; i++) {
+      var cells = rows[i].querySelectorAll('[data-field]');
+      for (var j = 0; j < cells.length; j++) {
+        cells[j].setAttribute('data-field', 'ec_' + i + '_' + fields[j]);
+      }
+    }
+  }
+  document.querySelectorAll('.del-row-btn').forEach(bindDelBtn);
+
+  var addBtn = document.getElementById('add-ec-row');
+  if (addBtn) {
+    addBtn.addEventListener('click', function() {
+      var tbody = document.querySelector('#ec-table tbody');
+      var idx = tbody.querySelectorAll('.ec-row').length;
+      var tr = document.createElement('tr');
+      tr.className = 'ec-row';
+      // Кнопка удаления
+      var delTd = document.createElement('td');
+      delTd.style.textAlign = 'center';
+      var delBtn = document.createElement('button');
+      delBtn.className = 'del-row-btn';
+      delBtn.title = 'Удалить';
+      delBtn.textContent = '✕';
+      bindDelBtn(delBtn);
+      delTd.appendChild(delBtn);
+      tr.appendChild(delTd);
+      // Ячейки данных
+      var fields = ['art','name','size','qty','color'];
+      for (var f = 0; f < fields.length; f++) {
+        var td = document.createElement('td');
+        td.setAttribute('contenteditable', 'true');
+        td.setAttribute('data-field', 'ec_' + idx + '_' + fields[f]);
+        td.setAttribute('data-original', '');
+        td.addEventListener('input', function() {
+          this.classList.toggle('changed', this.textContent.trim() !== '');
+          markDirty();
+        });
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+      markDirty();
+      zoom();
+    });
+  }
 })();
 </script>
 {% endif %}

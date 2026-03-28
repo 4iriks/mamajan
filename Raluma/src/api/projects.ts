@@ -92,7 +92,7 @@ export interface SectionOut {
 export const getPreviewUrl = (projectId: number, sectionId: number) =>
   `/api/projects/${projectId}/sections/${sectionId}/preview`;
 
-export const saveDocumentOverrides = (projectId: number, sectionId: number, overrides: Record<string, string>) =>
+export const saveDocumentOverrides = (projectId: number, sectionId: number, overrides: Record<string, unknown>) =>
   client.patch(`/api/projects/${projectId}/sections/${sectionId}/overrides`, { overrides });
 
 export const clearDocumentOverrides = (projectId: number, sectionId: number) =>
