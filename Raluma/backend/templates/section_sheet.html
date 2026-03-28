@@ -234,20 +234,28 @@
   <tr>
     <td colspan="2">
       {% set gp = glass_profiles[0] %}
-      {% if gp.image %}{% set src = gp.image | img_b64 %}{% if src %}<img src="{{ src }}" style="float:left; height:100%; max-height:14mm; width:auto; object-fit:contain; margin-right:1.5mm;">{% endif %}{% endif %}
-      <div class="prof-name">Стекольный профиль</div>
-      <div class="prof-line"><span class="art">{{ gp.article }}</span></div>
-      <table class="gp-tbl">
-        {% for j, gpi in glass_profiles | enumerate %}
-        {% set gfk = "gp_" ~ j ~ "_len" %}
-        {% set gfkq = "gp_" ~ j ~ "_qty" %}
-        <tr>
-          <td>{{ calc.glass[j].position if j < calc.glass|length else '—' }}</td>
-          <td {{ ce(gfk, gpi.length_mm|int) }}>{{ ov(gfk, gpi.length_mm|int) }}</td>
-          <td {{ ce(gfkq, gpi.qty) }}>{{ ov(gfkq, gpi.qty) }}</td>
-        </tr>
-        {% endfor %}
-      </table>
+      <table style="width:100%; border:none; border-collapse:collapse;"><tr>
+        <td style="border:none; padding:0; width:20mm; vertical-align:top;">
+          {% if gp.image %}{% set src = gp.image | img_b64 %}{% if src %}<img src="{{ src }}" style="width:18mm; height:auto; object-fit:contain;">{% endif %}{% endif %}
+        </td>
+        <td style="border:none; padding:0 0 0 1mm; vertical-align:top;">
+          <div class="prof-name">Стекольный профиль</div>
+          <div class="prof-line"><span class="art">{{ gp.article }}</span></div>
+        </td>
+        <td style="border:none; padding:0 0 0 2mm; vertical-align:top;">
+          <table class="gp-tbl">
+            {% for j, gpi in glass_profiles | enumerate %}
+            {% set gfk = "gp_" ~ j ~ "_len" %}
+            {% set gfkq = "gp_" ~ j ~ "_qty" %}
+            <tr>
+              <td>{{ calc.glass[j].position if j < calc.glass|length else '—' }}</td>
+              <td {{ ce(gfk, gpi.length_mm|int) }}>{{ ov(gfk, gpi.length_mm|int) }}</td>
+              <td {{ ce(gfkq, gpi.qty) }}>{{ ov(gfkq, gpi.qty) }}</td>
+            </tr>
+            {% endfor %}
+          </table>
+        </td>
+      </tr></table>
       {% if gp.note %}<div class="prof-note">{{ gp.note }}</div>{% endif %}
     </td>
     <td></td>
