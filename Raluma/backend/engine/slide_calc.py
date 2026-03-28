@@ -30,6 +30,14 @@ class GlassItem:
 
 
 @dataclass
+class HardwareSubItem:
+    label: str  # "7×6мм" / "7×12мм"
+    article: str
+    value: float
+    field_key: str = ""
+
+
+@dataclass
 class HardwareItem:
     article: str
     name: str
@@ -37,6 +45,7 @@ class HardwareItem:
     unit: str  # "шт" | "м"
     image: str | None = None
     field_key: str = ""
+    sub_items: list[HardwareSubItem] | None = None
 
 
 @dataclass
@@ -431,29 +440,34 @@ def calculate_slide(section) -> SlideCalcResult:
 
     # ── Фурнитура ─────────────────────────────────────────────────────────────
 
-    # RU008 щётка 7×6мм (в метрах)
+    # Щёточный уплотнитель (RU008 + RU007 в одной ячейке)
     handle_bar_len_m = handle_bar_len / 1000
     top_len_m = top_len / 1000
-    ru008_m = top_len_m * P * 2 * Q + (handle_bar_len_m + 0.03) * hb_count * Q
-    result.hardware.append(
-        HardwareItem(
-            "RU008", "Щётка 7×6мм", round(ru008_m, 3), "м", "RU007.jpg", "ru008"
-        )
-    )  # RU008.jpg нет, используем RU007
+    ru008_m = round(top_len_m * P * 2 * Q + (handle_bar_len_m + 0.03) * hb_count * Q, 3)
 
-    # RU007 щётка 7×12мм — только RS2061 и RS1006
     inter_glass_cnt = (P - 1) * Q if P > 1 else 0
+    ru007_m = 0.0
     if inter_glass_cnt > 0 and inter_glass_type in (
         "Алюминиевый RS2061",
         "Прозрачный RS1006",
     ):
         ig_len_m = inter_glass_len / 1000
-        ru007_m = ig_len_m * inter_glass_cnt
-        result.hardware.append(
-            HardwareItem(
-                "RU007", "Щётка 7×12мм", round(ru007_m, 3), "м", "RU007.jpg", "ru007"
-            )
+        ru007_m = round(ig_len_m * inter_glass_cnt, 3)
+
+    result.hardware.append(
+        HardwareItem(
+            article="",
+            name="Щёточный уплотнитель, м",
+            value=0,
+            unit="м",
+            image="RU007.jpg",
+            field_key="brush",
+            sub_items=[
+                HardwareSubItem("7×6мм", "RU008", ru008_m, "ru008"),
+                HardwareSubItem("7×12мм", "RU007", ru007_m, "ru007"),
+            ],
         )
+    )
 
     # RSD1 демпфер + RSD2 компенсатор
     damper_qty = (P - 1) * 2 * Q if P > 1 else 0
