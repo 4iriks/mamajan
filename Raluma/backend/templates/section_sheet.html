@@ -139,20 +139,164 @@
     </td>
     <td style="width:50%; text-align:center; padding:1.5mm;">
       <div class="scheme-label">схема вид сверху</div>
-      {% set sw = 260 %}
-      {% set sh = 40 %}
-      {% set pw = sw / section.panels %}
+      {% set P = section.panels %}
+      {% set rails = section.rails or 3 %}
+      {% set row_h = 16 %}
+      {% set top_pad = 12 %}
+      {% set bot_pad = 18 %}
+      {% set left_w = 45 %}
+      {% set right_w = 45 %}
+      {% set rail_w = 170 %}
+      {% set sw = left_w + rail_w + right_w %}
+      {% set sh = top_pad + rails * row_h + bot_pad %}
+      {% set first_right = (section.first_panel_inside or 'Справа') == 'Справа' %}
+      {% set panel_w = rail_w / P %}
       <svg width="{{ sw }}" height="{{ sh }}" viewBox="0 0 {{ sw }} {{ sh }}"
            xmlns="http://www.w3.org/2000/svg" style="display:block; margin:0 auto;">
-        <rect x="1" y="1" width="{{ sw-2 }}" height="{{ sh-2 }}" fill="none" stroke="#000" stroke-width="1.5"/>
-        {% for i in range(section.panels) %}
-        {% if i > 0 %}
-        {% set x = 1 + i * pw %}
-        <line x1="{{ x }}" y1="1" x2="{{ x }}" y2="{{ sh-1 }}" stroke="#000" stroke-width="0.5" stroke-dasharray="4,2"/>
-        {% endif %}
+
+        {# Метки #}
+        <text x="{{ left_w + rail_w / 2 }}" y="9" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#666">ПОМЕЩЕНИЕ</text>
+        <text x="{{ sw - 2 }}" y="{{ top_pad + rails * row_h + 12 }}" text-anchor="end" font-size="7" font-family="Arial" font-weight="bold" fill="#000">УЛИЦА</text>
+
+        {# Вертикальные границы проёма #}
+        <line x1="{{ left_w }}" y1="{{ top_pad - 2 }}" x2="{{ left_w }}" y2="{{ top_pad + rails * row_h + 2 }}" stroke="#000" stroke-width="1.5"/>
+        <line x1="{{ left_w + rail_w }}" y1="{{ top_pad - 2 }}" x2="{{ left_w + rail_w }}" y2="{{ top_pad + rails * row_h + 2 }}" stroke="#000" stroke-width="1.5"/>
+
+        {# Горизонтальные границы (верх / низ) #}
+        <line x1="{{ left_w - 8 }}" y1="{{ top_pad - 2 }}" x2="{{ left_w + rail_w + 8 }}" y2="{{ top_pad - 2 }}" stroke="#000" stroke-width="1"/>
+        <line x1="{{ left_w - 8 }}" y1="{{ top_pad + rails * row_h + 2 }}" x2="{{ left_w + rail_w + 8 }}" y2="{{ top_pad + rails * row_h + 2 }}" stroke="#000" stroke-width="1"/>
+
+        {# Рельсы #}
+        {% for ri in range(rails) %}
+        {% set ry = top_pad + ri * row_h + row_h / 2 %}
+        <line x1="{{ left_w }}" y1="{{ ry }}" x2="{{ left_w + rail_w }}" y2="{{ ry }}" stroke="#999" stroke-width="0.5"/>
         {% endfor %}
-        <text x="4" y="{{ sh/2+2 }}" font-size="7" font-family="Arial" font-weight="bold" fill="#666">ПОМЕЩЕНИЕ</text>
-        <text x="{{ sw-4 }}" y="{{ sh/2+2 }}" font-size="7" font-family="Arial" text-anchor="end" font-weight="bold" fill="#666">УЛИЦА</text>
+
+        {# Панели стекла #}
+        {% for pi in range(P) %}
+        {% set ri = calc.panel_rails[pi] if pi < calc.panel_rails|length else pi %}
+        {% set cy = top_pad + ri * row_h + row_h / 2 %}
+        {% set px = left_w + pi * panel_w %}
+        {% set gl = 4 %}
+        {% set gr = 4 %}
+        {% if pi == 0 %}{% set gl = 3 %}{% endif %}
+        {% if pi == P - 1 %}{% set gr = 3 %}{% endif %}
+        {% set gx1 = px + gl %}
+        {% set gx2 = px + panel_w - gr %}
+        {# Панель — тонкий прямоугольник #}
+        <rect x="{{ gx1 }}" y="{{ cy - 5 }}" width="{{ gx2 - gx1 }}" height="10" fill="#ddeef5" stroke="#000" stroke-width="0.8"/>
+        {# Номер панели #}
+        {% set pnum = P - pi if first_right else pi + 1 %}
+        <text x="{{ (gx1 + gx2) / 2 }}" y="{{ cy + 3 }}" text-anchor="middle" font-size="7" font-family="Arial" font-weight="bold" fill="#333">{{ pnum }}</text>
+        {% endfor %}
+
+        {# Межстекольный профиль #}
+        {% if section.inter_glass_profile and section.inter_glass_profile != '— Без межстекольного профиля —' and P > 1 %}
+        {% for pi in range(P - 1) %}
+        {% set ix = left_w + (pi + 1) * panel_w %}
+        <rect x="{{ ix - 1.5 }}" y="{{ top_pad }}" width="3" height="{{ rails * row_h }}" fill="#bbb" stroke="#666" stroke-width="0.3"/>
+        {% endfor %}
+        {% endif %}
+
+        {# ── Левые профили ── #}
+        {% set lx = left_w - 3 %}
+        {% set ph = rails * row_h %}
+
+        {% if section.profile_left_wall %}
+        {# Пристеночный — двойной прямоугольник #}
+        <rect x="{{ lx - 10 }}" y="{{ top_pad }}" width="4" height="{{ ph }}" fill="#ccc" stroke="#000" stroke-width="0.5"/>
+        <rect x="{{ lx - 5 }}" y="{{ top_pad }}" width="4" height="{{ ph }}" fill="#eee" stroke="#000" stroke-width="0.5"/>
+        {% set lx = lx - 12 %}
+        {% endif %}
+
+        {% if section.profile_left_lock_bar %}
+        {# Боковой замок — два стержня + перемычки #}
+        <rect x="{{ lx - 8 }}" y="{{ top_pad }}" width="2.5" height="{{ ph }}" fill="#ccc" stroke="#000" stroke-width="0.4"/>
+        <rect x="{{ lx - 3 }}" y="{{ top_pad }}" width="2.5" height="{{ ph }}" fill="#ccc" stroke="#000" stroke-width="0.4"/>
+        {% for ri in range(rails) %}
+        {% set cy = top_pad + ri * row_h + row_h / 2 %}
+        <line x1="{{ lx - 7 }}" y1="{{ cy }}" x2="{{ lx - 2 }}" y2="{{ cy }}" stroke="#000" stroke-width="0.8"/>
+        {% endfor %}
+        {% set lx = lx - 10 %}
+        {% endif %}
+
+        {% if section.profile_left_p_bar %}
+        {# П-профиль — U-shape #}
+        <path d="M{{ lx - 8 }},{{ top_pad }} L{{ lx - 1 }},{{ top_pad }} L{{ lx - 1 }},{{ top_pad + ph }} L{{ lx - 8 }},{{ top_pad + ph }}" fill="none" stroke="#000" stroke-width="0.8"/>
+        {% set lx = lx - 10 %}
+        {% endif %}
+
+        {% if section.profile_left_handle_bar %}
+        {# Ручка-профиль — вертикаль + горизонтальные ручки #}
+        <line x1="{{ lx - 5 }}" y1="{{ top_pad }}" x2="{{ lx - 5 }}" y2="{{ top_pad + ph }}" stroke="#000" stroke-width="1"/>
+        {% for ri in range(rails) %}
+        {% set cy = top_pad + ri * row_h + row_h / 2 %}
+        <line x1="{{ lx - 10 }}" y1="{{ cy }}" x2="{{ lx }}" y2="{{ cy }}" stroke="#000" stroke-width="0.8"/>
+        {% endfor %}
+        {% set lx = lx - 12 %}
+        {% endif %}
+
+        {% if section.profile_left_bubble %}
+        {# Пузырьковый — круги на рельсах #}
+        {% for ri in range(rails) %}
+        {% set cy = top_pad + ri * row_h + row_h / 2 %}
+        <circle cx="{{ lx - 4 }}" cy="{{ cy }}" r="3" fill="none" stroke="#000" stroke-width="0.6"/>
+        {% endfor %}
+        {% endif %}
+
+        {# ── Правые профили ── #}
+        {% set rx = left_w + rail_w + 3 %}
+
+        {% if section.profile_right_wall %}
+        <rect x="{{ rx + 1 }}" y="{{ top_pad }}" width="4" height="{{ ph }}" fill="#eee" stroke="#000" stroke-width="0.5"/>
+        <rect x="{{ rx + 6 }}" y="{{ top_pad }}" width="4" height="{{ ph }}" fill="#ccc" stroke="#000" stroke-width="0.5"/>
+        {% set rx = rx + 12 %}
+        {% endif %}
+
+        {% if section.profile_right_lock_bar %}
+        <rect x="{{ rx + 1 }}" y="{{ top_pad }}" width="2.5" height="{{ ph }}" fill="#ccc" stroke="#000" stroke-width="0.4"/>
+        <rect x="{{ rx + 6 }}" y="{{ top_pad }}" width="2.5" height="{{ ph }}" fill="#ccc" stroke="#000" stroke-width="0.4"/>
+        {% for ri in range(rails) %}
+        {% set cy = top_pad + ri * row_h + row_h / 2 %}
+        <line x1="{{ rx + 2 }}" y1="{{ cy }}" x2="{{ rx + 7 }}" y2="{{ cy }}" stroke="#000" stroke-width="0.8"/>
+        {% endfor %}
+        {% set rx = rx + 10 %}
+        {% endif %}
+
+        {% if section.profile_right_p_bar %}
+        <path d="M{{ rx + 8 }},{{ top_pad }} L{{ rx + 1 }},{{ top_pad }} L{{ rx + 1 }},{{ top_pad + ph }} L{{ rx + 8 }},{{ top_pad + ph }}" fill="none" stroke="#000" stroke-width="0.8"/>
+        {% set rx = rx + 10 %}
+        {% endif %}
+
+        {% if section.profile_right_handle_bar %}
+        <line x1="{{ rx + 5 }}" y1="{{ top_pad }}" x2="{{ rx + 5 }}" y2="{{ top_pad + ph }}" stroke="#000" stroke-width="1"/>
+        {% for ri in range(rails) %}
+        {% set cy = top_pad + ri * row_h + row_h / 2 %}
+        <line x1="{{ rx }}" y1="{{ cy }}" x2="{{ rx + 10 }}" y2="{{ cy }}" stroke="#000" stroke-width="0.8"/>
+        {% endfor %}
+        {% set rx = rx + 12 %}
+        {% endif %}
+
+        {% if section.profile_right_bubble %}
+        {% for ri in range(rails) %}
+        {% set cy = top_pad + ri * row_h + row_h / 2 %}
+        <circle cx="{{ rx + 4 }}" cy="{{ cy }}" r="3" fill="none" stroke="#000" stroke-width="0.6"/>
+        {% endfor %}
+        {% endif %}
+
+        {# Стрелка направления сдвига #}
+        {% set ay = top_pad + rails * row_h + 10 %}
+        {% set ax = left_w + rail_w / 2 %}
+        {% set alen = 60 %}
+        {% if first_right %}
+        <line x1="{{ ax - alen/2 }}" y1="{{ ay }}" x2="{{ ax + alen/2 }}" y2="{{ ay }}" stroke="#000" stroke-width="0.8"/>
+        <polyline points="{{ ax - alen/2 + 5 }},{{ ay - 3 }} {{ ax - alen/2 }},{{ ay }} {{ ax - alen/2 + 5 }},{{ ay + 3 }}" stroke="#000" stroke-width="0.8" fill="none"/>
+        <text x="{{ ax + alen/2 + 3 }}" y="{{ ay + 3 }}" font-size="5" font-family="Arial" fill="#666">сдвиг</text>
+        {% else %}
+        <line x1="{{ ax - alen/2 }}" y1="{{ ay }}" x2="{{ ax + alen/2 }}" y2="{{ ay }}" stroke="#000" stroke-width="0.8"/>
+        <polyline points="{{ ax + alen/2 - 5 }},{{ ay - 3 }} {{ ax + alen/2 }},{{ ay }} {{ ax + alen/2 - 5 }},{{ ay + 3 }}" stroke="#000" stroke-width="0.8" fill="none"/>
+        <text x="{{ ax - alen/2 - 3 }}" y="{{ ay + 3 }}" text-anchor="end" font-size="5" font-family="Arial" fill="#666">сдвиг</text>
+        {% endif %}
       </svg>
     </td>
   </tr>

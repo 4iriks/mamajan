@@ -67,6 +67,7 @@ class SlideCalcResult:
     glass_type: str = ""
     threshold_text: str = ""
     system_text: str = ""
+    panel_rails: list[int] = field(default_factory=list)  # panel i → rail index
 
 
 def _is_standard_threshold(threshold: str | None) -> bool:
@@ -115,6 +116,21 @@ def calculate_slide(section) -> SlideCalcResult:
     result.glass_type = section.glass_type or "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
     result.threshold_text = threshold
     result.system_text = "SLIDE-стандарт 1 ряд"
+
+    # ── Маппинг панелей → рельсы (для схемы вид сверху) ──────────────────────
+    first_right = (section.first_panel_inside or "Справа") == "Справа"
+    unused_track = section.unused_track or ("Внутренний" if P < rails else "")
+    unused_count = max(0, rails - P)
+    if unused_track == "Внешний":
+        available = list(range(unused_count, rails))
+    elif unused_track == "Внутренний":
+        available = list(range(0, rails - unused_count))
+    else:
+        available = list(range(rails))
+    for pi in range(P):
+        ri_idx = (len(available) - 1 - pi) if not first_right else pi
+        ri_idx = max(0, min(ri_idx, len(available) - 1))
+        result.panel_rails.append(available[ri_idx])
 
     # ── Профильные переменные (для расчёта стёкол) ────────────────────────────
 
