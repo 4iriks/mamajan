@@ -10,7 +10,15 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <label className={LBL}>Название</label>
-            <input value={s.name} onChange={e => update({ name: e.target.value })} className={INP} />
+            <div className="flex items-center gap-0">
+              <span className={`${INP} rounded-r-none border-r-0 w-auto px-3 flex-shrink-0 select-none pointer-events-none opacity-70`}>Секция</span>
+              <input
+                type="number" min="1"
+                value={parseInt(s.name.replace(/\D/g, '')) || 1}
+                onChange={e => update({ name: `Секция ${e.target.value}` })}
+                className={`${INP} rounded-l-none w-16`}
+              />
+            </div>
           </div>
           <div className="space-y-1.5">
             <label className={LBL}>Кол-во, шт</label>
