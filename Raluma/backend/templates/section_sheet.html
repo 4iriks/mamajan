@@ -8,7 +8,7 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: Arial, Helvetica, sans-serif;
-    font-size: 7pt;
+    font-size: 9pt;
     color: #000;
     background: #fff;
     width: 204mm;
@@ -19,7 +19,7 @@
 
   /* ── Шапка ── */
   .hdr { border: 2px solid #000; }
-  .hdr td { padding: 1mm 2mm; font-weight: 900; font-size: 9pt; }
+  .hdr td { padding: 1mm 2mm; font-weight: 900; font-size: 11pt; }
   .hdr td + td { border-left: 2px solid #000; }
 
   /* ── Чёрная полоса-заголовок ── */
@@ -30,59 +30,59 @@
     border: 1px solid #000;
   }
   .bar table { width: 100%; }
-  .bar td { color: #fff; padding: 0 1.5mm; border: none; font-size: 7pt; font-weight: 700; }
+  .bar td { color: #fff; padding: 0 1.5mm; border: none; font-size: 9pt; font-weight: 700; }
 
   /* ── Параметры ── */
   .params { border: 1px solid #000; border-top: none; }
-  .params td { font-size: 7.5pt; line-height: 1.5; padding: 1mm 2mm; }
+  .params td { font-size: 9.5pt; line-height: 1.5; padding: 1mm 2mm; }
   .params .val { font-weight: 700; }
 
   /* ── Таблица стёкол ── */
   .glass-tbl { width: 100%; margin-top: 1mm; }
-  .glass-tbl th { background: #e0e0e0; border: 1px solid #999; padding: 0.3mm 1mm; font-size: 6.5pt; text-align: center; }
-  .glass-tbl td { border: 1px solid #bbb; padding: 0.3mm 1mm; text-align: center; font-size: 7.5pt; font-weight: 700; }
+  .glass-tbl th { background: #e0e0e0; border: 1px solid #999; padding: 0.3mm 1mm; font-size: 8.5pt; text-align: center; }
+  .glass-tbl td { border: 1px solid #bbb; padding: 0.3mm 1mm; text-align: center; font-size: 9.5pt; font-weight: 700; }
   .glass-tbl td:first-child { text-align: left; font-weight: 400; }
 
   /* ── Схема ── */
-  .scheme-label { font-size: 7pt; font-weight: 700; margin: 0.5mm 0; }
+  .scheme-label { font-size: 9pt; font-weight: 700; margin: 0.5mm 0; }
 
   /* ── Нарезка профилей (9 колонок: 3 группы по img+info+len+qty... но упрощённо 3 td) ── */
   .prof-tbl { width: 100%; }
   .prof-tbl td { border: 1px solid #000; padding: 0.8mm 1.5mm; vertical-align: top; }
-  .prof-tbl .bar-row td { background: #000; color: #fff; font-size: 7pt; font-weight: 700; border-color: #000; padding: 0.5mm 1.5mm; }
-  .prof-img  { float: left; width: 14mm; height: 9mm; object-fit: contain; margin-right: 1.5mm; }
-  .prof-name { font-size: 7pt; font-weight: 700; }
-  .prof-line { font-size: 7pt; font-weight: 900; margin-top: 0.2mm; }
+  .prof-tbl .bar-row td { background: #000; color: #fff; font-size: 9pt; font-weight: 700; border-color: #000; padding: 0.5mm 1.5mm; }
+  .prof-img  { float: left; width: 18mm; height: 11mm; object-fit: contain; margin-right: 1.5mm; }
+  .prof-name { font-size: 9pt; font-weight: 700; }
+  .prof-line { font-size: 9pt; font-weight: 900; margin-top: 0.2mm; }
   .prof-line .art { margin-right: 2mm; }
   .prof-line .vals { float: right; }
   .prof-line .dim { display: inline-block; width: 13mm; text-align: right; }
   .prof-line .qty { display: inline-block; width: 10mm; text-align: right; }
-  .prof-note { font-size: 6.5pt; font-style: italic; color: #555; margin-top: 0.2mm; font-weight: 400; }
+  .prof-note { font-size: 8.5pt; font-style: italic; color: #555; margin-top: 0.2mm; font-weight: 400; }
 
   /* ── Стекольный профиль подтаблица ── */
   .gp-tbl { width: auto; margin-top: 0.5mm; }
-  .gp-tbl td { border: 1px solid #bbb; padding: 0.2mm 1.5mm; font-size: 7pt; }
+  .gp-tbl td { border: 1px solid #bbb; padding: 0.2mm 1.5mm; font-size: 9pt; }
   .gp-tbl td:nth-child(2), .gp-tbl td:nth-child(3) { text-align: center; font-weight: 700; }
 
   /* ── Фурнитура ── */
   .hw-tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .hw-tbl td { border: 1px solid #000; padding: 0.5mm 1mm; vertical-align: top; }
-  .hw-tbl .bar-row td { background: #000; color: #fff; font-size: 7pt; font-weight: 700; border-color: #000; padding: 0.5mm 1.5mm; }
+  .hw-tbl .bar-row td { background: #000; color: #fff; font-size: 9pt; font-weight: 700; border-color: #000; padding: 0.5mm 1.5mm; }
   .hw-inner { width: 100%; border: none; border-collapse: collapse; }
   .hw-inner td { border: none; padding: 0; vertical-align: top; }
-  .hw-inner .hw-img-cell { width: 15mm; padding-right: 1mm; }
-  .hw-img  { width: 14mm; height: 9mm; object-fit: contain; }
-  .hw-name { font-size: 8pt; font-weight: 700; }
-  .hw-art  { font-weight: 900; font-size: 10pt; text-align: center; margin-top: 0.2mm; }
-  .hw-qty  { float: right; font-size: 11pt; font-weight: 900; }
-  .hw-note { font-size: 7pt; font-style: italic; color: #555; margin-top: 0.2mm; }
+  .hw-inner .hw-img-cell { width: 18mm; padding-right: 1mm; }
+  .hw-img  { width: 16mm; height: 10mm; object-fit: contain; }
+  .hw-name { font-size: 10pt; font-weight: 700; }
+  .hw-art  { font-weight: 900; font-size: 12pt; text-align: center; margin-top: 0.2mm; }
+  .hw-qty  { float: right; font-size: 13pt; font-weight: 900; }
+  .hw-note { font-size: 9pt; font-style: italic; color: #555; margin-top: 0.2mm; }
 
   /* ── Чеклист ── */
-  .chk-cell { font-size: 6.5pt; line-height: 1.3; vertical-align: middle !important; }
+  .chk-cell { font-size: 8.5pt; line-height: 1.3; vertical-align: middle !important; }
   .chk-box { display: inline-block; width: 3mm; height: 3mm; border: 1px solid #000; vertical-align: middle; margin-right: 0.8mm; }
 
   /* ── Комментарии ── */
-  .comments { border: 1px solid #000; border-top: none; padding: 1.5mm; min-height: 8mm; font-size: 7pt; }
+  .comments { border: 1px solid #000; border-top: none; padding: 1.5mm; min-height: 8mm; font-size: 9pt; }
 
   /* ── Страница 2: Доп. комплектующие ── */
   .page-break { page-break-before: always; }
@@ -90,12 +90,12 @@
   .page-break { border-top: 3px dashed #999; margin-top: 5mm; padding-top: 3mm; }
   {% endif %}
   .ec-tbl { width: 100%; border-collapse: collapse; }
-  .ec-tbl th { background: #e0e0e0; border: 1px solid #999; padding: 0.5mm 1.5mm; font-size: 7pt; text-align: center; font-weight: 700; }
-  .ec-tbl td { border: 1px solid #bbb; padding: 0.5mm 1.5mm; font-size: 7.5pt; min-height: 4mm; }
+  .ec-tbl th { background: #e0e0e0; border: 1px solid #999; padding: 0.5mm 1.5mm; font-size: 9pt; text-align: center; font-weight: 700; }
+  .ec-tbl td { border: 1px solid #bbb; padding: 0.5mm 1.5mm; font-size: 9.5pt; min-height: 4mm; }
   .ec-tbl td[contenteditable]:empty::before { content: '\00a0'; }
-  .add-row-btn { margin-top: 2mm; padding: 1mm 3mm; font-size: 7pt; cursor: pointer; border: 1px dashed #999; background: #f5f5f5; color: #333; }
+  .add-row-btn { margin-top: 2mm; padding: 1mm 3mm; font-size: 9pt; cursor: pointer; border: 1px dashed #999; background: #f5f5f5; color: #333; }
   .add-row-btn:hover { background: #e0e0e0; }
-  .del-row-btn { cursor: pointer; color: #c00; font-size: 8pt; border: none; background: none; padding: 0 1mm; }
+  .del-row-btn { cursor: pointer; color: #c00; font-size: 10pt; border: none; background: none; padding: 0 1mm; }
   .del-row-btn:hover { color: #f00; }
 
   {% if not is_pdf %}
@@ -168,7 +168,7 @@
         <tr><td style="border:none; padding:0.2mm 0;"><b>ПОРОГ</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ calc.threshold_text }}</td></tr>
         <tr><td style="border:none; padding:0.2mm 0;"><b>СИСТЕМА</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ section.rails }}-полозная</td></tr>
       </table>
-      <div style="margin-top:0.5mm; font-size:7pt; font-weight:700;">РАЗМЕРЫ СТЕКОЛ:</div>
+      <div style="margin-top:0.5mm; font-size:9pt; font-weight:700;">РАЗМЕРЫ СТЕКОЛ:</div>
       <table class="glass-tbl">
         <tr><th></th><th>ширина</th><th>высота</th><th>кол-во</th></tr>
         {% for i, g in calc.glass | enumerate %}
@@ -312,9 +312,9 @@
             <table style="width:100%; border:none; border-collapse:collapse;">
             {% for si in item_l.sub_items %}
               <tr>
-                <td style="border:none; padding:0 1mm; font-size:7pt;">{{ si.label }}</td>
-                <td style="border:none; padding:0 1mm; font-weight:900; font-size:9pt; text-align:center;">{{ si.article }}</td>
-                <td style="border:none; padding:0 1mm; font-weight:900; font-size:10pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</td>
+                <td style="border:none; padding:0 1mm; font-size:9pt;">{{ si.label }}</td>
+                <td style="border:none; padding:0 1mm; font-weight:900; font-size:11pt; text-align:center;">{{ si.article }}</td>
+                <td style="border:none; padding:0 1mm; font-weight:900; font-size:12pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</td>
               </tr>
             {% endfor %}
             </table>
@@ -340,9 +340,9 @@
             <table style="width:100%; border:none; border-collapse:collapse;">
             {% for si in item_r.sub_items %}
               <tr>
-                <td style="border:none; padding:0 1mm; font-size:7pt;">{{ si.label }}</td>
-                <td style="border:none; padding:0 1mm; font-weight:900; font-size:9pt; text-align:center;">{{ si.article }}</td>
-                <td style="border:none; padding:0 1mm; font-weight:900; font-size:10pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</td>
+                <td style="border:none; padding:0 1mm; font-size:9pt;">{{ si.label }}</td>
+                <td style="border:none; padding:0 1mm; font-weight:900; font-size:11pt; text-align:center;">{{ si.article }}</td>
+                <td style="border:none; padding:0 1mm; font-weight:900; font-size:12pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</td>
               </tr>
             {% endfor %}
             </table>
@@ -367,7 +367,7 @@
 
 <!-- ══════ КОММЕНТАРИИ К СЕКЦИИ ══════ -->
 <table style="width:100%; border-collapse:collapse;">
-  <tr><td style="background:#000; color:#fff; font-size:7pt; font-weight:700; padding:0.5mm 2mm; border:1px solid #000;">КОММЕНТАРИИ К СЕКЦИИ:</td></tr>
+  <tr><td style="background:#000; color:#fff; font-size:9pt; font-weight:700; padding:0.5mm 2mm; border:1px solid #000;">КОММЕНТАРИИ К СЕКЦИИ:</td></tr>
   <tr><td class="comments">
     {% if section.comments %}{{ section.comments }}{% endif %}
     {% if section.extra_parts %}<br>Доп. комплектующие: {{ section.extra_parts }}{% endif %}
