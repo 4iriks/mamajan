@@ -90,10 +90,14 @@ def download_pdf(
     html = render_pdf_html(project, section, calc)
     pdf_bytes = generate_pdf(html)
     filename = f"ПЛ_{project.number}_сек{section.order}.pdf"
+    from urllib.parse import quote
+    encoded = quote(filename)
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"
+        },
     )
 
 
