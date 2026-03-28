@@ -73,9 +73,9 @@
   .hw-img  { width: 14mm; height: 10mm; object-fit: contain; flex-shrink: 0; }
   .hw-info { flex: 1; }
   .hw-name { font-size: 8pt; font-weight: 700; }
-  .hw-row  { display: flex; justify-content: space-between; align-items: baseline; font-size: 7.5pt; margin-top: 0.3mm; }
+  .hw-row  { display: flex; align-items: baseline; font-size: 7.5pt; margin-top: 0.3mm; }
   .hw-row-sub { font-size: 7pt; color: #333; }
-  .hw-art  { font-weight: 900; }
+  .hw-art  { font-weight: 900; flex: 1; text-align: center; }
   .hw-qty  { font-size: 9pt; font-weight: 900; min-width: 8mm; text-align: right; }
   .hw-note { font-size: 6pt; font-style: italic; color: #555; margin-top: 0.3mm; }
 
@@ -282,12 +282,13 @@
 <table class="hw-tbl" style="margin-top:1mm;">
   {# Шапка #}
   <tr>
-    <td style="padding:0.5mm 1.5mm;">
+    <td style="width:36%; padding:0.5mm 1.5mm;">
       <span style="font-size:9pt; font-weight:900;">ФУРНИТУРА</span>
+      <span style="float:right; font-size:7pt; font-weight:700;">Кол, шт</span>
     </td>
-    <td style="text-align:center; vertical-align:middle; width:10mm; font-size:7pt; font-weight:700; padding:0.5mm 1.5mm;">Кол, шт</td>
-    <td style="padding:0.5mm 1.5mm;"></td>
-    <td style="text-align:center; vertical-align:middle; width:10mm; font-size:7pt; font-weight:700; padding:0.5mm 1.5mm;">Кол, шт</td>
+    <td style="width:36%; padding:0.5mm 1.5mm;">
+      <span style="float:right; font-size:7pt; font-weight:700;">Кол, шт</span>
+    </td>
     <td style="width:28%; padding:0.5mm 1.5mm;">
       <span class="chk-hdr">ЧЕК-ЛИСТ</span>
     </td>
@@ -298,9 +299,11 @@
   {% set item_r = col_right[r] if r < col_right|length else none %}
   {% set chk = calc.checklist[r] if r < calc.checklist|length else none %}
   <tr>
-    {# ── Левая ячейка (item + qty) ── #}
+    {# ── Левая ячейка ── #}
     <td>
       {% if item_l %}
+      {% set fk_l = ("hw_" ~ item_l.idx ~ "_val") if item_l.type == 'hw' else ("screw_" ~ item_l.idx) %}
+      {% set fv_l = item_l.value %}
       <div class="hw-cell">
         {% if item_l.image %}{% set src = item_l.image | img_b64 %}{% if src %}<img src="{{ src }}" class="hw-img" alt="{{ item_l.article }}">{% endif %}{% endif %}
         <div class="hw-info">
@@ -309,27 +312,24 @@
           <div class="hw-row hw-row-sub">
             <span>{{ item_l.value }} {{ item_l.unit }}</span>
             <span class="hw-art">{{ item_l.article }}</span>
+            <span class="hw-qty" {{ ce(fk_l, fv_l) }}>{{ ov(fk_l, fv_l) }}</span>
           </div>
           {% else %}
           <div class="hw-row">
             <span class="hw-art">{{ item_l.article }}</span>
+            <span class="hw-qty" {{ ce(fk_l, fv_l) }}>{{ ov(fk_l, fv_l) }}</span>
           </div>
           {% endif %}
         </div>
       </div>
       {% endif %}
     </td>
-    <td style="text-align:right; vertical-align:middle; width:10mm; border-left:none;">
-      {% if item_l %}
-      {% set fk_l = ("hw_" ~ item_l.idx ~ "_val") if item_l.type == 'hw' else ("screw_" ~ item_l.idx) %}
-      {% set fv_l = item_l.value %}
-      <span class="hw-qty" {{ ce(fk_l, fv_l) }}>{{ ov(fk_l, fv_l) }}</span>
-      {% endif %}
-    </td>
 
-    {# ── Правая ячейка (item + qty) ── #}
+    {# ── Правая ячейка ── #}
     <td>
       {% if item_r %}
+      {% set fk_r = ("hw_" ~ item_r.idx ~ "_val") if item_r.type == 'hw' else ("screw_" ~ item_r.idx) %}
+      {% set fv_r = item_r.value %}
       <div class="hw-cell">
         {% if item_r.image %}{% set src = item_r.image | img_b64 %}{% if src %}<img src="{{ src }}" class="hw-img" alt="{{ item_r.article }}">{% endif %}{% endif %}
         <div class="hw-info">
@@ -338,21 +338,16 @@
           <div class="hw-row hw-row-sub">
             <span>{{ item_r.value }} {{ item_r.unit }}</span>
             <span class="hw-art">{{ item_r.article }}</span>
+            <span class="hw-qty" {{ ce(fk_r, fv_r) }}>{{ ov(fk_r, fv_r) }}</span>
           </div>
           {% else %}
           <div class="hw-row">
             <span class="hw-art">{{ item_r.article }}</span>
+            <span class="hw-qty" {{ ce(fk_r, fv_r) }}>{{ ov(fk_r, fv_r) }}</span>
           </div>
           {% endif %}
         </div>
       </div>
-      {% endif %}
-    </td>
-    <td style="text-align:right; vertical-align:middle; width:10mm; border-left:none;">
-      {% if item_r %}
-      {% set fk_r = ("hw_" ~ item_r.idx ~ "_val") if item_r.type == 'hw' else ("screw_" ~ item_r.idx) %}
-      {% set fv_r = item_r.value %}
-      <span class="hw-qty" {{ ce(fk_r, fv_r) }}>{{ ov(fk_r, fv_r) }}</span>
       {% endif %}
     </td>
 
