@@ -8,84 +8,77 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: Arial, Helvetica, sans-serif;
-    font-size: 8pt;
+    font-size: 7pt;
     color: #000;
     background: #fff;
     width: 204mm;
   }
   table { border-collapse: collapse; width: 100%; }
-  td, th { vertical-align: top; padding: 0.8mm 1.5mm; }
+  td, th { vertical-align: top; padding: 0.6mm 1mm; }
+  .cf::after { content: ''; display: block; clear: both; }
 
   /* ── Шапка ── */
   .hdr { border: 2px solid #000; }
-  .hdr td { padding: 1.5mm 2mm; font-weight: 900; font-size: 10pt; }
+  .hdr td { padding: 1mm 2mm; font-weight: 900; font-size: 9pt; }
   .hdr td + td { border-left: 2px solid #000; }
 
   /* ── Чёрная полоса-заголовок ── */
   .bar {
     background: #000; color: #fff;
-    font-weight: 700; padding: 0.6mm 2mm;
+    font-weight: 700; padding: 0.5mm 2mm;
     text-transform: uppercase; letter-spacing: 0.3px;
     border: 1px solid #000;
   }
   .bar table { width: 100%; }
-  .bar td { color: #fff; padding: 0 2mm; border: none; font-size: 8pt; font-weight: 700; }
+  .bar td { color: #fff; padding: 0 1.5mm; border: none; font-size: 7pt; font-weight: 700; }
 
   /* ── Параметры ── */
   .params { border: 1px solid #000; border-top: none; }
-  .params td { font-size: 8.5pt; line-height: 1.6; padding: 1.5mm 2mm; }
+  .params td { font-size: 7.5pt; line-height: 1.5; padding: 1mm 2mm; }
   .params .val { font-weight: 700; }
 
   /* ── Таблица стёкол ── */
-  .glass-tbl { width: 100%; margin-top: 1.5mm; }
-  .glass-tbl th { background: #e0e0e0; border: 1px solid #999; padding: 0.5mm 1mm; font-size: 7.5pt; text-align: center; }
-  .glass-tbl td { border: 1px solid #bbb; padding: 0.5mm 1mm; text-align: center; font-size: 8.5pt; font-weight: 700; }
+  .glass-tbl { width: 100%; margin-top: 1mm; }
+  .glass-tbl th { background: #e0e0e0; border: 1px solid #999; padding: 0.3mm 1mm; font-size: 6.5pt; text-align: center; }
+  .glass-tbl td { border: 1px solid #bbb; padding: 0.3mm 1mm; text-align: center; font-size: 7.5pt; font-weight: 700; }
   .glass-tbl td:first-child { text-align: left; font-weight: 400; }
 
   /* ── Схема ── */
-  .scheme-label { font-size: 8pt; font-weight: 700; margin: 1mm 0; }
+  .scheme-label { font-size: 7pt; font-weight: 700; margin: 0.5mm 0; }
 
   /* ── Нарезка профилей (3 колонки) ── */
   .prof-tbl { width: 100%; }
-  .prof-tbl td { border: 1px solid #000; border-top: none; padding: 1mm 1.5mm; vertical-align: top; }
+  .prof-tbl td { border: 1px solid #000; border-top: none; padding: 0.8mm 1mm; vertical-align: top; }
   .prof-tbl td + td { border-left: none; }
   .prof-tbl tr + tr td { border-top: none; }
-  .prof-cell { display: flex; align-items: flex-start; gap: 1.5mm; min-height: 9mm; }
-  .prof-img  { width: 16mm; height: 11mm; object-fit: contain; flex-shrink: 0; }
-  .prof-info { flex: 1; }
-  .prof-name { font-size: 8pt; font-weight: 700; }
-  .prof-line { font-size: 8pt; margin-top: 0.3mm; }
-  .prof-line .art { font-weight: 900; }
-  .prof-line .dim { margin-left: 3mm; }
-  .prof-line .qty { margin-left: 3mm; }
-  .prof-note { font-size: 5.5pt; font-style: italic; color: #555; margin-top: 0.3mm; }
+  .prof-img  { float: left; width: 14mm; height: 9mm; object-fit: contain; margin-right: 1mm; }
+  .prof-name { font-size: 7pt; font-weight: 700; }
+  .prof-line { font-size: 7pt; margin-top: 0.2mm; }
+  .prof-line .art { font-weight: 900; margin-right: 2mm; }
+  .prof-note { font-size: 5pt; font-style: italic; color: #555; margin-top: 0.2mm; }
 
   /* ── Стекольный профиль подтаблица ── */
   .gp-tbl { width: auto; margin-top: 0.5mm; }
-  .gp-tbl td { border: 1px solid #bbb; padding: 0.3mm 1.5mm; font-size: 8pt; }
+  .gp-tbl td { border: 1px solid #bbb; padding: 0.2mm 1.5mm; font-size: 7pt; }
   .gp-tbl td:nth-child(2), .gp-tbl td:nth-child(3) { text-align: center; font-weight: 700; }
 
   /* ── Фурнитура ── */
   .hw-tbl { width: 100%; border-collapse: collapse; }
-  .hw-tbl td { border: 1px solid #000; padding: 0.8mm 1.5mm; vertical-align: top; }
+  .hw-tbl td { border: 1px solid #000; padding: 0.5mm 1mm; vertical-align: top; }
   .hw-tbl tr + tr td { border-top: none; }
-  .hw-cell { display: flex; align-items: flex-start; gap: 1.5mm; min-height: 9mm; }
-  .hw-img  { width: 14mm; height: 10mm; object-fit: contain; flex-shrink: 0; }
-  .hw-info { flex: 1; }
-  .hw-name { font-size: 8pt; font-weight: 700; }
-  .hw-row  { display: flex; align-items: baseline; font-size: 7.5pt; margin-top: 0.3mm; }
-  .hw-row-sub { font-size: 7pt; color: #333; }
-  .hw-art  { font-weight: 900; flex: 1; text-align: center; }
-  .hw-qty  { font-size: 9pt; font-weight: 900; min-width: 8mm; text-align: right; }
-  .hw-note { font-size: 5.5pt; font-style: italic; color: #555; margin-top: 0.3mm; }
+  .hw-img  { float: left; width: 12mm; height: 8mm; object-fit: contain; margin-right: 1mm; }
+  .hw-name { font-size: 7pt; font-weight: 700; }
+  .hw-line { font-size: 6.5pt; margin-top: 0.2mm; }
+  .hw-line .art { font-weight: 900; }
+  .hw-line .qty { float: right; font-size: 8pt; font-weight: 900; }
+  .hw-note { font-size: 5pt; font-style: italic; color: #555; margin-top: 0.2mm; }
 
   /* ── Чеклист ── */
-  .chk-cell { font-size: 7.5pt; line-height: 1.4; vertical-align: middle !important; }
-  .chk-box { display: inline-block; width: 3.5mm; height: 3.5mm; border: 1px solid #000; vertical-align: middle; margin-right: 1mm; }
+  .chk-cell { font-size: 6.5pt; line-height: 1.3; vertical-align: middle !important; }
+  .chk-box { display: inline-block; width: 3mm; height: 3mm; border: 1px solid #000; vertical-align: middle; margin-right: 0.8mm; }
 
   /* ── Комментарии ── */
-  .comments { border: 1px solid #000; border-top: none; padding: 2mm; min-height: 12mm; }
-  .comments-title { font-weight: 700; font-size: 8pt; }
+  .comments { border: 1px solid #000; border-top: none; padding: 1.5mm; min-height: 8mm; font-size: 7pt; }
 
   {% if not is_pdf %}
   [contenteditable] { outline: none; cursor: text; border-radius: 1px; transition: background 0.1s; }
@@ -112,10 +105,10 @@
 <!-- ══════ СХЕМЫ ══════ -->
 <table style="border:1px solid #000; border-top:none;">
   <tr>
-    <td style="width:50%; text-align:center; padding:2mm; border-right:1px solid #000;">
+    <td style="width:50%; text-align:center; padding:1.5mm; border-right:1px solid #000;">
       <div class="scheme-label">схема вид из помещения</div>
       {% set rw = 260 %}
-      {% set rh = 65 %}
+      {% set rh = 55 %}
       <svg width="{{ rw }}" height="{{ rh }}" viewBox="0 0 {{ rw }} {{ rh }}"
            xmlns="http://www.w3.org/2000/svg" style="display:block; margin:0 auto;">
         <rect x="1" y="1" width="{{ rw-2 }}" height="{{ rh-2 }}" fill="none" stroke="#000" stroke-width="1.5"/>
@@ -126,10 +119,10 @@
         {% endfor %}
       </svg>
     </td>
-    <td style="width:50%; text-align:center; padding:2mm;">
+    <td style="width:50%; text-align:center; padding:1.5mm;">
       <div class="scheme-label">схема вид сверху</div>
       {% set sw = 260 %}
-      {% set sh = 45 %}
+      {% set sh = 40 %}
       {% set pw = sw / section.panels %}
       <svg width="{{ sw }}" height="{{ sh }}" viewBox="0 0 {{ sw }} {{ sh }}"
            xmlns="http://www.w3.org/2000/svg" style="display:block; margin:0 auto;">
@@ -152,12 +145,12 @@
   <tr>
     <td style="width:50%; border-right:1px solid #000;">
       <table style="border:none;">
-        <tr><td style="border:none; padding:0.3mm 0;"><b>ЦВЕТ</b></td><td style="border:none; padding:0.3mm 0;" class="val">{{ calc.color_text }}</td></tr>
-        <tr><td style="border:none; padding:0.3mm 0;"><b>СТЕКЛО</b></td><td style="border:none; padding:0.3mm 0;" class="val">{{ calc.glass_type }}</td></tr>
-        <tr><td style="border:none; padding:0.3mm 0;"><b>ПОРОГ</b></td><td style="border:none; padding:0.3mm 0;" class="val">{{ calc.threshold_text }}</td></tr>
-        <tr><td style="border:none; padding:0.3mm 0;"><b>СИСТЕМА</b></td><td style="border:none; padding:0.3mm 0;" class="val">{{ section.rails }}-полозная</td></tr>
+        <tr><td style="border:none; padding:0.2mm 0;"><b>ЦВЕТ</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ calc.color_text }}</td></tr>
+        <tr><td style="border:none; padding:0.2mm 0;"><b>СТЕКЛО</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ calc.glass_type }}</td></tr>
+        <tr><td style="border:none; padding:0.2mm 0;"><b>ПОРОГ</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ calc.threshold_text }}</td></tr>
+        <tr><td style="border:none; padding:0.2mm 0;"><b>СИСТЕМА</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ section.rails }}-полозная</td></tr>
       </table>
-      <div style="margin-top:1mm; font-size:8pt; font-weight:700;">РАЗМЕРЫ СТЕКОЛ:</div>
+      <div style="margin-top:0.5mm; font-size:7pt; font-weight:700;">РАЗМЕРЫ СТЕКОЛ:</div>
       <table class="glass-tbl">
         <tr><th></th><th>ширина</th><th>высота</th><th>кол-во</th></tr>
         {% for i, g in calc.glass | enumerate %}
@@ -175,10 +168,10 @@
     </td>
     <td style="width:50%;">
       <table style="border:none;">
-        <tr><td style="border:none; padding:0.3mm 0; text-align:right;"><b>ШИРИНА СЕКЦИИ, мм</b></td><td style="border:none; padding:0.3mm 0; width:15mm; text-align:right;" class="val">{{ section.width }}</td></tr>
-        <tr><td style="border:none; padding:0.3mm 0; text-align:right;"><b>ВЫСОТА СЕКЦИИ, мм</b></td><td style="border:none; padding:0.3mm 0; width:15mm; text-align:right;" class="val">{{ section.height }}</td></tr>
-        <tr><td style="border:none; padding:0.3mm 0; text-align:right;"><b>КОЛИЧЕСТВО ПАНЕЛЕЙ, шт</b></td><td style="border:none; padding:0.3mm 0; width:15mm; text-align:right;" class="val">{{ section.panels }}</td></tr>
-        <tr><td style="border:none; padding:0.3mm 0; text-align:right;"><b>КОЛИЧЕСТВО СЕКЦИЙ, шт</b></td><td style="border:none; padding:0.3mm 0; width:15mm; text-align:right;" class="val">{{ section.quantity }}</td></tr>
+        <tr><td style="border:none; padding:0.2mm 0; text-align:right;"><b>ШИРИНА СЕКЦИИ, мм</b></td><td style="border:none; padding:0.2mm 0; width:15mm; text-align:right;" class="val">{{ section.width }}</td></tr>
+        <tr><td style="border:none; padding:0.2mm 0; text-align:right;"><b>ВЫСОТА СЕКЦИИ, мм</b></td><td style="border:none; padding:0.2mm 0; width:15mm; text-align:right;" class="val">{{ section.height }}</td></tr>
+        <tr><td style="border:none; padding:0.2mm 0; text-align:right;"><b>КОЛИЧЕСТВО ПАНЕЛЕЙ, шт</b></td><td style="border:none; padding:0.2mm 0; width:15mm; text-align:right;" class="val">{{ section.panels }}</td></tr>
+        <tr><td style="border:none; padding:0.2mm 0; text-align:right;"><b>КОЛИЧЕСТВО СЕКЦИЙ, шт</b></td><td style="border:none; padding:0.2mm 0; width:15mm; text-align:right;" class="val">{{ section.quantity }}</td></tr>
       </table>
     </td>
   </tr>
@@ -222,17 +215,15 @@
       {% set p = all_profiles[i] %}
       {% set fk_l = "p_" ~ i ~ "_len" %}
       {% set fk_q = "p_" ~ i ~ "_qty" %}
-      <div class="prof-cell">
+      <div class="cf">
         {% if p.image %}{% set src = p.image | img_b64 %}{% if src %}<img src="{{ src }}" class="prof-img" alt="{{ p.article }}">{% endif %}{% endif %}
-        <div class="prof-info">
-          <div class="prof-name">{{ p.name }}</div>
-          <div class="prof-line">
-            <span class="art">{{ p.article }}</span>
-            {% if p.length_mm > 0 %}<span class="dim" {{ ce(fk_l, p.length_mm|int) }}>{{ ov(fk_l, p.length_mm|int) }}</span>{% endif %}
-            <span class="qty" {{ ce(fk_q, p.qty) }}>{{ ov(fk_q, p.qty) }}</span>
-          </div>
-          {% if p.note %}<div class="prof-note">{{ p.note }}</div>{% endif %}
+        <div class="prof-name">{{ p.name }}</div>
+        <div class="prof-line">
+          <span class="art">{{ p.article }}</span>
+          {% if p.length_mm > 0 %}<span {{ ce(fk_l, p.length_mm|int) }}>{{ ov(fk_l, p.length_mm|int) }}</span>&ensp;{% endif %}
+          <span {{ ce(fk_q, p.qty) }}>{{ ov(fk_q, p.qty) }}</span>
         </div>
+        {% if p.note %}<div class="prof-note">{{ p.note }}</div>{% endif %}
       </div>
       {% endif %}
     </td>
@@ -299,22 +290,13 @@
       {% if item_l %}
       {% set fk_l = ("hw_" ~ item_l.idx ~ "_val") if item_l.type == 'hw' else ("screw_" ~ item_l.idx) %}
       {% set fv_l = item_l.value %}
-      <div class="hw-cell">
+      <div class="cf">
         {% if item_l.image %}{% set src = item_l.image | img_b64 %}{% if src %}<img src="{{ src }}" class="hw-img" alt="{{ item_l.article }}">{% endif %}{% endif %}
-        <div class="hw-info">
-          <div class="hw-name">{{ item_l.name }}</div>
-          {% if item_l.type == 'hw' and item_l.unit == 'м' %}
-          <div class="hw-row hw-row-sub">
-            <span>{{ item_l.value }} {{ item_l.unit }}</span>
-            <span class="hw-art">{{ item_l.article }}</span>
-            <span class="hw-qty" {{ ce(fk_l, fv_l) }}>{{ ov(fk_l, fv_l) }}</span>
-          </div>
-          {% else %}
-          <div class="hw-row">
-            <span class="hw-art">{{ item_l.article }}</span>
-            <span class="hw-qty" {{ ce(fk_l, fv_l) }}>{{ ov(fk_l, fv_l) }}</span>
-          </div>
-          {% endif %}
+        <div class="hw-name">{{ item_l.name }}</div>
+        <div class="hw-line">
+          {% if item_l.type == 'hw' and item_l.unit == 'м' %}<span>{{ item_l.value }} {{ item_l.unit }}&ensp;</span>{% endif %}
+          <span class="art">{{ item_l.article }}</span>
+          <span class="qty" {{ ce(fk_l, fv_l) }}>{{ ov(fk_l, fv_l) }}</span>
         </div>
       </div>
       {% endif %}
@@ -325,22 +307,13 @@
       {% if item_r %}
       {% set fk_r = ("hw_" ~ item_r.idx ~ "_val") if item_r.type == 'hw' else ("screw_" ~ item_r.idx) %}
       {% set fv_r = item_r.value %}
-      <div class="hw-cell">
+      <div class="cf">
         {% if item_r.image %}{% set src = item_r.image | img_b64 %}{% if src %}<img src="{{ src }}" class="hw-img" alt="{{ item_r.article }}">{% endif %}{% endif %}
-        <div class="hw-info">
-          <div class="hw-name">{{ item_r.name }}</div>
-          {% if item_r.type == 'hw' and item_r.unit == 'м' %}
-          <div class="hw-row hw-row-sub">
-            <span>{{ item_r.value }} {{ item_r.unit }}</span>
-            <span class="hw-art">{{ item_r.article }}</span>
-            <span class="hw-qty" {{ ce(fk_r, fv_r) }}>{{ ov(fk_r, fv_r) }}</span>
-          </div>
-          {% else %}
-          <div class="hw-row">
-            <span class="hw-art">{{ item_r.article }}</span>
-            <span class="hw-qty" {{ ce(fk_r, fv_r) }}>{{ ov(fk_r, fv_r) }}</span>
-          </div>
-          {% endif %}
+        <div class="hw-name">{{ item_r.name }}</div>
+        <div class="hw-line">
+          {% if item_r.type == 'hw' and item_r.unit == 'м' %}<span>{{ item_r.value }} {{ item_r.unit }}&ensp;</span>{% endif %}
+          <span class="art">{{ item_r.article }}</span>
+          <span class="qty" {{ ce(fk_r, fv_r) }}>{{ ov(fk_r, fv_r) }}</span>
         </div>
       </div>
       {% endif %}
@@ -355,7 +328,7 @@
 </table>
 
 <!-- ══════ КОММЕНТАРИИ К СЕКЦИИ ══════ -->
-<div class="bar" style="font-size:8pt;">КОММЕНТАРИИ К СЕКЦИИ:</div>
+<div class="bar" style="font-size:7pt;">КОММЕНТАРИИ К СЕКЦИИ:</div>
 <div class="comments">
   {% if section.comments %}{{ section.comments }}{% endif %}
   {% if section.extra_parts %}<br>Доп. комплектующие: {{ section.extra_parts }}{% endif %}
