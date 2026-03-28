@@ -284,9 +284,9 @@
         <div class="hw-name">{{ item_l.name }}</div>
         {% if item_l.sub_items %}
           {% for si in item_l.sub_items %}
-          <div class="hw-line" style="margin-left:16mm;">
+          <div class="hw-line" style="text-align:center;">
             <span class="hw-qty" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</span>
-            <span>{{ si.label }}&ensp;</span><span style="font-weight:900;">{{ si.article }}</span>
+            {{ si.label }}&ensp;<b>{{ si.article }}</b>
           </div>
           {% endfor %}
         {% else %}
@@ -307,9 +307,9 @@
         <div class="hw-name">{{ item_r.name }}</div>
         {% if item_r.sub_items %}
           {% for si in item_r.sub_items %}
-          <div class="hw-line" style="margin-left:16mm;">
+          <div class="hw-line" style="text-align:center;">
             <span class="hw-qty" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</span>
-            <span>{{ si.label }}&ensp;</span><span style="font-weight:900;">{{ si.article }}</span>
+            {{ si.label }}&ensp;<b>{{ si.article }}</b>
           </div>
           {% endfor %}
         {% else %}
