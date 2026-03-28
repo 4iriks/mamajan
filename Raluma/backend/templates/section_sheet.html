@@ -234,6 +234,7 @@
   <tr>
     <td colspan="2">
       {% set gp = glass_profiles[0] %}
+      {% if gp.image %}{% set src = gp.image | img_b64 %}{% if src %}<img src="{{ src }}" class="prof-img">{% endif %}{% endif %}
       <div class="prof-name">Стекольный профиль</div>
       <div class="prof-line"><span class="art">{{ gp.article }}</span></div>
       <table class="gp-tbl">
