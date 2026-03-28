@@ -320,7 +320,7 @@
       </div>
       {% endif %}
     </td>
-    <td style="text-align:right; vertical-align:middle; width:10mm;">
+    <td style="text-align:right; vertical-align:middle; width:10mm; border-left:none;">
       {% if item_l %}
       {% set fk_l = ("hw_" ~ item_l.idx ~ "_val") if item_l.type == 'hw' else ("screw_" ~ item_l.idx) %}
       {% set fv_l = item_l.value %}
@@ -349,7 +349,7 @@
       </div>
       {% endif %}
     </td>
-    <td style="text-align:right; vertical-align:middle; width:10mm;">
+    <td style="text-align:right; vertical-align:middle; width:10mm; border-left:none;">
       {% if item_r %}
       {% set fk_r = ("hw_" ~ item_r.idx ~ "_val") if item_r.type == 'hw' else ("screw_" ~ item_r.idx) %}
       {% set fv_r = item_r.value %}
