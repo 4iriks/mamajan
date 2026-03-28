@@ -68,11 +68,11 @@
   .hw-tbl { width: 100%; border-collapse: collapse; }
   .hw-tbl td { border: 1px solid #000; padding: 0.8mm 1.5mm; vertical-align: top; }
   .hw-tbl .bar-row td { background: #000; color: #fff; font-size: 7pt; font-weight: 700; border-color: #000; padding: 0.5mm 1.5mm; }
-  .hw-img  { float: left; width: 12mm; height: 8mm; object-fit: contain; margin-right: 1mm; }
+  .hw-img  { width: 100%; height: 8mm; object-fit: contain; object-position: left; margin-bottom: 0.5mm; }
   .hw-name { font-size: 7pt; font-weight: 700; }
-  .hw-line { font-size: 6.5pt; margin-top: 0.2mm; overflow: hidden; text-align: center; }
-  .hw-line .art { font-weight: 900; font-size: 9pt; }
-  .hw-line .qty { float: right; font-size: 10pt; font-weight: 900; }
+  .hw-art  { font-weight: 900; font-size: 9pt; text-align: center; margin-top: 0.2mm; }
+  .hw-qty  { float: right; font-size: 10pt; font-weight: 900; margin-top: -2mm; }
+  .hw-line { font-size: 6.5pt; margin-top: 0.2mm; overflow: hidden; }
   .hw-note { font-size: 6.5pt; font-style: italic; color: #555; margin-top: 0.2mm; }
 
   /* ── Чеклист ── */
@@ -285,19 +285,15 @@
         {% if item_l.sub_items %}
           {% for si in item_l.sub_items %}
           <div class="hw-line">
-            <span>{{ si.label }}&ensp;</span>
-            <span class="art">{{ si.article }}</span>
-            <span class="qty" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</span>
+            <span class="hw-qty" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</span>
+            <span>{{ si.label }}&ensp;</span><span style="font-weight:900;">{{ si.article }}</span>
           </div>
           {% endfor %}
         {% else %}
           {% set fk_l = ("hw_" ~ item_l.idx ~ "_val") if item_l.type == 'hw' else ("screw_" ~ item_l.idx) %}
           {% set fv_l = item_l.value %}
-          <div class="hw-line">
-            {% if item_l.type == 'hw' and item_l.unit == 'м' %}<span>{{ item_l.value }} {{ item_l.unit }}&ensp;</span>{% endif %}
-            <span class="art">{{ item_l.article }}</span>
-            <span class="qty" {{ ce(fk_l, fv_l) }}>{{ ov(fk_l, fv_l) }}</span>
-          </div>
+          <span class="hw-qty" {{ ce(fk_l, fv_l) }}>{{ ov(fk_l, fv_l) }}</span>
+          <div class="hw-art">{{ item_l.article }}</div>
         {% endif %}
       </div>
       {% endif %}
@@ -312,19 +308,15 @@
         {% if item_r.sub_items %}
           {% for si in item_r.sub_items %}
           <div class="hw-line">
-            <span>{{ si.label }}&ensp;</span>
-            <span class="art">{{ si.article }}</span>
-            <span class="qty" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</span>
+            <span class="hw-qty" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</span>
+            <span>{{ si.label }}&ensp;</span><span style="font-weight:900;">{{ si.article }}</span>
           </div>
           {% endfor %}
         {% else %}
           {% set fk_r = ("hw_" ~ item_r.idx ~ "_val") if item_r.type == 'hw' else ("screw_" ~ item_r.idx) %}
           {% set fv_r = item_r.value %}
-          <div class="hw-line">
-            {% if item_r.type == 'hw' and item_r.unit == 'м' %}<span>{{ item_r.value }} {{ item_r.unit }}&ensp;</span>{% endif %}
-            <span class="art">{{ item_r.article }}</span>
-            <span class="qty" {{ ce(fk_r, fv_r) }}>{{ ov(fk_r, fv_r) }}</span>
-          </div>
+          <span class="hw-qty" {{ ce(fk_r, fv_r) }}>{{ ov(fk_r, fv_r) }}</span>
+          <div class="hw-art">{{ item_r.article }}</div>
         {% endif %}
       </div>
       {% endif %}
