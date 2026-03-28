@@ -44,6 +44,7 @@ class ScrewItem:
     name: str
     article: str
     qty: int
+    image: str | None = None
 
 
 @dataclass

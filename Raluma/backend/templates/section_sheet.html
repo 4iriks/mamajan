@@ -73,26 +73,23 @@
   .gp-tbl td { border: 1px solid #bbb; padding: 0.3mm 1.5mm; font-size: 7pt; }
   .gp-tbl td:nth-child(2), .gp-tbl td:nth-child(3) { text-align: center; font-weight: 700; }
 
-  /* ── Фурнитура ── */
-  .hw-tbl td { border: 1px solid #000; padding: 1.5mm; vertical-align: top; }
+  /* ── Фурнитура (объединённая таблица) ── */
+  .hw-tbl { width: 100%; border-collapse: collapse; }
+  .hw-tbl td { border: 1px solid #000; padding: 1mm 1.5mm; vertical-align: middle; }
   .hw-tbl td + td { border-left: none; }
-  .hw-item { margin-bottom: 1mm; padding-bottom: 0.6mm; border-bottom: 0.5px solid #ddd; }
-  .hw-item:last-child { border-bottom: none; margin-bottom: 0; }
-  .hw-art  { font-size: 8pt; font-weight: 900; }
-  .hw-qty  { font-size: 9pt; font-weight: 900; }
-  .hw-name { font-size: 6.5pt; }
-  .hw-img  { float: left; width: 14mm; height: 10mm; object-fit: contain; margin-right: 1.5mm; }
-
-  /* ── Саморезы ── */
-  .screw-item { margin-bottom: 1mm; font-size: 6.5pt; }
-  .screw-art  { font-weight: 700; }
-  .screw-qty  { font-size: 9pt; font-weight: 900; }
-  .screw-note { font-size: 5.5pt; font-style: italic; color: #555; }
+  .hw-tbl tr + tr td { border-top: none; }
+  .hw-img-cell { width: 18mm; text-align: center; }
+  .hw-img  { width: 16mm; height: 11mm; object-fit: contain; }
+  .hw-name { font-size: 7pt; font-weight: 700; }
+  .hw-sub  { font-size: 6.5pt; color: #333; }
+  .hw-art-cell { text-align: center; font-size: 7pt; }
+  .hw-qty-cell { width: 14mm; text-align: center; font-size: 9pt; font-weight: 900; }
 
   /* ── Чеклист ── */
-  .chk-title { font-size: 8pt; font-weight: 900; text-transform: uppercase; border-bottom: 1px solid #000; padding-bottom: 0.6mm; margin-bottom: 1.5mm; }
-  .chk-item { font-size: 6.5pt; margin-bottom: 1.2mm; line-height: 1.35; }
-  .chk-box { display: inline-block; width: 3mm; height: 3mm; border: 1px solid #000; vertical-align: middle; margin-right: 0.6mm; }
+  .chk-tbl { width: 100%; border-collapse: collapse; margin-top: 1mm; }
+  .chk-tbl td { border: 1px solid #000; padding: 1mm 2mm; font-size: 7pt; }
+  .chk-title-cell { font-weight: 900; font-size: 8pt; text-transform: uppercase; background: #000; color: #fff; }
+  .chk-box { display: inline-block; width: 3mm; height: 3mm; border: 1px solid #000; vertical-align: middle; margin-right: 1mm; }
 
   /* ── Комментарии ── */
   .comments-row { border-top: 1px solid #000; margin-top: 1mm; padding-top: 1mm; font-size: 6.5pt; }
@@ -301,7 +298,7 @@
   {% endif %}
 </table>
 
-<!-- ══════ ФУРНИТУРА + САМОРЕЗЫ + ЧЕК-ЛИСТ ══════ -->
+<!-- ══════ ФУРНИТУРА ══════ -->
 <div class="bar" style="margin-top:1mm;">
   <div class="bar-cols">
     <span>ФУРНИТУРА</span>
@@ -310,42 +307,43 @@
 </div>
 
 <table class="hw-tbl">
+  {# ── Фурнитура ── #}
+  {% for h in calc.hardware %}
   <tr>
-    <!-- Колонка 1: фурнитура -->
-    <td style="width:33%;">
-      {% for h in calc.hardware %}
-      <div class="hw-item cf">
-        {% if h.image %}{% set src = h.image | img_b64 %}{% if src %}<img src="{{ src }}" class="hw-img" alt="{{ h.article }}">{% endif %}{% endif %}
-        <div class="hw-name">{{ h.name }}</div>
-        <div>
-          <span class="hw-art">{{ h.article }}</span>&ensp;
-          <span class="hw-qty" {{ ce("hw_" ~ loop.index ~ "_val", h.value) }}>{{ ov("hw_" ~ loop.index ~ "_val", h.value) }}</span>
-          <span style="font-size:5.5pt;">{{ h.unit }}</span>
-        </div>
-      </div>
-      {% endfor %}
+    <td class="hw-img-cell">
+      {% if h.image %}{% set src = h.image | img_b64 %}{% if src %}<img src="{{ src }}" class="hw-img" alt="{{ h.article }}">{% endif %}{% endif %}
     </td>
-
-    <!-- Колонка 2: саморезы -->
-    <td style="width:37%;">
-      <div style="font-size:7pt; font-weight:700; border-bottom:1px solid #999; padding-bottom:0.5mm; margin-bottom:1mm;">КРЕПЁЖ И РАСХОДНИКИ</div>
-      {% for s in calc.screws %}
-      {% set sfk = "screw_" ~ loop.index %}
-      <div class="screw-item">
-        <span class="screw-art">{{ s.name }}</span>&ensp;
-        <span class="screw-qty" {{ ce(sfk, s.qty) }}>{{ ov(sfk, s.qty) }}</span>
-      </div>
-      {% endfor %}
+    <td>
+      <div class="hw-name">{{ h.name }}</div>
+      {% if h.unit == 'м' %}<div class="hw-sub">{{ h.value }} {{ h.unit }}</div>{% endif %}
     </td>
-
-    <!-- Колонка 3: чек-лист -->
-    <td style="width:30%;">
-      <div class="chk-title">ЧЕК-ЛИСТ</div>
-      {% for item in calc.checklist %}
-      <div class="chk-item"><span class="chk-box"></span>{{ item }}</div>
-      {% endfor %}
-    </td>
+    <td class="hw-art-cell">{{ h.article }}</td>
+    <td class="hw-qty-cell" {{ ce("hw_" ~ loop.index ~ "_val", h.value) }}>{{ ov("hw_" ~ loop.index ~ "_val", h.value) }}</td>
   </tr>
+  {% endfor %}
+
+  {# ── Саморезы и расходники (продолжение таблицы) ── #}
+  {% for s in calc.screws %}
+  {% set sfk = "screw_" ~ loop.index %}
+  <tr>
+    <td class="hw-img-cell">
+      {% if s.image %}{% set src = s.image | img_b64 %}{% if src %}<img src="{{ src }}" class="hw-img" alt="{{ s.article }}">{% endif %}{% endif %}
+    </td>
+    <td>
+      <div class="hw-name">{{ s.name }}</div>
+    </td>
+    <td class="hw-art-cell">{{ s.article }}</td>
+    <td class="hw-qty-cell" {{ ce(sfk, s.qty) }}>{{ ov(sfk, s.qty) }}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+<!-- ══════ ЧЕК-ЛИСТ ══════ -->
+<table class="chk-tbl">
+  <tr><td class="chk-title-cell" colspan="1">ЧЕК-ЛИСТ</td></tr>
+  {% for item in calc.checklist %}
+  <tr><td><span class="chk-box"></span>{{ item }}</td></tr>
+  {% endfor %}
 </table>
 
 <!-- ══════ КОММЕНТАРИИ ══════ -->
