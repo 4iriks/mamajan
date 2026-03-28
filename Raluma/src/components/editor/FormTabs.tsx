@@ -128,6 +128,9 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
               <option>Накладной анод</option>
               <option>Накладной окраш</option>
             </select>
+            {!s.threshold && (
+              <p className="text-[10px] text-amber-400/70 font-bold uppercase tracking-wider pl-1">⚠ Без порога система быть не может</p>
+            )}
           </div>
           <div className="space-y-1.5">
             <label className={LBL}>Межстекольный профиль</label>
