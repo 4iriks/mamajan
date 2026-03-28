@@ -114,7 +114,7 @@ def calculate_slide(section) -> SlideCalcResult:
 
     result.glass_type = section.glass_type or "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
     result.threshold_text = threshold
-    result.system_text = f"СЛАЙД {rails}-рельс"
+    result.system_text = "SLIDE-стандарт 1 ряд"
 
     # ── Профильные переменные (для расчёта стёкол) ────────────────────────────
 
