@@ -52,9 +52,12 @@
   .prof-tbl .bar-row td { background: #000; color: #fff; font-size: 7pt; font-weight: 700; border-color: #000; padding: 0.5mm 1.5mm; }
   .prof-img  { float: left; width: 14mm; height: 9mm; object-fit: contain; margin-right: 1.5mm; }
   .prof-name { font-size: 7pt; font-weight: 700; }
-  .prof-line { font-size: 7pt; margin-top: 0.2mm; }
-  .prof-line .art { font-weight: 900; margin-right: 3mm; }
-  .prof-note { font-size: 5pt; font-style: italic; color: #555; margin-top: 0.2mm; }
+  .prof-line { font-size: 7pt; font-weight: 900; margin-top: 0.2mm; }
+  .prof-line .art { margin-right: 2mm; }
+  .prof-line .vals { float: right; }
+  .prof-line .dim { display: inline-block; width: 13mm; text-align: right; }
+  .prof-line .qty { display: inline-block; width: 10mm; text-align: right; }
+  .prof-note { font-size: 5pt; font-style: italic; color: #555; margin-top: 0.2mm; font-weight: 400; }
 
   /* ── Стекольный профиль подтаблица ── */
   .gp-tbl { width: auto; margin-top: 0.5mm; }
@@ -209,10 +212,12 @@
       <div class="cf">
         {% if p.image %}{% set src = p.image | img_b64 %}{% if src %}<img src="{{ src }}" class="prof-img" alt="{{ p.article }}">{% endif %}{% endif %}
         <div class="prof-name">{{ p.name }}</div>
-        <div class="prof-line">
+        <div class="prof-line cf">
+          <span class="vals">
+            <span class="dim" {% if p.length_mm > 0 %}{{ ce(fk_l, p.length_mm|int) }}{% endif %}>{% if p.length_mm > 0 %}{{ ov(fk_l, p.length_mm|int) }}{% endif %}</span>
+            <span class="qty" {{ ce(fk_q, p.qty) }}>{{ ov(fk_q, p.qty) }}</span>
+          </span>
           <span class="art">{{ p.article }}</span>
-          {% if p.length_mm > 0 %}<span {{ ce(fk_l, p.length_mm|int) }}>{{ ov(fk_l, p.length_mm|int) }}</span>&ensp;{% endif %}
-          <span {{ ce(fk_q, p.qty) }}>{{ ov(fk_q, p.qty) }}</span>
         </div>
         {% if p.note %}<div class="prof-note">{{ p.note }}</div>{% endif %}
       </div>
