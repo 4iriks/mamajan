@@ -432,7 +432,7 @@ def calculate_slide(section) -> SlideCalcResult:
                 length_mm=length,
                 qty=qty,
                 painted=painted,
-                image=None,  # RS2021.jpg нет в ассетах
+                image="RS2021.jpg",
                 field_key=f"glass_profile_{length}",
                 note="прикрутить ролики и заглушки",
             )
@@ -487,10 +487,10 @@ def calculate_slide(section) -> SlideCalcResult:
                 "Накладка на ручку-профиль",
                 hb_count * Q,
                 "шт",
-                None,
+                "RS1121.png",
                 "rs1121",
             )
-        )  # RS1121.jpg нет в ассетах
+        )
 
     # RS3018 защёлка 1-сторонняя
     lock3018 = 0
@@ -645,27 +645,27 @@ def calculate_slide(section) -> SlideCalcResult:
     # 4,8×19 A2
     screw4819 = (rs105_qty + rs106_qty) * 2 * Q
     result.screws.append(
-        ScrewItem("Саморез 4,8×19 A2 (DIN7982)", "4,8×19 A2", screw4819)
+        ScrewItem("Саморез 4,8×19 A2 (DIN7982)", "4,8×19 A2", screw4819, "DIN7982.png")
     )
 
     # 3,9×13 A2 (DIN7504M) — для роликов
     screw3913m = ru005_qty * 2 + math.ceil((H - 200) / 300) * 4 * Q
     result.screws.append(
-        ScrewItem("Саморез 3,9×13 A2 (DIN7504M)", "3,9×13 A2 DIN7504M", screw3913m)
+        ScrewItem("Саморез 3,9×13 A2 (DIN7504M)", "3,9×13 A2 DIN7504M", screw3913m, "DIN7504M.png")
     )
 
     # 4,8×38 A2
     screw4838_map = {(3, True): 8, (5, True): 12, (3, False): 4, (5, False): 6}
     screw4838 = screw4838_map.get((rails, std), 8)
     result.screws.append(
-        ScrewItem("Саморез 4,8×38 A2 (DIN7982)", "4,8×38 A2", screw4838)
+        ScrewItem("Саморез 4,8×38 A2 (DIN7982)", "4,8×38 A2", screw4838, "DIN7982.png")
     )
 
     # 3,9×13 A2 (DIN7504О) — для П-профиля RS1082
     screw3913o = pb_count * Q * 7
     if screw3913o > 0:
         result.screws.append(
-            ScrewItem("Саморез 3,9×13 A2 (DIN7504О)", "3,9×13 A2 DIN7504O", screw3913o)
+            ScrewItem("Саморез 3,9×13 A2 (DIN7504О)", "3,9×13 A2 DIN7504O", screw3913o, "DIN7504O.png")
         )
 
     # 5,4×25 A2 — глухие панели
@@ -673,14 +673,14 @@ def calculate_slide(section) -> SlideCalcResult:
     screw5425 = deaf_count * Q
     if screw5425 > 0:
         result.screws.append(
-            ScrewItem("Саморез 5,4×25 A2 (DIN912SW)", "5,4×25 A2", screw5425)
+            ScrewItem("Саморез 5,4×25 A2 (DIN912SW)", "5,4×25 A2", screw5425, "DIN912SW.png")
         )
 
     # 3,5×13 A2 — ответная планка
     screw3513 = rs122_qty * 2 * Q
     if screw3513 > 0:
         result.screws.append(
-            ScrewItem("Саморез 3,5×13 A2 (DIN7982)", "3,5×13 A2", screw3513)
+            ScrewItem("Саморез 3,5×13 A2 (DIN7982)", "3,5×13 A2", screw3513, "DIN7982.png")
         )
 
     # Наклейка и инструкция
