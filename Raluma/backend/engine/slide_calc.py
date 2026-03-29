@@ -648,7 +648,7 @@ def calculate_slide(section) -> SlideCalcResult:
         )
 
     # RS107 заглушка запорная
-    rs107_qty = (rs105_qty + rs106_qty) * Q
+    rs107_qty = rs105_qty + rs106_qty
     if rs107_qty > 0:
         result.hardware.append(
             HardwareItem(
@@ -659,7 +659,7 @@ def calculate_slide(section) -> SlideCalcResult:
     # ── Саморезы ─────────────────────────────────────────────────────────────
 
     # 4,8×19 A2
-    screw4819 = (rs105_qty + rs106_qty) * 2 * Q
+    screw4819 = (rs105_qty + rs106_qty) * 2
     result.screws.append(
         ScrewItem("Саморез 4,8×19 A2 (DIN7982)", "4,8×19 A2", screw4819, "DIN7982.png")
     )
@@ -693,7 +693,7 @@ def calculate_slide(section) -> SlideCalcResult:
         )
 
     # 3,5×13 A2 — ответная планка
-    screw3513 = rs122_qty * 2 * Q
+    screw3513 = rs122_qty * 2
     if screw3513 > 0:
         result.screws.append(
             ScrewItem("Саморез 3,5×13 A2 (DIN7982)", "3,5×13 A2", screw3513, "DIN7982.png")
@@ -726,7 +726,7 @@ def calculate_slide(section) -> SlideCalcResult:
         result.checklist.append("Сделать фрезеровку под защелки")
 
     if lb_count > 0:
-        result.checklist.append("Отфрезеровать пазы в RS1081")
+        result.checklist.append("Отфрезеровать пазы в RS2081")
 
     result.checklist.append("Рассверлить крепежные отверстия")
 
