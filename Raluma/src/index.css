@@ -24,21 +24,21 @@
 }
 
 html.light {
-  --theme-page: #f8fafb;
+  --theme-page: #f0f3f6;
   --theme-surface: #ffffff;
-  --theme-tint: #2a7a8a;
-  --theme-accent: #2a7a8a;
+  --theme-tint: #14505e;
+  --theme-accent: #0b3c47;
   --theme-modal: #ffffff;
-  --theme-fg: #1a4b54;
-  --theme-hi: #1a4b54;
-  --theme-primary: #00b894;
-  --theme-primary-h: #00d1a7;
+  --theme-fg: #0c2830;
+  --theme-hi: #0c2830;
+  --theme-primary: #00a583;
+  --theme-primary-h: #00c49b;
   --theme-glow1: transparent;
   --theme-glow2: transparent;
   --theme-select-bg: #ffffff;
-  --theme-dropdown: #ffffff;
+  --theme-dropdown: #f5f7f9;
   --theme-check: #ffffff;
-  --theme-card-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  --theme-card-shadow: 0 2px 6px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06);
 }
 
 @theme {
