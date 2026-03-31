@@ -192,14 +192,14 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
               className={`relative group p-4 rounded-2xl border transition-all cursor-pointer overflow-hidden ${
                 activeSectionId === section.id
                   ? 'bg-tint/20 border-accent/50 shadow-lg shadow-accent/5'
-                  : 'bg-hi/[0.02] border-tint/10 hover:border-tint/40'
+                  : 'bg-surface/60 border-tint/20 hover:border-tint/40'
               }`}
             >
               <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${SYSTEM_ACCENT_BG[section.system]} transition-opacity ${
                 activeSectionId === section.id ? 'opacity-80' : 'opacity-30 group-hover:opacity-60'
               }`} />
               <div className="flex justify-between items-start mb-2">
-                <span className={`text-sm font-bold leading-snug ${activeSectionId === section.id ? 'text-accent' : 'text-fg/80'}`}>
+                <span className={`text-sm font-bold leading-snug ${activeSectionId === section.id ? 'text-accent' : 'text-fg'}`}>
                   {section.name}
                 </span>
                 <button onClick={e => { e.stopPropagation(); onDeleteSection(section); }}
@@ -212,13 +212,13 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
                   {section.system}
                 </span>
                 {getSectionTypeLabel(section) && (
-                  <span className="text-[11px] text-fg/40 font-medium">{getSectionTypeLabel(section)}</span>
+                  <span className="text-[11px] text-fg/60 font-medium">{getSectionTypeLabel(section)}</span>
                 )}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] font-mono text-fg/35">{section.width} × {section.height} мм</span>
+                <span className="text-[11px] font-mono text-fg/55">{section.width} × {section.height} мм</span>
                 {getSectionColorLabel(section) && (
-                  <span className="text-[11px] text-fg/35">{getSectionColorLabel(section)}</span>
+                  <span className="text-[11px] text-fg/55">{getSectionColorLabel(section)}</span>
                 )}
               </div>
             </motion.div>
