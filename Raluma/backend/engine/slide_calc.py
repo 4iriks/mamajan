@@ -419,18 +419,20 @@ def calculate_slide(section) -> SlideCalcResult:
         # Определяем длину RS2021 для этого стекла
         base_len = g.width_mm
         if g.position in ("Левое", "Правое"):
+            # 1) ручка-профиль RS112 → +16
             if handle_bar_l and g.position == "Левое":
-                base_len = g.width_mm + 16
+                base_len += 16
             elif handle_bar_r and g.position == "Правое":
-                base_len = g.width_mm + 16
-            if bubble_l and g.position == "Левое":
-                base_len = g.width_mm - 3
-            elif bubble_r and g.position == "Правое":
-                base_len = g.width_mm - 3
+                base_len += 16
+            # 2) пузырьковый RS1002 → -3 только для подвижной створки
+            if bubble_l and g.position == "Левое" and not left_is_deaf:
+                base_len -= 3
+            elif bubble_r and g.position == "Правое" and not right_is_deaf:
+                base_len -= 3
         else:
             # Промежуточное
             if inter_glass_type != "Без":
-                base_len = g.width_mm - 3
+                base_len -= 3
         g.glass_profile_length = round(base_len, 1)
 
     glass_profile_items = {}
