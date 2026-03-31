@@ -4,7 +4,6 @@
 Выходные данные: SlideCalcResult
 """
 
-import math
 from dataclasses import dataclass, field
 
 
@@ -666,8 +665,8 @@ def calculate_slide(section) -> SlideCalcResult:
         ScrewItem("Саморез 4,8×19 A2 (DIN7982)", "4,8×19 A2", screw4819, "DIN7982.png")
     )
 
-    # 3,9×13 A2 (DIN7504M) — для роликов
-    screw3913m = ru005_qty * 2 + math.ceil((H - 200) / 300) * 4 * Q
+    # 3,9×13 A2 (DIN7504M) — для роликов + П-профиля
+    screw3913m = ru005_qty * 2 + pb_count * 7 * Q
     result.screws.append(
         ScrewItem("Саморез 3,9×13 A2 (DIN7504M)", "3,9×13 A2 DIN7504M", screw3913m, "DIN7504M.png")
     )
