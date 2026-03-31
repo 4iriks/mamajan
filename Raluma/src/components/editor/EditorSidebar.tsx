@@ -191,7 +191,7 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
               onClick={() => onSelectSection(section.id)}
               className={`relative group p-4 rounded-2xl border transition-all cursor-pointer overflow-hidden ${
                 activeSectionId === section.id
-                  ? 'bg-accent/15 border-accent/50 shadow-lg shadow-accent/10 ring-1 ring-accent/20'
+                  ? 'bg-accent/15 border-accent/70 shadow-lg shadow-accent/10 ring-1 ring-accent/30'
                   : 'bg-surface/60 border-tint/20 hover:border-tint/40'
               }`}
             >
