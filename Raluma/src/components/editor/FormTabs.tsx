@@ -51,7 +51,7 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
             {(['RAL стандарт', 'RAL нестандарт', 'Анодированный'] as const).map(type => (
               <button key={type} onClick={() => update({ paintingType: type })}
                 className={`flex items-center gap-3 w-full px-3 py-2 rounded-xl border transition-all text-left ${
-                  s.paintingType === type ? 'bg-accent/10 border-accent/50 text-accent' : 'bg-black/10 border-tint/20 text-fg/70 hover:border-tint/50'
+                  s.paintingType === type ? 'bg-accent/10 border-accent/50 text-accent' : 'bg-black/10 border-tint/20 text-fg/50 hover:border-tint/50'
                 }`}
               >
                 <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${s.paintingType === type ? 'border-accent' : 'border-hi/10'}`}>
@@ -386,7 +386,7 @@ export function CsShapeTab({ s, update }: { s: Section; update: (u: Partial<Sect
           {['Треугольник', 'Прямоугольник', 'Трапеция', 'Сложная форма'].map(shape => (
             <button key={shape} onClick={() => update({ csShape: shape })}
               className={`py-4 rounded-xl border font-bold text-xs transition-all ${
-                s.csShape === shape ? 'bg-accent/10 border-accent/50 text-accent' : 'bg-black/10 border-tint/20 text-fg/70 hover:border-tint/50'
+                s.csShape === shape ? 'bg-accent/10 border-accent/50 text-accent' : 'bg-black/10 border-tint/20 text-fg/50 hover:border-tint/50'
               }`}
             >{shape}</button>
           ))}
