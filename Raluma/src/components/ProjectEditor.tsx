@@ -253,8 +253,8 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
 
   if (loadingProject) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0c1d2d]">
-        <Loader2 className="w-10 h-10 text-[#4fd1c5] animate-spin" />
+      <div className="flex items-center justify-center min-h-screen bg-page">
+        <Loader2 className="w-10 h-10 text-accent animate-spin" />
       </div>
     );
   }
@@ -262,28 +262,28 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   if (!project) return null;
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#0c1d2d]">
+    <div className="min-h-screen flex flex-col bg-page">
 
       {/* Header */}
-      <div className="bg-[#1a4b54]/40 border-b border-[#2a7a8a]/30 px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between z-20 flex-shrink-0 gap-3">
+      <div className="bg-surface/40 border-b border-tint/30 px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between z-20 flex-shrink-0 gap-3">
         <div className="flex items-center gap-3 min-w-0 flex-shrink-0">
-          <button onClick={onBack} className="flex items-center gap-2 text-white/40 hover:text-[#4fd1c5] transition-colors group flex-shrink-0">
+          <button onClick={onBack} className="flex items-center gap-2 text-fg/40 hover:text-accent transition-colors group flex-shrink-0">
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
             <span className="hidden sm:inline text-sm font-bold uppercase tracking-wider">Проекты</span>
           </button>
-          <div className="hidden sm:block h-6 w-px bg-[#2a7a8a]/20 flex-shrink-0" />
+          <div className="hidden sm:block h-6 w-px bg-tint/20 flex-shrink-0" />
           <div className="flex items-center gap-2 min-w-0 overflow-hidden">
             <span className="text-sm sm:text-xl font-bold whitespace-nowrap">№ {project.number}</span>
             <div className="hidden lg:flex items-center gap-2 flex-shrink-0">
-              <span className="text-white/20">·</span>
-              <span className="text-white/60 truncate max-w-[200px]">{project.customer}</span>
+              <span className="text-fg/20">·</span>
+              <span className="text-fg/60 truncate max-w-[200px]">{project.customer}</span>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
-            className="sm:hidden p-2.5 rounded-xl bg-[#2a7a8a]/15 border border-[#2a7a8a]/30 text-[#4fd1c5] hover:bg-[#2a7a8a]/30 transition-colors"
+            className="sm:hidden p-2.5 rounded-xl bg-tint/15 border border-tint/30 text-accent hover:bg-tint/30 transition-colors"
             onClick={() => setMobileSidebarOpen(v => !v)}
             aria-label="Секции"
           >
@@ -293,10 +293,10 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 text-white font-bold rounded-xl transition-all shadow-lg ${
               isDirty
                 ? 'bg-amber-500 hover:bg-amber-400 shadow-amber-500/20'
-                : 'bg-[#00b894] hover:bg-[#00d1a7] shadow-[#00b894]/20'
+                : 'bg-primary hover:bg-primary-h shadow-primary/20'
             }`}>
             {isSaving ? (
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <div className="w-4 h-4 border-2 border-hi/30 border-t-white rounded-full animate-spin" />
             ) : (
               <Save className="w-4 h-4" />
             )}
@@ -307,7 +307,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
 
       {/* Document buttons sub-bar — only visible at project level (no active section) */}
       {!activeSectionId && (
-        <div className="hidden sm:flex items-center gap-1 px-4 sm:px-8 py-2 border-b border-[#2a7a8a]/20 bg-[#1a4b54]/20 flex-shrink-0">
+        <div className="hidden sm:flex items-center gap-1 px-4 sm:px-8 py-2 border-b border-tint/20 bg-surface/20 flex-shrink-0">
           {[
             { name: 'Спецификация', icon: FileText },
             { name: 'Накладная', icon: ClipboardList },
@@ -317,9 +317,9 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             { name: 'Схема', icon: Map },
           ].map(doc => (
             <button key={doc.name} onClick={() => openPreview(doc.name)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.06] hover:bg-[#2a7a8a]/20 hover:border-[#2a7a8a]/40 transition-all group">
-              <doc.icon className="w-3 h-3 text-[#4fd1c5]/50 group-hover:text-[#4fd1c5] transition-colors flex-shrink-0" />
-              <span className="text-[10px] font-bold text-white/40 group-hover:text-white transition-colors whitespace-nowrap">{doc.name}</span>
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-hi/[0.03] border border-hi/[0.06] hover:bg-tint/20 hover:border-tint/40 transition-all group">
+              <doc.icon className="w-3 h-3 text-accent/50 group-hover:text-accent transition-colors flex-shrink-0" />
+              <span className="text-[10px] font-bold text-fg/40 group-hover:text-fg transition-colors whitespace-nowrap">{doc.name}</span>
             </button>
           ))}
         </div>
@@ -344,7 +344,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         />
 
         {/* Right: editor */}
-        <main className={`flex-1 overflow-y-auto bg-[#0c1d2d]/50 ${mobileSidebarOpen ? 'hidden sm:block' : 'block'}`}>
+        <main className={`flex-1 overflow-y-auto bg-page/50 ${mobileSidebarOpen ? 'hidden sm:block' : 'block'}`}>
           <AnimatePresence mode="wait">
             {!activeSection ? (
               <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -360,8 +360,8 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                         <button key={n} onClick={() => { setCurrentStage(n); saveStatus({ current_stage: n }); }}
                           className={`px-4 py-1.5 rounded-xl border font-bold text-sm transition-all ${
                             currentStage === n
-                              ? 'bg-[#4fd1c5]/15 border-[#4fd1c5]/40 text-[#4fd1c5]'
-                              : 'bg-black/10 border-[#2a7a8a]/20 text-white/40 hover:border-[#2a7a8a]/40'
+                              ? 'bg-accent/15 border-accent/40 text-accent'
+                              : 'bg-black/10 border-tint/20 text-fg/40 hover:border-tint/40'
                           }`}>
                           Этап {n}
                         </button>
@@ -371,9 +371,9 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                 )}
 
                 {/* Status */}
-                <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/30 rounded-2xl p-5 sm:p-6 mb-4">
+                <div className="bg-surface/40 border border-tint/30 rounded-2xl p-5 sm:p-6 mb-4">
                   <div className="flex items-center gap-3 mb-4">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40">Статус</span>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40">Статус</span>
                   </div>
                   <select value={projectStatus} onChange={e => { setProjectStatus(e.target.value); saveStatus({ status: e.target.value }); }} className={SEL}>
                     <option>РАСЧЕТ</option>
@@ -390,8 +390,8 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
 
                 {/* Glass */}
                 {!(productionStages === 2 && currentStage === 1) && (
-                  <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/30 rounded-2xl p-5 sm:p-6 mb-4">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40 block mb-4">Стекла</span>
+                  <div className="bg-surface/40 border border-tint/30 rounded-2xl p-5 sm:p-6 mb-4">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40 block mb-4">Стекла</span>
                     <div className="mb-4">
                       <select value={glassStatus} onChange={e => { setGlassStatus(e.target.value); saveStatus({ glass_status: e.target.value }); }} className={SEL}>
                         <option>Без стекла</option>
@@ -416,8 +416,8 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                 )}
 
                 {/* Paint */}
-                <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/30 rounded-2xl p-5 sm:p-6 mb-4">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40 block mb-4">Покраска</span>
+                <div className="bg-surface/40 border border-tint/30 rounded-2xl p-5 sm:p-6 mb-4">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40 block mb-4">Покраска</span>
                   <div className="mb-4">
                     <select value={paintStatus} onChange={e => { setPaintStatus(e.target.value); saveStatus({ paint_status: e.target.value }); }} className={SEL}>
                       <option>Без покраски</option>
@@ -441,11 +441,11 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                 </div>
 
                 {/* Order items */}
-                <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/30 rounded-2xl p-5 sm:p-6 mb-4">
+                <div className="bg-surface/40 border border-tint/30 rounded-2xl p-5 sm:p-6 mb-4">
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40">Заказ доп. комплектующих</span>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40">Заказ доп. комплектующих</span>
                     <button onClick={addOrderItem}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#2a7a8a]/20 border border-[#2a7a8a]/40 text-[#4fd1c5] text-xs font-bold hover:bg-[#2a7a8a]/40 transition-colors">
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-tint/20 border border-tint/40 text-accent text-xs font-bold hover:bg-tint/40 transition-colors">
                       <Plus className="w-3.5 h-3.5" /> Добавить
                     </button>
                   </div>
@@ -453,21 +453,21 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                     <div className="space-y-2">
                       <div className="hidden sm:grid grid-cols-[1fr_1fr_120px_120px_32px] gap-2 mb-1">
                         {['Название','Счёт','Оплачен','Доставлен в цех',''].map((h, i) => (
-                          <span key={i} className="text-[9px] font-bold uppercase tracking-widest text-white/25">{h}</span>
+                          <span key={i} className="text-[9px] font-bold uppercase tracking-widest text-fg/25">{h}</span>
                         ))}
                       </div>
                       {orderItems.map(item => (
                         <div key={item.id} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_120px_120px_32px] gap-2 items-center">
                           <input value={item.name} onChange={e => updateOrderItem(item.id,'name',e.target.value)}
                             onBlur={saveOrderItems} placeholder="Название"
-                            className="bg-white/[0.04] border border-[#2a7a8a]/20 rounded-xl px-3 py-2 text-xs text-white/70 outline-none focus:border-[#4fd1c5]/40 transition-colors" />
+                            className="bg-hi/[0.04] border border-tint/20 rounded-xl px-3 py-2 text-xs text-fg/70 outline-none focus:border-accent/40 transition-colors" />
                           <input value={item.invoice} onChange={e => updateOrderItem(item.id,'invoice',e.target.value)}
                             onBlur={saveOrderItems} placeholder="Счёт"
-                            className="bg-white/[0.04] border border-[#2a7a8a]/20 rounded-xl px-3 py-2 text-xs text-white/70 outline-none focus:border-[#4fd1c5]/40 transition-colors" />
+                            className="bg-hi/[0.04] border border-tint/20 rounded-xl px-3 py-2 text-xs text-fg/70 outline-none focus:border-accent/40 transition-colors" />
                           <input type="date" value={item.paidDate} onChange={e => { updateOrderItem(item.id,'paidDate',e.target.value); saveOrderItems(); }}
-                            className="bg-white/[0.04] border border-[#2a7a8a]/20 rounded-xl px-3 py-2 text-xs text-white/70 outline-none focus:border-[#4fd1c5]/40 transition-colors" />
+                            className="bg-hi/[0.04] border border-tint/20 rounded-xl px-3 py-2 text-xs text-fg/70 outline-none focus:border-accent/40 transition-colors" />
                           <input type="date" value={item.deliveredDate} onChange={e => { updateOrderItem(item.id,'deliveredDate',e.target.value); saveOrderItems(); }}
-                            className="bg-white/[0.04] border border-[#2a7a8a]/20 rounded-xl px-3 py-2 text-xs text-white/70 outline-none focus:border-[#4fd1c5]/40 transition-colors" />
+                            className="bg-hi/[0.04] border border-tint/20 rounded-xl px-3 py-2 text-xs text-fg/70 outline-none focus:border-accent/40 transition-colors" />
                           <button onClick={() => removeOrderItem(item.id)}
                             className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-red-500/20 text-red-400/60 hover:text-red-400 transition-colors">
                             <X className="w-3.5 h-3.5" />
@@ -477,31 +477,31 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                     </div>
                   )}
                   {orderItems.length === 0 && (
-                    <p className="text-xs text-white/20 text-center py-4">Нажмите «Добавить» для добавления позиции</p>
+                    <p className="text-xs text-fg/20 text-center py-4">Нажмите «Добавить» для добавления позиции</p>
                   )}
                 </div>
 
                 {/* Notes */}
-                <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/30 rounded-2xl p-5 sm:p-6 mb-4">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40 mb-5">Примечания к проекту</p>
+                <div className="bg-surface/40 border border-tint/30 rounded-2xl p-5 sm:p-6 mb-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40 mb-5">Примечания к проекту</p>
                   <div className="space-y-4">
                     <div>
-                      <label className="text-[11px] text-white/35 uppercase tracking-wider block mb-2">Доп. комплектующие</label>
+                      <label className="text-[11px] text-fg/35 uppercase tracking-wider block mb-2">Доп. комплектующие</label>
                       <textarea value={projectExtraParts} onChange={e => setProjectExtraParts(e.target.value)}
                         onBlur={handleSaveProjectNotes} rows={3} placeholder="Перечислите дополнительные комплектующие..."
-                        className="w-full bg-white/[0.03] border border-[#2a7a8a]/25 rounded-2xl px-4 py-3 text-sm text-white/70 placeholder-white/20 resize-none focus:outline-none focus:border-[#4fd1c5]/40 transition-colors" />
+                        className="w-full bg-hi/[0.03] border border-tint/25 rounded-2xl px-4 py-3 text-sm text-fg/70 placeholder-fg/20 resize-none focus:outline-none focus:border-accent/40 transition-colors" />
                     </div>
                     <div>
-                      <label className="text-[11px] text-white/35 uppercase tracking-wider block mb-2">Комментарии</label>
+                      <label className="text-[11px] text-fg/35 uppercase tracking-wider block mb-2">Комментарии</label>
                       <textarea value={projectComments} onChange={e => setProjectComments(e.target.value)}
                         onBlur={handleSaveProjectNotes} rows={3} placeholder="Любые дополнительные комментарии..."
-                        className="w-full bg-white/[0.03] border border-[#2a7a8a]/25 rounded-2xl px-4 py-3 text-sm text-white/70 placeholder-white/20 resize-none focus:outline-none focus:border-[#4fd1c5]/40 transition-colors" />
+                        className="w-full bg-hi/[0.03] border border-tint/25 rounded-2xl px-4 py-3 text-sm text-fg/70 placeholder-fg/20 resize-none focus:outline-none focus:border-accent/40 transition-colors" />
                     </div>
                   </div>
                 </div>
 
                 <button onClick={() => setMobileSidebarOpen(true)}
-                  className="sm:hidden mt-4 w-full flex items-center justify-center gap-2 px-6 py-3 bg-white/[0.03] border border-[#2a7a8a]/20 hover:bg-[#2a7a8a]/20 text-white/40 hover:text-[#4fd1c5] text-sm font-bold rounded-xl transition-all">
+                  className="sm:hidden mt-4 w-full flex items-center justify-center gap-2 px-6 py-3 bg-hi/[0.03] border border-tint/20 hover:bg-tint/20 text-fg/40 hover:text-accent text-sm font-bold rounded-xl transition-all">
                   <ClipboardList className="w-4 h-4" /> Список секций
                 </button>
               </motion.div>
@@ -530,19 +530,19 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setIsDeleteModalOpen(false)} className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
             <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-md bg-[#122433] border border-red-500/30 rounded-[2rem] p-6 sm:p-8 shadow-2xl z-10">
-              <button onClick={() => setIsDeleteModalOpen(false)} className="absolute right-6 top-6 text-white/20 hover:text-white transition-colors">
+              className="relative w-full max-w-md bg-modal border border-red-500/30 rounded-[2rem] p-6 sm:p-8 shadow-2xl z-10">
+              <button onClick={() => setIsDeleteModalOpen(false)} className="absolute right-6 top-6 text-fg/20 hover:text-fg transition-colors">
                 <X className="w-6 h-6" />
               </button>
               <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-6">
                 <Trash2 className="w-8 h-8 text-red-400" />
               </div>
               <h2 className="text-2xl font-bold mb-2">Удалить секцию?</h2>
-              <p className="text-white/60 leading-relaxed mb-8">
-                Секция <span className="text-white font-bold">{sectionToDelete?.name}</span> будет удалена безвозвратно.
+              <p className="text-fg/60 leading-relaxed mb-8">
+                Секция <span className="text-fg font-bold">{sectionToDelete?.name}</span> будет удалена безвозвратно.
               </p>
               <div className="flex gap-4">
-                <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 py-4 rounded-2xl bg-white/5 hover:bg-white/10 font-bold transition-all">Отмена</button>
+                <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 py-4 rounded-2xl bg-hi/5 hover:bg-hi/10 font-bold transition-all">Отмена</button>
                 <button onClick={handleDeleteSection} className="flex-1 py-4 rounded-2xl bg-red-500 hover:bg-red-400 text-white font-bold transition-all">Удалить</button>
               </div>
             </motion.div>
@@ -558,27 +558,27 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
               onClick={() => { setUnsavedModalOpen(false); setPendingNavTarget(null); }}
               className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
             <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-md bg-[#122433] border border-amber-500/30 rounded-[2rem] p-6 sm:p-8 shadow-2xl z-10">
+              className="relative w-full max-w-md bg-modal border border-amber-500/30 rounded-[2rem] p-6 sm:p-8 shadow-2xl z-10">
               <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-6">
                 <Save className="w-8 h-8 text-amber-400" />
               </div>
               <h2 className="text-2xl font-bold mb-2">Несохранённые изменения</h2>
-              <p className="text-white/60 leading-relaxed mb-8">
-                Секция <span className="text-white font-bold">{activeSection?.name}</span> содержит несохранённые изменения.
+              <p className="text-fg/60 leading-relaxed mb-8">
+                Секция <span className="text-fg font-bold">{activeSection?.name}</span> содержит несохранённые изменения.
               </p>
               <div className="flex gap-3 flex-col sm:flex-row">
                 <button onClick={() => { setUnsavedModalOpen(false); setPendingNavTarget(null); }}
-                  className="flex-1 py-3 rounded-2xl bg-white/5 hover:bg-white/10 font-bold transition-all text-sm">
+                  className="flex-1 py-3 rounded-2xl bg-hi/5 hover:bg-hi/10 font-bold transition-all text-sm">
                   Остаться
                 </button>
                 <button onClick={confirmUnsavedDiscard}
-                  className="flex-1 py-3 rounded-2xl bg-white/5 hover:bg-white/10 font-bold transition-all text-sm text-white/50">
+                  className="flex-1 py-3 rounded-2xl bg-hi/5 hover:bg-hi/10 font-bold transition-all text-sm text-fg/50">
                   Не сохранять
                 </button>
                 <button onClick={confirmUnsavedSave} disabled={isSaving}
                   className="flex-1 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-white font-bold transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2">
                   {isSaving
-                    ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ? <div className="w-4 h-4 border-2 border-hi/30 border-t-white rounded-full animate-spin" />
                     : <><Save className="w-4 h-4" /> Сохранить</>
                   }
                 </button>
@@ -607,15 +607,15 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setIsPreviewModalOpen(false)} className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
             <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-4xl bg-[#1a4b54] border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] z-10">
-              <div className="px-5 py-5 sm:px-10 sm:py-7 border-b border-[#2a7a8a]/20 flex items-center justify-between flex-shrink-0">
+              className="relative w-full max-w-4xl bg-surface border border-tint/30 rounded-2xl sm:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] z-10">
+              <div className="px-5 py-5 sm:px-10 sm:py-7 border-b border-tint/20 flex items-center justify-between flex-shrink-0">
                 <h2 className="text-2xl font-bold">{previewDocName}</h2>
-                <button onClick={() => setIsPreviewModalOpen(false)} className="text-white/20 hover:text-white transition-colors">
+                <button onClick={() => setIsPreviewModalOpen(false)} className="text-fg/20 hover:text-fg transition-colors">
                   <X className="w-6 h-6" />
                 </button>
               </div>
               <div className="flex-1 p-4 sm:p-10 overflow-y-auto bg-black/20">
-                <div className="aspect-[1/1.414] w-full bg-white rounded-lg shadow-inner p-5 sm:p-12 text-black flex flex-col">
+                <div className="aspect-[1/1.414] w-full bg-hi rounded-lg shadow-inner p-5 sm:p-12 text-black flex flex-col">
                   <div className="flex-1 border-2 border-dashed border-black/10 rounded-xl flex items-center justify-center">
                     <div className="text-center">
                       <FileText className="w-16 h-16 text-black/10 mx-auto mb-4" />
@@ -624,8 +624,8 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   </div>
                 </div>
               </div>
-              <div className="px-5 py-4 sm:px-10 sm:py-6 bg-black/40 border-t border-[#2a7a8a]/20 flex justify-end flex-shrink-0">
-                <button onClick={() => setIsPreviewModalOpen(false)} className="px-8 py-3 rounded-xl bg-white/5 hover:bg-white/10 font-bold transition-all">Закрыть</button>
+              <div className="px-5 py-4 sm:px-10 sm:py-6 bg-black/40 border-t border-tint/20 flex justify-end flex-shrink-0">
+                <button onClick={() => setIsPreviewModalOpen(false)} className="px-8 py-3 rounded-xl bg-hi/5 hover:bg-hi/10 font-bold transition-all">Закрыть</button>
               </div>
             </motion.div>
           </div>

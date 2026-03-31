@@ -63,16 +63,16 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
   };
 
   return (
-    <aside className={`border-r border-[#2a7a8a]/30 flex-col bg-[#0c1d2d]/80 backdrop-blur-sm z-10 flex-shrink-0 w-full sm:w-[260px] ${mobileSidebarOpen ? 'flex' : 'hidden sm:flex'}`}>
+    <aside className={`border-r border-tint/30 flex-col bg-page/80 backdrop-blur-sm z-10 flex-shrink-0 w-full sm:w-[260px] ${mobileSidebarOpen ? 'flex' : 'hidden sm:flex'}`}>
       <div className="p-5 flex-1 overflow-y-auto">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40">Секции</h3>
+          <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40">Секции</h3>
           <button
             onClick={() => setShowSystemPicker(v => !v)}
             className={`p-1.5 rounded-lg border transition-colors ${
               showSystemPicker
-                ? 'bg-[#4fd1c5]/20 border-[#4fd1c5]/40 text-[#4fd1c5]'
-                : 'bg-[#2a7a8a]/20 border-[#2a7a8a]/30 text-[#4fd1c5] hover:bg-[#2a7a8a]/40'
+                ? 'bg-accent/20 border-accent/40 text-accent'
+                : 'bg-tint/20 border-tint/30 text-accent hover:bg-tint/40'
             }`}
           >
             <Plus className="w-4 h-4" />
@@ -90,16 +90,16 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
             >
               <div className="flex flex-col gap-1.5 pt-1 pb-3">
                 {/* СЛАЙД */}
-                <div className={`rounded-xl border overflow-hidden transition-all ${slideSubVisible ? 'border-[#2a7a8a]/50' : 'border-[#2a7a8a]/25'}`}>
+                <div className={`rounded-xl border overflow-hidden transition-all ${slideSubVisible ? 'border-tint/50' : 'border-tint/25'}`}>
                   <button onClick={() => setSlideSubVisible(v => !v)}
                     className={`w-full py-2.5 px-3 font-bold text-[11px] transition-all flex items-center justify-between ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
                     <span>СЛАЙД</span>
                     <ChevronRight className={`w-3.5 h-3.5 transition-transform ${slideSubVisible ? 'rotate-90' : ''}`} />
                   </button>
                   {slideSubVisible && (
-                    <div className="grid grid-cols-2 border-t border-[#2a7a8a]/25">
+                    <div className="grid grid-cols-2 border-t border-tint/25">
                       <button onClick={() => handleAdd('СЛАЙД', { slideRails: 3 })}
-                        className={`py-2 font-bold text-[11px] transition-all border-r border-[#2a7a8a]/25 ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
+                        className={`py-2 font-bold text-[11px] transition-all border-r border-tint/25 ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
                         Стандарт 1 ряд
                       </button>
                       <button onClick={() => handleAdd('СЛАЙД', { slideRails: 5 })}
@@ -180,7 +180,7 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
                   КОМПЛЕКТАЦИЯ
                 </button>
               </div>
-              <div className="h-px bg-[#2a7a8a]/20" />
+              <div className="h-px bg-tint/20" />
             </motion.div>
           )}
         </AnimatePresence>
@@ -191,15 +191,15 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
               onClick={() => onSelectSection(section.id)}
               className={`relative group p-4 rounded-2xl border transition-all cursor-pointer overflow-hidden ${
                 activeSectionId === section.id
-                  ? 'bg-[#2a7a8a]/20 border-[#4fd1c5]/50 shadow-lg shadow-[#4fd1c5]/5'
-                  : 'bg-white/[0.02] border-[#2a7a8a]/10 hover:border-[#2a7a8a]/40'
+                  ? 'bg-tint/20 border-accent/50 shadow-lg shadow-accent/5'
+                  : 'bg-hi/[0.02] border-tint/10 hover:border-tint/40'
               }`}
             >
               <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${SYSTEM_ACCENT_BG[section.system]} transition-opacity ${
                 activeSectionId === section.id ? 'opacity-80' : 'opacity-30 group-hover:opacity-60'
               }`} />
               <div className="flex justify-between items-start mb-2">
-                <span className={`text-sm font-bold leading-snug ${activeSectionId === section.id ? 'text-[#4fd1c5]' : 'text-white/80'}`}>
+                <span className={`text-sm font-bold leading-snug ${activeSectionId === section.id ? 'text-accent' : 'text-fg/80'}`}>
                   {section.name}
                 </span>
                 <button onClick={e => { e.stopPropagation(); onDeleteSection(section); }}
@@ -212,32 +212,32 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
                   {section.system}
                 </span>
                 {getSectionTypeLabel(section) && (
-                  <span className="text-[11px] text-white/40 font-medium">{getSectionTypeLabel(section)}</span>
+                  <span className="text-[11px] text-fg/40 font-medium">{getSectionTypeLabel(section)}</span>
                 )}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] font-mono text-white/35">{section.width} × {section.height} мм</span>
+                <span className="text-[11px] font-mono text-fg/35">{section.width} × {section.height} мм</span>
                 {getSectionColorLabel(section) && (
-                  <span className="text-[11px] text-white/35">{getSectionColorLabel(section)}</span>
+                  <span className="text-[11px] text-fg/35">{getSectionColorLabel(section)}</span>
                 )}
               </div>
             </motion.div>
           ))}
           {sections.length === 0 && !showSystemPicker && (
-            <div className="text-center py-8 text-white/20 text-xs">Нажмите + чтобы добавить секцию</div>
+            <div className="text-center py-8 text-fg/20 text-xs">Нажмите + чтобы добавить секцию</div>
           )}
         </div>
 
         {/* Sidebar project notes */}
-        <div className="mt-5 pt-4 border-t border-[#2a7a8a]/20">
+        <div className="mt-5 pt-4 border-t border-tint/20">
           <button
             onClick={() => setNotesOpen(v => !v)}
             className="flex items-center justify-between w-full group mb-0"
           >
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4fd1c5]/40 group-hover:text-[#4fd1c5]/70 transition-colors">
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40 group-hover:text-accent/70 transition-colors">
               Примечания
             </span>
-            <span className={`text-[#4fd1c5]/30 group-hover:text-[#4fd1c5]/60 transition-all ${notesOpen ? 'rotate-180' : ''} duration-200`}>
+            <span className={`text-accent/30 group-hover:text-accent/60 transition-all ${notesOpen ? 'rotate-180' : ''} duration-200`}>
               <ChevronRight className="w-3.5 h-3.5 rotate-90" />
             </span>
           </button>
@@ -252,25 +252,25 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
               >
                 <div className="space-y-2.5 pt-3">
                   <div>
-                    <label className="text-[10px] text-white/25 uppercase tracking-wider block mb-1.5">Доп. комплектующие</label>
+                    <label className="text-[10px] text-fg/25 uppercase tracking-wider block mb-1.5">Доп. комплектующие</label>
                     <textarea
                       value={projectExtraParts}
                       onChange={e => setProjectExtraParts(e.target.value)}
                       onBlur={onSaveProjectNotes}
                       rows={2}
                       placeholder="..."
-                      className="w-full bg-white/[0.02] border border-[#2a7a8a]/20 rounded-xl px-3 py-2 text-[11px] text-white/60 placeholder-white/15 resize-none focus:outline-none focus:border-[#4fd1c5]/40 transition-colors"
+                      className="w-full bg-hi/[0.02] border border-tint/20 rounded-xl px-3 py-2 text-[11px] text-fg/60 placeholder-fg/15 resize-none focus:outline-none focus:border-accent/40 transition-colors"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-white/25 uppercase tracking-wider block mb-1.5">Комментарии</label>
+                    <label className="text-[10px] text-fg/25 uppercase tracking-wider block mb-1.5">Комментарии</label>
                     <textarea
                       value={projectComments}
                       onChange={e => setProjectComments(e.target.value)}
                       onBlur={onSaveProjectNotes}
                       rows={2}
                       placeholder="..."
-                      className="w-full bg-white/[0.02] border border-[#2a7a8a]/20 rounded-xl px-3 py-2 text-[11px] text-white/60 placeholder-white/15 resize-none focus:outline-none focus:border-[#4fd1c5]/40 transition-colors"
+                      className="w-full bg-hi/[0.02] border border-tint/20 rounded-xl px-3 py-2 text-[11px] text-fg/60 placeholder-fg/15 resize-none focus:outline-none focus:border-accent/40 transition-colors"
                     />
                   </div>
                 </div>
@@ -281,9 +281,9 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
       </div>
 
       {activeSectionId && (
-        <div className="sm:hidden p-3 border-t border-[#2a7a8a]/20 flex-shrink-0">
+        <div className="sm:hidden p-3 border-t border-tint/20 flex-shrink-0">
           <button onClick={() => setMobileSidebarOpen(false)}
-            className="w-full py-3 rounded-xl bg-[#2a7a8a]/20 border border-[#2a7a8a]/40 text-[#4fd1c5] font-bold text-sm flex items-center justify-center gap-2">
+            className="w-full py-3 rounded-xl bg-tint/20 border border-tint/40 text-accent font-bold text-sm flex items-center justify-center gap-2">
             <ChevronRight className="w-4 h-4" /> Редактировать
           </button>
         </div>

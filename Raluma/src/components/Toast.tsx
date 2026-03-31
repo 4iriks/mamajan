@@ -16,8 +16,8 @@ const CONFIG = {
   },
   info: {
     icon: Info,
-    cls: 'bg-[#2a7a8a]/20 border-[#2a7a8a]/40 text-[#4fd1c5]',
-    bar: 'bg-[#4fd1c5]',
+    cls: 'bg-tint/20 border-tint/40 text-accent',
+    bar: 'bg-accent',
   },
 } as const;
 

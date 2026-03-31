@@ -131,19 +131,19 @@ export default function ProductionSheetModal({
             initial={{ scale: 0.95, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 20 }}
-            className="relative w-full max-w-5xl bg-[#1a4b54] border border-[#2a7a8a]/30 rounded-2xl sm:rounded-[2rem] shadow-2xl overflow-hidden flex flex-col z-10"
+            className="relative w-full max-w-5xl bg-surface border border-tint/30 rounded-2xl sm:rounded-[2rem] shadow-2xl overflow-hidden flex flex-col z-10"
             style={{ maxHeight: '95vh' }}
           >
             {/* Header */}
-            <div className="px-5 py-4 sm:px-8 sm:py-5 border-b border-[#2a7a8a]/20 flex items-center justify-between flex-shrink-0">
+            <div className="px-5 py-4 sm:px-8 sm:py-5 border-b border-tint/20 flex items-center justify-between flex-shrink-0">
               <div>
                 <h2 className="text-lg font-bold">Производственный лист</h2>
-                <p className="text-xs text-white/40 mt-0.5">
+                <p className="text-xs text-fg/40 mt-0.5">
                   {projectNumber} · Секция {sectionOrder}
                   {isDirty && <span className="ml-2 text-yellow-400">● несохранённые правки</span>}
                 </p>
               </div>
-              <button onClick={handleClose} className="text-white/20 hover:text-white transition-colors ml-4">
+              <button onClick={handleClose} className="text-fg/20 hover:text-fg transition-colors ml-4">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -161,12 +161,12 @@ export default function ProductionSheetModal({
             </div>
 
             {/* Footer */}
-            <div className="px-5 py-4 sm:px-8 sm:py-5 bg-black/30 border-t border-[#2a7a8a]/20 flex items-center justify-between flex-shrink-0 gap-3 flex-wrap">
+            <div className="px-5 py-4 sm:px-8 sm:py-5 bg-black/30 border-t border-tint/20 flex items-center justify-between flex-shrink-0 gap-3 flex-wrap">
               <div className="flex gap-2">
                 <button
                   onClick={handleSave}
                   disabled={!isDirty || isSaving}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#00b894] hover:bg-[#00d1a7] text-white font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm"
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary hover:bg-primary-h text-white font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm"
                 >
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   Сохранить
@@ -174,7 +174,7 @@ export default function ProductionSheetModal({
                 <button
                   onClick={handleCancel}
                   disabled={!isDirty}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm"
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-hi/5 hover:bg-hi/10 font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm"
                 >
                   <RotateCcw className="w-4 h-4" />
                   Отменить
@@ -183,7 +183,7 @@ export default function ProductionSheetModal({
               <button
                 onClick={handleDownload}
                 disabled={isDownloading}
-                className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#2a7a8a] hover:bg-[#3a9aaa] text-white font-bold transition-all disabled:opacity-50 text-sm"
+                className="flex items-center gap-2 px-5 py-2 rounded-xl bg-tint hover:bg-[#3a9aaa] text-fg font-bold transition-all disabled:opacity-50 text-sm"
               >
                 {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                 Скачать PDF

@@ -5,10 +5,10 @@ import { Section } from './types';
 export function Checkbox({ checked, onChange, label }: { checked: boolean; onChange: () => void; label: string }) {
   return (
     <label className="flex items-center gap-2 cursor-pointer" onClick={onChange}>
-      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all flex-shrink-0 ${checked ? 'bg-[#4fd1c5] border-[#4fd1c5]' : 'border-[#2a7a8a]/40 bg-black/20'}`}>
-        {checked && <div className="w-2.5 h-2.5 bg-[#0c1d2d] rounded-sm" />}
+      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all flex-shrink-0 ${checked ? 'bg-accent border-accent' : 'border-tint/40 bg-black/20'}`}>
+        {checked && <div className="w-2.5 h-2.5 bg-[var(--theme-check)] rounded-sm" />}
       </div>
-      <span className="text-xs font-medium text-white/60">{label}</span>
+      <span className="text-xs font-medium text-fg/60">{label}</span>
     </label>
   );
 }
@@ -21,7 +21,7 @@ export function ToggleGroup({ value, options, onChange }: { value?: string; opti
       {options.map(opt => (
         <button key={opt} onClick={() => onChange(opt)}
           className={`flex-1 py-1.5 rounded-xl border font-bold text-xs transition-all min-w-0 ${
-            value === opt ? 'bg-[#4fd1c5]/10 border-[#4fd1c5]/50 text-[#4fd1c5]' : 'bg-black/10 border-[#2a7a8a]/20 text-white/40 hover:border-[#2a7a8a]/50'
+            value === opt ? 'bg-accent/10 border-accent/50 text-accent' : 'bg-black/10 border-tint/20 text-fg/40 hover:border-tint/50'
           }`}
         >{opt}</button>
       ))}
@@ -41,7 +41,7 @@ export function RadioList({ value, options, onChange, noneLabel }: { value?: str
         return (
           <button key={opt} onClick={() => onChange(isNone ? undefined : opt)}
             className={`w-full text-left px-3 py-1.5 rounded-xl border transition-all text-xs ${
-              active ? 'bg-[#4fd1c5]/10 border-[#4fd1c5]/50 text-[#4fd1c5]' : 'border-[#2a7a8a]/20 bg-black/10 text-white/40 hover:border-[#4fd1c5]/30'
+              active ? 'bg-accent/10 border-accent/50 text-accent' : 'border-tint/20 bg-black/10 text-fg/40 hover:border-accent/30'
             }`}
           >{opt}</button>
         );
@@ -55,8 +55,8 @@ export function RadioList({ value, options, onChange, noneLabel }: { value?: str
 export function SectionDivider({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3 pt-1">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40 whitespace-nowrap">{label}</span>
-      <div className="flex-1 h-px bg-[#2a7a8a]/20" />
+      <span className="text-[10px] font-bold uppercase tracking-widest text-accent/40 whitespace-nowrap">{label}</span>
+      <div className="flex-1 h-px bg-tint/20" />
     </div>
   );
 }
@@ -73,16 +73,16 @@ export function ProfileCheckbox({ checked, onChange, label, indent, disabled }: 
         indent ? 'ml-4 w-[calc(100%-1rem)]' : ''
       } ${
         disabled
-          ? 'opacity-25 cursor-not-allowed border border-transparent text-white/30'
+          ? 'opacity-25 cursor-not-allowed border border-transparent text-fg/30'
           : checked
-            ? 'bg-[#4fd1c5]/10 border border-[#4fd1c5]/40 text-[#4fd1c5]'
-            : 'border border-[#2a7a8a]/20 bg-black/5 text-white/50 hover:border-[#2a7a8a]/40 hover:text-white/70'
+            ? 'bg-accent/10 border border-accent/40 text-accent'
+            : 'border border-tint/20 bg-black/5 text-fg/50 hover:border-tint/40 hover:text-fg/70'
       }`}
     >
       <div className={`w-3.5 h-3.5 rounded-sm border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-        checked ? 'bg-[#4fd1c5] border-[#4fd1c5]' : 'border-[#2a7a8a]/40 bg-transparent'
+        checked ? 'bg-accent border-accent' : 'border-tint/40 bg-transparent'
       }`}>
-        {checked && <div className="w-1.5 h-1.5 bg-[#0c1d2d] rounded-sm" />}
+        {checked && <div className="w-1.5 h-1.5 bg-[var(--theme-check)] rounded-sm" />}
       </div>
       <span className="leading-tight">{label}</span>
     </button>

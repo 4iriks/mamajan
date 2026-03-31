@@ -81,9 +81,9 @@ export interface ProjectEditorProps {
 
 // ── Style constants ───────────────────────────────────────────────────────────
 
-export const LBL = 'text-[10px] font-bold uppercase tracking-widest text-[#4fd1c5]/40 ml-1';
-export const INP = 'w-full bg-white/8 border border-[#2a7a8a]/30 rounded-xl px-3 py-2 outline-none focus:border-[#4fd1c5]/50 transition-all font-mono text-white text-sm';
-export const SEL = 'w-full bg-white/8 border border-[#2a7a8a]/30 rounded-xl px-3 py-2 outline-none focus:border-[#4fd1c5]/50 transition-all appearance-none text-white text-sm';
+export const LBL = 'text-[10px] font-bold uppercase tracking-widest text-accent/40 ml-1';
+export const INP = 'w-full bg-hi/8 border border-tint/30 rounded-xl px-3 py-2 outline-none focus:border-accent/50 transition-all font-mono text-fg text-sm';
+export const SEL = 'w-full bg-hi/8 border border-tint/30 rounded-xl px-3 py-2 outline-none focus:border-accent/50 transition-all appearance-none text-fg text-sm';
 
 // ── System colors ─────────────────────────────────────────────────────────────
 

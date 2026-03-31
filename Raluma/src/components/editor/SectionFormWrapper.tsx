@@ -70,7 +70,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-5 gap-3">
         <div>
           <button onClick={onBack}
-            className="flex items-center gap-1.5 text-white/30 hover:text-[#4fd1c5] transition-colors group mb-3 text-xs font-bold uppercase tracking-wider">
+            className="flex items-center gap-1.5 text-fg/30 hover:text-accent transition-colors group mb-3 text-xs font-bold uppercase tracking-wider">
             <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
             К проекту
           </button>
@@ -86,7 +86,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
 
         <div className={section.system === 'СЛАЙД' ? 'xl:flex-1 xl:min-w-0' : ''}>
           {/* Карточка формы */}
-          <div className="bg-[#1a4b54]/40 border border-[#2a7a8a]/35 rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 mb-4">
+          <div className="bg-surface/40 border border-tint/35 rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 mb-4">
             <div className="space-y-5">
               <div>
                 <SectionDivider label="Основное" />
@@ -150,7 +150,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
                       onChange={e => onUpdate({ comments: e.target.value || undefined })}
                       rows={2}
                       placeholder="Дополнительные комментарии..."
-                      className="w-full bg-white/8 border border-[#2a7a8a]/30 rounded-xl px-3 py-2 outline-none focus:border-[#4fd1c5]/50 transition-all text-white resize-y placeholder-white/20 text-sm"
+                      className="w-full bg-hi/8 border border-tint/30 rounded-xl px-3 py-2 outline-none focus:border-accent/50 transition-all text-fg resize-y placeholder-fg/20 text-sm"
                     />
                   </div>
                 </div>
@@ -167,10 +167,10 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
               className={`flex-1 min-w-[180px] py-3 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed ${
                 isDirty
                   ? 'bg-amber-500 hover:bg-amber-400 shadow-lg shadow-amber-500/20'
-                  : 'bg-[#00b894] hover:bg-[#00d1a7] shadow-lg shadow-[#00b894]/20'
+                  : 'bg-primary hover:bg-primary-h shadow-lg shadow-primary/20'
               }`}>
               {isSaving ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="w-5 h-5 border-2 border-hi/30 border-t-white rounded-full animate-spin" />
               ) : isDirty ? (
                 <><Save className="w-4 h-4" /> Сохранить изменения</>
               ) : 'Сохранить секцию'}
@@ -181,9 +181,9 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
               { name: 'Схема', icon: Map },
             ].map(doc => (
               <button key={doc.name} onClick={() => onOpenDoc?.(doc.name)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#1a4b54]/60 border border-[#2a7a8a]/30 hover:bg-[#2a7a8a]/30 hover:border-[#4fd1c5]/40 transition-all group">
-                <doc.icon className="w-3.5 h-3.5 text-[#4fd1c5]/50 group-hover:text-[#4fd1c5] transition-colors flex-shrink-0" />
-                <span className="text-[10px] font-bold text-white/50 group-hover:text-white transition-colors whitespace-nowrap uppercase tracking-wider">{doc.name}</span>
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface/60 border border-tint/30 hover:bg-tint/30 hover:border-accent/40 transition-all group">
+                <doc.icon className="w-3.5 h-3.5 text-accent/50 group-hover:text-accent transition-colors flex-shrink-0" />
+                <span className="text-[10px] font-bold text-fg/50 group-hover:text-fg transition-colors whitespace-nowrap uppercase tracking-wider">{doc.name}</span>
               </button>
             ))}
           </div>

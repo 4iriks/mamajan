@@ -51,11 +51,11 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
             {(['RAL стандарт', 'RAL нестандарт', 'Анодированный'] as const).map(type => (
               <button key={type} onClick={() => update({ paintingType: type })}
                 className={`flex items-center gap-3 w-full px-3 py-2 rounded-xl border transition-all text-left ${
-                  s.paintingType === type ? 'bg-[#4fd1c5]/10 border-[#4fd1c5]/50 text-[#4fd1c5]' : 'bg-black/10 border-[#2a7a8a]/20 text-white/40 hover:border-[#2a7a8a]/50'
+                  s.paintingType === type ? 'bg-accent/10 border-accent/50 text-accent' : 'bg-black/10 border-tint/20 text-fg/40 hover:border-tint/50'
                 }`}
               >
-                <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${s.paintingType === type ? 'border-[#4fd1c5]' : 'border-white/10'}`}>
-                  {s.paintingType === type && <div className="w-2 h-2 rounded-full bg-[#4fd1c5]" />}
+                <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${s.paintingType === type ? 'border-accent' : 'border-hi/10'}`}>
+                  {s.paintingType === type && <div className="w-2 h-2 rounded-full bg-accent" />}
                 </div>
                 <span className="text-xs font-medium">{type}</span>
               </button>
@@ -164,8 +164,8 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
             </div>
           )}
           {showNoLockLeft && (
-            <div className="mt-2 px-4 py-2 bg-black/10 border border-[#2a7a8a]/20 rounded-xl">
-              <span className="text-xs text-white/40 font-bold">Без замков</span>
+            <div className="mt-2 px-4 py-2 bg-black/10 border border-tint/20 rounded-xl">
+              <span className="text-xs text-fg/40 font-bold">Без замков</span>
             </div>
           )}
           {showHandleLeft && (
@@ -197,8 +197,8 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
             </div>
           )}
           {showNoLockRight && (
-            <div className="mt-2 px-4 py-2 bg-black/10 border border-[#2a7a8a]/20 rounded-xl">
-              <span className="text-xs text-white/40 font-bold">Без замков</span>
+            <div className="mt-2 px-4 py-2 bg-black/10 border border-tint/20 rounded-xl">
+              <span className="text-xs text-fg/40 font-bold">Без замков</span>
             </div>
           )}
           {showHandleRight && (
@@ -386,7 +386,7 @@ export function CsShapeTab({ s, update }: { s: Section; update: (u: Partial<Sect
           {['Треугольник', 'Прямоугольник', 'Трапеция', 'Сложная форма'].map(shape => (
             <button key={shape} onClick={() => update({ csShape: shape })}
               className={`py-4 rounded-xl border font-bold text-xs transition-all ${
-                s.csShape === shape ? 'bg-[#4fd1c5]/10 border-[#4fd1c5]/50 text-[#4fd1c5]' : 'bg-black/10 border-[#2a7a8a]/20 text-white/40 hover:border-[#2a7a8a]/50'
+                s.csShape === shape ? 'bg-accent/10 border-accent/50 text-accent' : 'bg-black/10 border-tint/20 text-fg/40 hover:border-tint/50'
               }`}
             >{shape}</button>
           ))}

@@ -1,5 +1,62 @@
 @import "tailwindcss";
 
+/* ── Theme tokens ─────────────────────────────────────────────────────────────
+   Dark theme = default (:root).  Light theme = html.light override.
+   @theme registers colors for Tailwind v4 opacity modifiers (bg-page/50 etc).
+   ──────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --theme-page: #0c1d2d;
+  --theme-surface: #1a4b54;
+  --theme-tint: #2a7a8a;
+  --theme-accent: #4fd1c5;
+  --theme-modal: #122433;
+  --theme-fg: #ffffff;
+  --theme-hi: #ffffff;
+  --theme-primary: #00b894;
+  --theme-primary-h: #00d1a7;
+  --theme-glow1: #2a7a8a;
+  --theme-glow2: #1a5f7a;
+  --theme-select-bg: #1a3a4a;
+  --theme-dropdown: #0e1f2e;
+  --theme-check: #0c1d2d;
+  --theme-card-shadow: none;
+}
+
+html.light {
+  --theme-page: #f8fafb;
+  --theme-surface: #ffffff;
+  --theme-tint: #2a7a8a;
+  --theme-accent: #2a7a8a;
+  --theme-modal: #ffffff;
+  --theme-fg: #1a4b54;
+  --theme-hi: #1a4b54;
+  --theme-primary: #00b894;
+  --theme-primary-h: #00d1a7;
+  --theme-glow1: transparent;
+  --theme-glow2: transparent;
+  --theme-select-bg: #ffffff;
+  --theme-dropdown: #ffffff;
+  --theme-check: #ffffff;
+  --theme-card-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+}
+
+@theme {
+  --color-page: var(--theme-page);
+  --color-surface: var(--theme-surface);
+  --color-tint: var(--theme-tint);
+  --color-accent: var(--theme-accent);
+  --color-modal: var(--theme-modal);
+  --color-fg: var(--theme-fg);
+  --color-hi: var(--theme-hi);
+  --color-primary: var(--theme-primary);
+  --color-primary-h: var(--theme-primary-h);
+  --color-glow1: var(--theme-glow1);
+  --color-glow2: var(--theme-glow2);
+}
+
+/* ── Global input styling ─────────────────────────────────────────────────── */
+
 /* Убрать спиннеры у number-инпутов */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
@@ -10,19 +67,19 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
-/* Глобальный цвет текста в полях ввода */
+/* Цвет текста в полях ввода */
 input, select, textarea {
-  color: white;
+  color: var(--theme-fg);
 }
 input::placeholder {
-  color: rgba(255, 255, 255, 0.25);
+  color: color-mix(in srgb, var(--theme-fg) 25%, transparent);
 }
 select option {
-  background: #1a3a4a;
-  color: white;
+  background: var(--theme-select-bg);
+  color: var(--theme-fg);
 }
 
-/* Кастомный скроллбар */
+/* ── Кастомный скроллбар ──────────────────────────────────────────────────── */
 .custom-scrollbar::-webkit-scrollbar {
   width: 5px;
 }
@@ -30,9 +87,14 @@ select option {
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(42, 122, 138, 0.4);
+  background: color-mix(in srgb, var(--theme-tint) 40%, transparent);
   border-radius: 3px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(79, 209, 197, 0.5);
+  background: color-mix(in srgb, var(--theme-accent) 50%, transparent);
+}
+
+/* ── Light theme card shadow ──────────────────────────────────────────────── */
+html.light .card-shadow {
+  box-shadow: var(--theme-card-shadow);
 }
