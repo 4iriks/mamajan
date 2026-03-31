@@ -21,7 +21,7 @@ export function ToggleGroup({ value, options, onChange }: { value?: string; opti
       {options.map(opt => (
         <button key={opt} onClick={() => onChange(opt)}
           className={`flex-1 py-1.5 rounded-xl border font-bold text-xs transition-all min-w-0 ${
-            value === opt ? 'bg-accent/10 border-accent/50 text-accent' : 'bg-black/10 border-tint/20 text-fg/40 hover:border-tint/50'
+            value === opt ? 'bg-accent/10 border-accent/50 text-accent' : 'bg-black/10 border-tint/20 text-fg/70 hover:border-tint/50'
           }`}
         >{opt}</button>
       ))}
@@ -41,7 +41,7 @@ export function RadioList({ value, options, onChange, noneLabel }: { value?: str
         return (
           <button key={opt} onClick={() => onChange(isNone ? undefined : opt)}
             className={`w-full text-left px-3 py-1.5 rounded-xl border transition-all text-xs ${
-              active ? 'bg-accent/10 border-accent/50 text-accent' : 'border-tint/20 bg-black/10 text-fg/40 hover:border-accent/30'
+              active ? 'bg-accent/10 border-accent/50 text-accent' : 'border-tint/20 bg-black/10 text-fg/70 hover:border-accent/30'
             }`}
           >{opt}</button>
         );

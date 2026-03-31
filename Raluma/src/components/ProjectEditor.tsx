@@ -361,7 +361,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                           className={`px-4 py-1.5 rounded-xl border font-bold text-sm transition-all ${
                             currentStage === n
                               ? 'bg-accent/15 border-accent/40 text-accent'
-                              : 'bg-black/10 border-tint/20 text-fg/40 hover:border-tint/40'
+                              : 'bg-black/10 border-tint/20 text-fg/70 hover:border-tint/40'
                           }`}>
                           Этап {n}
                         </button>

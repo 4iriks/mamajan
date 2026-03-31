@@ -258,7 +258,7 @@ export default function ProjectsPage() {
         <div className="flex gap-2 mb-4">
           {(['current', 'archive'] as const).map(tab => (
             <button key={tab} onClick={() => setViewTab(tab)}
-              className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all border ${viewTab === tab ? 'bg-accent/10 border-accent/40 text-accent' : 'bg-hi/[0.03] border-hi/[0.08] text-fg/40 hover:border-tint/40'}`}>
+              className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all border ${viewTab === tab ? 'bg-accent/10 border-accent/40 text-accent' : 'bg-hi/[0.03] border-hi/[0.08] text-fg/70 hover:border-tint/40'}`}>
               {tab === 'current' ? 'Текущие проекты' : 'Архив'}
             </button>
           ))}
@@ -432,7 +432,7 @@ export default function ProjectsPage() {
                   <div className="flex gap-3">
                     {([1, 2] as const).map(n => (
                       <button key={n} type="button" onClick={() => setNewStages(n)}
-                        className={`flex-1 py-3.5 rounded-2xl border font-bold text-sm transition-all ${newStages === n ? 'bg-accent/10 border-accent/50 text-accent' : 'bg-black/10 border-tint/25 text-fg/40 hover:border-tint/50'}`}>
+                        className={`flex-1 py-3.5 rounded-2xl border font-bold text-sm transition-all ${newStages === n ? 'bg-accent/10 border-accent/50 text-accent' : 'bg-black/10 border-tint/25 text-fg/70 hover:border-tint/50'}`}>
                         {n === 1 ? 'в 1 этап' : 'в 2 этапа'}
                       </button>
                     ))}
