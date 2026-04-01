@@ -199,7 +199,11 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     }
   };
 
-  const openPreview = (name: string) => { setPreviewDocName(name); setIsPreviewModalOpen(true); };
+  const openPreview = async (name: string) => {
+    if (isDirty) await handleSaveSection();
+    setPreviewDocName(name);
+    setIsPreviewModalOpen(true);
+  };
 
   const handleSaveProjectNotes = async () => {
     if (!project) return;
