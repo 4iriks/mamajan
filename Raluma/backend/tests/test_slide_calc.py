@@ -384,6 +384,16 @@ class TestHardware:
         expected = round(1968 / 1000 * 3 * 2 * 1 + (2238 / 1000 + 0.03) * 1 * 1, 3)
         assert ru008.value == expected
 
+    def test_ru007_formula(self):
+        """RU007 = (inter_glass_len + 30) * (P-1) * Q, в метрах."""
+        s = _make_section(inter_glass_profile="Алюминиевый RS2061", panels=3, quantity=2)
+        r = calculate_slide(s)
+        brush = [h for h in r.hardware if h.field_key == "brush"][0]
+        ru007 = [si for si in brush.sub_items if si.article == "RU007"][0]
+        # inter_glass_len = 2400-162 = 2238, cnt = (3-1)*2 = 4
+        expected = round((2238 / 1000 + 0.03) * 4, 3)
+        assert ru007.value == expected
+
     def test_ru007_only_rs2061_rs1006(self):
         """RU007 только для RS2061 и RS1006."""
         r1 = calculate_slide(_make_section(inter_glass_profile="Алюминиевый RS2061"))

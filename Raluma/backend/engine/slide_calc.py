@@ -469,7 +469,7 @@ def calculate_slide(section) -> SlideCalcResult:
         "Прозрачный RS1006",
     ):
         ig_len_m = inter_glass_len / 1000
-        ru007_m = round(ig_len_m * inter_glass_cnt, 3)
+        ru007_m = round((ig_len_m + 0.03) * inter_glass_cnt, 3)
 
     result.hardware.append(
         HardwareItem(
