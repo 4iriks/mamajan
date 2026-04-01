@@ -200,7 +200,16 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   };
 
   const openPreview = async (name: string) => {
-    if (isDirty) await handleSaveSection();
+    if (activeSection && project) {
+      const sectionId = parseInt(activeSection.id);
+      if (!isNaN(sectionId)) {
+        const idx = sections.findIndex(s => s.id === activeSectionId);
+        try {
+          await updateSection(project.id, sectionId, localToApi(activeSection, idx));
+          setIsDirty(false);
+        } catch { /* ignore — preview still opens */ }
+      }
+    }
     setPreviewDocName(name);
     setIsPreviewModalOpen(true);
   };
