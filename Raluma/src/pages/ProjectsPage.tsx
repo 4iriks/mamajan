@@ -20,27 +20,27 @@ import { toast } from '../store/toastStore';
 
 const STATUS_COLORS: Record<string, string> = {
   'РАСЧЕТ':                'bg-hi/10 text-fg/50',
-  'В работе':              'bg-blue-500/20 text-blue-300',
-  'Запущен в производство':'bg-teal-500/20 text-teal-300',
-  'Готов':                 'bg-emerald-500/20 text-emerald-300',
-  'Отгружен полностью':    'bg-emerald-600/25 text-emerald-200',
-  'Отгружен частично':     'bg-amber-500/20 text-amber-300',
-  'Отгружен 1 этап':       'bg-amber-500/20 text-amber-300',
-  'Рекламация':            'bg-red-500/20 text-red-300',
+  'В работе':              'bg-blue-500/20 text-blue-600',
+  'Запущен в производство':'bg-teal-500/20 text-teal-600',
+  'Готов':                 'bg-emerald-500/20 text-emerald-600',
+  'Отгружен полностью':    'bg-emerald-600/25 text-emerald-600',
+  'Отгружен частично':     'bg-amber-500/20 text-amber-600',
+  'Отгружен 1 этап':       'bg-amber-500/20 text-amber-600',
+  'Рекламация':            'bg-red-500/20 text-red-600',
   'Архив':                 'bg-hi/5 text-fg/30',
 };
 
 const GLASS_COLORS: Record<string, string> = {
   'Без стекла':    'bg-hi/5 text-fg/30',
-  'Стекла заказаны': 'bg-amber-500/20 text-amber-300',
-  'Стекла в цеху': 'bg-emerald-500/20 text-emerald-300',
+  'Стекла заказаны': 'bg-amber-500/20 text-amber-600',
+  'Стекла в цеху': 'bg-emerald-500/20 text-emerald-600',
 };
 
 const PAINT_COLORS: Record<string, string> = {
   'Без покраски':               'bg-hi/5 text-fg/30',
-  'Задание на покраску в цеху': 'bg-blue-500/20 text-blue-300',
-  'Отгружен на покраску':       'bg-amber-500/20 text-amber-300',
-  'Получен с покраски':         'bg-emerald-500/20 text-emerald-300',
+  'Задание на покраску в цеху': 'bg-blue-500/20 text-blue-600',
+  'Отгружен на покраску':       'bg-amber-500/20 text-amber-600',
+  'Получен с покраски':         'bg-emerald-500/20 text-emerald-600',
 };
 
 function StatusBadge({ value, colors }: { value?: string; colors: Record<string, string> }) {
