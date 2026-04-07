@@ -144,6 +144,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
 
   const handleSaveSection = async () => {
     if (!activeSection || !project || isSaving) return;
+    if (!isDirty) return;
     const sectionId = parseInt(activeSection.id);
     if (isNaN(sectionId)) return;
     setIsSaving(true);
