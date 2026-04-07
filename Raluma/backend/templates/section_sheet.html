@@ -137,8 +137,8 @@
       {% set riW = rfW - 2 * rpt %}
       {% set riH = rfH - 2 * rpt %}
       {% set rpW = riW / section.panels %}
-      <svg width="{{ rw }}" height="{{ rh }}" viewBox="0 0 {{ rw }} {{ rh }}"
-           xmlns="http://www.w3.org/2000/svg" style="display:block; margin:0 auto;">
+      <svg viewBox="0 0 {{ rw }} {{ rh }}"
+           xmlns="http://www.w3.org/2000/svg" style="display:block; width:100%;">
         {# Frame border #}
         <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rfW }}" height="{{ rfH }}" fill="none" stroke="#000" stroke-width="1.2"/>
         {# Frame edges (top/bottom/left/right) #}
@@ -174,8 +174,8 @@
       {% set sh = top_pad + rails * row_h + bot_pad %}
       {% set first_right = (section.first_panel_inside or 'Справа') == 'Справа' %}
       {% set panel_w = rail_w / P %}
-      <svg width="{{ sw }}" height="{{ sh }}" viewBox="0 0 {{ sw }} {{ sh }}"
-           xmlns="http://www.w3.org/2000/svg" style="display:block; margin:0 auto;">
+      <svg viewBox="0 0 {{ sw }} {{ sh }}"
+           xmlns="http://www.w3.org/2000/svg" style="display:block; width:100%;">
 
         {# Метки #}
         <text x="{{ left_w + rail_w / 2 }}" y="9" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#666">УЛИЦА</text>
@@ -329,11 +329,11 @@
   {# Стекольный профиль #}
   {% if glass_profiles %}
   <tr>
-    <td colspan="2">
+    <td colspan="3">
       {% set gp = glass_profiles[0] %}
       <table style="width:100%; border:none; border-collapse:collapse;"><tr>
-        <td style="border:none; padding:0; width:22mm; vertical-align:top;">
-          {% if gp.image %}{% set src = gp.image | img_b64 %}{% if src %}<img src="{{ src }}" style="width:20mm; height:16mm; object-fit:contain; transform:rotate(90deg);">{% endif %}{% endif %}
+        <td style="border:none; padding:0; width:16mm; vertical-align:top;">
+          {% if gp.image %}{% set src = gp.image | img_b64 %}{% if src %}<img src="{{ src }}" style="width:14mm; height:12mm; object-fit:contain; transform:rotate(90deg);">{% endif %}{% endif %}
         </td>
         <td style="border:none; padding:0 0 0 1mm; vertical-align:top;">
           <div class="prof-name">Стекольный профиль</div>
@@ -355,7 +355,6 @@
       </tr></table>
       {% if gp.note %}<div class="prof-note">{{ gp.note }}</div>{% endif %}
     </td>
-    <td></td>
   </tr>
   {% endif %}
 </table>
