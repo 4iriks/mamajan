@@ -123,10 +123,10 @@
 <!-- ══════ СХЕМЫ ══════ -->
 <table style="border:1px solid #000; border-top:none;">
   <tr>
-    <td style="width:50%; text-align:center; padding:0.8mm; border-right:1px solid #000;">
+    <td style="width:50%; text-align:center; padding:0.5mm; border-right:1px solid #000;">
       <div class="scheme-label">схема вид из помещения</div>
       {% set rw = 220 %}
-      {% set rh = 50 %}
+      {% set rh = 40 %}
       {% set rfX = 10 %}
       {% set rfY = 2 %}
       {% set rfW = rw - 20 %}
@@ -160,16 +160,16 @@
         {% endfor %}
       </svg>
     </td>
-    <td style="width:50%; text-align:center; padding:0.8mm;">
+    <td style="width:50%; text-align:center; padding:0.5mm;">
       <div class="scheme-label">схема вид сверху</div>
       {% set P = section.panels %}
       {% set rails = section.rails or 3 %}
-      {% set row_h = 14 %}
-      {% set top_pad = 10 %}
-      {% set bot_pad = 16 %}
-      {% set left_w = 40 %}
-      {% set right_w = 40 %}
-      {% set rail_w = 150 %}
+      {% set row_h = 11 %}
+      {% set top_pad = 8 %}
+      {% set bot_pad = 14 %}
+      {% set left_w = 35 %}
+      {% set right_w = 35 %}
+      {% set rail_w = 130 %}
       {% set sw = left_w + rail_w + right_w %}
       {% set sh = top_pad + rails * row_h + bot_pad %}
       {% set first_right = (section.first_panel_inside or 'Справа') == 'Справа' %}
@@ -460,9 +460,12 @@
 </table>
 
 <!-- ══════ СТРАНИЦА 2: ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ ══════ -->
+{% set ec_rows_check = overrides.get('extra_components', []) %}
+{% set has_ec = ec_rows_check | length > 0 and ec_rows_check | selectattr('art') | list | length > 0 %}
+{% if not is_pdf or has_ec %}
 <div class="page-break">
   <div class="bar" style="margin-bottom:0;">
-    ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ - ПРОЕКТ №{{ project.number }}
+    ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ - ПРОЕКТ №{{ project.number }}, СЕКЦИЯ №{{ section.order }}
   </div>
   <table class="ec-tbl" id="ec-table">
     <thead>
@@ -503,6 +506,7 @@
   <button class="add-row-btn" id="add-ec-row">+ добавить строку</button>
   {% endif %}
 </div>
+{% endif %}{# not is_pdf or has_ec #}
 
 {% if not is_pdf %}
 <script>
