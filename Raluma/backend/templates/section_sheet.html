@@ -166,7 +166,7 @@
       {% set rails = section.rails or 3 %}
       {% set row_h = 18 %}
       {% set top_pad = 14 %}
-      {% set bot_pad = 20 %}
+      {% set bot_pad = 26 %}
       {% set left_w = 50 %}
       {% set right_w = 50 %}
       {% set rail_w = 300 %}
@@ -337,6 +337,7 @@
         <td style="border:none; padding:0 0 0 1mm; vertical-align:top;">
           <div class="prof-name">Стекольный профиль</div>
           <div class="prof-line"><span class="art">{{ gp.article }}</span></div>
+          {% if gp.note %}<div class="prof-note">{{ gp.note }}</div>{% endif %}
         </td>
         <td style="border:none; padding:0 0 0 2mm; vertical-align:top;">
           <table class="gp-tbl">
@@ -352,7 +353,6 @@
           </table>
         </td>
       </tr></table>
-      {% if gp.note %}<div class="prof-note">{{ gp.note }}</div>{% endif %}
     </td>
   </tr>
   {% endif %}
