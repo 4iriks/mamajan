@@ -78,7 +78,7 @@
   .hw-note { font-size: 7pt; font-style: italic; color: #555; margin-top: 0.1mm; font-weight: 400; }
 
   /* ── Чеклист ── */
-  .chk-cell { font-size: 6pt; line-height: 1.1; vertical-align: middle !important; }
+  .chk-cell { font-size: 7.5pt; line-height: 1.2; vertical-align: middle !important; }
   .chk-box { display: inline-block; width: 2.5mm; height: 2.5mm; border: 1px solid #000; vertical-align: middle; margin-right: 0.5mm; }
 
   /* ── Комментарии ── */
@@ -115,7 +115,7 @@
 <table class="hdr">
   <tr>
     <td style="width:35%">ПРОЕКТ №&nbsp; {{ project.number }}</td>
-    <td style="width:30%; text-align:center">СЕКЦИЯ №&nbsp; {{ section.order }}</td>
+    <td style="width:30%; text-align:center">{{ section.name }}</td>
     <td style="width:35%; text-align:right">{{ calc.system_text }}</td>
   </tr>
 </table>
@@ -126,7 +126,7 @@
     <td style="width:50%; text-align:center; padding:0.3mm; border-right:1px solid #000;">
       <div class="scheme-label">схема вид из помещения</div>
       {% set rw = 300 %}
-      {% set rh = 60 %}
+      {% set rh = 80 %}
       {% set rfX = 10 %}
       {% set rfY = 2 %}
       {% set rfW = rw - 20 %}
@@ -529,7 +529,7 @@
 {% if not is_pdf or has_ec %}
 <div class="page-break">
   <div class="bar" style="margin-bottom:0;">
-    ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ - ПРОЕКТ №{{ project.number }}, СЕКЦИЯ №{{ section.order }}
+    ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ - ПРОЕКТ №{{ project.number }}, {{ section.name }}
   </div>
   <table class="ec-tbl" id="ec-table">
     <thead>
