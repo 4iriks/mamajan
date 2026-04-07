@@ -125,8 +125,8 @@
   <tr>
     <td style="width:50%; text-align:center; padding:0.5mm; border-right:1px solid #000;">
       <div class="scheme-label">схема вид из помещения</div>
-      {% set rw = 220 %}
-      {% set rh = 40 %}
+      {% set rw = 300 %}
+      {% set rh = 60 %}
       {% set rfX = 10 %}
       {% set rfY = 2 %}
       {% set rfW = rw - 20 %}
@@ -137,30 +137,93 @@
       {% set riW = rfW - 2 * rpt %}
       {% set riH = rfH - 2 * rpt %}
       {% set rpW = riW / section.panels %}
+      {% set room_first_right = (section.first_panel_inside or 'Справа') == 'Справа' %}
+      {% set hL = (section.handle_left or 'Без')|lower %}
+      {% set hR = (section.handle_right or 'Без')|lower %}
+      {% set lL = (section.lock_left or 'Без')|lower %}
+      {% set lR = (section.lock_right or 'Без')|lower %}
+      {% set leftDeaf = ('без' in hL or 'глухая' in hL) and 'без' in lL and not section.profile_left_handle_bar %}
+      {% set rightDeaf = ('без' in hR or 'глухая' in hR) and 'без' in lR and not section.profile_right_handle_bar %}
+      {% set symY = riY + riH / 2 %}
+      {% set handleLX = riX + 8 %}
+      {% set handleRX = riX + riW - 8 %}
+      {% set lockLX = rfX + 3 %}
+      {% set lockRX = rfX + rfW - 3 %}
       <svg viewBox="0 0 {{ rw }} {{ rh }}"
            xmlns="http://www.w3.org/2000/svg" style="display:block; width:100%;">
-        {# Frame border #}
+        {# Frame #}
         <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rfW }}" height="{{ rfH }}" fill="none" stroke="#000" stroke-width="1.2"/>
-        {# Frame edges (top/bottom/left/right) #}
         <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rfW }}" height="{{ rpt }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
         <rect x="{{ rfX }}" y="{{ rfY + rfH - rpt }}" width="{{ rfW }}" height="{{ rpt }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
         <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rpt }}" height="{{ rfH }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
         <rect x="{{ rfX + rfW - rpt }}" y="{{ rfY }}" width="{{ rpt }}" height="{{ rfH }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
-        {# Glass panels #}
-        {% set room_first_right = (section.first_panel_inside or 'Справа') == 'Справа' %}
+        {# Panels #}
         {% for i in range(section.panels) %}
         {% set gpx = riX + i * rpW %}
+        {% set gcx = gpx + rpW / 2 %}
+        {% set gcy = riY + riH / 2 %}
         <rect x="{{ gpx }}" y="{{ riY }}" width="{{ rpW }}" height="{{ riH }}" fill="#f4f9fb" stroke="none"/>
         {% if i < section.panels - 1 %}
         <rect x="{{ gpx + rpW - 1 }}" y="{{ riY }}" width="2" height="{{ riH }}" fill="#e0e0e0" stroke="#ccc" stroke-width="0.3"/>
         {% endif %}
-        {# Panel number #}
         {% set pnum = section.panels - i if room_first_right else i + 1 %}
-        <text x="{{ gpx + rpW / 2 }}" y="{{ riY + riH / 2 + 3 }}" text-anchor="middle" font-size="8" font-family="Arial" font-weight="bold" fill="#555">{{ pnum }}</text>
+        {# Deaf panel — X #}
+        {% if (i == 0 and leftDeaf) or (i == section.panels - 1 and rightDeaf) %}
+        <line x1="{{ gpx + 4 }}" y1="{{ riY + 4 }}" x2="{{ gpx + rpW - 4 }}" y2="{{ riY + riH - 4 }}" stroke="#999" stroke-width="1"/>
+        <line x1="{{ gpx + rpW - 4 }}" y1="{{ riY + 4 }}" x2="{{ gpx + 4 }}" y2="{{ riY + riH - 4 }}" stroke="#999" stroke-width="1"/>
+        {% endif %}
+        {# Panel number #}
+        <text x="{{ gcx }}" y="{{ gcy - 4 }}" text-anchor="middle" font-size="7" font-family="Arial" font-weight="bold" fill="#555">{{ pnum }}</text>
+        {# Arrow (non-deaf panels) #}
+        {% if not ((i == 0 and leftDeaf) or (i == section.panels - 1 and rightDeaf)) %}
+        {% set alen = [10, rpW * 0.35] | min %}
+        {% if room_first_right %}
+        <line x1="{{ gcx + alen/2 }}" y1="{{ gcy + 4 }}" x2="{{ gcx - alen/2 }}" y2="{{ gcy + 4 }}" stroke="#999" stroke-width="0.8"/>
+        <polyline points="{{ gcx - alen/2 + 3 }},{{ gcy + 2 }} {{ gcx - alen/2 }},{{ gcy + 4 }} {{ gcx - alen/2 + 3 }},{{ gcy + 6 }}" stroke="#999" stroke-width="0.8" fill="none"/>
+        {% else %}
+        <line x1="{{ gcx - alen/2 }}" y1="{{ gcy + 4 }}" x2="{{ gcx + alen/2 }}" y2="{{ gcy + 4 }}" stroke="#999" stroke-width="0.8"/>
+        <polyline points="{{ gcx + alen/2 - 3 }},{{ gcy + 2 }} {{ gcx + alen/2 }},{{ gcy + 4 }} {{ gcx + alen/2 - 3 }},{{ gcy + 6 }}" stroke="#999" stroke-width="0.8" fill="none"/>
+        {% endif %}
+        {% endif %}
+        {# Floor latches #}
+        {% if i == 0 and section.floor_latches_left %}
+        <rect x="{{ riX + 4 }}" y="{{ riY + riH - 1 }}" width="5" height="5" fill="#666" stroke="#000" stroke-width="0.5"/>
+        {% endif %}
+        {% if i == section.panels - 1 and section.floor_latches_right %}
+        <rect x="{{ riX + riW - 9 }}" y="{{ riY + riH - 1 }}" width="5" height="5" fill="#666" stroke="#000" stroke-width="0.5"/>
+        {% endif %}
         {% endfor %}
+        {# Handle symbols (on door panel) #}
+        {% if 'кноб' in hL or 'rs3014' in hL %}
+        <circle cx="{{ handleLX }}" cy="{{ symY }}" r="3.5" fill="#666" stroke="#000" stroke-width="0.8"/>
+        {% elif 'скоба' in hL %}
+        <line x1="{{ handleLX }}" y1="{{ symY - 10 }}" x2="{{ handleLX }}" y2="{{ symY + 10 }}" stroke="#000" stroke-width="2"/>
+        {% elif 'стеклян' in hL or 'rs3017' in hL %}
+        <rect x="{{ handleLX - 3 }}" y="{{ symY - 3 }}" width="6" height="6" fill="#666" stroke="#000" stroke-width="0.8"/>
+        {% endif %}
+        {% if 'кноб' in hR or 'rs3014' in hR %}
+        <circle cx="{{ handleRX }}" cy="{{ symY }}" r="3.5" fill="#666" stroke="#000" stroke-width="0.8"/>
+        {% elif 'скоба' in hR %}
+        <line x1="{{ handleRX }}" y1="{{ symY - 10 }}" x2="{{ handleRX }}" y2="{{ symY + 10 }}" stroke="#000" stroke-width="2"/>
+        {% elif 'стеклян' in hR or 'rs3017' in hR %}
+        <rect x="{{ handleRX - 3 }}" y="{{ symY - 3 }}" width="6" height="6" fill="#666" stroke="#000" stroke-width="0.8"/>
+        {% endif %}
+        {# Lock symbols (at frame edges) #}
+        {% if '1стор' in lL %}
+        <line x1="{{ lockLX }}" y1="{{ symY - 8 }}" x2="{{ lockLX }}" y2="{{ symY + 8 }}" stroke="#000" stroke-width="1.5"/>
+        {% elif '2стор' in lL or 'ключ' in lL %}
+        <line x1="{{ lockLX }}" y1="{{ symY - 8 }}" x2="{{ lockLX }}" y2="{{ symY + 8 }}" stroke="#000" stroke-width="1.5"/>
+        <circle cx="{{ lockLX }}" cy="{{ symY - 11 }}" r="2" fill="none" stroke="#000" stroke-width="0.7"/>
+        {% endif %}
+        {% if '1стор' in lR %}
+        <line x1="{{ lockRX }}" y1="{{ symY - 8 }}" x2="{{ lockRX }}" y2="{{ symY + 8 }}" stroke="#000" stroke-width="1.5"/>
+        {% elif '2стор' in lR or 'ключ' in lR %}
+        <line x1="{{ lockRX }}" y1="{{ symY - 8 }}" x2="{{ lockRX }}" y2="{{ symY + 8 }}" stroke="#000" stroke-width="1.5"/>
+        <circle cx="{{ lockRX }}" cy="{{ symY - 11 }}" r="2" fill="none" stroke="#000" stroke-width="0.7"/>
+        {% endif %}
       </svg>
     </td>
-    <td style="width:50%; text-align:center; padding:0.5mm; height:22mm;">
+    <td style="width:50%; text-align:center; padding:0.5mm; height:19mm;">
       <div class="scheme-label">схема вид сверху</div>
       {% set P = section.panels %}
       {% set rails = section.rails or 3 %}
