@@ -53,6 +53,7 @@ class ScrewItem:
     article: str
     qty: int
     image: str | None = None
+    note: str = ""
 
 
 @dataclass
@@ -283,7 +284,7 @@ def calculate_slide(section) -> SlideCalcResult:
             length_mm=round(top_len, 1),
             qty=Q,
             painted=painted,
-            image="RS1325.jpg",  # RS1313/RS1315 нет в ассетах, используем RS1325
+            image=None,  # RS1313/RS1315 — нет картинки в ассетах
             field_key="top_guide_length",
             note="вставить фетровое уплотнение",
         )
@@ -662,27 +663,31 @@ def calculate_slide(section) -> SlideCalcResult:
     # 4,8×19 A2
     screw4819 = (rs105_qty + rs106_qty) * 2
     result.screws.append(
-        ScrewItem("Саморез 4,8×19 A2 (DIN7982)", "4,8×19 A2", screw4819, "DIN7982.png")
+        ScrewItem("Саморез 4,8×19 A2 (DIN7982)", "4,8×19 A2", screw4819, "DIN7982.png",
+                  note="Прикрутить заглушки")
     )
 
     # 3,9×13 A2 (DIN7504M) — для роликов + П-профиля
     screw3913m = ru005_qty * 2 + pb_count * 7 * Q
     result.screws.append(
-        ScrewItem("Саморез 3,9×13 A2 (DIN7504M)", "3,9×13 A2 DIN7504M", screw3913m, "DIN7504M.png")
+        ScrewItem("Саморез 3,9×13 A2 (DIN7504M)", "3,9×13 A2 DIN7504M", screw3913m, "DIN7504M.png",
+                  note="Прикрутить ролики, RS1081 к RS1333/1335")
     )
 
     # 4,8×38 A2
     screw4838_map = {(3, True): 8, (5, True): 12, (3, False): 4, (5, False): 6}
     screw4838 = screw4838_map.get((rails, std), 8)
     result.screws.append(
-        ScrewItem("Саморез 4,8×38 A2 (DIN7982)", "4,8×38 A2", screw4838, "DIN7982.png")
+        ScrewItem("Саморез 4,8×38 A2 (DIN7982)", "4,8×38 A2", screw4838, "DIN7982.png",
+                  note="Прикрутить RS1333/1335 к RS1313/1315 и порогу")
     )
 
     # 3,9×13 A2 (DIN7504О) — для П-профиля RS1082
     screw3913o = pb_count * Q * 7
     if screw3913o > 0:
         result.screws.append(
-            ScrewItem("Саморез 3,9×13 A2 (DIN7504О)", "3,9×13 A2 DIN7504O", screw3913o, "DIN7504O.png")
+            ScrewItem("Саморез 3,9×13 A2 (DIN7504О)", "3,9×13 A2 DIN7504O", screw3913o, "DIN7504O.png",
+                      note="Прикрутить швеллер RM701 к RS1333/1335")
         )
 
     # 5,4×25 A2 — глухие панели

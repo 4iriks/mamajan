@@ -5,6 +5,7 @@
 <title>Производственный лист</title>
 <style>
   @page { size: A4 portrait; margin: 3mm; }
+  @page :first { page-break-after: avoid; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: Arial, Helvetica, sans-serif;
@@ -70,8 +71,8 @@
   .hw-tbl .bar-row td { background: #000; color: #fff; font-size: 9pt; font-weight: 700; border-color: #000; padding: 0.5mm 1.5mm; }
   .hw-inner { width: 100%; border: none; border-collapse: collapse; }
   .hw-inner td { border: none; padding: 0; vertical-align: top; }
-  .hw-inner .hw-img-cell { width: 18mm; padding-right: 1mm; }
-  .hw-img  { width: 16mm; height: 10mm; object-fit: contain; }
+  .hw-inner .hw-img-cell { width: 20mm; padding-right: 1mm; }
+  .hw-img  { width: 18mm; height: 14mm; object-fit: contain; }
   .hw-name { font-size: 10pt; font-weight: 700; }
   .hw-art  { font-weight: 900; font-size: 12pt; text-align: center; margin-top: 0.2mm; }
   .hw-qty  { float: right; font-size: 13pt; font-weight: 900; }
@@ -83,6 +84,9 @@
 
   /* ── Комментарии ── */
   .comments { border: 1px solid #000; border-top: none; padding: 1.5mm; min-height: 8mm; font-size: 9pt; }
+
+  /* Запретить разрыв страницы 1 — всё до page-break на одной странице */
+  .hdr, .prof-tbl, .hw-tbl, .comments { page-break-inside: avoid; }
 
   /* ── Страница 2: Доп. комплектующие ── */
   .page-break { page-break-before: always; }
@@ -334,8 +338,8 @@
     <td colspan="2">
       {% set gp = glass_profiles[0] %}
       <table style="width:100%; border:none; border-collapse:collapse;"><tr>
-        <td style="border:none; padding:0; width:20mm; vertical-align:top;">
-          {% if gp.image %}{% set src = gp.image | img_b64 %}{% if src %}<img src="{{ src }}" class="prof-img">{% endif %}{% endif %}
+        <td style="border:none; padding:0; width:22mm; vertical-align:top;">
+          {% if gp.image %}{% set src = gp.image | img_b64 %}{% if src %}<img src="{{ src }}" style="width:20mm; height:16mm; object-fit:contain; transform:rotate(90deg);">{% endif %}{% endif %}
         </td>
         <td style="border:none; padding:0 0 0 1mm; vertical-align:top;">
           <div class="prof-name">Стекольный профиль</div>
@@ -368,7 +372,7 @@
   {% set _ = all_items.append({'type':'hw','name':h.name,'article':h.article,'value':h.value,'unit':h.unit,'image':h.image,'idx':loop.index,'sub_items':h.sub_items}) %}
 {% endfor %}
 {% for s in calc.screws %}
-  {% set _ = all_items.append({'type':'screw','name':s.name,'article':s.article,'value':s.qty,'unit':'шт','image':s.image,'idx':loop.index,'sub_items':none}) %}
+  {% set _ = all_items.append({'type':'screw','name':s.name,'article':s.article,'value':s.qty,'unit':'шт','image':s.image,'idx':loop.index,'sub_items':none,'note':s.note}) %}
 {% endfor %}
 {% set half = ((all_items|length) + 1) // 2 %}
 {% set col_left = all_items[:half] %}
@@ -408,6 +412,7 @@
             {% set fv_l = item_l.value %}
             <span class="hw-qty" {{ ce(fk_l, fv_l) }}>{{ ov(fk_l, fv_l) }}</span>
             <div class="hw-art">{{ item_l.article }}</div>
+            {% if item_l.note %}<div class="hw-note">{{ item_l.note }}</div>{% endif %}
           {% endif %}
         </td>
       </tr></table>
@@ -436,6 +441,7 @@
             {% set fv_r = item_r.value %}
             <span class="hw-qty" {{ ce(fk_r, fv_r) }}>{{ ov(fk_r, fv_r) }}</span>
             <div class="hw-art">{{ item_r.article }}</div>
+            {% if item_r.note %}<div class="hw-note">{{ item_r.note }}</div>{% endif %}
           {% endif %}
         </td>
       </tr></table>
