@@ -14,7 +14,7 @@
     width: 206mm;
   }
   table { border-collapse: collapse; width: 100%; }
-  td, th { vertical-align: top; padding: 0.3mm 0.6mm; }
+  td, th { vertical-align: top; padding: 0.35mm 0.7mm; }
   .cf::after { content: ''; display: block; clear: both; }
 
   /* ── Шапка ── */
@@ -34,21 +34,21 @@
 
   /* ── Параметры ── */
   .params { border: 1px solid #000; border-top: none; }
-  .params td { font-size: 8pt; line-height: 1.3; padding: 0.3mm 1.5mm; }
+  .params td { font-size: 8pt; line-height: 1.35; padding: 0.4mm 1.5mm; }
   .params .val { font-weight: 700; }
 
   /* ── Таблица стёкол ── */
   .glass-tbl { width: 100%; margin-top: 0.3mm; }
-  .glass-tbl th { background: #e0e0e0; border: 1px solid #999; padding: 0.1mm 0.6mm; font-size: 7pt; text-align: center; }
-  .glass-tbl td { border: 1px solid #bbb; padding: 0.1mm 0.6mm; text-align: center; font-size: 8pt; font-weight: 700; }
+  .glass-tbl th { background: #e0e0e0; border: 1px solid #999; padding: 0.15mm 0.7mm; font-size: 7pt; text-align: center; }
+  .glass-tbl td { border: 1px solid #bbb; padding: 0.15mm 0.7mm; text-align: center; font-size: 8pt; font-weight: 700; }
   .glass-tbl td:first-child { text-align: left; font-weight: 400; }
 
   /* ── Схема ── */
-  .scheme-label { font-size: 7pt; font-weight: 700; margin: 0.1mm 0; }
+  .scheme-label { font-size: 7.5pt; font-weight: 700; margin: 0.2mm 0; }
 
   /* ── Нарезка профилей ── */
   .prof-tbl { width: 100%; }
-  .prof-tbl td { border: 1px solid #000; padding: 0.3mm 0.8mm; vertical-align: top; }
+  .prof-tbl td { border: 1px solid #000; padding: 0.4mm 0.8mm; vertical-align: top; }
   .prof-tbl .bar-row td { background: #000; color: #fff; font-size: 8pt; font-weight: 700; border-color: #000; padding: 0.2mm 1mm; }
   .prof-img  { float: left; width: 14mm; height: 8mm; object-fit: contain; margin-right: 1mm; }
   .prof-name { font-size: 8pt; font-weight: 700; }
@@ -66,15 +66,15 @@
 
   /* ── Фурнитура ── */
   .hw-tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  .hw-tbl td { border: 1px solid #000; padding: 0.2mm 0.6mm; vertical-align: top; }
+  .hw-tbl td { border: 1px solid #000; padding: 0.25mm 0.7mm; vertical-align: top; }
   .hw-tbl .bar-row td { background: #000; color: #fff; font-size: 8pt; font-weight: 700; border-color: #000; padding: 0.2mm 1mm; }
   .hw-inner { width: 100%; border: none; border-collapse: collapse; }
   .hw-inner td { border: none; padding: 0; vertical-align: top; }
-  .hw-inner .hw-img-cell { width: 16mm; padding-right: 0.5mm; }
-  .hw-img  { width: 14mm; height: 10mm; object-fit: contain; }
+  .hw-inner .hw-img-cell { width: 17mm; padding-right: 0.5mm; }
+  .hw-img  { width: 15mm; height: 11mm; object-fit: contain; }
   .hw-name { font-size: 8pt; font-weight: 700; }
-  .hw-art  { font-weight: 900; font-size: 9pt; text-align: center; margin-top: 0; }
-  .hw-qty  { float: right; font-size: 10pt; font-weight: 900; }
+  .hw-art  { font-weight: 900; font-size: 9.5pt; text-align: center; margin-top: 0; }
+  .hw-qty  { float: right; font-size: 10.5pt; font-weight: 900; }
   .hw-note { font-size: 7pt; font-style: italic; color: #555; margin-top: 0.1mm; font-weight: 400; }
 
   /* ── Чеклист ── */
@@ -82,7 +82,7 @@
   .chk-box { display: inline-block; width: 2.5mm; height: 2.5mm; border: 1px solid #000; vertical-align: middle; margin-right: 0.5mm; }
 
   /* ── Комментарии ── */
-  .comments { border: 1px solid #000; border-top: none; padding: 0.5mm 1mm; min-height: 5mm; font-size: 7.5pt; white-space: pre-wrap; word-wrap: break-word; }
+  .comments { border: 1px solid #000; border-top: none; padding: 0.8mm 1mm; min-height: 5mm; font-size: 7.5pt; white-space: pre-wrap; word-wrap: break-word; }
 
   /* ── Страница 2: Доп. комплектующие ── */
   .page-break { page-break-before: always; }
@@ -169,8 +169,8 @@
         {% set pnum = section.panels - i if room_first_right else i + 1 %}
         {# Deaf panel — X #}
         {% if (i == 0 and leftDeaf) or (i == section.panels - 1 and rightDeaf) %}
-        <line x1="{{ gpx + 4 }}" y1="{{ riY + 4 }}" x2="{{ gpx + rpW - 4 }}" y2="{{ riY + riH - 4 }}" stroke="#999" stroke-width="1"/>
-        <line x1="{{ gpx + rpW - 4 }}" y1="{{ riY + 4 }}" x2="{{ gpx + 4 }}" y2="{{ riY + riH - 4 }}" stroke="#999" stroke-width="1"/>
+        <line x1="{{ gpx + 8 }}" y1="{{ riY + 6 }}" x2="{{ gpx + rpW - 8 }}" y2="{{ riY + riH - 6 }}" stroke="#aaa" stroke-width="0.7"/>
+        <line x1="{{ gpx + rpW - 8 }}" y1="{{ riY + 6 }}" x2="{{ gpx + 8 }}" y2="{{ riY + riH - 6 }}" stroke="#aaa" stroke-width="0.7"/>
         {% endif %}
         {# Panel number #}
         <text x="{{ gcx }}" y="{{ gcy - 4 }}" text-anchor="middle" font-size="7" font-family="Arial" font-weight="bold" fill="#555">{{ pnum }}</text>
@@ -197,14 +197,14 @@
         {% if 'кноб' in hL or 'rs3014' in hL %}
         <circle cx="{{ handleLX }}" cy="{{ symY }}" r="3.5" fill="#666" stroke="#000" stroke-width="0.8"/>
         {% elif 'скоба' in hL %}
-        <line x1="{{ handleLX }}" y1="{{ symY - 10 }}" x2="{{ handleLX }}" y2="{{ symY + 10 }}" stroke="#000" stroke-width="2"/>
+        <line x1="{{ handleLX }}" y1="{{ symY - 16 }}" x2="{{ handleLX }}" y2="{{ symY + 16 }}" stroke="#000" stroke-width="1.8"/>
         {% elif 'стеклян' in hL or 'rs3017' in hL %}
         <rect x="{{ handleLX - 3 }}" y="{{ symY - 3 }}" width="6" height="6" fill="#666" stroke="#000" stroke-width="0.8"/>
         {% endif %}
         {% if 'кноб' in hR or 'rs3014' in hR %}
         <circle cx="{{ handleRX }}" cy="{{ symY }}" r="3.5" fill="#666" stroke="#000" stroke-width="0.8"/>
         {% elif 'скоба' in hR %}
-        <line x1="{{ handleRX }}" y1="{{ symY - 10 }}" x2="{{ handleRX }}" y2="{{ symY + 10 }}" stroke="#000" stroke-width="2"/>
+        <line x1="{{ handleRX }}" y1="{{ symY - 16 }}" x2="{{ handleRX }}" y2="{{ symY + 16 }}" stroke="#000" stroke-width="1.8"/>
         {% elif 'стеклян' in hR or 'rs3017' in hR %}
         <rect x="{{ handleRX - 3 }}" y="{{ symY - 3 }}" width="6" height="6" fill="#666" stroke="#000" stroke-width="0.8"/>
         {% endif %}
@@ -213,17 +213,23 @@
         <line x1="{{ lockLX }}" y1="{{ symY - 8 }}" x2="{{ lockLX }}" y2="{{ symY + 8 }}" stroke="#000" stroke-width="1.5"/>
         {% elif '2стор' in lL or 'ключ' in lL %}
         <line x1="{{ lockLX }}" y1="{{ symY - 8 }}" x2="{{ lockLX }}" y2="{{ symY + 8 }}" stroke="#000" stroke-width="1.5"/>
-        <circle cx="{{ lockLX }}" cy="{{ symY - 11 }}" r="2" fill="none" stroke="#000" stroke-width="0.7"/>
+        <circle cx="{{ lockLX }}" cy="{{ symY - 13 }}" r="3.5" fill="none" stroke="#000" stroke-width="1"/>
+        <line x1="{{ lockLX }}" y1="{{ symY - 9.5 }}" x2="{{ lockLX }}" y2="{{ symY - 2 }}" stroke="#000" stroke-width="1"/>
+        <line x1="{{ lockLX }}" y1="{{ symY - 4 }}" x2="{{ lockLX + 2.5 }}" y2="{{ symY - 4 }}" stroke="#000" stroke-width="1"/>
+        <line x1="{{ lockLX }}" y1="{{ symY - 6.5 }}" x2="{{ lockLX + 2 }}" y2="{{ symY - 6.5 }}" stroke="#000" stroke-width="1"/>
         {% endif %}
         {% if '1стор' in lR %}
         <line x1="{{ lockRX }}" y1="{{ symY - 8 }}" x2="{{ lockRX }}" y2="{{ symY + 8 }}" stroke="#000" stroke-width="1.5"/>
         {% elif '2стор' in lR or 'ключ' in lR %}
         <line x1="{{ lockRX }}" y1="{{ symY - 8 }}" x2="{{ lockRX }}" y2="{{ symY + 8 }}" stroke="#000" stroke-width="1.5"/>
-        <circle cx="{{ lockRX }}" cy="{{ symY - 11 }}" r="2" fill="none" stroke="#000" stroke-width="0.7"/>
+        <circle cx="{{ lockRX }}" cy="{{ symY - 13 }}" r="3.5" fill="none" stroke="#000" stroke-width="1"/>
+        <line x1="{{ lockRX }}" y1="{{ symY - 9.5 }}" x2="{{ lockRX }}" y2="{{ symY - 2 }}" stroke="#000" stroke-width="1"/>
+        <line x1="{{ lockRX }}" y1="{{ symY - 4 }}" x2="{{ lockRX + 2.5 }}" y2="{{ symY - 4 }}" stroke="#000" stroke-width="1"/>
+        <line x1="{{ lockRX }}" y1="{{ symY - 6.5 }}" x2="{{ lockRX + 2 }}" y2="{{ symY - 6.5 }}" stroke="#000" stroke-width="1"/>
         {% endif %}
       </svg>
     </td>
-    <td style="width:50%; text-align:center; padding:0.5mm; height:17mm;">
+    <td style="width:50%; text-align:center; padding:0.5mm; height:18mm;">
       <div class="scheme-label">схема вид сверху</div>
       {% set P = section.panels %}
       {% set rails = section.rails or 3 %}
@@ -395,7 +401,7 @@
       {% set gp = glass_profiles[0] %}
       <table style="width:100%; border:none; border-collapse:collapse;"><tr>
         <td style="border:none; padding:0; width:16mm; vertical-align:top;">
-          {% if gp.image %}{% set src = gp.image | img_b64 %}{% if src %}<img src="{{ src }}" style="width:12mm; height:10mm; object-fit:contain; transform:rotate(90deg);">{% endif %}{% endif %}
+          {% if gp.image %}{% set src = gp.image | img_b64 %}{% if src %}<img src="{{ src }}" style="width:13mm; height:11mm; object-fit:contain; transform:rotate(90deg);">{% endif %}{% endif %}
         </td>
         <td style="border:none; padding:0 0 0 1mm; vertical-align:top;">
           <div class="prof-name">Стекольный профиль</div>
@@ -456,9 +462,9 @@
             <table style="width:100%; border:none; border-collapse:collapse;">
             {% for si in item_l.sub_items %}
               <tr>
-                <td style="border:none; padding:0 1mm; font-size:8pt;">{{ si.label }}</td>
-                <td style="border:none; padding:0 1mm; font-weight:900; font-size:9pt; text-align:center;">{{ si.article }}</td>
-                <td style="border:none; padding:0 1mm; font-weight:900; font-size:10pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</td>
+                <td style="border:none; padding:0 1mm; font-size:8.5pt;">{{ si.label }}</td>
+                <td style="border:none; padding:0 1mm; font-weight:900; font-size:10pt; text-align:center;">{{ si.article }}</td>
+                <td style="border:none; padding:0 1mm; font-weight:900; font-size:11pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</td>
               </tr>
             {% endfor %}
             </table>
@@ -485,9 +491,9 @@
             <table style="width:100%; border:none; border-collapse:collapse;">
             {% for si in item_r.sub_items %}
               <tr>
-                <td style="border:none; padding:0 1mm; font-size:8pt;">{{ si.label }}</td>
-                <td style="border:none; padding:0 1mm; font-weight:900; font-size:9pt; text-align:center;">{{ si.article }}</td>
-                <td style="border:none; padding:0 1mm; font-weight:900; font-size:10pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</td>
+                <td style="border:none; padding:0 1mm; font-size:8.5pt;">{{ si.label }}</td>
+                <td style="border:none; padding:0 1mm; font-weight:900; font-size:10pt; text-align:center;">{{ si.article }}</td>
+                <td style="border:none; padding:0 1mm; font-weight:900; font-size:11pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</td>
               </tr>
             {% endfor %}
             </table>
@@ -513,7 +519,7 @@
 
 <!-- ══════ КОММЕНТАРИИ К СЕКЦИИ ══════ -->
 <table style="width:100%; border-collapse:collapse;">
-  <tr><td style="background:#000; color:#fff; font-size:8pt; font-weight:700; padding:0.2mm 2mm; border:1px solid #000;">КОММЕНТАРИИ К СЕКЦИИ:</td></tr>
+  <tr><td style="background:#000; color:#fff; font-size:8.5pt; font-weight:700; padding:0.3mm 2mm; border:1px solid #000;">КОММЕНТАРИИ К СЕКЦИИ:</td></tr>
   <tr><td class="comments" {{ ce('section_comments', section.comments or '') }}>{{ ov('section_comments', section.comments or '') }}{% if section.extra_parts %}<br>Доп. комплектующие: {{ section.extra_parts }}{% endif %}&nbsp;</td></tr>
 </table>
 

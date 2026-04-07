@@ -177,7 +177,7 @@ export function SlideRoomViewSVG({ section }: { section: Section }) {
       return <circle cx={x} cy={symY} r={6} fill="var(--theme-accent)" fillOpacity="0.6" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.9" />;
     }
     if (h.includes('скоба')) {
-      return <line x1={x} y1={symY - 18} x2={x} y2={symY + 18} stroke="var(--theme-accent)" strokeWidth="3" strokeOpacity="0.7" />;
+      return <line x1={x} y1={symY - 26} x2={x} y2={symY + 26} stroke="var(--theme-accent)" strokeWidth="3" strokeOpacity="0.7" />;
     }
     if (h.includes('стеклян') || h.includes('rs3017')) {
       return <rect x={x - 5} y={symY - 5} width={10} height={10} fill="var(--theme-accent)" fillOpacity="0.5" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.9" />;
@@ -194,9 +194,11 @@ export function SlideRoomViewSVG({ section }: { section: Section }) {
       return (
         <g>
           <line x1={x} y1={symY - 12} x2={x} y2={symY + 12} stroke="var(--theme-accent)" strokeWidth="2.5" strokeOpacity="0.7" />
-          <circle cx={x} cy={symY - 16} r={3} fill="none" stroke="var(--theme-accent)" strokeWidth="1.2" strokeOpacity="0.7" />
-          <line x1={x} y1={symY - 13} x2={x} y2={symY - 6} stroke="var(--theme-accent)" strokeWidth="1.2" strokeOpacity="0.7" />
-          <line x1={x} y1={symY - 8} x2={x + 2} y2={symY - 8} stroke="var(--theme-accent)" strokeWidth="1.2" strokeOpacity="0.7" />
+          {/* Key symbol — larger circle + shaft + ward */}
+          <circle cx={x} cy={symY - 20} r={5} fill="none" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.8" />
+          <line x1={x} y1={symY - 15} x2={x} y2={symY - 4} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.8" />
+          <line x1={x} y1={symY - 7} x2={x + 4} y2={symY - 7} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.8" />
+          <line x1={x} y1={symY - 10} x2={x + 3} y2={symY - 10} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.8" />
         </g>
       );
     }
@@ -234,8 +236,8 @@ export function SlideRoomViewSVG({ section }: { section: Section }) {
             {/* Deaf panel — big X */}
             {isDeaf && (
               <g>
-                <line x1={px + 8} y1={iY + 8} x2={px + pW - 8} y2={iY + iH - 8} stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.4" />
-                <line x1={px + pW - 8} y1={iY + 8} x2={px + 8} y2={iY + iH - 8} stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.4" />
+                <line x1={px + 15} y1={iY + 15} x2={px + pW - 15} y2={iY + iH - 15} stroke="var(--theme-accent)" strokeWidth="1.2" strokeOpacity="0.35" />
+                <line x1={px + pW - 15} y1={iY + 15} x2={px + 15} y2={iY + iH - 15} stroke="var(--theme-accent)" strokeWidth="1.2" strokeOpacity="0.35" />
               </g>
             )}
 
