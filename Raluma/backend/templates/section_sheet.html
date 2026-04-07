@@ -164,12 +164,12 @@
       <div class="scheme-label">схема вид сверху</div>
       {% set P = section.panels %}
       {% set rails = section.rails or 3 %}
-      {% set row_h = 11 %}
-      {% set top_pad = 8 %}
-      {% set bot_pad = 14 %}
-      {% set left_w = 35 %}
-      {% set right_w = 35 %}
-      {% set rail_w = 130 %}
+      {% set row_h = 8 %}
+      {% set top_pad = 7 %}
+      {% set bot_pad = 12 %}
+      {% set left_w = 30 %}
+      {% set right_w = 30 %}
+      {% set rail_w = 110 %}
       {% set sw = left_w + rail_w + right_w %}
       {% set sh = top_pad + rails * row_h + bot_pad %}
       {% set first_right = (section.first_panel_inside or 'Справа') == 'Справа' %}
@@ -251,9 +251,8 @@
         <tr><td style="border:none; padding:0.2mm 0;"><b>ПОРОГ</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ calc.threshold_text }}</td></tr>
         <tr><td style="border:none; padding:0.2mm 0;"><b>СИСТЕМА</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ section.rails }}-полозная</td></tr>
       </table>
-      <div style="margin-top:0.5mm; font-size:9pt; font-weight:700;">РАЗМЕРЫ СТЕКОЛ:</div>
-      <table class="glass-tbl">
-        <tr><th></th><th>ширина</th><th>высота</th><th>кол-во</th></tr>
+      <table class="glass-tbl" style="margin-top:0.3mm;">
+        <tr><th>СТЁКЛА</th><th>ширина</th><th>высота</th><th>кол-во</th></tr>
         {% for i, g in calc.glass | enumerate %}
         {% set fk_gw = "glass_" ~ i ~ "_w" %}
         {% set fk_gh = "glass_" ~ i ~ "_h" %}
