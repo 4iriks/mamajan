@@ -170,9 +170,11 @@ export function SlideRoomViewSVG({ section }: { section: Section }) {
   const leftPanelIdx = 0;
   const rightPanelIdx = panels - 1;
 
-  // Symbols at frame edges
-  const symLeftX = fX + 5;  // just inside left frame edge
-  const symRightX = fX + fW - 5;  // just inside right frame edge
+  // Lock symbols stay at frame edges; handles shift inward onto door panel
+  const lockLeftX = fX + 5;
+  const lockRightX = fX + fW - 5;
+  const handleLeftX = iX + 20;
+  const handleRightX = iX + iW - 20;
   const symY = iY + iH / 2;
 
   const renderHandleSymbol = (handle: string, x: number) => {
@@ -273,10 +275,10 @@ export function SlideRoomViewSVG({ section }: { section: Section }) {
 
             {/* Floor latches — small squares at bottom edge */}
             {isLeftPanel && floorLatchLeft && (
-              <rect x={iX + 2} y={iY + iH - 2} width={8} height={8} fill="var(--theme-accent)" fillOpacity="0.5" stroke="var(--theme-accent)" strokeWidth="1" strokeOpacity="0.8" />
+              <rect x={iX + 8} y={iY + iH - 2} width={8} height={8} fill="var(--theme-accent)" fillOpacity="0.5" stroke="var(--theme-accent)" strokeWidth="1" strokeOpacity="0.8" />
             )}
             {isRightPanel && floorLatchRight && (
-              <rect x={iX + iW - 10} y={iY + iH - 2} width={8} height={8} fill="var(--theme-accent)" fillOpacity="0.5" stroke="var(--theme-accent)" strokeWidth="1" strokeOpacity="0.8" />
+              <rect x={iX + iW - 16} y={iY + iH - 2} width={8} height={8} fill="var(--theme-accent)" fillOpacity="0.5" stroke="var(--theme-accent)" strokeWidth="1" strokeOpacity="0.8" />
             )}
           </g>
         );
@@ -297,11 +299,11 @@ export function SlideRoomViewSVG({ section }: { section: Section }) {
         );
       })}
 
-      {/* Handle & lock symbols at frame edges */}
-      {renderHandleSymbol(handleLeft, symLeftX)}
-      {renderLockSymbol(lockLeft, symLeftX)}
-      {renderHandleSymbol(handleRight, symRightX)}
-      {renderLockSymbol(lockRight, symRightX)}
+      {/* Handle symbols on door panel, lock symbols at frame edges */}
+      {renderHandleSymbol(handleLeft, handleLeftX)}
+      {renderLockSymbol(lockLeft, lockLeftX)}
+      {renderHandleSymbol(handleRight, handleRightX)}
+      {renderLockSymbol(lockRight, lockRightX)}
 
       <line x1={iX} y1={fY + fH + 38} x2={iX + iW} y2={fY + fH + 38} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
       <line x1={iX}      y1={fY + fH + 32} x2={iX}      y2={fY + fH + 44} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
