@@ -202,11 +202,12 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const openPreview = async (name: string) => {
     if (activeSection && project) {
       const sectionId = parseInt(activeSection.id);
-      if (!isNaN(sectionId)) {
+      if (!isNaN(sectionId) && isDirty) {
         const idx = sections.findIndex(s => s.id === activeSectionId);
         try {
           await updateSection(project.id, sectionId, localToApi(activeSection, idx));
           setIsDirty(false);
+          toast.success('Секция сохранена');
         } catch { /* ignore — preview still opens */ }
       }
     }
