@@ -6,8 +6,6 @@ import { Section } from './types';
 export function SlideSchemeSVG({ section }: { section: Section }) {
   const {
     panels, rails = 3, firstPanelInside = 'Справа', unusedTrack, interGlassProfile,
-    profileLeftWall, profileLeftLockBar, profileLeftPBar, profileLeftHandleBar, profileLeftBubble,
-    profileRightWall, profileRightLockBar, profileRightPBar, profileRightHandleBar, profileRightBubble,
     width: sectionWidth,
   } = section;
   const railCount = rails as number;
@@ -44,9 +42,7 @@ export function SlideSchemeSVG({ section }: { section: Section }) {
   const slideLeft = firstPanelInside === 'Справа';
   const glassW = sectionWidth ? Math.round(sectionWidth / panels) : null;
 
-  // Single vertical line per side if any profile is selected
-  const hasLeftProfile = profileLeftWall || profileLeftLockBar || profileLeftPBar || profileLeftHandleBar || profileLeftBubble;
-  const hasRightProfile = profileRightWall || profileRightLockBar || profileRightPBar || profileRightHandleBar || profileRightBubble;
+  // Profile flags no longer used for SVG lines (removed per user request)
 
   return (
     <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} className="w-full drop-shadow-[0_0_15px_rgba(79,209,197,0.08)]" style={{ maxWidth: svgW }}>
@@ -109,8 +105,6 @@ export function SlideSchemeSVG({ section }: { section: Section }) {
           fill="var(--theme-accent)" fillOpacity="0.15" stroke="var(--theme-accent)" strokeWidth="1" strokeOpacity="0.55" />
       ))}
 
-      {hasLeftProfile && <line x1={leftW - 7} y1={topPad} x2={leftW - 7} y2={topPad + railCount * rowH} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.6" />}
-      {hasRightProfile && <line x1={leftW + railAreaW + 7} y1={topPad} x2={leftW + railAreaW + 7} y2={topPad + railCount * rowH} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.6" />}
 
       {/* Direction arrow — bigger + "сдвиг" label */}
       {(() => {
