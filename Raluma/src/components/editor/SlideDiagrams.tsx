@@ -44,36 +44,9 @@ export function SlideSchemeSVG({ section }: { section: Section }) {
   const slideLeft = firstPanelInside === 'Справа';
   const glassW = sectionWidth ? Math.round(sectionWidth / panels) : null;
 
-  // Simple vertical lines for left/right profiles (no detailed cross-section symbols)
-  const drawLeftProfiles = () => {
-    const y1 = topPad;
-    const h = railCount * rowH;
-    const shapes: React.ReactElement[] = [];
-    let x = leftW - 4;
-    const profiles = [profileLeftWall, profileLeftLockBar, profileLeftPBar, profileLeftHandleBar, profileLeftBubble];
-    profiles.forEach((p, i) => {
-      if (p) {
-        shapes.push(<line key={`lp${i}`} x1={x - 3} y1={y1} x2={x - 3} y2={y1 + h} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.6" />);
-        x -= 8;
-      }
-    });
-    return shapes;
-  };
-
-  const drawRightProfiles = () => {
-    const y1 = topPad;
-    const h = railCount * rowH;
-    const shapes: React.ReactElement[] = [];
-    let x = leftW + railAreaW + 4;
-    const profiles = [profileRightWall, profileRightLockBar, profileRightPBar, profileRightHandleBar, profileRightBubble];
-    profiles.forEach((p, i) => {
-      if (p) {
-        shapes.push(<line key={`rp${i}`} x1={x + 3} y1={y1} x2={x + 3} y2={y1 + h} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.6" />);
-        x += 8;
-      }
-    });
-    return shapes;
-  };
+  // Single vertical line per side if any profile is selected
+  const hasLeftProfile = profileLeftWall || profileLeftLockBar || profileLeftPBar || profileLeftHandleBar || profileLeftBubble;
+  const hasRightProfile = profileRightWall || profileRightLockBar || profileRightPBar || profileRightHandleBar || profileRightBubble;
 
   return (
     <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} className="w-full drop-shadow-[0_0_15px_rgba(79,209,197,0.08)]" style={{ maxWidth: svgW }}>
@@ -136,8 +109,8 @@ export function SlideSchemeSVG({ section }: { section: Section }) {
           fill="var(--theme-accent)" fillOpacity="0.15" stroke="var(--theme-accent)" strokeWidth="1" strokeOpacity="0.55" />
       ))}
 
-      <g>{drawLeftProfiles()}</g>
-      <g>{drawRightProfiles()}</g>
+      {hasLeftProfile && <line x1={leftW - 7} y1={topPad} x2={leftW - 7} y2={topPad + railCount * rowH} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.6" />}
+      {hasRightProfile && <line x1={leftW + railAreaW + 7} y1={topPad} x2={leftW + railAreaW + 7} y2={topPad + railCount * rowH} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.6" />}
 
       {/* Direction arrow — bigger + "сдвиг" label */}
       {(() => {
@@ -193,47 +166,41 @@ export function SlideRoomViewSVG({ section }: { section: Section }) {
   const panelWmm = Math.round(W / panels);
   const arrowLeft = firstRight;
 
-  // Determine which panel index is leftmost/rightmost
-  const leftPanelIdx = firstRight ? panels - 1 : 0;
-  const rightPanelIdx = firstRight ? 0 : panels - 1;
+  // Left side = i=0, Right side = i=panels-1 (visual position, not panel number)
+  const leftPanelIdx = 0;
+  const rightPanelIdx = panels - 1;
 
-  const renderHandleSymbol = (handle: string, side: 'left' | 'right', px: number) => {
-    const symX = side === 'left' ? px - 10 : px + pW + 10;
-    const symY = iY + iH / 2;
+  // Symbols at frame edges
+  const symLeftX = fX + 5;  // just inside left frame edge
+  const symRightX = fX + fW - 5;  // just inside right frame edge
+  const symY = iY + iH / 2;
+
+  const renderHandleSymbol = (handle: string, x: number) => {
     const h = handle.toLowerCase();
-
     if (h.includes('кноб') || h.includes('rs3014')) {
-      // Circle for knob
-      return <circle cx={symX} cy={symY} r={6} fill="var(--theme-accent)" fillOpacity="0.6" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.9" />;
+      return <circle cx={x} cy={symY} r={6} fill="var(--theme-accent)" fillOpacity="0.6" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.9" />;
     }
     if (h.includes('скоба')) {
-      // Vertical line for bracket handle
-      return <line x1={symX} y1={symY - 18} x2={symX} y2={symY + 18} stroke="var(--theme-accent)" strokeWidth="3" strokeOpacity="0.7" />;
+      return <line x1={x} y1={symY - 18} x2={x} y2={symY + 18} stroke="var(--theme-accent)" strokeWidth="3" strokeOpacity="0.7" />;
     }
     if (h.includes('стеклян') || h.includes('rs3017')) {
-      // Square for glass handle
-      return <rect x={symX - 5} y={symY - 5} width={10} height={10} fill="var(--theme-accent)" fillOpacity="0.5" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.9" />;
+      return <rect x={x - 5} y={symY - 5} width={10} height={10} fill="var(--theme-accent)" fillOpacity="0.5" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.9" />;
     }
     return null;
   };
 
-  const renderLockSymbol = (lock: string, side: 'left' | 'right', px: number) => {
-    const symX = side === 'left' ? px - 10 : px + pW + 10;
-    const symY = iY + iH / 2;
+  const renderLockSymbol = (lock: string, x: number) => {
     const l = lock.toLowerCase();
-
     if (l.includes('1стор') || l.includes('1-сторон')) {
-      // Small bar for 1-sided lock
-      return <line x1={symX} y1={symY - 12} x2={symX} y2={symY + 12} stroke="var(--theme-accent)" strokeWidth="2.5" strokeOpacity="0.7" />;
+      return <line x1={x} y1={symY - 12} x2={x} y2={symY + 12} stroke="var(--theme-accent)" strokeWidth="2.5" strokeOpacity="0.7" />;
     }
     if (l.includes('2стор') || l.includes('2-сторон') || l.includes('ключ')) {
-      // Bar + key symbol for 2-sided lock
       return (
         <g>
-          <line x1={symX} y1={symY - 12} x2={symX} y2={symY + 12} stroke="var(--theme-accent)" strokeWidth="2.5" strokeOpacity="0.7" />
-          <circle cx={symX} cy={symY - 16} r={3} fill="none" stroke="var(--theme-accent)" strokeWidth="1.2" strokeOpacity="0.7" />
-          <line x1={symX} y1={symY - 13} x2={symX} y2={symY - 6} stroke="var(--theme-accent)" strokeWidth="1.2" strokeOpacity="0.7" />
-          <line x1={symX} y1={symY - 8} x2={symX + 2} y2={symY - 8} stroke="var(--theme-accent)" strokeWidth="1.2" strokeOpacity="0.7" />
+          <line x1={x} y1={symY - 12} x2={x} y2={symY + 12} stroke="var(--theme-accent)" strokeWidth="2.5" strokeOpacity="0.7" />
+          <circle cx={x} cy={symY - 16} r={3} fill="none" stroke="var(--theme-accent)" strokeWidth="1.2" strokeOpacity="0.7" />
+          <line x1={x} y1={symY - 13} x2={x} y2={symY - 6} stroke="var(--theme-accent)" strokeWidth="1.2" strokeOpacity="0.7" />
+          <line x1={x} y1={symY - 8} x2={x + 2} y2={symY - 8} stroke="var(--theme-accent)" strokeWidth="1.2" strokeOpacity="0.7" />
         </g>
       );
     }
@@ -304,20 +271,12 @@ export function SlideRoomViewSVG({ section }: { section: Section }) {
               </>
             )}
 
-            {/* Handle symbols on left panel */}
-            {isLeftPanel && renderHandleSymbol(handleLeft, 'left', px)}
-            {isLeftPanel && renderLockSymbol(lockLeft, 'left', px)}
-
-            {/* Handle symbols on right panel */}
-            {isRightPanel && renderHandleSymbol(handleRight, 'right', px)}
-            {isRightPanel && renderLockSymbol(lockRight, 'right', px)}
-
-            {/* Floor latches — small squares at bottom */}
+            {/* Floor latches — small squares at bottom edge */}
             {isLeftPanel && floorLatchLeft && (
-              <rect x={px + 4} y={iY + iH - 8} width={8} height={8} fill="var(--theme-accent)" fillOpacity="0.5" stroke="var(--theme-accent)" strokeWidth="1" strokeOpacity="0.8" />
+              <rect x={iX + 2} y={iY + iH - 2} width={8} height={8} fill="var(--theme-accent)" fillOpacity="0.5" stroke="var(--theme-accent)" strokeWidth="1" strokeOpacity="0.8" />
             )}
             {isRightPanel && floorLatchRight && (
-              <rect x={px + pW - 12} y={iY + iH - 8} width={8} height={8} fill="var(--theme-accent)" fillOpacity="0.5" stroke="var(--theme-accent)" strokeWidth="1" strokeOpacity="0.8" />
+              <rect x={iX + iW - 10} y={iY + iH - 2} width={8} height={8} fill="var(--theme-accent)" fillOpacity="0.5" stroke="var(--theme-accent)" strokeWidth="1" strokeOpacity="0.8" />
             )}
           </g>
         );
@@ -337,6 +296,12 @@ export function SlideRoomViewSVG({ section }: { section: Section }) {
           </g>
         );
       })}
+
+      {/* Handle & lock symbols at frame edges */}
+      {renderHandleSymbol(handleLeft, symLeftX)}
+      {renderLockSymbol(lockLeft, symLeftX)}
+      {renderHandleSymbol(handleRight, symRightX)}
+      {renderLockSymbol(lockRight, symRightX)}
 
       <line x1={iX} y1={fY + fH + 38} x2={iX + iW} y2={fY + fH + 38} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
       <line x1={iX}      y1={fY + fH + 32} x2={iX}      y2={fY + fH + 44} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />

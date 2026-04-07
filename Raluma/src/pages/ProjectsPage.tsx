@@ -320,10 +320,10 @@ export default function ProjectsPage() {
                         <StatusBadge value={project.status} colors={STATUS_COLORS} />
                       </td>
                       <td className="px-5 py-4">
-                        <StatusBadge value={project.glass_status} colors={GLASS_COLORS} />
+                        <StatusBadge value={project.glass_status || 'Без стекла'} colors={GLASS_COLORS} />
                       </td>
                       <td className="px-5 py-4">
-                        <StatusBadge value={project.paint_status} colors={PAINT_COLORS} />
+                        <StatusBadge value={project.paint_status || 'Без покраски'} colors={PAINT_COLORS} />
                       </td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-2 opacity-20 group-hover:opacity-100 transition-opacity">
