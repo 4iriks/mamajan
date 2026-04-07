@@ -4,89 +4,85 @@
 <meta charset="UTF-8">
 <title>Производственный лист</title>
 <style>
-  @page { size: A4 portrait; margin: 3mm; }
-  @page :first { page-break-after: avoid; }
+  @page { size: A4 portrait; margin: 2mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: Arial, Helvetica, sans-serif;
-    font-size: 9pt;
+    font-size: 8pt;
     color: #000;
     background: #fff;
-    width: 204mm;
+    width: 206mm;
   }
   table { border-collapse: collapse; width: 100%; }
-  td, th { vertical-align: top; padding: 0.6mm 1mm; }
+  td, th { vertical-align: top; padding: 0.4mm 0.8mm; }
   .cf::after { content: ''; display: block; clear: both; }
 
   /* ── Шапка ── */
   .hdr { border: 2px solid #000; }
-  .hdr td { padding: 1mm 2mm; font-weight: 900; font-size: 11pt; }
+  .hdr td { padding: 0.8mm 1.5mm; font-weight: 900; font-size: 10pt; }
   .hdr td + td { border-left: 2px solid #000; }
 
   /* ── Чёрная полоса-заголовок ── */
   .bar {
     background: #000; color: #fff;
-    font-weight: 700; padding: 0.5mm 2mm;
+    font-weight: 700; padding: 0.3mm 1.5mm;
     text-transform: uppercase; letter-spacing: 0.3px;
     border: 1px solid #000;
   }
   .bar table { width: 100%; }
-  .bar td { color: #fff; padding: 0 1.5mm; border: none; font-size: 9pt; font-weight: 700; }
+  .bar td { color: #fff; padding: 0 1mm; border: none; font-size: 8pt; font-weight: 700; }
 
   /* ── Параметры ── */
   .params { border: 1px solid #000; border-top: none; }
-  .params td { font-size: 9.5pt; line-height: 1.5; padding: 1mm 2mm; }
+  .params td { font-size: 8.5pt; line-height: 1.4; padding: 0.5mm 1.5mm; }
   .params .val { font-weight: 700; }
 
   /* ── Таблица стёкол ── */
-  .glass-tbl { width: 100%; margin-top: 1mm; }
-  .glass-tbl th { background: #e0e0e0; border: 1px solid #999; padding: 0.3mm 1mm; font-size: 8.5pt; text-align: center; }
-  .glass-tbl td { border: 1px solid #bbb; padding: 0.3mm 1mm; text-align: center; font-size: 9.5pt; font-weight: 700; }
+  .glass-tbl { width: 100%; margin-top: 0.5mm; }
+  .glass-tbl th { background: #e0e0e0; border: 1px solid #999; padding: 0.2mm 0.8mm; font-size: 7.5pt; text-align: center; }
+  .glass-tbl td { border: 1px solid #bbb; padding: 0.2mm 0.8mm; text-align: center; font-size: 8.5pt; font-weight: 700; }
   .glass-tbl td:first-child { text-align: left; font-weight: 400; }
 
   /* ── Схема ── */
-  .scheme-label { font-size: 9pt; font-weight: 700; margin: 0.5mm 0; }
+  .scheme-label { font-size: 8pt; font-weight: 700; margin: 0.3mm 0; }
 
-  /* ── Нарезка профилей (9 колонок: 3 группы по img+info+len+qty... но упрощённо 3 td) ── */
+  /* ── Нарезка профилей ── */
   .prof-tbl { width: 100%; }
-  .prof-tbl td { border: 1px solid #000; padding: 0.8mm 1.5mm; vertical-align: top; }
-  .prof-tbl .bar-row td { background: #000; color: #fff; font-size: 9pt; font-weight: 700; border-color: #000; padding: 0.5mm 1.5mm; }
-  .prof-img  { float: left; width: 18mm; height: 11mm; object-fit: contain; margin-right: 1.5mm; }
-  .prof-name { font-size: 9pt; font-weight: 700; }
-  .prof-line { font-size: 9pt; font-weight: 900; margin-top: 0.2mm; }
-  .prof-line .art { margin-right: 2mm; }
+  .prof-tbl td { border: 1px solid #000; padding: 0.5mm 1mm; vertical-align: top; }
+  .prof-tbl .bar-row td { background: #000; color: #fff; font-size: 8pt; font-weight: 700; border-color: #000; padding: 0.3mm 1mm; }
+  .prof-img  { float: left; width: 15mm; height: 9mm; object-fit: contain; margin-right: 1mm; }
+  .prof-name { font-size: 8pt; font-weight: 700; }
+  .prof-line { font-size: 8pt; font-weight: 900; margin-top: 0.1mm; }
+  .prof-line .art { margin-right: 1.5mm; }
   .prof-line .vals { float: right; }
-  .prof-line .dim { display: inline-block; width: 13mm; text-align: right; }
-  .prof-line .qty { display: inline-block; width: 10mm; text-align: right; }
-  .prof-note { font-size: 8.5pt; font-style: italic; color: #555; margin-top: 0.2mm; font-weight: 400; }
+  .prof-line .dim { display: inline-block; width: 12mm; text-align: right; }
+  .prof-line .qty { display: inline-block; width: 9mm; text-align: right; }
+  .prof-note { font-size: 7pt; font-style: italic; color: #555; margin-top: 0.1mm; font-weight: 400; }
 
   /* ── Стекольный профиль подтаблица ── */
-  .gp-tbl { width: auto; margin-top: 0.5mm; }
-  .gp-tbl td { border: 1px solid #bbb; padding: 0.2mm 1.5mm; font-size: 9pt; }
+  .gp-tbl { width: auto; margin-top: 0.3mm; }
+  .gp-tbl td { border: 1px solid #bbb; padding: 0.1mm 1mm; font-size: 8pt; }
   .gp-tbl td:nth-child(2), .gp-tbl td:nth-child(3) { text-align: center; font-weight: 700; }
 
   /* ── Фурнитура ── */
   .hw-tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  .hw-tbl td { border: 1px solid #000; padding: 0.5mm 1mm; vertical-align: top; }
-  .hw-tbl .bar-row td { background: #000; color: #fff; font-size: 9pt; font-weight: 700; border-color: #000; padding: 0.5mm 1.5mm; }
+  .hw-tbl td { border: 1px solid #000; padding: 0.3mm 0.8mm; vertical-align: top; }
+  .hw-tbl .bar-row td { background: #000; color: #fff; font-size: 8pt; font-weight: 700; border-color: #000; padding: 0.3mm 1mm; }
   .hw-inner { width: 100%; border: none; border-collapse: collapse; }
   .hw-inner td { border: none; padding: 0; vertical-align: top; }
-  .hw-inner .hw-img-cell { width: 22mm; padding-right: 1mm; }
-  .hw-img  { width: 20mm; height: 16mm; object-fit: contain; }
-  .hw-name { font-size: 10pt; font-weight: 700; }
-  .hw-art  { font-weight: 900; font-size: 12pt; text-align: center; margin-top: 0.2mm; }
-  .hw-qty  { float: right; font-size: 13pt; font-weight: 900; }
-  .hw-note { font-size: 8.5pt; font-style: italic; color: #555; margin-top: 0.2mm; font-weight: 400; }
+  .hw-inner .hw-img-cell { width: 18mm; padding-right: 0.5mm; }
+  .hw-img  { width: 16mm; height: 12mm; object-fit: contain; }
+  .hw-name { font-size: 8.5pt; font-weight: 700; }
+  .hw-art  { font-weight: 900; font-size: 10pt; text-align: center; margin-top: 0.1mm; }
+  .hw-qty  { float: right; font-size: 11pt; font-weight: 900; }
+  .hw-note { font-size: 7pt; font-style: italic; color: #555; margin-top: 0.1mm; font-weight: 400; }
 
   /* ── Чеклист ── */
-  .chk-cell { font-size: 6.5pt; line-height: 1.2; vertical-align: middle !important; }
-  .chk-box { display: inline-block; width: 3mm; height: 3mm; border: 1px solid #000; vertical-align: middle; margin-right: 0.8mm; }
+  .chk-cell { font-size: 6pt; line-height: 1.1; vertical-align: middle !important; }
+  .chk-box { display: inline-block; width: 2.5mm; height: 2.5mm; border: 1px solid #000; vertical-align: middle; margin-right: 0.5mm; }
 
   /* ── Комментарии ── */
-  .comments { border: 1px solid #000; border-top: none; padding: 1.5mm; min-height: 8mm; font-size: 9pt; }
-
-  /* Запретить разрыв внутри отдельных блоков, но hw-tbl может разрываться чтобы вместиться */
-  .hdr, .prof-tbl, .comments { page-break-inside: avoid; }
+  .comments { border: 1px solid #000; border-top: none; padding: 1mm; min-height: 5mm; font-size: 8pt; }
 
   /* ── Страница 2: Доп. комплектующие ── */
   .page-break { page-break-before: always; }
@@ -127,12 +123,10 @@
 <!-- ══════ СХЕМЫ ══════ -->
 <table style="border:1px solid #000; border-top:none;">
   <tr>
-    <td style="width:50%; text-align:center; padding:1.5mm; border-right:1px solid #000;">
+    <td style="width:50%; text-align:center; padding:0.8mm; border-right:1px solid #000;">
       <div class="scheme-label">схема вид из помещения</div>
-      {% set rw = 260 %}
-      {% set rh = 55 %}
-      {% set rw = 240 %}
-      {% set rh = 65 %}
+      {% set rw = 220 %}
+      {% set rh = 50 %}
       {% set rfX = 10 %}
       {% set rfY = 2 %}
       {% set rfW = rw - 20 %}
@@ -166,16 +160,16 @@
         {% endfor %}
       </svg>
     </td>
-    <td style="width:50%; text-align:center; padding:1.5mm;">
+    <td style="width:50%; text-align:center; padding:0.8mm;">
       <div class="scheme-label">схема вид сверху</div>
       {% set P = section.panels %}
       {% set rails = section.rails or 3 %}
-      {% set row_h = 16 %}
-      {% set top_pad = 12 %}
-      {% set bot_pad = 18 %}
-      {% set left_w = 45 %}
-      {% set right_w = 45 %}
-      {% set rail_w = 170 %}
+      {% set row_h = 14 %}
+      {% set top_pad = 10 %}
+      {% set bot_pad = 16 %}
+      {% set left_w = 40 %}
+      {% set right_w = 40 %}
+      {% set rail_w = 150 %}
       {% set sw = left_w + rail_w + right_w %}
       {% set sh = top_pad + rails * row_h + bot_pad %}
       {% set first_right = (section.first_panel_inside or 'Справа') == 'Справа' %}
@@ -411,7 +405,7 @@
             {% set fk_l = ("hw_" ~ item_l.idx ~ "_val") if item_l.type == 'hw' else ("screw_" ~ item_l.idx) %}
             {% set fv_l = item_l.value %}
             <span class="hw-qty" {{ ce(fk_l, fv_l) }}>{{ ov(fk_l, fv_l) }}</span>
-            <div class="hw-art">{{ item_l.article }}</div>
+            {% if item_l.type != 'screw' %}<div class="hw-art">{{ item_l.article }}</div>{% endif %}
             {% if item_l.note %}<div class="hw-note">{{ item_l.note }}</div>{% endif %}
           {% endif %}
         </td>
@@ -440,7 +434,7 @@
             {% set fk_r = ("hw_" ~ item_r.idx ~ "_val") if item_r.type == 'hw' else ("screw_" ~ item_r.idx) %}
             {% set fv_r = item_r.value %}
             <span class="hw-qty" {{ ce(fk_r, fv_r) }}>{{ ov(fk_r, fv_r) }}</span>
-            <div class="hw-art">{{ item_r.article }}</div>
+            {% if item_r.type != 'screw' %}<div class="hw-art">{{ item_r.article }}</div>{% endif %}
             {% if item_r.note %}<div class="hw-note">{{ item_r.note }}</div>{% endif %}
           {% endif %}
         </td>
