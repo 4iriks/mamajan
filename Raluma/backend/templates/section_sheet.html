@@ -160,16 +160,16 @@
         {% endfor %}
       </svg>
     </td>
-    <td style="width:50%; text-align:center; padding:0.5mm;">
+    <td style="width:50%; text-align:center; padding:0.5mm; height:22mm;">
       <div class="scheme-label">схема вид сверху</div>
       {% set P = section.panels %}
       {% set rails = section.rails or 3 %}
-      {% set row_h = 8 %}
-      {% set top_pad = 7 %}
-      {% set bot_pad = 12 %}
-      {% set left_w = 30 %}
-      {% set right_w = 30 %}
-      {% set rail_w = 110 %}
+      {% set row_h = 18 %}
+      {% set top_pad = 14 %}
+      {% set bot_pad = 20 %}
+      {% set left_w = 50 %}
+      {% set right_w = 50 %}
+      {% set rail_w = 300 %}
       {% set sw = left_w + rail_w + right_w %}
       {% set sh = top_pad + rails * row_h + bot_pad %}
       {% set first_right = (section.first_panel_inside or 'Справа') == 'Справа' %}
