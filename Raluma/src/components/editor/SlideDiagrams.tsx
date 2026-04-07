@@ -44,44 +44,19 @@ export function SlideSchemeSVG({ section }: { section: Section }) {
   const slideLeft = firstPanelInside === 'Справа';
   const glassW = sectionWidth ? Math.round(sectionWidth / panels) : null;
 
+  // Simple vertical lines for left/right profiles (no detailed cross-section symbols)
   const drawLeftProfiles = () => {
     const y1 = topPad;
     const h = railCount * rowH;
     const shapes: React.ReactElement[] = [];
     let x = leftW - 4;
-
-    if (profileLeftWall) {
-      shapes.push(<rect key="lw1" x={x - 14} y={y1} width={7} height={h} rx="1" fill="var(--theme-accent)" fillOpacity="0.45" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.9" />);
-      shapes.push(<rect key="lw2" x={x - 7}  y={y1} width={7} height={h} rx="1" fill="var(--theme-accent)" fillOpacity="0.22" stroke="var(--theme-accent)" strokeWidth="1" strokeOpacity="0.8" />);
-      x -= 16;
-    }
-    if (profileLeftLockBar) {
-      shapes.push(<rect key="ll1" x={x - 12} y={y1} width={4} height={h} rx="1" fill="var(--theme-accent)" fillOpacity="0.40" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.9" />);
-      shapes.push(<rect key="ll2" x={x - 5}  y={y1} width={4} height={h} rx="1" fill="var(--theme-accent)" fillOpacity="0.40" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.9" />);
-      Array.from({ length: railCount }, (_, ri) => {
-        const cy = topPad + ri * rowH + rowH / 2;
-        shapes.push(<line key={`llb${ri}`} x1={x - 10} y1={cy} x2={x - 3} y2={cy} stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.7" />);
-      });
-      x -= 14;
-    }
-    if (profileLeftPBar) {
-      shapes.push(<path key="lp" d={`M${x-12},${y1} L${x-2},${y1} L${x-2},${y1+h} L${x-12},${y1+h}`} fill="none" stroke="var(--theme-accent)" strokeWidth="2.5" strokeOpacity="0.85" />);
-      x -= 14;
-    }
-    if (profileLeftHandleBar) {
-      shapes.push(<line key="lhv" x1={x-8} y1={y1} x2={x-8} y2={y1+h} stroke="var(--theme-accent)" strokeWidth="2.5" strokeOpacity="0.85" />);
-      Array.from({ length: railCount }, (_, ri) => {
-        const cy = topPad + ri * rowH + rowH / 2;
-        shapes.push(<line key={`lhh${ri}`} x1={x-14} y1={cy} x2={x-2} y2={cy} stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.65" />);
-      });
-      x -= 16;
-    }
-    if (profileLeftBubble) {
-      Array.from({ length: railCount }, (_, ri) => {
-        const cy = topPad + ri * rowH + rowH / 2;
-        shapes.push(<circle key={`lb${ri}`} cx={x-7} cy={cy} r={5} fill="var(--theme-accent)" fillOpacity="0.25" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.85" />);
-      });
-    }
+    const profiles = [profileLeftWall, profileLeftLockBar, profileLeftPBar, profileLeftHandleBar, profileLeftBubble];
+    profiles.forEach((p, i) => {
+      if (p) {
+        shapes.push(<line key={`lp${i}`} x1={x - 3} y1={y1} x2={x - 3} y2={y1 + h} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.6" />);
+        x -= 8;
+      }
+    });
     return shapes;
   };
 
@@ -90,52 +65,26 @@ export function SlideSchemeSVG({ section }: { section: Section }) {
     const h = railCount * rowH;
     const shapes: React.ReactElement[] = [];
     let x = leftW + railAreaW + 4;
-
-    if (profileRightWall) {
-      shapes.push(<rect key="rw1" x={x}     y={y1} width={7} height={h} rx="1" fill="var(--theme-accent)" fillOpacity="0.45" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.9" />);
-      shapes.push(<rect key="rw2" x={x + 7} y={y1} width={7} height={h} rx="1" fill="var(--theme-accent)" fillOpacity="0.22" stroke="var(--theme-accent)" strokeWidth="1" strokeOpacity="0.8" />);
-      x += 16;
-    }
-    if (profileRightLockBar) {
-      shapes.push(<rect key="rl1" x={x}     y={y1} width={4} height={h} rx="1" fill="var(--theme-accent)" fillOpacity="0.40" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.9" />);
-      shapes.push(<rect key="rl2" x={x + 8} y={y1} width={4} height={h} rx="1" fill="var(--theme-accent)" fillOpacity="0.40" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.9" />);
-      Array.from({ length: railCount }, (_, ri) => {
-        const cy = topPad + ri * rowH + rowH / 2;
-        shapes.push(<line key={`rlb${ri}`} x1={x+2} y1={cy} x2={x+10} y2={cy} stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.7" />);
-      });
-      x += 14;
-    }
-    if (profileRightPBar) {
-      shapes.push(<path key="rp" d={`M${x+12},${y1} L${x+2},${y1} L${x+2},${y1+h} L${x+12},${y1+h}`} fill="none" stroke="var(--theme-accent)" strokeWidth="2.5" strokeOpacity="0.85" />);
-      x += 14;
-    }
-    if (profileRightHandleBar) {
-      shapes.push(<line key="rhv" x1={x+8} y1={y1} x2={x+8} y2={y1+h} stroke="var(--theme-accent)" strokeWidth="2.5" strokeOpacity="0.85" />);
-      Array.from({ length: railCount }, (_, ri) => {
-        const cy = topPad + ri * rowH + rowH / 2;
-        shapes.push(<line key={`rhh${ri}`} x1={x+2} y1={cy} x2={x+14} y2={cy} stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.65" />);
-      });
-      x += 16;
-    }
-    if (profileRightBubble) {
-      Array.from({ length: railCount }, (_, ri) => {
-        const cy = topPad + ri * rowH + rowH / 2;
-        shapes.push(<circle key={`rb${ri}`} cx={x+7} cy={cy} r={5} fill="var(--theme-accent)" fillOpacity="0.25" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.85" />);
-      });
-    }
+    const profiles = [profileRightWall, profileRightLockBar, profileRightPBar, profileRightHandleBar, profileRightBubble];
+    profiles.forEach((p, i) => {
+      if (p) {
+        shapes.push(<line key={`rp${i}`} x1={x + 3} y1={y1} x2={x + 3} y2={y1 + h} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.6" />);
+        x += 8;
+      }
+    });
     return shapes;
   };
 
   return (
     <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} className="w-full drop-shadow-[0_0_15px_rgba(79,209,197,0.08)]" style={{ maxWidth: svgW }}>
 
-      {/* Labels: ПОМЕЩЕНИЕ / УЛИЦА */}
-      <text x={leftW + railAreaW / 2} y={12} textAnchor="middle" fontSize="8" fill="var(--theme-accent)" fillOpacity="0.45" fontWeight="bold" letterSpacing="1.5">ПОМЕЩЕНИЕ</text>
-      <text x={leftW + railAreaW / 2} y={topPad + railCount * rowH + 14} textAnchor="middle" fontSize="8" fill="var(--theme-accent)" fillOpacity="0.45" fontWeight="bold" letterSpacing="1.5">УЛИЦА</text>
+      {/* Labels: УЛИЦА (top) / ПОМЕЩЕНИЕ (bottom) */}
+      <text x={leftW + railAreaW / 2} y={12} textAnchor="middle" fontSize="8" fill="var(--theme-accent)" fillOpacity="0.45" fontWeight="bold" letterSpacing="1.5">УЛИЦА</text>
+      <text x={leftW + railAreaW / 2} y={topPad + railCount * rowH + 14} textAnchor="middle" fontSize="8" fill="var(--theme-accent)" fillOpacity="0.45" fontWeight="bold" letterSpacing="1.5">ПОМЕЩЕНИЕ</text>
 
-      {/* Red boundary lines (top + bottom of opening) */}
-      <line x1={leftW - 8} y1={topPad - 2} x2={leftW + railAreaW + 8} y2={topPad - 2} stroke="#ef4444" strokeWidth="1.5" strokeOpacity="0.7" />
-      <line x1={leftW - 8} y1={topPad + railCount * rowH + 2} x2={leftW + railAreaW + 8} y2={topPad + railCount * rowH + 2} stroke="#ef4444" strokeWidth="1.5" strokeOpacity="0.7" />
+      {/* Boundary lines (top + bottom of opening) */}
+      <line x1={leftW} y1={topPad - 2} x2={leftW + railAreaW} y2={topPad - 2} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.5" />
+      <line x1={leftW} y1={topPad + railCount * rowH + 2} x2={leftW + railAreaW} y2={topPad + railCount * rowH + 2} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.5" />
 
       {/* Vertical boundary lines */}
       <line x1={leftW} y1={topPad - 4} x2={leftW} y2={topPad + railCount * rowH + 4} stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.5" />
@@ -221,6 +170,18 @@ export function SlideRoomViewSVG({ section }: { section: Section }) {
   const W  = section.width;
   const Hh = section.height;
 
+  const handleLeft = section.handleLeft || 'Без';
+  const handleRight = section.handleRight || 'Без';
+  const lockLeft = section.lockLeft || 'Без';
+  const lockRight = section.lockRight || 'Без';
+  const floorLatchLeft = section.floorLatchesLeft;
+  const floorLatchRight = section.floorLatchesRight;
+
+  const leftIsDeaf = (handleLeft === 'Без' || handleLeft.toLowerCase().includes('глухая'))
+    && lockLeft === 'Без' && !section.profileLeftHandleBar;
+  const rightIsDeaf = (handleRight === 'Без' || handleRight.toLowerCase().includes('глухая'))
+    && lockRight === 'Без' && !section.profileRightHandleBar;
+
   const vbW = 540, vbH = 330;
   const fX = 50, fY = 35, fW = 400, fH = 210;
   const pt = 10;
@@ -231,6 +192,53 @@ export function SlideRoomViewSVG({ section }: { section: Section }) {
 
   const panelWmm = Math.round(W / panels);
   const arrowLeft = firstRight;
+
+  // Determine which panel index is leftmost/rightmost
+  const leftPanelIdx = firstRight ? panels - 1 : 0;
+  const rightPanelIdx = firstRight ? 0 : panels - 1;
+
+  const renderHandleSymbol = (handle: string, side: 'left' | 'right', px: number) => {
+    const symX = side === 'left' ? px - 10 : px + pW + 10;
+    const symY = iY + iH / 2;
+    const h = handle.toLowerCase();
+
+    if (h.includes('кноб') || h.includes('rs3014')) {
+      // Circle for knob
+      return <circle cx={symX} cy={symY} r={6} fill="var(--theme-accent)" fillOpacity="0.6" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.9" />;
+    }
+    if (h.includes('скоба')) {
+      // Vertical line for bracket handle
+      return <line x1={symX} y1={symY - 18} x2={symX} y2={symY + 18} stroke="var(--theme-accent)" strokeWidth="3" strokeOpacity="0.7" />;
+    }
+    if (h.includes('стеклян') || h.includes('rs3017')) {
+      // Square for glass handle
+      return <rect x={symX - 5} y={symY - 5} width={10} height={10} fill="var(--theme-accent)" fillOpacity="0.5" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.9" />;
+    }
+    return null;
+  };
+
+  const renderLockSymbol = (lock: string, side: 'left' | 'right', px: number) => {
+    const symX = side === 'left' ? px - 10 : px + pW + 10;
+    const symY = iY + iH / 2;
+    const l = lock.toLowerCase();
+
+    if (l.includes('1стор') || l.includes('1-сторон')) {
+      // Small bar for 1-sided lock
+      return <line x1={symX} y1={symY - 12} x2={symX} y2={symY + 12} stroke="var(--theme-accent)" strokeWidth="2.5" strokeOpacity="0.7" />;
+    }
+    if (l.includes('2стор') || l.includes('2-сторон') || l.includes('ключ')) {
+      // Bar + key symbol for 2-sided lock
+      return (
+        <g>
+          <line x1={symX} y1={symY - 12} x2={symX} y2={symY + 12} stroke="var(--theme-accent)" strokeWidth="2.5" strokeOpacity="0.7" />
+          <circle cx={symX} cy={symY - 16} r={3} fill="none" stroke="var(--theme-accent)" strokeWidth="1.2" strokeOpacity="0.7" />
+          <line x1={symX} y1={symY - 13} x2={symX} y2={symY - 6} stroke="var(--theme-accent)" strokeWidth="1.2" strokeOpacity="0.7" />
+          <line x1={symX} y1={symY - 8} x2={symX + 2} y2={symY - 8} stroke="var(--theme-accent)" strokeWidth="1.2" strokeOpacity="0.7" />
+        </g>
+      );
+    }
+    return null;
+  };
 
   return (
     <svg viewBox={`0 0 ${vbW} ${vbH}`} className="w-full" style={{ maxWidth: 540, maxHeight: 330 }}>
@@ -247,15 +255,25 @@ export function SlideRoomViewSVG({ section }: { section: Section }) {
         const cy = iY + iH / 2;
         const num = firstRight ? panels - i : i + 1;
         const aLen = Math.min(22, pW * 0.45);
+        const isLeftPanel = i === leftPanelIdx;
+        const isRightPanel = i === rightPanelIdx;
+        const isDeaf = (isLeftPanel && leftIsDeaf) || (isRightPanel && rightIsDeaf);
 
         return (
           <g key={i}>
             <rect x={px} y={iY} width={pW} height={iH} fill="var(--theme-accent)" fillOpacity="0.07" />
-            <rect x={px + 3} y={iY + 3} width={pW * 0.28} height={iH - 6} fill="var(--theme-fg)" fillOpacity="0.025" rx="1" />
 
             {i < panels - 1 && (
               <rect x={px + pW - 2} y={iY} width={4} height={iH}
                 fill="var(--theme-page)" stroke="var(--theme-accent)" strokeWidth="0.4" strokeOpacity="0.25" />
+            )}
+
+            {/* Deaf panel — big X */}
+            {isDeaf && (
+              <g>
+                <line x1={px + 8} y1={iY + 8} x2={px + pW - 8} y2={iY + iH - 8} stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.4" />
+                <line x1={px + pW - 8} y1={iY + 8} x2={px + 8} y2={iY + iH - 8} stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.4" />
+              </g>
             )}
 
             <text x={cx} y={cy - 12} textAnchor="middle" fontSize="14"
@@ -263,23 +281,43 @@ export function SlideRoomViewSVG({ section }: { section: Section }) {
               {num}
             </text>
 
-            <line
-              x1={arrowLeft ? cx + aLen / 2 : cx - aLen / 2}
-              y1={cy + 5}
-              x2={arrowLeft ? cx - aLen / 2 : cx + aLen / 2}
-              y2={cy + 5}
-              stroke="var(--theme-accent)" strokeWidth="1.3" strokeOpacity="0.55"
-            />
-            {arrowLeft ? (
-              <polyline
-                points={`${cx - aLen / 2 + 6},${cy + 1} ${cx - aLen / 2},${cy + 5} ${cx - aLen / 2 + 6},${cy + 9}`}
-                stroke="var(--theme-accent)" strokeWidth="1.3" fill="none" strokeOpacity="0.55"
-              />
-            ) : (
-              <polyline
-                points={`${cx + aLen / 2 - 6},${cy + 1} ${cx + aLen / 2},${cy + 5} ${cx + aLen / 2 - 6},${cy + 9}`}
-                stroke="var(--theme-accent)" strokeWidth="1.3" fill="none" strokeOpacity="0.55"
-              />
+            {!isDeaf && (
+              <>
+                <line
+                  x1={arrowLeft ? cx + aLen / 2 : cx - aLen / 2}
+                  y1={cy + 5}
+                  x2={arrowLeft ? cx - aLen / 2 : cx + aLen / 2}
+                  y2={cy + 5}
+                  stroke="var(--theme-accent)" strokeWidth="1.3" strokeOpacity="0.55"
+                />
+                {arrowLeft ? (
+                  <polyline
+                    points={`${cx - aLen / 2 + 6},${cy + 1} ${cx - aLen / 2},${cy + 5} ${cx - aLen / 2 + 6},${cy + 9}`}
+                    stroke="var(--theme-accent)" strokeWidth="1.3" fill="none" strokeOpacity="0.55"
+                  />
+                ) : (
+                  <polyline
+                    points={`${cx + aLen / 2 - 6},${cy + 1} ${cx + aLen / 2},${cy + 5} ${cx + aLen / 2 - 6},${cy + 9}`}
+                    stroke="var(--theme-accent)" strokeWidth="1.3" fill="none" strokeOpacity="0.55"
+                  />
+                )}
+              </>
+            )}
+
+            {/* Handle symbols on left panel */}
+            {isLeftPanel && renderHandleSymbol(handleLeft, 'left', px)}
+            {isLeftPanel && renderLockSymbol(lockLeft, 'left', px)}
+
+            {/* Handle symbols on right panel */}
+            {isRightPanel && renderHandleSymbol(handleRight, 'right', px)}
+            {isRightPanel && renderLockSymbol(lockRight, 'right', px)}
+
+            {/* Floor latches — small squares at bottom */}
+            {isLeftPanel && floorLatchLeft && (
+              <rect x={px + 4} y={iY + iH - 8} width={8} height={8} fill="var(--theme-accent)" fillOpacity="0.5" stroke="var(--theme-accent)" strokeWidth="1" strokeOpacity="0.8" />
+            )}
+            {isRightPanel && floorLatchRight && (
+              <rect x={px + pW - 12} y={iY + iH - 8} width={8} height={8} fill="var(--theme-accent)" fillOpacity="0.5" stroke="var(--theme-accent)" strokeWidth="1" strokeOpacity="0.8" />
             )}
           </g>
         );

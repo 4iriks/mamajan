@@ -31,13 +31,13 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const GLASS_COLORS: Record<string, string> = {
-  'Без стекла':    'bg-hi/5 text-fg/30',
+  'Без стекла':      'bg-hi/10 text-fg/40',
   'Стекла заказаны': 'bg-amber-500/20 text-amber-600',
-  'Стекла в цеху': 'bg-emerald-500/20 text-emerald-600',
+  'Стекла в цеху':   'bg-emerald-500/20 text-emerald-600',
 };
 
 const PAINT_COLORS: Record<string, string> = {
-  'Без покраски':               'bg-hi/5 text-fg/30',
+  'Без покраски':               'bg-hi/10 text-fg/40',
   'Задание на покраску в цеху': 'bg-blue-500/20 text-blue-600',
   'Отгружен на покраску':       'bg-amber-500/20 text-amber-600',
   'Получен с покраски':         'bg-emerald-500/20 text-emerald-600',
