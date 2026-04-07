@@ -223,15 +223,7 @@
         {% endfor %}
         {% endif %}
 
-        {# Одна линия на сторону если есть профиль #}
-        {% set has_left = section.profile_left_wall or section.profile_left_lock_bar or section.profile_left_p_bar or section.profile_left_handle_bar or section.profile_left_bubble %}
-        {% set has_right = section.profile_right_wall or section.profile_right_lock_bar or section.profile_right_p_bar or section.profile_right_handle_bar or section.profile_right_bubble %}
-        {% if has_left %}
-        <line x1="{{ left_w - 5 }}" y1="{{ top_pad }}" x2="{{ left_w - 5 }}" y2="{{ top_pad + rails * row_h }}" stroke="#000" stroke-width="1.2"/>
-        {% endif %}
-        {% if has_right %}
-        <line x1="{{ left_w + rail_w + 5 }}" y1="{{ top_pad }}" x2="{{ left_w + rail_w + 5 }}" y2="{{ top_pad + rails * row_h }}" stroke="#000" stroke-width="1.2"/>
-        {% endif %}
+        {# Без боковых профилей — только вертикальные ограничители выше #}
 
         {# Стрелка направления сдвига #}
         {% set ay = top_pad + rails * row_h + 10 %}
