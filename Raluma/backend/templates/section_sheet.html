@@ -127,13 +127,38 @@
       <div class="scheme-label">схема вид из помещения</div>
       {% set rw = 260 %}
       {% set rh = 55 %}
+      {% set rw = 240 %}
+      {% set rh = 65 %}
+      {% set rfX = 10 %}
+      {% set rfY = 2 %}
+      {% set rfW = rw - 20 %}
+      {% set rfH = rh - 4 %}
+      {% set rpt = 5 %}
+      {% set riX = rfX + rpt %}
+      {% set riY = rfY + rpt %}
+      {% set riW = rfW - 2 * rpt %}
+      {% set riH = rfH - 2 * rpt %}
+      {% set rpW = riW / section.panels %}
       <svg width="{{ rw }}" height="{{ rh }}" viewBox="0 0 {{ rw }} {{ rh }}"
            xmlns="http://www.w3.org/2000/svg" style="display:block; margin:0 auto;">
-        <rect x="1" y="1" width="{{ rw-2 }}" height="{{ rh-2 }}" fill="none" stroke="#000" stroke-width="1.5"/>
+        {# Frame border #}
+        <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rfW }}" height="{{ rfH }}" fill="none" stroke="#000" stroke-width="1.2"/>
+        {# Frame edges (top/bottom/left/right) #}
+        <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rfW }}" height="{{ rpt }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
+        <rect x="{{ rfX }}" y="{{ rfY + rfH - rpt }}" width="{{ rfW }}" height="{{ rpt }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
+        <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rpt }}" height="{{ rfH }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
+        <rect x="{{ rfX + rfW - rpt }}" y="{{ rfY }}" width="{{ rpt }}" height="{{ rfH }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
+        {# Glass panels #}
+        {% set room_first_right = (section.first_panel_inside or 'Справа') == 'Справа' %}
         {% for i in range(section.panels) %}
-        {% set gx = 1 + i * (rw-2) / section.panels + 3 %}
-        {% set gw = (rw-2) / section.panels - 6 %}
-        <rect x="{{ gx }}" y="4" width="{{ gw }}" height="{{ rh-8 }}" fill="#e8f4f8" stroke="#999" stroke-width="0.5"/>
+        {% set gpx = riX + i * rpW %}
+        <rect x="{{ gpx }}" y="{{ riY }}" width="{{ rpW }}" height="{{ riH }}" fill="#f4f9fb" stroke="none"/>
+        {% if i < section.panels - 1 %}
+        <rect x="{{ gpx + rpW - 1 }}" y="{{ riY }}" width="2" height="{{ riH }}" fill="#e0e0e0" stroke="#ccc" stroke-width="0.3"/>
+        {% endif %}
+        {# Panel number #}
+        {% set pnum = section.panels - i if room_first_right else i + 1 %}
+        <text x="{{ gpx + rpW / 2 }}" y="{{ riY + riH / 2 + 3 }}" text-anchor="middle" font-size="8" font-family="Arial" font-weight="bold" fill="#555">{{ pnum }}</text>
         {% endfor %}
       </svg>
     </td>
@@ -158,13 +183,13 @@
         <text x="{{ left_w + rail_w / 2 }}" y="9" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#666">ПОМЕЩЕНИЕ</text>
         <text x="{{ sw - 2 }}" y="{{ top_pad + rails * row_h + 12 }}" text-anchor="end" font-size="7" font-family="Arial" font-weight="bold" fill="#000">УЛИЦА</text>
 
-        {# Вертикальные границы проёма #}
-        <line x1="{{ left_w }}" y1="{{ top_pad - 2 }}" x2="{{ left_w }}" y2="{{ top_pad + rails * row_h + 2 }}" stroke="#000" stroke-width="1.5"/>
-        <line x1="{{ left_w + rail_w }}" y1="{{ top_pad - 2 }}" x2="{{ left_w + rail_w }}" y2="{{ top_pad + rails * row_h + 2 }}" stroke="#000" stroke-width="1.5"/>
-
         {# Горизонтальные границы (верх / низ) #}
-        <line x1="{{ left_w - 8 }}" y1="{{ top_pad - 2 }}" x2="{{ left_w + rail_w + 8 }}" y2="{{ top_pad - 2 }}" stroke="#000" stroke-width="1"/>
-        <line x1="{{ left_w - 8 }}" y1="{{ top_pad + rails * row_h + 2 }}" x2="{{ left_w + rail_w + 8 }}" y2="{{ top_pad + rails * row_h + 2 }}" stroke="#000" stroke-width="1"/>
+        <line x1="{{ left_w }}" y1="{{ top_pad - 2 }}" x2="{{ left_w + rail_w }}" y2="{{ top_pad - 2 }}" stroke="#000" stroke-width="1"/>
+        <line x1="{{ left_w }}" y1="{{ top_pad + rails * row_h + 2 }}" x2="{{ left_w + rail_w }}" y2="{{ top_pad + rails * row_h + 2 }}" stroke="#000" stroke-width="1"/>
+
+        {# Вертикальные ограничители #}
+        <line x1="{{ left_w }}" y1="{{ top_pad - 4 }}" x2="{{ left_w }}" y2="{{ top_pad + rails * row_h + 4 }}" stroke="#000" stroke-width="1.5"/>
+        <line x1="{{ left_w + rail_w }}" y1="{{ top_pad - 4 }}" x2="{{ left_w + rail_w }}" y2="{{ top_pad + rails * row_h + 4 }}" stroke="#000" stroke-width="1.5"/>
 
         {# Рельсы #}
         {% for ri in range(rails) %}
@@ -198,90 +223,14 @@
         {% endfor %}
         {% endif %}
 
-        {# ── Левые профили ── #}
-        {% set lx = left_w - 3 %}
-        {% set ph = rails * row_h %}
-
-        {% if section.profile_left_wall %}
-        {# Пристеночный — двойной прямоугольник #}
-        <rect x="{{ lx - 10 }}" y="{{ top_pad }}" width="4" height="{{ ph }}" fill="#ccc" stroke="#000" stroke-width="0.5"/>
-        <rect x="{{ lx - 5 }}" y="{{ top_pad }}" width="4" height="{{ ph }}" fill="#eee" stroke="#000" stroke-width="0.5"/>
-        {% set lx = lx - 12 %}
+        {# Одна линия на сторону если есть профиль #}
+        {% set has_left = section.profile_left_wall or section.profile_left_lock_bar or section.profile_left_p_bar or section.profile_left_handle_bar or section.profile_left_bubble %}
+        {% set has_right = section.profile_right_wall or section.profile_right_lock_bar or section.profile_right_p_bar or section.profile_right_handle_bar or section.profile_right_bubble %}
+        {% if has_left %}
+        <line x1="{{ left_w - 5 }}" y1="{{ top_pad }}" x2="{{ left_w - 5 }}" y2="{{ top_pad + rails * row_h }}" stroke="#000" stroke-width="1.2"/>
         {% endif %}
-
-        {% if section.profile_left_lock_bar %}
-        {# Боковой замок — два стержня + перемычки #}
-        <rect x="{{ lx - 8 }}" y="{{ top_pad }}" width="2.5" height="{{ ph }}" fill="#ccc" stroke="#000" stroke-width="0.4"/>
-        <rect x="{{ lx - 3 }}" y="{{ top_pad }}" width="2.5" height="{{ ph }}" fill="#ccc" stroke="#000" stroke-width="0.4"/>
-        {% for ri in range(rails) %}
-        {% set cy = top_pad + ri * row_h + row_h / 2 %}
-        <line x1="{{ lx - 7 }}" y1="{{ cy }}" x2="{{ lx - 2 }}" y2="{{ cy }}" stroke="#000" stroke-width="0.8"/>
-        {% endfor %}
-        {% set lx = lx - 10 %}
-        {% endif %}
-
-        {% if section.profile_left_p_bar %}
-        {# П-профиль — U-shape #}
-        <path d="M{{ lx - 8 }},{{ top_pad }} L{{ lx - 1 }},{{ top_pad }} L{{ lx - 1 }},{{ top_pad + ph }} L{{ lx - 8 }},{{ top_pad + ph }}" fill="none" stroke="#000" stroke-width="0.8"/>
-        {% set lx = lx - 10 %}
-        {% endif %}
-
-        {% if section.profile_left_handle_bar %}
-        {# Ручка-профиль — вертикаль + горизонтальные ручки #}
-        <line x1="{{ lx - 5 }}" y1="{{ top_pad }}" x2="{{ lx - 5 }}" y2="{{ top_pad + ph }}" stroke="#000" stroke-width="1"/>
-        {% for ri in range(rails) %}
-        {% set cy = top_pad + ri * row_h + row_h / 2 %}
-        <line x1="{{ lx - 10 }}" y1="{{ cy }}" x2="{{ lx }}" y2="{{ cy }}" stroke="#000" stroke-width="0.8"/>
-        {% endfor %}
-        {% set lx = lx - 12 %}
-        {% endif %}
-
-        {% if section.profile_left_bubble %}
-        {# Пузырьковый — круги на рельсах #}
-        {% for ri in range(rails) %}
-        {% set cy = top_pad + ri * row_h + row_h / 2 %}
-        <circle cx="{{ lx - 4 }}" cy="{{ cy }}" r="3" fill="none" stroke="#000" stroke-width="0.6"/>
-        {% endfor %}
-        {% endif %}
-
-        {# ── Правые профили ── #}
-        {% set rx = left_w + rail_w + 3 %}
-
-        {% if section.profile_right_wall %}
-        <rect x="{{ rx + 1 }}" y="{{ top_pad }}" width="4" height="{{ ph }}" fill="#eee" stroke="#000" stroke-width="0.5"/>
-        <rect x="{{ rx + 6 }}" y="{{ top_pad }}" width="4" height="{{ ph }}" fill="#ccc" stroke="#000" stroke-width="0.5"/>
-        {% set rx = rx + 12 %}
-        {% endif %}
-
-        {% if section.profile_right_lock_bar %}
-        <rect x="{{ rx + 1 }}" y="{{ top_pad }}" width="2.5" height="{{ ph }}" fill="#ccc" stroke="#000" stroke-width="0.4"/>
-        <rect x="{{ rx + 6 }}" y="{{ top_pad }}" width="2.5" height="{{ ph }}" fill="#ccc" stroke="#000" stroke-width="0.4"/>
-        {% for ri in range(rails) %}
-        {% set cy = top_pad + ri * row_h + row_h / 2 %}
-        <line x1="{{ rx + 2 }}" y1="{{ cy }}" x2="{{ rx + 7 }}" y2="{{ cy }}" stroke="#000" stroke-width="0.8"/>
-        {% endfor %}
-        {% set rx = rx + 10 %}
-        {% endif %}
-
-        {% if section.profile_right_p_bar %}
-        <path d="M{{ rx + 8 }},{{ top_pad }} L{{ rx + 1 }},{{ top_pad }} L{{ rx + 1 }},{{ top_pad + ph }} L{{ rx + 8 }},{{ top_pad + ph }}" fill="none" stroke="#000" stroke-width="0.8"/>
-        {% set rx = rx + 10 %}
-        {% endif %}
-
-        {% if section.profile_right_handle_bar %}
-        <line x1="{{ rx + 5 }}" y1="{{ top_pad }}" x2="{{ rx + 5 }}" y2="{{ top_pad + ph }}" stroke="#000" stroke-width="1"/>
-        {% for ri in range(rails) %}
-        {% set cy = top_pad + ri * row_h + row_h / 2 %}
-        <line x1="{{ rx }}" y1="{{ cy }}" x2="{{ rx + 10 }}" y2="{{ cy }}" stroke="#000" stroke-width="0.8"/>
-        {% endfor %}
-        {% set rx = rx + 12 %}
-        {% endif %}
-
-        {% if section.profile_right_bubble %}
-        {% for ri in range(rails) %}
-        {% set cy = top_pad + ri * row_h + row_h / 2 %}
-        <circle cx="{{ rx + 4 }}" cy="{{ cy }}" r="3" fill="none" stroke="#000" stroke-width="0.6"/>
-        {% endfor %}
+        {% if has_right %}
+        <line x1="{{ left_w + rail_w + 5 }}" y1="{{ top_pad }}" x2="{{ left_w + rail_w + 5 }}" y2="{{ top_pad + rails * row_h }}" stroke="#000" stroke-width="1.2"/>
         {% endif %}
 
         {# Стрелка направления сдвига #}
