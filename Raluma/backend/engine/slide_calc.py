@@ -513,17 +513,25 @@ def calculate_slide(section) -> SlideCalcResult:
     # RS3018 защёлка 1-сторонняя
     lock3018 = 0
     lock3019 = 0
-    for lk in [lock_l, lock_r]:
+    lock3018_sides: list[str] = []
+    lock3019_sides: list[str] = []
+    for lk, side_name in [(lock_l, "слева"), (lock_r, "справа")]:
         if "1стор" in lk or "1-сторон" in lk.lower():
             lock3018 += 1
+            lock3018_sides.append(side_name)
         elif "2стор" in lk or "2-сторон" in lk.lower() or "ключ" in lk.lower():
             lock3019 += 1
+            lock3019_sides.append(side_name)
+
+    def _side_comment(sides: list[str]) -> str:
+        return " и ".join(sides) if sides else ""
 
     if lock3018 > 0:
+        side_text = _side_comment(lock3018_sides)
         result.hardware.append(
             HardwareItem(
                 "RS3018",
-                "Замок-защёлка 1-стор",
+                f"Замок-защёлка 1-стор ({side_text})",
                 lock3018 * Q,
                 "шт",
                 "RS3018.jpg",
@@ -531,10 +539,11 @@ def calculate_slide(section) -> SlideCalcResult:
             )
         )
     if lock3019 > 0:
+        side_text = _side_comment(lock3019_sides)
         result.hardware.append(
             HardwareItem(
                 "RS3019",
-                "Замок-защёлка 2-стор с ключом",
+                f"Замок-защёлка 2-стор с ключом ({side_text})",
                 lock3019 * Q,
                 "шт",
                 "RS3019.jpg",
@@ -664,14 +673,14 @@ def calculate_slide(section) -> SlideCalcResult:
     screw4819 = (rs105_qty + rs106_qty) * 2
     result.screws.append(
         ScrewItem("Саморез 4,8×19 A2 (DIN7982)", "4,8×19 A2", screw4819, "DIN7982.png",
-                  note="Прикрутить заглушки")
+                  note="Прикрутить заглушки RS105, RS106")
     )
 
-    # 3,9×13 A2 (DIN7504M) — для роликов + П-профиля
-    screw3913m = ru005_qty * 2 + pb_count * 7 * Q
+    # 3,9×13 A2 (DIN7504M) — для роликов + профиля-замка RS2081
+    screw3913m = ru005_qty * 2 + lb_count * 7 * Q
     result.screws.append(
         ScrewItem("Саморез 3,9×13 A2 (DIN7504M)", "3,9×13 A2 DIN7504M", screw3913m, "DIN7504M.png",
-                  note="Прикрутить ролики, RS1081 к RS1333/1335")
+                  note="Прикрутить ролики, RS2081 к RS2323/2335")
     )
 
     # 4,8×38 A2
@@ -702,7 +711,8 @@ def calculate_slide(section) -> SlideCalcResult:
     screw3513 = rs122_qty * 2
     if screw3513 > 0:
         result.screws.append(
-            ScrewItem("Саморез 3,5×13 A2 (DIN7982)", "3,5×13 A2", screw3513, "DIN7982.png")
+            ScrewItem("Саморез 3,5×13 A2 (DIN7982)", "3,5×13 A2", screw3513, "DIN7982.png",
+                      note="Прикрутить ответные планки RS122")
         )
 
     # Наклейка и инструкция

@@ -598,19 +598,19 @@ class TestScrews:
         screw = _find_screw(r, "4,8×19")[0]
         assert screw.qty == (rs105_val + rs106_val) * 2
 
-    def test_screw_3913m_no_p_bar(self):
-        """DIN7504M = RU005*2 + pb_count*7*Q. Без П-профиля: только ролики."""
+    def test_screw_3913m_no_lock_bar(self):
+        """DIN7504M = RU005*2 + lb_count*7*Q. Без профиля-замка: только ролики."""
         r = calculate_slide(_make_section(panels=3))
         ru005 = _find_hardware(r, "RU005")[0].value  # 3*2*1 = 6
         screw = _find_screw(r, "DIN7504M")[0]
         assert screw.qty == ru005 * 2  # 12
 
-    def test_screw_3913m_with_p_bar(self):
-        """DIN7504M = RU005*2 + pb_count*7*Q."""
+    def test_screw_3913m_with_lock_bar(self):
+        """DIN7504M = RU005*2 + lb_count*7*Q. С профилем-замком RS2081."""
         r = calculate_slide(_make_section(
             panels=3,
-            profile_left_p_bar=True,
-            profile_right_p_bar=True,
+            profile_left_lock_bar=True,
+            profile_right_lock_bar=True,
         ))
         ru005 = _find_hardware(r, "RU005")[0].value  # 6
         screw = _find_screw(r, "DIN7504M")[0]
