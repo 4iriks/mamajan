@@ -409,6 +409,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                     <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40 block mb-4">Стекла</span>
                     <div className="mb-4">
                       <select value={glassStatus} onChange={e => { setGlassStatus(e.target.value); saveStatus({ glass_status: e.target.value }); }} className={SEL}>
+                        <option value="">—</option>
                         <option>Без стекла</option>
                         <option>Стекла заказаны</option>
                         <option>Стекла в цеху</option>
@@ -435,6 +436,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40 block mb-4">Покраска</span>
                   <div className="mb-4">
                     <select value={paintStatus} onChange={e => { setPaintStatus(e.target.value); saveStatus({ paint_status: e.target.value }); }} className={SEL}>
+                      <option value="">—</option>
                       <option>Без покраски</option>
                       <option>Задание на покраску в цеху</option>
                       <option>Отгружен на покраску</option>
@@ -500,12 +502,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                 <div className="bg-surface/40 border border-tint/30 rounded-2xl p-5 sm:p-6 mb-4">
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40 mb-5">Примечания к проекту</p>
                   <div className="space-y-4">
-                    <div>
-                      <label className="text-[11px] text-fg/35 uppercase tracking-wider block mb-2">Доп. комплектующие</label>
-                      <textarea value={projectExtraParts} onChange={e => setProjectExtraParts(e.target.value)}
-                        onBlur={handleSaveProjectNotes} rows={3} placeholder="Перечислите дополнительные комплектующие..."
-                        className="w-full bg-hi/[0.03] border border-tint/25 rounded-2xl px-4 py-3 text-sm text-fg/70 placeholder-fg/20 resize-none focus:outline-none focus:border-accent/40 transition-colors" />
-                    </div>
                     <div>
                       <label className="text-[11px] text-fg/35 uppercase tracking-wider block mb-2">Комментарии</label>
                       <textarea value={projectComments} onChange={e => setProjectComments(e.target.value)}

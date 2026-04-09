@@ -323,6 +323,7 @@
       <table class="glass-tbl" style="margin-top:0.2mm;">
         <tr><th>СТЁКЛА</th><th>ширина</th><th>высота</th><th>кол-во</th></tr>
         {% for i, g in calc.glass | enumerate %}
+        {% if g.qty > 0 %}
         {% set fk_gw = "glass_" ~ i ~ "_w" %}
         {% set fk_gh = "glass_" ~ i ~ "_h" %}
         {% set fk_gq = "glass_" ~ i ~ "_q" %}
@@ -332,6 +333,7 @@
           <td {{ ce(fk_gh, g.height_mm|int) }}>{{ ov(fk_gh, g.height_mm|int) }}</td>
           <td {{ ce(fk_gq, g.qty) }}>{{ ov(fk_gq, g.qty) }}</td>
         </tr>
+        {% endif %}
         {% endfor %}
       </table>
     </td>
