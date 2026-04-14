@@ -102,7 +102,7 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
           <div className="space-y-1.5">
             <label className={LBL}>Кол-во панелей</label>
             <ToggleGroup value={String(s.panels)}
-              options={s.rails === 5 ? ['1', '2', '3', '4', '5'] : ['1', '2', '3']}
+              options={s.rails === 5 ? ['2', '3', '4', '5'] : ['2', '3']}
               onChange={v => update({ panels: parseInt(v) })} />
           </div>
           {((s.rails !== 5 && (s.panels ?? 3) < 3) || (s.rails === 5 && (s.panels ?? 3) < 5)) && (
