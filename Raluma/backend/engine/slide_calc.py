@@ -284,7 +284,7 @@ def calculate_slide(section) -> SlideCalcResult:
             length_mm=round(top_len, 1),
             qty=Q,
             painted=painted,
-            image=None,  # RS1313/RS1315 — нет картинки в ассетах
+            image=f"{top_article}.png",
             field_key="top_guide_length",
             note="вставить фетровое уплотнение",
         )
