@@ -238,18 +238,29 @@ def calculate_slide(section) -> SlideCalcResult:
         left_W = middle_W + a + krlr + krlp
         right_W = middle_W + b + krrr + krrp
 
-        result.glass.append(GlassItem("Левое", round(left_W, 1), round(glass_H, 1), Q))
-        result.glass.append(
-            GlassItem(
-                "Промежуточные",
-                round(middle_W, 1),
-                round(glass_H, 1),
-                (P - 2) * Q if P > 2 else 0,
+        if round(left_W, 1) == round(right_W, 1):
+            result.glass.append(GlassItem("Крайние", round(left_W, 1), round(glass_H, 1), 2 * Q))
+            result.glass.append(
+                GlassItem(
+                    "Промежуточные",
+                    round(middle_W, 1),
+                    round(glass_H, 1),
+                    (P - 2) * Q if P > 2 else 0,
+                )
             )
-        )
-        result.glass.append(
-            GlassItem("Правое", round(right_W, 1), round(glass_H, 1), Q)
-        )
+        else:
+            result.glass.append(GlassItem("Левое", round(left_W, 1), round(glass_H, 1), Q))
+            result.glass.append(
+                GlassItem(
+                    "Промежуточные",
+                    round(middle_W, 1),
+                    round(glass_H, 1),
+                    (P - 2) * Q if P > 2 else 0,
+                )
+            )
+            result.glass.append(
+                GlassItem("Правое", round(right_W, 1), round(glass_H, 1), Q)
+            )
 
     # ── Профили ───────────────────────────────────────────────────────────────
 
@@ -312,6 +323,7 @@ def calculate_slide(section) -> SlideCalcResult:
         ig_articles = {
             "Алюминиевый RS2061": "RS2061",
             "Прозрачный RS1006": "RS1006",
+            "Прозрачный с фетром RS1006": "RS1006",
             "h-профиль RS1004": "RS1004",
         }
         ig_article = ig_articles.get(inter_glass_type, "RS2061")
@@ -416,21 +428,23 @@ def calculate_slide(section) -> SlideCalcResult:
 
     # Стекольный профиль RS2021
     for g in result.glass:
-        # Определяем длину RS2021 для этого стекла
         base_len = g.width_mm
-        if g.position in ("Левое", "Правое"):
-            # 1) ручка-профиль RS112 → +16
-            if handle_bar_l and g.position == "Левое":
+        if g.position == "Левое":
+            if handle_bar_l:
                 base_len += 16
-            elif handle_bar_r and g.position == "Правое":
+            if bubble_l and not left_is_deaf:
+                base_len -= 3
+        elif g.position == "Правое":
+            if handle_bar_r:
                 base_len += 16
-            # 2) пузырьковый RS1002 → -3 только для подвижной створки
-            if bubble_l and g.position == "Левое" and not left_is_deaf:
+            if bubble_r and not right_is_deaf:
                 base_len -= 3
-            elif bubble_r and g.position == "Правое" and not right_is_deaf:
+        elif g.position == "Крайние":
+            if handle_bar_l:
+                base_len += 16
+            if bubble_l and not left_is_deaf:
                 base_len -= 3
-        else:
-            # Промежуточное
+        elif g.position == "Промежуточные" or g.position == "Промежуточное":
             if inter_glass_type != "Без":
                 base_len -= 3
         g.glass_profile_length = round(base_len, 1)
@@ -468,6 +482,7 @@ def calculate_slide(section) -> SlideCalcResult:
     if inter_glass_cnt > 0 and inter_glass_type in (
         "Алюминиевый RS2061",
         "Прозрачный RS1006",
+        "Прозрачный с фетром RS1006",
     ):
         ig_len_m = inter_glass_len / 1000
         ru007_m = round((ig_len_m + 0.03) * inter_glass_cnt, 3)
@@ -603,6 +618,7 @@ def calculate_slide(section) -> SlideCalcResult:
     if inter_glass_cnt > 0 and inter_glass_type in (
         "Алюминиевый RS2061",
         "Прозрачный RS1006",
+        "Прозрачный с фетром RS1006",
     ):
         if first_panel == "Справа":
             # 1-я панель справа → сдвиг влево → RS107L
@@ -725,6 +741,7 @@ def calculate_slide(section) -> SlideCalcResult:
     ig_article_map = {
         "Алюминиевый RS2061": "RS2061",
         "Прозрачный RS1006": "RS1006",
+        "Прозрачный с фетром RS1006": "RS1006",
         "h-профиль RS1004": "RS1004",
     }
     ig_a = ig_article_map.get(ig, "")

@@ -110,8 +110,8 @@ class TestBasicSlide:
         assert profiles[0].qty == 2  # (P-1)*Q = 2
 
     def test_glass_count(self):
-        """3 панели → левое + промежуточные + правое."""
-        assert len(self.result.glass) == 3
+        """3 панели, симметричные → крайние + промежуточные."""
+        assert len(self.result.glass) == 2
 
     def test_glass_height_standard(self):
         """glass_H = H - 106 = 2294."""
@@ -120,23 +120,17 @@ class TestBasicSlide:
 
     def test_glass_widths_symmetric(self):
         """Без ручек/замков, только пристеночные: ppl=ppr=16, остальные=0."""
-        left = _find_glass(self.result, "Левое")[0]
+        edge = _find_glass(self.result, "Крайние")[0]
         mid = _find_glass(self.result, "Промежуточные")[0]
-        right = _find_glass(self.result, "Правое")[0]
-        # middle_W = (2000 - 16 - 16 + 9.5*2) / 3 = (2000 - 32 + 19) / 3 = 1987/3 ≈ 662.3
         expected_mid = round((2000 - 16 - 16 + 9.5 * 2) / 3, 1)
         assert mid.width_mm == expected_mid
-        # Без ручек: left_W = middle_W, right_W = middle_W
-        assert left.width_mm == expected_mid
-        assert right.width_mm == expected_mid
+        assert edge.width_mm == expected_mid
 
     def test_glass_quantities(self):
-        left = _find_glass(self.result, "Левое")[0]
+        edge = _find_glass(self.result, "Крайние")[0]
         mid = _find_glass(self.result, "Промежуточные")[0]
-        right = _find_glass(self.result, "Правое")[0]
-        assert left.qty == 1
+        assert edge.qty == 2
         assert mid.qty == 1  # (3-2)*1
-        assert right.qty == 1
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -708,10 +702,10 @@ class TestGlassProfile:
         """Пузырьковый на подвижной → RS2021 -3."""
         r = calculate_slide(_make_section(
             profile_left_bubble=True,
-            handle_left="Стеклянная ручка RS3017",  # не глухая
+            handle_left="Стеклянная ручка RS3017",
         ))
-        left_glass = _find_glass(r, "Левое")[0]
-        assert left_glass.glass_profile_length == round(left_glass.width_mm - 3, 1)
+        edge = _find_glass(r, "Крайние")[0]
+        assert edge.glass_profile_length == round(edge.width_mm - 3, 1)
 
     def test_rs2021_bubble_deaf_no_subtract(self):
         """Пузырьковый на глухой → RS2021 НЕ вычитает 3."""
@@ -720,8 +714,8 @@ class TestGlassProfile:
             handle_left="Без",
             lock_left="Без",
         ))
-        left_glass = _find_glass(r, "Левое")[0]
-        assert left_glass.glass_profile_length == left_glass.width_mm
+        edge = _find_glass(r, "Крайние")[0]
+        assert edge.glass_profile_length == edge.width_mm
 
     def test_rs2021_handle_bar_and_bubble(self):
         """Ручка-профиль + пузырьковый (подвижная) → +16 -3 = +13."""
@@ -767,8 +761,8 @@ class TestQuantity:
         assert _find_profile(self.r, "RS2333")[0].qty == 6  # 2 стены × Q=3
 
     def test_glass_qty(self):
-        left = _find_glass(self.r, "Левое")[0]
-        assert left.qty == 3
+        edge = _find_glass(self.r, "Крайние")[0]
+        assert edge.qty == 6  # 2 крайних × Q=3
 
     def test_rollers_qty(self):
         ru005 = _find_hardware(self.r, "RU005")[0]
@@ -841,3 +835,87 @@ class TestChecklist:
     def test_sticker(self):
         r = calculate_slide(_make_section())
         assert any("наклейк" in c.lower() for c in r.checklist)
+
+    def test_felt_for_rs1006_full_name(self):
+        """Прозрачный с фетром RS1006 (полное название с фронта) → чеклист фетр."""
+        r = calculate_slide(_make_section(inter_glass_profile="Прозрачный с фетром RS1006"))
+        assert any("фетровое" in c and "RS1006" in c for c in r.checklist)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# КРАЙНИЕ СТЁКЛА (объединение левого и правого)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestEdgeGlass:
+    """Когда left_W == right_W → объединяем в 'Крайние'."""
+
+    def test_symmetric_gives_edge(self):
+        """Симметричная конфигурация → 'Крайние' вместо 'Левое'+'Правое'."""
+        r = calculate_slide(_make_section())
+        edge = _find_glass(r, "Крайние")
+        assert len(edge) == 1
+        assert edge[0].qty == 2
+        assert _find_glass(r, "Левое") == []
+        assert _find_glass(r, "Правое") == []
+
+    def test_asymmetric_gives_left_right(self):
+        """Ассиметрия (ручка-профиль только слева) → 'Левое' + 'Правое'."""
+        r = calculate_slide(_make_section(profile_left_handle_bar=True))
+        assert len(_find_glass(r, "Левое")) == 1
+        assert len(_find_glass(r, "Правое")) == 1
+        assert _find_glass(r, "Крайние") == []
+
+    def test_edge_qty_with_quantity(self):
+        """Q=2, симметрия → Крайние qty = 2*Q = 4."""
+        r = calculate_slide(_make_section(quantity=2))
+        edge = _find_glass(r, "Крайние")[0]
+        assert edge.qty == 4
+
+    def test_two_panels_symmetric(self):
+        """2 панели, симметрия → Крайние qty=2*Q, нет промежуточных."""
+        r = calculate_slide(_make_section(panels=2))
+        edge = _find_glass(r, "Крайние")[0]
+        assert edge.qty == 2
+        mid = _find_glass(r, "Промежуточные")
+        assert len(mid) == 0 or mid[0].qty == 0
+
+    def test_rs2021_for_edge_glass(self):
+        """RS2021 для Крайних — одна запись с суммарным qty."""
+        r = calculate_slide(_make_section())
+        edge = _find_glass(r, "Крайние")[0]
+        rs2021 = _find_profile(r, "RS2021")
+        total_qty = sum(p.qty for p in rs2021)
+        assert total_qty >= edge.qty
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ПРОЗРАЧНЫЙ С ФЕТРОМ RS1006 (полное название)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestRS1006FullName:
+    """Фронт отправляет 'Прозрачный с фетром RS1006' — проверяем маппинг."""
+
+    def test_inter_glass_profile_created(self):
+        r = calculate_slide(_make_section(inter_glass_profile="Прозрачный с фетром RS1006"))
+        rs1006 = _find_profile(r, "RS1006")
+        assert len(rs1006) == 1
+        assert rs1006[0].qty == 2  # (P-1)*Q = 2*1
+
+    def test_ru007_calculated(self):
+        """Щётка 7×12 должна считаться для RS1006."""
+        r = calculate_slide(_make_section(inter_glass_profile="Прозрачный с фетром RS1006"))
+        brush = _find_hardware(r, "")[0]  # первый элемент — щётка
+        ru007 = [s for s in brush.sub_items if s.article == "RU007"]
+        assert len(ru007) == 1
+        assert ru007[0].value > 0
+
+    def test_rs107l_plug_created(self):
+        """Заглушка RS107L для RS1006."""
+        r = calculate_slide(_make_section(
+            inter_glass_profile="Прозрачный с фетром RS1006",
+            first_panel_inside="Справа",
+        ))
+        rs107l = _find_hardware(r, "RS107L")
+        assert len(rs107l) == 1

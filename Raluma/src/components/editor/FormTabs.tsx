@@ -121,16 +121,13 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
         <div className="space-y-4">
           <div className="space-y-1.5">
             <label className={LBL}>Порог</label>
-            <select value={s.threshold || ''} onChange={e => update({ threshold: e.target.value || undefined })} className={SEL}>
-              <option value="">— Без порога —</option>
+            <select value={s.threshold || 'Стандартный анод'} onChange={e => update({ threshold: e.target.value })} className={SEL}>
+              {/* No empty/disabled option — threshold is required */}
               <option>Стандартный анод</option>
               <option>Стандартный окраш</option>
               <option>Накладной анод</option>
               <option>Накладной окраш</option>
             </select>
-            {!s.threshold && (
-              <p className="text-[10px] text-amber-400/70 font-bold uppercase tracking-wider pl-1">⚠ Без порога система быть не может</p>
-            )}
           </div>
           <div className="space-y-1.5">
             <label className={LBL}>Межстекольный профиль</label>

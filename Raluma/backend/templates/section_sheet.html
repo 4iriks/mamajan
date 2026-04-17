@@ -212,20 +212,22 @@
         {% if '1стор' in lL %}
         <line x1="{{ lockLX }}" y1="{{ symY - 8 }}" x2="{{ lockLX }}" y2="{{ symY + 8 }}" stroke="#000" stroke-width="1.5"/>
         {% elif '2стор' in lL or 'ключ' in lL %}
+        {% set kLX = lockLX + 8 %}
         <line x1="{{ lockLX }}" y1="{{ symY - 8 }}" x2="{{ lockLX }}" y2="{{ symY + 8 }}" stroke="#000" stroke-width="1.5"/>
-        <circle cx="{{ lockLX }}" cy="{{ symY - 13 }}" r="3.5" fill="none" stroke="#000" stroke-width="1"/>
-        <line x1="{{ lockLX }}" y1="{{ symY - 9.5 }}" x2="{{ lockLX }}" y2="{{ symY - 2 }}" stroke="#000" stroke-width="1"/>
-        <line x1="{{ lockLX }}" y1="{{ symY - 4 }}" x2="{{ lockLX + 2.5 }}" y2="{{ symY - 4 }}" stroke="#000" stroke-width="1"/>
-        <line x1="{{ lockLX }}" y1="{{ symY - 6.5 }}" x2="{{ lockLX + 2 }}" y2="{{ symY - 6.5 }}" stroke="#000" stroke-width="1"/>
+        <circle cx="{{ kLX }}" cy="{{ symY - 3 }}" r="3" fill="none" stroke="#000" stroke-width="0.8"/>
+        <line x1="{{ kLX }}" y1="{{ symY }}" x2="{{ kLX }}" y2="{{ symY + 8 }}" stroke="#000" stroke-width="0.8"/>
+        <line x1="{{ kLX }}" y1="{{ symY + 4 }}" x2="{{ kLX + 2.5 }}" y2="{{ symY + 4 }}" stroke="#000" stroke-width="0.8"/>
+        <line x1="{{ kLX }}" y1="{{ symY + 6 }}" x2="{{ kLX + 2 }}" y2="{{ symY + 6 }}" stroke="#000" stroke-width="0.8"/>
         {% endif %}
         {% if '1стор' in lR %}
         <line x1="{{ lockRX }}" y1="{{ symY - 8 }}" x2="{{ lockRX }}" y2="{{ symY + 8 }}" stroke="#000" stroke-width="1.5"/>
         {% elif '2стор' in lR or 'ключ' in lR %}
+        {% set kRX = lockRX - 8 %}
         <line x1="{{ lockRX }}" y1="{{ symY - 8 }}" x2="{{ lockRX }}" y2="{{ symY + 8 }}" stroke="#000" stroke-width="1.5"/>
-        <circle cx="{{ lockRX }}" cy="{{ symY - 13 }}" r="3.5" fill="none" stroke="#000" stroke-width="1"/>
-        <line x1="{{ lockRX }}" y1="{{ symY - 9.5 }}" x2="{{ lockRX }}" y2="{{ symY - 2 }}" stroke="#000" stroke-width="1"/>
-        <line x1="{{ lockRX }}" y1="{{ symY - 4 }}" x2="{{ lockRX + 2.5 }}" y2="{{ symY - 4 }}" stroke="#000" stroke-width="1"/>
-        <line x1="{{ lockRX }}" y1="{{ symY - 6.5 }}" x2="{{ lockRX + 2 }}" y2="{{ symY - 6.5 }}" stroke="#000" stroke-width="1"/>
+        <circle cx="{{ kRX }}" cy="{{ symY - 3 }}" r="3" fill="none" stroke="#000" stroke-width="0.8"/>
+        <line x1="{{ kRX }}" y1="{{ symY }}" x2="{{ kRX }}" y2="{{ symY + 8 }}" stroke="#000" stroke-width="0.8"/>
+        <line x1="{{ kRX }}" y1="{{ symY + 4 }}" x2="{{ kRX - 2.5 }}" y2="{{ symY + 4 }}" stroke="#000" stroke-width="0.8"/>
+        <line x1="{{ kRX }}" y1="{{ symY + 6 }}" x2="{{ kRX - 2 }}" y2="{{ symY + 6 }}" stroke="#000" stroke-width="0.8"/>
         {% endif %}
       </svg>
     </td>
@@ -318,7 +320,7 @@
         <tr><td style="border:none; padding:0.2mm 0;"><b>ЦВЕТ</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ calc.color_text }}</td></tr>
         <tr><td style="border:none; padding:0.2mm 0;"><b>СТЕКЛО</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ calc.glass_type }}</td></tr>
         <tr><td style="border:none; padding:0.2mm 0;"><b>ПОРОГ</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ calc.threshold_text }}</td></tr>
-        <tr><td style="border:none; padding:0.2mm 0;"><b>СИСТЕМА</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ section.rails }}-полозная</td></tr>
+        <tr><td style="border:none; padding:0.2mm 0;"><b>СИСТЕМА</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ section.rails }}-рельсовая</td></tr>
       </table>
       <table class="glass-tbl" style="margin-top:0.2mm;">
         <tr><th>СТЁКЛА</th><th>ширина</th><th>высота</th><th>кол-во</th></tr>

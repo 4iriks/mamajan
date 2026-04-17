@@ -191,14 +191,14 @@ export function SlideRoomViewSVG({ section }: { section: Section }) {
       return <line x1={x} y1={symY - 12} x2={x} y2={symY + 12} stroke="var(--theme-accent)" strokeWidth="2.5" strokeOpacity="0.7" />;
     }
     if (l.includes('2стор') || l.includes('2-сторон') || l.includes('ключ')) {
+      const kx = x + 12;
       return (
         <g>
           <line x1={x} y1={symY - 12} x2={x} y2={symY + 12} stroke="var(--theme-accent)" strokeWidth="2.5" strokeOpacity="0.7" />
-          {/* Key symbol — larger circle + shaft + ward */}
-          <circle cx={x} cy={symY - 20} r={5} fill="none" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.8" />
-          <line x1={x} y1={symY - 15} x2={x} y2={symY - 4} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.8" />
-          <line x1={x} y1={symY - 7} x2={x + 4} y2={symY - 7} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.8" />
-          <line x1={x} y1={symY - 10} x2={x + 3} y2={symY - 10} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.8" />
+          <circle cx={kx} cy={symY - 5} r={5} fill="none" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.8" />
+          <line x1={kx} y1={symY} x2={kx} y2={symY + 12} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.8" />
+          <line x1={kx} y1={symY + 6} x2={kx + 4} y2={symY + 6} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.8" />
+          <line x1={kx} y1={symY + 9} x2={kx + 3} y2={symY + 9} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.8" />
         </g>
       );
     }
