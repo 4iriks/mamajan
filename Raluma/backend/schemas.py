@@ -100,6 +100,13 @@ class SectionBase(BaseModel):
     profile_right_bubble: bool = False
     lock_left: Optional[str] = None
     lock_right: Optional[str] = None
+    # СЛАЙД 2 ряда
+    slide_rows: Optional[int] = 1
+    center_handle: Optional[str] = None
+    center_lock: Optional[str] = None
+    center_handle_offset: Optional[int] = None
+    center_floor_latches_left: bool = False
+    center_floor_latches_right: bool = False
     book_subtype: Optional[str] = None
     handle_left: Optional[str] = None
     handle_right: Optional[str] = None

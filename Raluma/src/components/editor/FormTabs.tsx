@@ -1,5 +1,5 @@
 import { Section, LBL, INP, SEL } from './types';
-import { Checkbox, ToggleGroup, RadioList, ProfileCheckbox } from './FormInputs';
+import { Checkbox, ToggleGroup, RadioList, ProfileCheckbox, SectionDivider } from './FormInputs';
 
 // ── Tab: Основное (общая для всех систем) ─────────────────────────────────────
 
@@ -76,12 +76,36 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
 // ── Tab: СЛАЙД — Система + Профили + Фурнитура ────────────────────────────────
 
 export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
+  const is2row = (s.slideRows ?? 1) === 2;
+  const rails = s.rails ?? 3;
+
+  // Панели: 1 ряд — 2..rails, 2 ряда — чётные от 4 до rails*2
+  const panelOptions = is2row
+    ? (rails === 5 ? ['4', '6', '8', '10'] : ['4', '6'])
+    : (rails === 5 ? ['2', '3', '4', '5'] : ['2', '3']);
+
+  // Неиспользуемый рельс: показываем когда панелей < макс
+  const maxPanels1row = rails;
+  const maxPanels2row = rails * 2;
+  const showUnused = is2row
+    ? (s.panels ?? 4) < maxPanels2row
+    : (s.panels ?? 3) < maxPanels1row;
+
   const showLockLeft  = (s.profileLeftLockBar  || s.profileLeftHandleBar)  && !(s.profileLeftPBar  && s.profileLeftHandleBar);
   const showNoLockLeft  = s.profileLeftPBar  && s.profileLeftHandleBar;
   const showHandleLeft  = (s.profileLeftPBar  && s.profileLeftBubble)  || (s.profileLeftBubble  && !s.profileLeftLockBar  && !s.profileLeftPBar  && !s.profileLeftHandleBar);
   const showLockRight = (s.profileRightLockBar || s.profileRightHandleBar) && !(s.profileRightPBar && s.profileRightHandleBar);
   const showNoLockRight = s.profileRightPBar && s.profileRightHandleBar;
   const showHandleRight = (s.profileRightPBar && s.profileRightBubble) || (s.profileRightBubble && !s.profileRightLockBar && !s.profileRightPBar && !s.profileRightHandleBar);
+
+  // Центральные панели: видимость замка и защёлок
+  const ch = s.centerHandle || '';
+  const centerIsDeaf = ch === 'Без ручки (глухие)' || ch === '';
+  const centerIsRS112 = ch === 'Ручки-профиль RS112 (2шт)';
+  const centerHasHandle = !centerIsDeaf;
+  const showCenterLock = centerHasHandle && !centerIsRS112;
+  const showCenterFloorLatches = centerHasHandle;
+  const showCenterOffset = ch === 'Стеклянная ручка RS3017' || ch === 'Ручка-скоба';
 
   return (
     <div className="space-y-4">
@@ -90,22 +114,35 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
           <div className="space-y-1.5">
             <label className={LBL}>Рельсы</label>
             <ToggleGroup
-              value={s.rails === 5 ? '5ти рельсовая' : '3х рельсовая'}
+              value={rails === 5 ? '5ти рельсовая' : '3х рельсовая'}
               options={['3х рельсовая', '5ти рельсовая']}
               onChange={v => {
                 const newRails = v.startsWith('3') ? 3 : 5;
-                const maxPanels = newRails;
-                update({ rails: newRails, panels: Math.min(s.panels ?? 3, maxPanels) });
+                const curRows = s.slideRows ?? 1;
+                const defaultPanels = curRows === 2 ? 4 : Math.min(s.panels ?? 3, newRails);
+                update({ rails: newRails, panels: defaultPanels });
+              }}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className={LBL}>Система</label>
+            <ToggleGroup
+              value={is2row ? '2 ряда' : '1 ряд'}
+              options={['1 ряд', '2 ряда']}
+              onChange={v => {
+                const newRows = v === '2 ряда' ? 2 : 1;
+                const defaultPanels = newRows === 2 ? 4 : Math.min(s.panels ?? 3, rails);
+                update({ slideRows: newRows, panels: defaultPanels });
               }}
             />
           </div>
           <div className="space-y-1.5">
             <label className={LBL}>Кол-во панелей</label>
             <ToggleGroup value={String(s.panels)}
-              options={s.rails === 5 ? ['2', '3', '4', '5'] : ['2', '3']}
+              options={panelOptions}
               onChange={v => update({ panels: parseInt(v) })} />
           </div>
-          {((s.rails !== 5 && (s.panels ?? 3) < 3) || (s.rails === 5 && (s.panels ?? 3) < 5)) && (
+          {showUnused && (
             <div className="space-y-1.5">
               <label className={LBL}>Неиспользуемый рельс</label>
               <ToggleGroup value={s.unusedTrack ?? 'Внутренний'} options={['Внутренний', 'Внешний']}
@@ -122,7 +159,6 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
           <div className="space-y-1.5">
             <label className={LBL}>Порог</label>
             <select value={s.threshold || 'Стандартный анод'} onChange={e => update({ threshold: e.target.value })} className={SEL}>
-              {/* No empty/disabled option — threshold is required */}
               <option>Стандартный анод</option>
               <option>Стандартный окраш</option>
               <option>Накладной анод</option>
@@ -140,6 +176,9 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
           </div>
         </div>
       </div>
+
+      {/* ── БОКОВЫЕ ПРОФИЛИ И ФУРНИТУРА ── */}
+      {is2row && <SectionDivider label="Боковые профили и фурнитура" />}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {/* Профили слева */}
@@ -244,6 +283,80 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
             </div>
           ) : <div />}
         </div>
+      )}
+
+      {/* ── ЦЕНТРАЛЬНЫЕ ПРОФИЛИ И ФУРНИТУРА (только 2 ряда) ── */}
+      {is2row && (
+        <>
+          <SectionDivider label="Центральные профили и фурнитура" />
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className={LBL}>Ручки на центральных панелях</label>
+              <RadioList value={s.centerHandle} noneLabel="Без ручки (глухие)"
+                options={[
+                  'Ручка-скоба',
+                  'Ручка-кноб RS3014',
+                  'Стеклянная ручка RS3017',
+                  'Ручки-профиль RS112 (2шт)',
+                  'Без ручки (подвижные)',
+                ]}
+                onChange={v => {
+                  const upd: Partial<Section> = { centerHandle: v };
+                  if (v === 'Ручки-профиль RS112 (2шт)') {
+                    upd.centerLock = 'Накидная защёлка RS206';
+                  } else if (!v || v === 'Без ручки (глухие)') {
+                    upd.centerLock = undefined;
+                    upd.centerFloorLatchesLeft = false;
+                    upd.centerFloorLatchesRight = false;
+                    upd.centerHandleOffset = undefined;
+                  }
+                  update(upd);
+                }} />
+            </div>
+
+            {showCenterOffset && (
+              <div className="space-y-2">
+                <label className={LBL}>Отступ C (центральные), мм</label>
+                <input
+                  type="number"
+                  value={s.centerHandleOffset ?? ''}
+                  onChange={e => update({ centerHandleOffset: parseFloat(e.target.value) || undefined })}
+                  className={INP}
+                  placeholder={ch === 'Ручка-скоба' ? '100' : '0'}
+                />
+              </div>
+            )}
+
+            {showCenterLock && (
+              <div className="space-y-1.5">
+                <label className={LBL}>Замок центральных</label>
+                <RadioList value={s.centerLock} noneLabel="Без замка"
+                  options={['Замок стекло-стекло', 'Накидная защёлка RS206']}
+                  onChange={v => update({ centerLock: v })} />
+              </div>
+            )}
+
+            {centerIsRS112 && (
+              <div className="space-y-1.5">
+                <label className={LBL}>Замок центральных</label>
+                <div className="px-4 py-2 bg-black/10 border border-tint/20 rounded-xl space-y-1">
+                  <span className="text-xs text-fg/40 font-bold">Без замка</span>
+                  <div className="text-xs text-fg/50">Накидная защёлка RS206 на 2 створки</div>
+                </div>
+              </div>
+            )}
+
+            {showCenterFloorLatches && (
+              <div className="space-y-2">
+                <label className={LBL}>Защёлки в пол (центральные)</label>
+                <div className="flex gap-6">
+                  <Checkbox checked={s.centerFloorLatchesLeft} onChange={() => update({ centerFloorLatchesLeft: !s.centerFloorLatchesLeft })} label="Слева" />
+                  <Checkbox checked={s.centerFloorLatchesRight} onChange={() => update({ centerFloorLatchesRight: !s.centerFloorLatchesRight })} label="Справа" />
+                </div>
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

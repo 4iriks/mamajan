@@ -44,6 +44,13 @@ export interface Section {
   profileRightBubble: boolean;
   lockLeft?: string;
   lockRight?: string;
+  // СЛАЙД 2 ряда
+  slideRows?: number;
+  centerHandle?: string;
+  centerLock?: string;
+  centerHandleOffset?: number;
+  centerFloorLatchesLeft?: boolean;
+  centerFloorLatchesRight?: boolean;
   bookSubtype?: string;
   handleLeft?: string;
   handleRight?: string;

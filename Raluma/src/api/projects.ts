@@ -69,6 +69,12 @@ export interface SectionOut {
   profile_right_bubble?: boolean;
   lock_left?: string;
   lock_right?: string;
+  slide_rows?: number;
+  center_handle?: string;
+  center_lock?: string;
+  center_handle_offset?: number;
+  center_floor_latches_left?: boolean;
+  center_floor_latches_right?: boolean;
   book_subtype?: string;
   handle_left?: string;
   handle_right?: string;

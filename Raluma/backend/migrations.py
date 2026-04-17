@@ -53,6 +53,13 @@ _ADD_COLUMNS = [
     "ALTER TABLE sections ADD COLUMN handle_offset_left INTEGER",
     "ALTER TABLE sections ADD COLUMN handle_offset_right INTEGER",
     "ALTER TABLE sections ADD COLUMN document_overrides TEXT DEFAULT '{}'",
+    # СЛАЙД 2 ряда
+    "ALTER TABLE sections ADD COLUMN slide_rows INTEGER DEFAULT 1",
+    "ALTER TABLE sections ADD COLUMN center_handle VARCHAR",
+    "ALTER TABLE sections ADD COLUMN center_lock VARCHAR",
+    "ALTER TABLE sections ADD COLUMN center_handle_offset INTEGER",
+    "ALTER TABLE sections ADD COLUMN center_floor_latches_left BOOLEAN DEFAULT 0",
+    "ALTER TABLE sections ADD COLUMN center_floor_latches_right BOOLEAN DEFAULT 0",
 ]
 
 
