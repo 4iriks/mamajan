@@ -8,6 +8,7 @@ PATCH /api/projects/{pid}/sections/{sid}/overrides → сохранить пра
 import io
 import json
 
+from types import SimpleNamespace
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -17,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 import models
+import schemas
 from auth import get_current_user, decode_token
 from engine.slide_calc import calculate_slide
 from engine.pdf import render_preview, render_pdf_html, generate_pdf
@@ -56,6 +58,68 @@ def _get_user_by_token(token: Optional[str], db: Session) -> models.User:
     return user
 
 
+class LocalDocumentPayload(BaseModel):
+    project: dict
+    section: dict
+
+
+def _build_local_document_objects(payload: LocalDocumentPayload):
+    project_data = payload.project or {}
+    section_data = payload.section or {}
+
+    section_payload = {
+        **section_data,
+        "name": section_data.get("name") or "Секция 1",
+    }
+    section_values = schemas.SectionCreate(**section_payload).model_dump()
+    section_values["id"] = section_data.get("id") or 0
+    section_values["project_id"] = section_data.get("project_id") or 0
+    section_values["document_overrides"] = (
+        section_values.get("document_overrides") or "{}"
+    )
+
+    project = SimpleNamespace(
+        id=project_data.get("id") or 0,
+        number=project_data.get("number") or "Локальный проект",
+        customer=project_data.get("customer") or "",
+    )
+    section = SimpleNamespace(**section_values)
+    return project, section
+
+
+@router.post("/local/sections/preview", response_class=HTMLResponse)
+def preview_local_section(payload: LocalDocumentPayload):
+    project, section = _build_local_document_objects(payload)
+    if section.system != "СЛАЙД":
+        return HTMLResponse(
+            "<p style='padding:20px;font-family:sans-serif'>Производственный лист доступен только для системы СЛАЙД</p>"
+        )
+    calc = calculate_slide(section)
+    html = render_preview(project, section, calc)
+    return HTMLResponse(html)
+
+
+@router.post("/local/sections/pdf")
+def download_local_pdf(payload: LocalDocumentPayload):
+    project, section = _build_local_document_objects(payload)
+    if section.system != "СЛАЙД":
+        raise HTTPException(
+            status_code=400, detail="PDF доступен только для системы СЛАЙД"
+        )
+    calc = calculate_slide(section)
+    html = render_pdf_html(project, section, calc)
+    pdf_bytes = generate_pdf(html)
+    filename = f"ПЛ_{project.number}_{section.name}.pdf"
+    from urllib.parse import quote
+
+    encoded = quote(filename)
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"},
+    )
+
+
 @router.get("/{project_id}/sections/{section_id}/preview", response_class=HTMLResponse)
 def preview_section(
     project_id: int,
@@ -91,13 +155,12 @@ def download_pdf(
     pdf_bytes = generate_pdf(html)
     filename = f"ПЛ_{project.number}_сек{section.order}.pdf"
     from urllib.parse import quote
+
     encoded = quote(filename)
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
-        headers={
-            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"
-        },
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"},
     )
 
 

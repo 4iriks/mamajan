@@ -239,7 +239,9 @@ def calculate_slide(section) -> SlideCalcResult:
         right_W = middle_W + b + krrr + krrp
 
         if round(left_W, 1) == round(right_W, 1):
-            result.glass.append(GlassItem("Крайние", round(left_W, 1), round(glass_H, 1), 2 * Q))
+            result.glass.append(
+                GlassItem("Крайние", round(left_W, 1), round(glass_H, 1), 2 * Q)
+            )
             result.glass.append(
                 GlassItem(
                     "Промежуточные",
@@ -249,7 +251,9 @@ def calculate_slide(section) -> SlideCalcResult:
                 )
             )
         else:
-            result.glass.append(GlassItem("Левое", round(left_W, 1), round(glass_H, 1), Q))
+            result.glass.append(
+                GlassItem("Левое", round(left_W, 1), round(glass_H, 1), Q)
+            )
             result.glass.append(
                 GlassItem(
                     "Промежуточные",
@@ -688,31 +692,51 @@ def calculate_slide(section) -> SlideCalcResult:
     # 4,8×19 A2
     screw4819 = (rs105_qty + rs106_qty) * 2
     result.screws.append(
-        ScrewItem("Саморез 4,8×19 A2 (DIN7982)", "4,8×19 A2", screw4819, "DIN7982.png",
-                  note="Прикрутить заглушки RS105, RS106")
+        ScrewItem(
+            "Саморез 4,8×19 A2 (DIN7982)",
+            "4,8×19 A2",
+            screw4819,
+            "DIN7982.png",
+            note="Прикрутить заглушки RS105, RS106",
+        )
     )
 
     # 3,9×13 A2 (DIN7504M) — для роликов + профиля-замка RS2081
     screw3913m = ru005_qty * 2 + lb_count * 7 * Q
     result.screws.append(
-        ScrewItem("Саморез 3,9×13 A2 (DIN7504M)", "3,9×13 A2 DIN7504M", screw3913m, "DIN7504M.png",
-                  note="Прикрутить ролики, RS2081 к RS2323/2335")
+        ScrewItem(
+            "Саморез 3,9×13 A2 (DIN7504M)",
+            "3,9×13 A2 DIN7504M",
+            screw3913m,
+            "DIN7504M.png",
+            note="Прикрутить ролики, RS2081 к RS2323/2335",
+        )
     )
 
     # 4,8×38 A2
     screw4838_map = {(3, True): 8, (5, True): 12, (3, False): 4, (5, False): 6}
     screw4838 = screw4838_map.get((rails, std), 8)
     result.screws.append(
-        ScrewItem("Саморез 4,8×38 A2 (DIN7982)", "4,8×38 A2", screw4838, "DIN7982.png",
-                  note="Прикрутить RS1333/1335 к RS1313/1315 и порогу")
+        ScrewItem(
+            "Саморез 4,8×38 A2 (DIN7982)",
+            "4,8×38 A2",
+            screw4838,
+            "DIN7982.png",
+            note="Прикрутить RS1333/1335 к RS1313/1315 и порогу",
+        )
     )
 
     # 3,9×13 A2 (DIN7504О) — для П-профиля RS1082
     screw3913o = pb_count * Q * 7
     if screw3913o > 0:
         result.screws.append(
-            ScrewItem("Саморез 3,9×13 A2 (DIN7504О)", "3,9×13 A2 DIN7504O", screw3913o, "DIN7504O.png",
-                      note="Прикрутить швеллер RM701 к RS1333/1335")
+            ScrewItem(
+                "Саморез 3,9×13 A2 (DIN7504О)",
+                "3,9×13 A2 DIN7504O",
+                screw3913o,
+                "DIN7504O.png",
+                note="Прикрутить швеллер RM701 к RS1333/1335",
+            )
         )
 
     # 5,4×25 A2 — глухие панели
@@ -720,15 +744,22 @@ def calculate_slide(section) -> SlideCalcResult:
     screw5425 = deaf_count * Q
     if screw5425 > 0:
         result.screws.append(
-            ScrewItem("Саморез 5,4×25 A2 (DIN912SW)", "5,4×25 A2", screw5425, "DIN912SW.png")
+            ScrewItem(
+                "Саморез 5,4×25 A2 (DIN912SW)", "5,4×25 A2", screw5425, "DIN912SW.png"
+            )
         )
 
     # 3,5×13 A2 — ответная планка
     screw3513 = rs122_qty * 2
     if screw3513 > 0:
         result.screws.append(
-            ScrewItem("Саморез 3,5×13 A2 (DIN7982)", "3,5×13 A2", screw3513, "DIN7982.png",
-                      note="Прикрутить ответные планки RS122")
+            ScrewItem(
+                "Саморез 3,5×13 A2 (DIN7982)",
+                "3,5×13 A2",
+                screw3513,
+                "DIN7982.png",
+                note="Прикрутить ответные планки RS122",
+            )
         )
 
     # Наклейка и инструкция

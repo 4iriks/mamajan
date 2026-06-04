@@ -1,4 +1,21 @@
 import client from './client';
+import {
+  clearLocalDocumentOverrides,
+  clearLocalProjects,
+  copyLocalProject,
+  createLocalProject,
+  createLocalSection,
+  deleteLocalProject,
+  deleteLocalSection,
+  getLocalDocumentPayload,
+  getLocalProject,
+  getLocalProjects,
+  getLocalProjectsSignature,
+  getLocalProjectsSnapshot,
+  saveLocalDocumentOverrides,
+  updateLocalProject,
+  updateLocalSection,
+} from './localProjects';
 
 export interface ProjectList {
   id: number;
@@ -94,18 +111,34 @@ export interface SectionOut {
   document_overrides?: string;
 }
 
+const hasAuthToken = () => Boolean(localStorage.getItem('access_token'));
+
 // Documents
 export const getPreviewUrl = (projectId: number, sectionId: number) =>
   `/api/projects/${projectId}/sections/${sectionId}/preview`;
 
 export const saveDocumentOverrides = (projectId: number, sectionId: number, overrides: Record<string, unknown>) =>
-  client.patch(`/api/projects/${projectId}/sections/${sectionId}/overrides`, { overrides });
+  hasAuthToken()
+    ? client.patch(`/api/projects/${projectId}/sections/${sectionId}/overrides`, { overrides })
+    : Promise.resolve(saveLocalDocumentOverrides(projectId, sectionId, overrides));
 
 export const clearDocumentOverrides = (projectId: number, sectionId: number) =>
-  client.delete(`/api/projects/${projectId}/sections/${sectionId}/overrides`);
+  hasAuthToken()
+    ? client.delete(`/api/projects/${projectId}/sections/${sectionId}/overrides`)
+    : Promise.resolve(clearLocalDocumentOverrides(projectId, sectionId));
+
+export const getLocalPreviewHtml = async (projectId: number, sectionId: number) => {
+  const payload = getLocalDocumentPayload(projectId, sectionId);
+  const resp = await client.post<string>('/api/projects/local/sections/preview', payload, {
+    responseType: 'text',
+  });
+  return resp.data;
+};
 
 export const downloadPdf = async (projectId: number, sectionId: number, filename: string) => {
-  const resp = await client.get(`/api/projects/${projectId}/sections/${sectionId}/pdf`, { responseType: 'blob' });
+  const resp = hasAuthToken()
+    ? await client.get(`/api/projects/${projectId}/sections/${sectionId}/pdf`, { responseType: 'blob' })
+    : await client.post('/api/projects/local/sections/pdf', getLocalDocumentPayload(projectId, sectionId), { responseType: 'blob' });
   const url = URL.createObjectURL(resp.data);
   const a = document.createElement('a');
   a.href = url;
@@ -116,29 +149,91 @@ export const downloadPdf = async (projectId: number, sectionId: number, filename
 
 // Projects
 export const getProjects = () =>
-  client.get<ProjectList[]>('/api/projects').then(r => r.data);
+  hasAuthToken()
+    ? client.get<ProjectList[]>('/api/projects').then(r => r.data)
+    : Promise.resolve(getLocalProjects());
 
 export const getProject = (id: number) =>
-  client.get<ProjectFull>(`/api/projects/${id}`).then(r => r.data);
+  hasAuthToken()
+    ? client.get<ProjectFull>(`/api/projects/${id}`).then(r => r.data)
+    : Promise.resolve(getLocalProject(id));
 
 export const createProject = (data: { number: string; customer: string; production_stages?: number }) =>
-  client.post<ProjectFull>('/api/projects', data).then(r => r.data);
+  hasAuthToken()
+    ? client.post<ProjectFull>('/api/projects', data).then(r => r.data)
+    : Promise.resolve(createLocalProject(data));
 
 export const updateProject = (id: number, data: Partial<Omit<ProjectList, 'id' | 'created_at' | 'updated_at' | 'created_by'>>) =>
-  client.put<ProjectFull>(`/api/projects/${id}`, data).then(r => r.data);
+  hasAuthToken()
+    ? client.put<ProjectFull>(`/api/projects/${id}`, data).then(r => r.data)
+    : Promise.resolve(updateLocalProject(id, data));
 
 export const deleteProject = (id: number) =>
-  client.delete(`/api/projects/${id}`);
+  hasAuthToken()
+    ? client.delete(`/api/projects/${id}`)
+    : Promise.resolve(deleteLocalProject(id));
 
 export const copyProject = (id: number) =>
-  client.post<ProjectFull>(`/api/projects/${id}/copy`).then(r => r.data);
+  hasAuthToken()
+    ? client.post<ProjectFull>(`/api/projects/${id}/copy`).then(r => r.data)
+    : Promise.resolve(copyLocalProject(id));
 
 // Sections
 export const createSection = (projectId: number, data: Omit<SectionOut, 'id' | 'project_id'>) =>
-  client.post<SectionOut>(`/api/projects/${projectId}/sections`, data).then(r => r.data);
+  hasAuthToken()
+    ? client.post<SectionOut>(`/api/projects/${projectId}/sections`, data).then(r => r.data)
+    : Promise.resolve(createLocalSection(projectId, data));
 
 export const updateSection = (projectId: number, sectionId: number, data: Partial<SectionOut>) =>
-  client.put<SectionOut>(`/api/projects/${projectId}/sections/${sectionId}`, data).then(r => r.data);
+  hasAuthToken()
+    ? client.put<SectionOut>(`/api/projects/${projectId}/sections/${sectionId}`, data).then(r => r.data)
+    : Promise.resolve(updateLocalSection(projectId, sectionId, data));
 
 export const deleteSection = (projectId: number, sectionId: number) =>
-  client.delete(`/api/projects/${projectId}/sections/${sectionId}`);
+  hasAuthToken()
+    ? client.delete(`/api/projects/${projectId}/sections/${sectionId}`)
+    : Promise.resolve(deleteLocalSection(projectId, sectionId));
+
+export const hasLocalProjects = () => getLocalProjectsSnapshot().length > 0;
+
+export const getLocalImportSignature = () => getLocalProjectsSignature();
+
+export const importLocalProjectsToServer = async () => {
+  const localProjects = getLocalProjectsSnapshot();
+  let importedProjects = 0;
+  let importedSections = 0;
+
+  for (const project of localProjects) {
+    const created = await client.post<ProjectFull>('/api/projects', {
+      number: project.number,
+      customer: project.customer,
+      production_stages: project.production_stages,
+    }).then(r => r.data);
+
+    await client.put<ProjectFull>(`/api/projects/${created.id}`, {
+      extra_parts: project.extra_parts,
+      comments: project.comments,
+      production_stages: project.production_stages,
+      current_stage: project.current_stage,
+      status: project.status,
+      glass_status: project.glass_status,
+      glass_invoice: project.glass_invoice,
+      glass_ready_date: project.glass_ready_date,
+      paint_status: project.paint_status,
+      paint_ship_date: project.paint_ship_date,
+      paint_received_date: project.paint_received_date,
+      order_items: project.order_items,
+    });
+
+    for (const section of project.sections.sort((a, b) => a.order - b.order)) {
+      const { id: _id, project_id: _projectId, ...sectionData } = section;
+      await client.post<SectionOut>(`/api/projects/${created.id}/sections`, sectionData);
+      importedSections += 1;
+    }
+
+    importedProjects += 1;
+  }
+
+  clearLocalProjects();
+  return { importedProjects, importedSections };
+};

@@ -305,12 +305,16 @@ class TestWallProfile:
         assert not _find_profile(r, "RS2333")
 
     def test_one_wall(self):
-        r = calculate_slide(_make_section(profile_left_wall=True, profile_right_wall=False))
+        r = calculate_slide(
+            _make_section(profile_left_wall=True, profile_right_wall=False)
+        )
         profiles = _find_profile(r, "RS2333")
         assert profiles[0].qty == 1
 
     def test_no_walls(self):
-        r = calculate_slide(_make_section(profile_left_wall=False, profile_right_wall=False))
+        r = calculate_slide(
+            _make_section(profile_left_wall=False, profile_right_wall=False)
+        )
         assert not _find_profile(r, "RS2333")
         assert not _find_profile(r, "RS2335")
 
@@ -337,20 +341,24 @@ class TestInterGlass:
 
     def test_not_painted_rs1006(self):
         """RS1006 не красится даже при RAL."""
-        r = calculate_slide(_make_section(
-            inter_glass_profile="Прозрачный RS1006",
-            painting_type="RAL стандарт",
-            ral_color="9016",
-        ))
+        r = calculate_slide(
+            _make_section(
+                inter_glass_profile="Прозрачный RS1006",
+                painting_type="RAL стандарт",
+                ral_color="9016",
+            )
+        )
         p = _find_profile(r, "RS1006")[0]
         assert p.painted is False
 
     def test_painted_rs2061(self):
         """RS2061 красится при RAL."""
-        r = calculate_slide(_make_section(
-            painting_type="RAL стандарт",
-            ral_color="9016",
-        ))
+        r = calculate_slide(
+            _make_section(
+                painting_type="RAL стандарт",
+                ral_color="9016",
+            )
+        )
         p = _find_profile(r, "RS2061")[0]
         assert p.painted is True
 
@@ -380,7 +388,9 @@ class TestHardware:
 
     def test_ru007_formula(self):
         """RU007 = (inter_glass_len + 30) * (P-1) * Q, в метрах."""
-        s = _make_section(inter_glass_profile="Алюминиевый RS2061", panels=3, quantity=2)
+        s = _make_section(
+            inter_glass_profile="Алюминиевый RS2061", panels=3, quantity=2
+        )
         r = calculate_slide(s)
         brush = [h for h in r.hardware if h.field_key == "brush"][0]
         ru007 = [si for si in brush.sub_items if si.article == "RU007"][0]
@@ -416,11 +426,13 @@ class TestHardware:
 
     def test_rs1121_with_handle_bar(self):
         """RS1121 = hb_count * Q."""
-        r = calculate_slide(_make_section(
-            profile_left_handle_bar=True,
-            profile_right_handle_bar=True,
-            quantity=2,
-        ))
+        r = calculate_slide(
+            _make_section(
+                profile_left_handle_bar=True,
+                profile_right_handle_bar=True,
+                quantity=2,
+            )
+        )
         rs1121 = _find_hardware(r, "RS1121")
         assert len(rs1121) == 1
         assert rs1121[0].value == 2 * 2  # 4
@@ -445,11 +457,13 @@ class TestHardware:
 
     def test_rs122_rs3020(self):
         """RS122 = RS3020 = (lock3018 + lock3019) * Q."""
-        r = calculate_slide(_make_section(
-            lock_left="ЗАМОК-ЗАЩЁЛКА 1стор",
-            lock_right="ЗАМОК-ЗАЩЁЛКА 2стор с ключом",
-            quantity=2,
-        ))
+        r = calculate_slide(
+            _make_section(
+                lock_left="ЗАМОК-ЗАЩЁЛКА 1стор",
+                lock_right="ЗАМОК-ЗАЩЁЛКА 2стор с ключом",
+                quantity=2,
+            )
+        )
         rs122 = _find_hardware(r, "RS122")
         rs3020 = _find_hardware(r, "RS3020")
         assert rs122[0].value == 2 * 2  # (1+1)*2
@@ -534,40 +548,48 @@ class TestGlassProfilePlugs:
 
     def test_rs106_both_not_deaf(self):
         """Обе панели не глухие → RS106 = 2*Q."""
-        r = calculate_slide(_make_section(
-            handle_left="Стеклянная ручка RS3017",
-            handle_right="Ручка-кноб RS3014",
-        ))
+        r = calculate_slide(
+            _make_section(
+                handle_left="Стеклянная ручка RS3017",
+                handle_right="Ручка-кноб RS3014",
+            )
+        )
         rs106 = _find_hardware(r, "RS106")
         assert rs106[0].value == 2
 
     def test_rs106_one_deaf(self):
         """Одна глухая → RS106 = 1*Q."""
-        r = calculate_slide(_make_section(
-            handle_left="Стеклянная ручка RS3017",
-            handle_right="Без",
-            lock_right="Без",
-        ))
+        r = calculate_slide(
+            _make_section(
+                handle_left="Стеклянная ручка RS3017",
+                handle_right="Без",
+                lock_right="Без",
+            )
+        )
         rs106 = _find_hardware(r, "RS106")
         assert rs106[0].value == 1
 
     def test_rs106_both_deaf(self):
         """Обе глухие → RS106 = 0."""
-        r = calculate_slide(_make_section(
-            handle_left="Без",
-            handle_right="Без",
-            lock_left="Без",
-            lock_right="Без",
-        ))
+        r = calculate_slide(
+            _make_section(
+                handle_left="Без",
+                handle_right="Без",
+                lock_left="Без",
+                lock_right="Без",
+            )
+        )
         assert not _find_hardware(r, "RS106")
 
     def test_rs107_total(self):
         """RS107 = RS105 + RS106."""
-        r = calculate_slide(_make_section(
-            panels=3,
-            handle_left="Стеклянная ручка RS3017",
-            handle_right="Ручка-кноб RS3014",
-        ))
+        r = calculate_slide(
+            _make_section(
+                panels=3,
+                handle_left="Стеклянная ручка RS3017",
+                handle_right="Ручка-кноб RS3014",
+            )
+        )
         rs105 = _find_hardware(r, "RS105")[0].value  # (3-1)*2 = 4
         rs106 = _find_hardware(r, "RS106")[0].value  # 2
         rs107 = [h for h in r.hardware if h.article == "RS107"][0].value
@@ -582,11 +604,13 @@ class TestGlassProfilePlugs:
 class TestScrews:
     def test_screw_4819(self):
         """4,8×19 = (RS105 + RS106) * 2."""
-        r = calculate_slide(_make_section(
-            panels=3,
-            handle_left="Стеклянная ручка RS3017",
-            handle_right="Ручка-кноб RS3014",
-        ))
+        r = calculate_slide(
+            _make_section(
+                panels=3,
+                handle_left="Стеклянная ручка RS3017",
+                handle_right="Ручка-кноб RS3014",
+            )
+        )
         rs105_val = _find_hardware(r, "RS105")[0].value
         rs106_val = _find_hardware(r, "RS106")[0].value
         screw = _find_screw(r, "4,8×19")[0]
@@ -601,11 +625,13 @@ class TestScrews:
 
     def test_screw_3913m_with_lock_bar(self):
         """DIN7504M = RU005*2 + lb_count*7*Q. С профилем-замком RS2081."""
-        r = calculate_slide(_make_section(
-            panels=3,
-            profile_left_lock_bar=True,
-            profile_right_lock_bar=True,
-        ))
+        r = calculate_slide(
+            _make_section(
+                panels=3,
+                profile_left_lock_bar=True,
+                profile_right_lock_bar=True,
+            )
+        )
         ru005 = _find_hardware(r, "RU005")[0].value  # 6
         screw = _find_screw(r, "DIN7504M")[0]
         assert screw.qty == ru005 * 2 + 2 * 7 * 1  # 12 + 14 = 26
@@ -644,29 +670,35 @@ class TestScrews:
 
     def test_screw_5425_deaf_panels(self):
         """5,4×25 = deaf_count * Q."""
-        r = calculate_slide(_make_section(
-            handle_left="Без",
-            handle_right="Без",
-            lock_left="Без",
-            lock_right="Без",
-            quantity=2,
-        ))
+        r = calculate_slide(
+            _make_section(
+                handle_left="Без",
+                handle_right="Без",
+                lock_left="Без",
+                lock_right="Без",
+                quantity=2,
+            )
+        )
         screw = _find_screw(r, "5,4×25")[0]
         assert screw.qty == 2 * 2  # оба глухие × Q
 
     def test_screw_5425_no_deaf(self):
-        r = calculate_slide(_make_section(
-            handle_left="Стеклянная ручка RS3017",
-            handle_right="Ручка-кноб RS3014",
-        ))
+        r = calculate_slide(
+            _make_section(
+                handle_left="Стеклянная ручка RS3017",
+                handle_right="Ручка-кноб RS3014",
+            )
+        )
         assert not _find_screw(r, "5,4×25")
 
     def test_screw_3513_with_locks(self):
         """3,5×13 = RS122 * 2."""
-        r = calculate_slide(_make_section(
-            lock_left="ЗАМОК-ЗАЩЁЛКА 1стор",
-            lock_right="ЗАМОК-ЗАЩЁЛКА 2стор с ключом",
-        ))
+        r = calculate_slide(
+            _make_section(
+                lock_left="ЗАМОК-ЗАЩЁЛКА 1стор",
+                lock_right="ЗАМОК-ЗАЩЁЛКА 2стор с ключом",
+            )
+        )
         rs122_val = _find_hardware(r, "RS122")[0].value
         screw = _find_screw(r, "3,5×13")[0]
         assert screw.qty == rs122_val * 2
@@ -700,30 +732,36 @@ class TestGlassProfile:
 
     def test_rs2021_bubble_subtracts_3(self):
         """Пузырьковый на подвижной → RS2021 -3."""
-        r = calculate_slide(_make_section(
-            profile_left_bubble=True,
-            handle_left="Стеклянная ручка RS3017",
-        ))
+        r = calculate_slide(
+            _make_section(
+                profile_left_bubble=True,
+                handle_left="Стеклянная ручка RS3017",
+            )
+        )
         edge = _find_glass(r, "Крайние")[0]
         assert edge.glass_profile_length == round(edge.width_mm - 3, 1)
 
     def test_rs2021_bubble_deaf_no_subtract(self):
         """Пузырьковый на глухой → RS2021 НЕ вычитает 3."""
-        r = calculate_slide(_make_section(
-            profile_left_bubble=True,
-            handle_left="Без",
-            lock_left="Без",
-        ))
+        r = calculate_slide(
+            _make_section(
+                profile_left_bubble=True,
+                handle_left="Без",
+                lock_left="Без",
+            )
+        )
         edge = _find_glass(r, "Крайние")[0]
         assert edge.glass_profile_length == edge.width_mm
 
     def test_rs2021_handle_bar_and_bubble(self):
         """Ручка-профиль + пузырьковый (подвижная) → +16 -3 = +13."""
-        r = calculate_slide(_make_section(
-            profile_left_handle_bar=True,
-            profile_left_bubble=True,
-            handle_left="Стеклянная ручка RS3017",
-        ))
+        r = calculate_slide(
+            _make_section(
+                profile_left_handle_bar=True,
+                profile_left_bubble=True,
+                handle_left="Стеклянная ручка RS3017",
+            )
+        )
         left_glass = _find_glass(r, "Левое")[0]
         assert left_glass.glass_profile_length == round(left_glass.width_mm + 16 - 3, 1)
 
@@ -776,7 +814,9 @@ class TestQuantity:
 
 class TestPainting:
     def test_ral_profiles_painted(self):
-        r = calculate_slide(_make_section(painting_type="RAL стандарт", ral_color="9016"))
+        r = calculate_slide(
+            _make_section(painting_type="RAL стандарт", ral_color="9016")
+        )
         threshold = _find_profile(r, "RS2323")[0]
         assert threshold.painted is True
 
@@ -786,15 +826,19 @@ class TestPainting:
         assert threshold.painted is False
 
     def test_color_text_ral(self):
-        r = calculate_slide(_make_section(painting_type="RAL стандарт", ral_color="9016"))
+        r = calculate_slide(
+            _make_section(painting_type="RAL стандарт", ral_color="9016")
+        )
         assert "RAL" in r.color_text
         assert "9016" in r.color_text
 
     def test_color_text_anod(self):
-        r = calculate_slide(_make_section(
-            threshold="Стандартный анод",
-            painting_type="",
-        ))
+        r = calculate_slide(
+            _make_section(
+                threshold="Стандартный анод",
+                painting_type="",
+            )
+        )
         assert "Анодированный" in r.color_text
 
 
@@ -826,7 +870,9 @@ class TestChecklist:
 
     def test_milling_for_locks(self):
         r = calculate_slide(_make_section(lock_left="ЗАМОК-ЗАЩЁЛКА 1стор"))
-        assert any("фрезеровк" in c.lower() and "защелк" in c.lower() for c in r.checklist)
+        assert any(
+            "фрезеровк" in c.lower() and "защелк" in c.lower() for c in r.checklist
+        )
 
     def test_milling_rs2081_slots(self):
         r = calculate_slide(_make_section(profile_left_lock_bar=True))
@@ -838,7 +884,9 @@ class TestChecklist:
 
     def test_felt_for_rs1006_full_name(self):
         """Прозрачный с фетром RS1006 (полное название с фронта) → чеклист фетр."""
-        r = calculate_slide(_make_section(inter_glass_profile="Прозрачный с фетром RS1006"))
+        r = calculate_slide(
+            _make_section(inter_glass_profile="Прозрачный с фетром RS1006")
+        )
         assert any("фетровое" in c and "RS1006" in c for c in r.checklist)
 
 
@@ -898,14 +946,18 @@ class TestRS1006FullName:
     """Фронт отправляет 'Прозрачный с фетром RS1006' — проверяем маппинг."""
 
     def test_inter_glass_profile_created(self):
-        r = calculate_slide(_make_section(inter_glass_profile="Прозрачный с фетром RS1006"))
+        r = calculate_slide(
+            _make_section(inter_glass_profile="Прозрачный с фетром RS1006")
+        )
         rs1006 = _find_profile(r, "RS1006")
         assert len(rs1006) == 1
         assert rs1006[0].qty == 2  # (P-1)*Q = 2*1
 
     def test_ru007_calculated(self):
         """Щётка 7×12 должна считаться для RS1006."""
-        r = calculate_slide(_make_section(inter_glass_profile="Прозрачный с фетром RS1006"))
+        r = calculate_slide(
+            _make_section(inter_glass_profile="Прозрачный с фетром RS1006")
+        )
         brush = _find_hardware(r, "")[0]  # первый элемент — щётка
         ru007 = [s for s in brush.sub_items if s.article == "RU007"]
         assert len(ru007) == 1
@@ -913,9 +965,11 @@ class TestRS1006FullName:
 
     def test_rs107l_plug_created(self):
         """Заглушка RS107L для RS1006."""
-        r = calculate_slide(_make_section(
-            inter_glass_profile="Прозрачный с фетром RS1006",
-            first_panel_inside="Справа",
-        ))
+        r = calculate_slide(
+            _make_section(
+                inter_glass_profile="Прозрачный с фетром RS1006",
+                first_panel_inside="Справа",
+            )
+        )
         rs107l = _find_hardware(r, "RS107L")
         assert len(rs107l) == 1

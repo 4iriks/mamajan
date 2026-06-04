@@ -80,6 +80,42 @@ class TestPreview:
         assert "только для системы СЛАЙД" in r.text
 
 
+class TestLocalPreview:
+    def test_local_preview_returns_html_without_auth(self, client):
+        r = client.post(
+            "/api/projects/local/sections/preview",
+            json={
+                "project": {"number": "LOCAL-001", "customer": "Гость"},
+                "section": {
+                    "name": "Секция 1",
+                    "system": "СЛАЙД",
+                    "width": 2000,
+                    "height": 2400,
+                    "panels": 3,
+                    "quantity": 1,
+                    "rails": 3,
+                    "threshold": "Стандартный анод",
+                    "first_panel_inside": "Справа",
+                },
+            },
+        )
+        assert r.status_code == 200
+        assert "text/html" in r.headers["content-type"]
+        assert "LOCAL-001" in r.text
+        assert "contenteditable" in r.text
+
+    def test_local_preview_non_slide(self, client):
+        r = client.post(
+            "/api/projects/local/sections/preview",
+            json={
+                "project": {"number": "LOCAL-002"},
+                "section": {"name": "Комплект", "system": "КОМПЛЕКТАЦИЯ"},
+            },
+        )
+        assert r.status_code == 200
+        assert "только для системы СЛАЙД" in r.text
+
+
 class TestOverrides:
     def test_save_overrides(self, client, admin_headers, project):
         section = _create_slide_section(client, admin_headers, project["id"])
@@ -109,9 +145,7 @@ class TestOverrides:
         )
 
         # Читаем секцию, проверяем что оба поля на месте
-        s = client.get(
-            f"/api/projects/{pid}/sections", headers=admin_headers
-        ).json()
+        s = client.get(f"/api/projects/{pid}/sections", headers=admin_headers).json()
         sec = [x for x in s if x["id"] == sid][0]
         overrides = json.loads(sec.get("document_overrides", "{}"))
         assert overrides["field_a"] == "111"
@@ -133,9 +167,7 @@ class TestOverrides:
         )
         assert r.status_code == 200
 
-        s = client.get(
-            f"/api/projects/{pid}/sections", headers=admin_headers
-        ).json()
+        s = client.get(f"/api/projects/{pid}/sections", headers=admin_headers).json()
         sec = [x for x in s if x["id"] == sid][0]
         overrides = json.loads(sec.get("document_overrides", "{}"))
         assert overrides == {}

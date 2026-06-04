@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Save, RotateCcw, Download, Loader2 } from 'lucide-react';
-import { getPreviewUrl, saveDocumentOverrides, downloadPdf } from '../api/projects';
+import { getPreviewUrl, getLocalPreviewHtml, saveDocumentOverrides, downloadPdf } from '../api/projects';
 import { toast } from '../store/toastStore';
 
 interface Props {
@@ -21,9 +21,25 @@ export default function ProductionSheetModal({
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [iframeHeight, setIframeHeight] = useState(600);
+  const [previewSrcDoc, setPreviewSrcDoc] = useState('');
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
 
   const token = localStorage.getItem('access_token') ?? '';
-  const previewUrl = `${getPreviewUrl(projectId, sectionId)}?token=${encodeURIComponent(token)}`;
+  const isGuest = !token;
+  const previewUrl = isGuest ? undefined : `${getPreviewUrl(projectId, sectionId)}?token=${encodeURIComponent(token)}`;
+
+  const loadGuestPreview = useCallback(async () => {
+    if (!isGuest || !isOpen) return;
+    setIsPreviewLoading(true);
+    try {
+      setPreviewSrcDoc(await getLocalPreviewHtml(projectId, sectionId));
+    } catch {
+      setPreviewSrcDoc("<p style='padding:20px;font-family:sans-serif'>Не удалось открыть производственный лист</p>");
+      toast.error('Не удалось открыть производственный лист');
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  }, [isGuest, isOpen, projectId, sectionId]);
 
   // Слушаем сообщения из iframe (dirty state + height)
   useEffect(() => {
@@ -41,6 +57,10 @@ export default function ProductionSheetModal({
   useEffect(() => {
     if (!isOpen) setIsDirty(false);
   }, [isOpen, sectionId]);
+
+  useEffect(() => {
+    loadGuestPreview();
+  }, [loadGuestPreview]);
 
   const collectChanges = useCallback((): Record<string, unknown> => {
     const doc = iframeRef.current?.contentDocument;
@@ -95,7 +115,11 @@ export default function ProductionSheetModal({
   };
 
   const handleCancel = () => {
-    iframeRef.current?.contentWindow?.location.reload();
+    if (isGuest) {
+      loadGuestPreview();
+    } else {
+      iframeRef.current?.contentWindow?.location.reload();
+    }
     setIsDirty(false);
   };
 
@@ -150,14 +174,21 @@ export default function ProductionSheetModal({
 
             {/* iframe */}
             <div className="overflow-y-auto bg-gray-100" style={{ maxHeight: 'calc(90vh - 130px)' }}>
-              <iframe
-                ref={iframeRef}
-                src={previewUrl}
-                className="w-full border-0 block"
-                style={{ height: iframeHeight }}
-                title="Производственный лист"
-                scrolling="no"
-              />
+              {isPreviewLoading ? (
+                <div className="h-[600px] flex items-center justify-center bg-gray-100">
+                  <Loader2 className="w-8 h-8 text-gray-500 animate-spin" />
+                </div>
+              ) : (
+                <iframe
+                  ref={iframeRef}
+                  src={previewUrl}
+                  srcDoc={isGuest ? previewSrcDoc : undefined}
+                  className="w-full border-0 block"
+                  style={{ height: iframeHeight }}
+                  title="Производственный лист"
+                  scrolling="no"
+                />
+              )}
             </div>
 
             {/* Footer */}

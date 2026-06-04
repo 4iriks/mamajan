@@ -20,7 +20,8 @@ client.interceptors.request.use((config) => {
 client.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const hadToken = Boolean(localStorage.getItem('access_token'));
+    if (error.response?.status === 401 && hadToken) {
       localStorage.removeItem('access_token');
       window.location.href = '/login';
     }

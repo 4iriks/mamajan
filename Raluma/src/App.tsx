@@ -21,9 +21,9 @@ function EditorPage() {
   return <ProjectEditor projectId={Number(id)} onBack={() => navigate('/')} />;
 }
 
-// ── Protected Route ───────────────────────────────────────────────────────────
+// ── Admin Route ───────────────────────────────────────────────────────────────
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function AdminRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore();
   if (!token) return <Navigate to="/login" replace />;
   return <>{children}</>;
@@ -45,9 +45,9 @@ export default function App() {
       <ToastContainer />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/" element={<ProtectedRoute><ProjectsPage /></ProtectedRoute>} />
-        <Route path="/projects/:id" element={<ProtectedRoute><EditorPage /></ProtectedRoute>} />
-        <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+        <Route path="/" element={<ProjectsPage />} />
+        <Route path="/projects/:id" element={<EditorPage />} />
+        <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

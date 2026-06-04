@@ -4,15 +4,17 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Save, Plus, Trash2, FileText,
   ClipboardList, Square as WindowIcon, Palette,
-  Loader2, X, ArrowRight, Map,
+  Loader2, X, ArrowRight, Map, LogIn,
 } from 'lucide-react';
 import { getProject, updateProject, createSection, updateSection, deleteSection } from '../api/projects';
 import ProductionSheetModal from './ProductionSheetModal';
 import { toast } from '../store/toastStore';
+import { useAuthStore } from '../store/authStore';
 
 import { Section, OrderItem, ProjectEditorProps, SystemType, LBL, INP, SEL } from './editor/types';
 import { apiToLocal, localToApi } from './editor/converters';
@@ -23,6 +25,8 @@ export type { SystemType };
 export type { Section };
 
 export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack }) => {
+  const navigate = useNavigate();
+  const { token } = useAuthStore();
   const [project, setProject] = useState<{ id: number; number: string; customer: string } | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
   const [loadingProject, setLoadingProject] = useState(true);
@@ -297,6 +301,13 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
+          {!token && (
+            <button onClick={() => navigate('/login')}
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-primary hover:bg-primary-h text-white font-bold transition-all shadow-lg shadow-primary/15">
+              <LogIn className="w-4 h-4" />
+              <span className="hidden sm:inline text-sm">Войти</span>
+            </button>
+          )}
           <button
             className="sm:hidden p-2.5 rounded-xl bg-tint/15 border border-tint/30 text-accent hover:bg-tint/30 transition-colors"
             onClick={() => setMobileSidebarOpen(v => !v)}

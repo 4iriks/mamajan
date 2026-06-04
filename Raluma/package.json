@@ -10,7 +10,8 @@
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
-    "check": "tsc --noEmit && eslint src"
+    "check": "tsc --noEmit && eslint src",
+    "smoke:guest": "node scripts/smoke-guest-mode.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",

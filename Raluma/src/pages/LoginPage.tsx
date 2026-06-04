@@ -9,13 +9,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { LogIn, User, Lock, ArrowRight, Sun, Moon } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
-import { login as apiLogin, getMe } from '../api/auth';
+import { login as apiLogin, register as apiRegister, getMe } from '../api/auth';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { setAuth, token } = useAuthStore();
   const { theme, toggle: toggleTheme } = useThemeStore();
+  const [mode, setMode] = useState<'login' | 'register'>('login');
   const [loginVal, setLoginVal] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -24,19 +26,26 @@ export default function LoginPage() {
     if (token) navigate('/', { replace: true });
   }, []);
 
+  const getErrorMessage = (err: unknown) => {
+    const apiError = err as { response?: { data?: { detail?: string } } };
+    return apiError.response?.data?.detail || (mode === 'register' ? 'Ошибка регистрации' : 'Неверный логин или пароль');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
     try {
-      const token = await apiLogin(loginVal, password);
+      const token = mode === 'register'
+        ? await apiRegister(loginVal, password, displayName)
+        : await apiLogin(loginVal, password);
       localStorage.setItem('access_token', token);
       const user = await getMe();
       setAuth(token, user);
       navigate('/', { replace: true });
-    } catch (err: any) {
+    } catch (err: unknown) {
       localStorage.removeItem('access_token');
-      setError(err.response?.data?.detail || 'Неверный логин или пароль');
+      setError(getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -55,7 +64,25 @@ export default function LoginPage() {
               <LogIn className="w-8 h-8 text-accent" />
             </motion.div>
             <h1 className="text-3xl font-semibold tracking-tight mb-2">Ралюма</h1>
-            <p className="text-accent/60 text-sm">Введите данные для входа в систему</p>
+            <p className="text-accent/60 text-sm">
+              {mode === 'register' ? 'Создайте аккаунт для сохранения проектов' : 'Войдите, чтобы открыть свои проекты'}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 mb-6 rounded-2xl bg-hi/[0.04] border border-tint/20 p-1">
+            {(['login', 'register'] as const).map(item => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => { setMode(item); setError(''); }}
+                className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+                  mode === item
+                    ? 'bg-accent/15 text-accent border border-accent/30'
+                    : 'text-fg/35 hover:text-fg/60 border border-transparent'
+                }`}
+              >
+                {item === 'login' ? 'Вход' : 'Регистрация'}
+              </button>
+            ))}
           </div>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
@@ -69,6 +96,19 @@ export default function LoginPage() {
                   placeholder="Ваш логин" />
               </div>
             </div>
+            {mode === 'register' && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40 ml-1">Имя</label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <User className="h-5 w-5 text-accent/30 group-focus-within:text-accent transition-colors" />
+                  </div>
+                  <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)}
+                    className="block w-full pl-11 pr-4 py-4 bg-hi/8 border border-tint/20 rounded-2xl focus:ring-2 focus:ring-accent/20 focus:border-accent/50 transition-all outline-none placeholder:text-accent/10 text-sm"
+                    placeholder="Как вас показывать в системе" />
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40 ml-1">Пароль</label>
               <div className="relative group">
@@ -95,12 +135,19 @@ export default function LoginPage() {
                   </motion.div>
                 ) : (
                   <motion.div key="text" className="flex items-center justify-center gap-2">
-                    Войти <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    {mode === 'register' ? 'Зарегистрироваться' : 'Войти'} <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </motion.div>
                 )}
               </AnimatePresence>
             </button>
           </form>
+          <button
+            type="button"
+            onClick={() => navigate('/', { replace: true })}
+            className="w-full mt-5 text-xs font-bold uppercase tracking-wider text-fg/30 hover:text-accent transition-colors"
+          >
+            Продолжить без входа
+          </button>
         </div>
       </motion.div>
       <button onClick={toggleTheme}

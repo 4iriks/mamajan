@@ -9,11 +9,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   User, ArrowRight, Search, Plus,
   Edit2, Copy, Trash2,
-  LogOut, X, LayoutGrid, List, Shield, Check, Sun, Moon
+  LogOut, LogIn, X, LayoutGrid, List, Shield, Check, Sun, Moon
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
-import { getProjects, createProject, updateProject, deleteProject, copyProject, ProjectList } from '../api/projects';
+import {
+  getProjects, createProject, updateProject, deleteProject, copyProject,
+  hasLocalProjects, getLocalImportSignature, importLocalProjectsToServer,
+  ProjectList
+} from '../api/projects';
 import { toast } from '../store/toastStore';
 
 // ── Status helpers ────────────────────────────────────────────────────────────
@@ -69,7 +73,7 @@ function SkeletonRow() {
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
-  const { user, clearAuth, isAdmin } = useAuthStore();
+  const { user, token, clearAuth, isAdmin } = useAuthStore();
   const { theme, toggle: toggleTheme } = useThemeStore();
 
   const [projects, setProjects] = useState<ProjectList[]>([]);
@@ -85,6 +89,9 @@ export default function ProjectsPage() {
   const [newStages, setNewStages] = useState<1 | 2>(1);
   const [showCustomerDrop, setShowCustomerDrop] = useState(false);
   const [viewTab, setViewTab] = useState<'current' | 'archive'>('current');
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [localImportSignature, setLocalImportSignature] = useState('');
 
   const formatProjectNumber = (raw: string) => {
     const clean = raw.replace(/[^a-zA-ZА-Яа-яёЁ0-9]/gi, '').slice(0, 8);
@@ -99,6 +106,17 @@ export default function ProjectsPage() {
   const renameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { loadProjects(); }, []);
+
+  useEffect(() => {
+    if (!token || !user || !hasLocalProjects()) return;
+    const signature = getLocalImportSignature();
+    if (!signature) return;
+    const dismissed = localStorage.getItem(`raluma-local-import-dismissed:${user.id}`);
+    if (dismissed !== signature) {
+      setLocalImportSignature(signature);
+      setIsImportModalOpen(true);
+    }
+  }, [token, user]);
 
   const loadProjects = async () => {
     setLoading(true);
@@ -186,9 +204,33 @@ export default function ProjectsPage() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     clearAuth();
-    navigate('/login');
+    await loadProjects();
+    toast.info('Вы вышли. Открыт гостевой режим');
+  };
+
+  const handleImportLocalProjects = async () => {
+    setIsImporting(true);
+    try {
+      const result = await importLocalProjectsToServer();
+      setIsImportModalOpen(false);
+      setLocalImportSignature('');
+      await loadProjects();
+      toast.success(`Перенесено проектов: ${result.importedProjects}, секций: ${result.importedSections}`);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } };
+      toast.error(err.response?.data?.detail || 'Не удалось перенести локальные проекты');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleKeepLocalProjects = () => {
+    if (user && localImportSignature) {
+      localStorage.setItem(`raluma-local-import-dismissed:${user.id}`, localImportSignature);
+    }
+    setIsImportModalOpen(false);
   };
 
   return (
@@ -206,22 +248,29 @@ export default function ProjectsPage() {
           <span className="text-lg sm:text-xl font-bold tracking-tight uppercase">Ралюма</span>
         </div>
         <div className="flex items-center gap-2 sm:gap-6">
-          <div className="flex items-center gap-3 sm:pr-6 sm:border-r sm:border-tint/20">
-            <div className="text-right hidden sm:block">
-              <div className="text-sm font-medium">{user?.display_name}</div>
-              <div className="text-[10px] text-accent font-bold uppercase tracking-wider">{user?.role}</div>
+          {user ? (
+            <div className="flex items-center gap-3 sm:pr-6 sm:border-r sm:border-tint/20">
+              <div className="text-right hidden sm:block">
+                <div className="text-sm font-medium">{user.display_name}</div>
+                <div className="text-[10px] text-accent font-bold uppercase tracking-wider">{user.role}</div>
+              </div>
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-tint to-surface flex items-center justify-center border border-hi/10">
+                <User className="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
             </div>
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-tint to-surface flex items-center justify-center border border-hi/10">
-              <User className="w-4 h-4 sm:w-5 sm:h-5" />
+          ) : (
+            <div className="hidden sm:flex flex-col items-end sm:pr-4 sm:border-r sm:border-tint/20">
+              <span className="text-sm font-medium">Гостевой режим</span>
+              <span className="text-[10px] text-accent/60 font-bold uppercase tracking-wider">локальное сохранение</span>
             </div>
-          </div>
+          )}
           <div className="flex items-center gap-2">
             <button onClick={toggleTheme}
               className="p-2.5 rounded-xl bg-tint/10 hover:bg-tint/20 text-accent transition-all border border-tint/20"
               title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}>
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
-            {isAdmin() && (
+            {user && isAdmin() && (
               <button onClick={() => navigate('/admin')}
                 className="flex items-center gap-2 px-2.5 sm:px-4 py-2.5 rounded-xl bg-tint/10 hover:bg-tint/20 text-accent transition-all border border-tint/20"
               >
@@ -229,12 +278,21 @@ export default function ProjectsPage() {
                 <span className="hidden sm:inline text-sm font-bold">Администрирование</span>
               </button>
             )}
-            <button onClick={handleLogout}
-              className="flex items-center gap-2 px-2.5 sm:px-4 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-all border border-red-500/20"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline text-sm font-bold">Выйти</span>
-            </button>
+            {user ? (
+              <button onClick={handleLogout}
+                className="flex items-center gap-2 px-2.5 sm:px-4 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-all border border-red-500/20"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline text-sm font-bold">Выйти</span>
+              </button>
+            ) : (
+              <button onClick={() => navigate('/login')}
+                className="flex items-center gap-2 px-3 sm:px-5 py-2.5 rounded-xl bg-primary hover:bg-primary-h text-white transition-all border border-primary/20 font-bold shadow-lg shadow-primary/15"
+              >
+                <LogIn className="w-4 h-4" />
+                <span className="text-sm">Войти</span>
+              </button>
+            )}
           </div>
         </div>
       </nav>
@@ -472,6 +530,42 @@ export default function ProjectsPage() {
                     <div className="w-5 h-5 border-2 border-hi/30 border-t-white rounded-full animate-spin" />
                   ) : (
                     <>Создать <ArrowRight className="w-5 h-5" /></>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Import local projects modal */}
+      <AnimatePresence>
+        {isImportModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+            <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative w-full max-w-lg bg-modal border border-accent/25 rounded-[2rem] p-6 sm:p-8 shadow-2xl z-10"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center mb-5">
+                <Copy className="w-7 h-7 text-accent" />
+              </div>
+              <h2 className="text-2xl font-bold mb-3">Перенести локальные проекты?</h2>
+              <p className="text-fg/60 leading-relaxed mb-7">
+                В этом браузере есть проекты, созданные без входа. Их можно перенести в ваш аккаунт, чтобы они сохранились на сервере и были доступны после авторизации.
+              </p>
+              <div className="flex gap-3 flex-col sm:flex-row">
+                <button onClick={handleKeepLocalProjects} disabled={isImporting}
+                  className="flex-1 py-3.5 rounded-2xl bg-hi/5 hover:bg-hi/10 font-bold transition-all text-sm disabled:opacity-50">
+                  Оставить локально
+                </button>
+                <button onClick={handleImportLocalProjects} disabled={isImporting}
+                  className="flex-1 py-3.5 rounded-2xl bg-primary hover:bg-primary-h text-white font-bold transition-all text-sm disabled:opacity-60 flex items-center justify-center gap-2">
+                  {isImporting ? (
+                    <div className="w-4 h-4 border-2 border-hi/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    'Перенести'
                   )}
                 </button>
               </div>
