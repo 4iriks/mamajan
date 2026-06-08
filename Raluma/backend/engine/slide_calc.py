@@ -6,6 +6,8 @@
 
 from dataclasses import dataclass, field
 
+from engine.profile_catalog import apply_profile_catalog
+
 
 @dataclass
 class ProfileItem:
@@ -17,6 +19,11 @@ class ProfileItem:
     image: str | None = None
     field_key: str = ""
     note: str = ""
+    section_width_mm: float = 0
+    section_height_mm: float = 0
+    paint_mode: str = ""
+    color_variants: list[str] = field(default_factory=list)
+    paint_note: str = ""
 
 
 @dataclass
@@ -797,5 +804,8 @@ def calculate_slide(section) -> SlideCalcResult:
     result.checklist.append("Установить заглушки")
     result.checklist.append("Поклеить стекла")
     result.checklist.append("Приклеить наклейку РАЛЮМА (верх, право)")
+
+    for profile in result.profiles:
+        apply_profile_catalog(profile)
 
     return result

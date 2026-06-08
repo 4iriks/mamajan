@@ -841,6 +841,20 @@ class TestPainting:
         )
         assert "Анодированный" in r.color_text
 
+    def test_profile_catalog_metadata_is_attached(self):
+        r = calculate_slide(_make_section(painting_type="RAL стандарт"))
+        threshold = _find_profile(r, "RS2323")[0]
+        assert threshold.section_width_mm == 76
+        assert threshold.section_height_mm == 23
+        assert threshold.paint_mode == "Частично"
+        assert threshold.paint_note == "НЕ КРАСИТЬ!!!"
+        assert threshold.color_variants == ["Анод", "RAL стандарт", "RAL нестандарт"]
+
+    def test_catalog_overrides_profile_image(self):
+        r = calculate_slide(_make_section(rails=5))
+        threshold = _find_profile(r, "RS2325")[0]
+        assert threshold.image == "RS1325.jpg"
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # ЧЕКЛИСТ

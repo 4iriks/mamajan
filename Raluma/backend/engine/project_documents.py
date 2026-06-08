@@ -16,14 +16,6 @@ DOC_TITLES = {
     "glass": "Заказ стекла",
 }
 
-PAINT_NOTES = {
-    "RS1323": "НЕ КРАСИТЬ!!!",
-    "RS2323": "НЕ КРАСИТЬ!!!",
-    "RS1081": "КРАСИТЬ ВЕСЬ ПЕРИМЕТР",
-    "RS2081": "КРАСИТЬ ВЕСЬ ПЕРИМЕТР",
-}
-
-
 @dataclass
 class CalculatedSection:
     order: int
@@ -142,7 +134,7 @@ def _build_paint_pages(calculated: list[CalculatedSection]) -> list[dict]:
                 continue
             clean = round(float(profile.length_mm), 1)
             allowance = clean + 50
-            note = PAINT_NOTES.get(profile.article, "")
+            note = profile.paint_note
             key = (
                 profile.article,
                 profile.name,
