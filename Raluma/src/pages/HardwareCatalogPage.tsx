@@ -5,34 +5,17 @@ import {
   ArrowLeft, BadgePercent, Box, Check, Edit2, Package,
   ImageIcon, Plus, Ruler, Save, Scale, Search, SlidersHorizontal, Trash2, X,
 } from 'lucide-react';
+import {
+  listHardwareCatalog,
+  type CatalogUnit,
+  type HardwareCatalogItem,
+  type HardwareGroup,
+  type PaintMode,
+} from '../api/catalog';
 import { useAuthStore } from '../store/authStore';
 import { toast } from '../store/toastStore';
 
-type HardwareGroup = 'Профили' | 'Ручки' | 'Замки' | 'Защёлки' | 'Уплотнители' | 'Крепёж' | 'Расходники';
-type CatalogUnit = 'шт' | 'м.п.' | 'компл.' | 'кг';
-type PaintMode = 'Красится' | 'Не красится' | 'Частично';
-
-interface HardwareItem {
-  id: number;
-  sku: string;
-  name: string;
-  group: HardwareGroup;
-  system: string;
-  unit: CatalogUnit;
-  purchasePrice: number;
-  markupPercent: number;
-  weight: number;
-  wastePercent: number;
-  sectionWidthMm: number;
-  sectionHeightMm: number;
-  imageFile: string;
-  paintMode: PaintMode;
-  colorVariants: string[];
-  supplier: string;
-  isActive: boolean;
-  updatedAt: string;
-  note: string;
-}
+type HardwareItem = HardwareCatalogItem;
 
 const STORAGE_KEY = 'raluma-hardware-catalog-draft-v1';
 
@@ -401,14 +384,43 @@ function normalizeItem(item: Partial<HardwareItem>): HardwareItem {
   };
 }
 
-function readItems() {
+function mergeCatalogItems(seed: HardwareItem[], localItems: HardwareItem[]) {
+  const localBySku = new Map(
+    localItems
+      .filter(item => item.sku.trim())
+      .map(item => [item.sku.trim().toUpperCase(), item]),
+  );
+  const seedSkus = new Set(seed.map(item => item.sku.trim().toUpperCase()));
+
+  const mergedSeed = seed.map(item => {
+    const local = localBySku.get(item.sku.trim().toUpperCase());
+    if (!local) return item;
+
+    return normalizeItem({
+      ...item,
+      purchasePrice: local.purchasePrice,
+      markupPercent: local.markupPercent,
+      weight: local.weight,
+      wastePercent: local.wastePercent,
+      supplier: local.supplier,
+      isActive: local.isActive,
+      updatedAt: local.updatedAt,
+      note: local.note || item.note,
+    });
+  });
+
+  const customItems = localItems.filter(item => !seedSkus.has(item.sku.trim().toUpperCase()));
+  return [...mergedSeed, ...customItems];
+}
+
+function readItems(seed: HardwareItem[] = seedItems) {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return seedItems;
+    if (!raw) return seed;
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.map(item => normalizeItem(item)) : seedItems;
+    return Array.isArray(parsed) ? parsed.map(item => normalizeItem(item)) : seed;
   } catch {
-    return seedItems;
+    return seed;
   }
 }
 
@@ -458,6 +470,8 @@ export default function HardwareCatalogPage() {
   const navigate = useNavigate();
   const { user: me, isAdmin } = useAuthStore();
   const [items, setItems] = useState<HardwareItem[]>(readItems);
+  const [isCatalogLoading, setIsCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState(false);
   const [search, setSearch] = useState('');
   const [group, setGroup] = useState<'Все' | HardwareGroup>('Все');
   const [status, setStatus] = useState<'all' | 'active' | 'inactive'>('active');
@@ -466,6 +480,33 @@ export default function HardwareCatalogPage() {
   useEffect(() => {
     if (!isAdmin()) navigate('/');
   }, [isAdmin, navigate]);
+
+  useEffect(() => {
+    if (!isAdmin()) return;
+
+    let cancelled = false;
+    setIsCatalogLoading(true);
+    setCatalogError(false);
+
+    listHardwareCatalog()
+      .then(remoteItems => {
+        if (cancelled) return;
+        const seed = remoteItems.map(item => normalizeItem(item));
+        const next = mergeCatalogItems(seed, readItems(seed));
+        setItems(next);
+        saveItems(next);
+      })
+      .catch(() => {
+        if (!cancelled) setCatalogError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setIsCatalogLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -563,7 +604,7 @@ export default function HardwareCatalogPage() {
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold">Справочник позиций</h1>
                 <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[10px] font-bold uppercase tracking-wider">
-                  Локальный черновик
+                  {isCatalogLoading ? 'Загрузка справочника' : catalogError ? 'Локальный черновик' : 'Расчётный каталог'}
                 </div>
               </div>
             </div>
