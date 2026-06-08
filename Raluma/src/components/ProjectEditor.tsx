@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Save, Plus, Trash2, FileText,
   ClipboardList, Square as WindowIcon, Palette,
-  Loader2, X, ArrowRight, Map, LogIn,
+  Loader2, X, LogIn,
 } from 'lucide-react';
 import { getProject, updateProject, createSection, updateSection, deleteSection } from '../api/projects';
 import ProductionSheetModal from './ProductionSheetModal';
@@ -335,12 +335,11 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       {!activeSectionId && (
         <div className="hidden sm:flex items-center gap-1 px-4 sm:px-8 py-2 border-b border-tint/20 bg-surface/20 flex-shrink-0">
           {[
+            { name: 'Коммерческое предложение', icon: FileText },
             { name: 'Спецификация', icon: FileText },
             { name: 'Накладная', icon: ClipboardList },
             { name: 'Заказ стекла', icon: WindowIcon },
             { name: 'Заявка покр.', icon: Palette },
-            { name: 'Производственный лист', icon: ClipboardList },
-            { name: 'Схема', icon: Map },
           ].map(doc => (
             <button key={doc.name} onClick={() => openPreview(doc.name)}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-hi/[0.03] border border-hi/[0.06] hover:bg-tint/20 hover:border-tint/40 transition-all group">
