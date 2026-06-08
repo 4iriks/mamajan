@@ -41,6 +41,35 @@ function buildPanelLayout(widthsMm: number[], startPx: number, totalPx: number) 
   });
 }
 
+function findProfileDimension(
+  calc: SlideCalcPreview | null | undefined,
+  articles: string[],
+  key: 'section_width_mm' | 'section_height_mm',
+  fallback: number,
+) {
+  const found = calc?.profiles?.find(profile => articles.includes(profile.article));
+  const value = found?.[key];
+  return typeof value === 'number' && value > 0 ? value : fallback;
+}
+
+function getSideProfileStack(section: Section, side: 'left' | 'right') {
+  const prefix = side === 'left' ? 'profileLeft' : 'profileRight';
+  const flags = {
+    lockBar: section[`${prefix}LockBar` as keyof Section],
+    pBar: section[`${prefix}PBar` as keyof Section],
+    handleBar: section[`${prefix}HandleBar` as keyof Section],
+    bubble: section[`${prefix}Bubble` as keyof Section],
+  };
+
+  const articles: string[] = [];
+  if (flags.lockBar) articles.push('RS2081');
+  if (flags.pBar) articles.push('RS1082');
+  if (flags.handleBar) articles.push('RS112');
+  if (flags.bubble) articles.push('RS1002');
+
+  return articles;
+}
+
 export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: SlideCalcPreview | null }) {
   const {
     panels, rails = 3, firstPanelInside = 'Справа', unusedTrack,
@@ -80,7 +109,94 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
   const panelLayout = buildPanelLayout(panelWidthsMm, leftW, railAreaW);
   const slideLeft = firstPanelInside === 'Справа';
 
-  // Profile flags no longer used for SVG lines (removed per user request)
+  const scaleBaseMm = Math.max(sectionWidth || panelWidthsMm.reduce((sum, width) => sum + width, 0), 1);
+  const mmToPx = (mm: number, minPx = 0) => Math.max(minPx, (mm / scaleBaseMm) * railAreaW);
+  const wallProfileMm = findProfileDimension(calc, rails === 5 ? ['RS2335'] : ['RS2333'], 'section_height_mm', 16);
+  const wallProfilePx = mmToPx(wallProfileMm, 5);
+  const sideTopY = topPad - 4;
+  const sideBottomY = topPad + railCount * rowH + 4;
+  const sideHeight = sideBottomY - sideTopY;
+  const leftSideArticles = getSideProfileStack(section, 'left');
+  const rightSideArticles = getSideProfileStack(section, 'right');
+  const sideProfileWidthMm = (articles: string[]) => Math.max(
+    ...articles.map(article => {
+      if (article === 'RS2081') return findProfileDimension(calc, ['RS2081'], 'section_width_mm', 57);
+      if (article === 'RS112') return findProfileDimension(calc, ['RS112'], 'section_width_mm', 52);
+      if (article === 'RS1082') return findProfileDimension(calc, ['RS1082'], 'section_width_mm', 25);
+      return 3;
+    }),
+    0,
+  );
+  const interGlassIsAluminum = (section.interGlassProfile ?? '').includes('RS2061');
+  const interGlassPx = mmToPx(findProfileDimension(calc, ['RS2061'], 'section_width_mm', 20), 6);
+  const interGlassDir = firstPanelInside === 'Справа' ? -1 : 1;
+
+  const renderSideStack = (side: 'left' | 'right', articles: string[]) => {
+    if (!articles.length) return null;
+    const widthPx = mmToPx(sideProfileWidthMm(articles), 7);
+    const x = side === 'left' ? leftW - widthPx - 8 : leftW + railAreaW + 8;
+    const textX = x + widthPx / 2;
+    const label = articles.join('/');
+
+    return (
+      <g>
+        <rect
+          x={x}
+          y={sideTopY}
+          width={widthPx}
+          height={sideHeight}
+          rx="2"
+          fill="var(--theme-accent)"
+          fillOpacity="0.11"
+          stroke="var(--theme-accent)"
+          strokeWidth="1"
+          strokeOpacity="0.5"
+        />
+        <text
+          x={textX}
+          y={sideTopY + sideHeight / 2}
+          textAnchor="middle"
+          fontSize="7"
+          fill="var(--theme-accent)"
+          fillOpacity="0.65"
+          fontWeight="bold"
+          transform={`rotate(-90,${textX},${sideTopY + sideHeight / 2})`}
+        >
+          {label}
+        </text>
+      </g>
+    );
+  };
+
+  const renderInterGlassProfile = (x: number, y: number, index: number) => {
+    const h = 20;
+    const top = y - h / 2;
+    const bottom = y + h / 2;
+    const innerX = x + interGlassDir * interGlassPx;
+
+    return (
+      <g key={`inter-${index}`}>
+        <path
+          d={`M ${innerX} ${top} L ${x} ${top} L ${x} ${bottom} L ${innerX} ${bottom}`}
+          fill="none"
+          stroke="var(--theme-accent)"
+          strokeWidth="1.6"
+          strokeOpacity="0.72"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <line
+          x1={x}
+          y1={top + 4}
+          x2={innerX}
+          y2={top + 4}
+          stroke="var(--theme-accent)"
+          strokeWidth="0.9"
+          strokeOpacity="0.45"
+        />
+      </g>
+    );
+  };
 
   return (
     <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} className="w-full drop-shadow-[0_0_15px_rgba(79,209,197,0.08)]" style={{ maxWidth: svgW }}>
@@ -96,6 +212,42 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
       {/* Vertical boundary lines */}
       <line x1={leftW} y1={topPad - 4} x2={leftW} y2={topPad + railCount * rowH + 4} stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.5" />
       <line x1={leftW + railAreaW} y1={topPad - 4} x2={leftW + railAreaW} y2={topPad + railCount * rowH + 4} stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.5" />
+
+      {renderSideStack('left', leftSideArticles)}
+      {renderSideStack('right', rightSideArticles)}
+
+      {section.profileLeftWall && (
+        <g>
+          <rect
+            x={leftW}
+            y={sideTopY}
+            width={wallProfilePx}
+            height={sideHeight}
+            fill="var(--theme-accent)"
+            fillOpacity="0.12"
+            stroke="var(--theme-accent)"
+            strokeWidth="0.9"
+            strokeOpacity="0.5"
+          />
+          <text x={leftW + wallProfilePx / 2} y={sideTopY + 12} textAnchor="middle" fontSize="7" fill="var(--theme-accent)" fillOpacity="0.65" fontWeight="bold">16</text>
+        </g>
+      )}
+      {section.profileRightWall && (
+        <g>
+          <rect
+            x={leftW + railAreaW - wallProfilePx}
+            y={sideTopY}
+            width={wallProfilePx}
+            height={sideHeight}
+            fill="var(--theme-accent)"
+            fillOpacity="0.12"
+            stroke="var(--theme-accent)"
+            strokeWidth="0.9"
+            strokeOpacity="0.5"
+          />
+          <text x={leftW + railAreaW - wallProfilePx / 2} y={sideTopY + 12} textAnchor="middle" fontSize="7" fill="var(--theme-accent)" fillOpacity="0.65" fontWeight="bold">16</text>
+        </g>
+      )}
 
       {/* Rails */}
       {Array.from({ length: railCount }, (_, ri) => {
@@ -135,6 +287,12 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
             )}
           </g>
         );
+      })}
+
+      {interGlassIsAluminum && panelLayout.slice(0, -1).map((layout, pi) => {
+        const ri = panelRailMap[pi];
+        const cy = topPad + ri * rowH + rowH / 2;
+        return renderInterGlassProfile(layout.x + layout.width, cy, pi);
       })}
 
       {/* Direction arrow — bigger + "сдвиг" label */}
