@@ -7,15 +7,17 @@
  */
 
 import React from 'react';
+import { SlideCalcPreview } from '../../api/projects';
 import { Section } from './types';
 import { SlideSchemeSVG, SlideRoomViewSVG } from './SlideDiagrams';
 
 export interface EditorVisualizerProps {
   section: Section;
   variant: 'desktop' | 'mobile';
+  calc?: SlideCalcPreview | null;
 }
 
-export const EditorVisualizer: React.FC<EditorVisualizerProps> = ({ section, variant }) => {
+export const EditorVisualizer: React.FC<EditorVisualizerProps> = ({ section, variant, calc }) => {
   // Пока визуализация только для СЛАЙД
   if (section.system !== 'СЛАЙД') return null;
 
@@ -27,14 +29,14 @@ export const EditorVisualizer: React.FC<EditorVisualizerProps> = ({ section, var
             <h4 className="text-[10px] font-bold uppercase tracking-widest text-accent/40">Вид из помещения</h4>
             <span className="text-[10px] text-fg/20 font-bold uppercase tracking-widest">{section.panels} пан. · {section.width}×{section.height}</span>
           </div>
-          <div className="flex justify-center py-2"><SlideRoomViewSVG section={section} /></div>
+          <div className="flex justify-center py-2"><SlideRoomViewSVG section={section} calc={calc} /></div>
         </div>
         <div className="bg-surface/25 border border-tint/30 rounded-2xl sm:rounded-[2rem] p-4 sm:p-7 overflow-x-auto">
           <div className="flex items-center justify-between mb-5 min-w-[360px]">
             <h4 className="text-[10px] font-bold uppercase tracking-widest text-accent/40">Схема · Вид сверху</h4>
             <span className="text-[10px] text-fg/20 font-bold uppercase tracking-widest">{section.rails ?? 3}-рельс · {section.panels} пан.</span>
           </div>
-          <div className="flex justify-center py-4"><SlideSchemeSVG section={section} /></div>
+          <div className="flex justify-center py-4"><SlideSchemeSVG section={section} calc={calc} /></div>
         </div>
       </div>
     );
@@ -48,14 +50,14 @@ export const EditorVisualizer: React.FC<EditorVisualizerProps> = ({ section, var
           <span className="text-[10px] font-bold uppercase tracking-widest text-accent/40">Вид из помещения</span>
           <span className="text-[10px] text-fg/20 font-bold uppercase tracking-widest">{section.panels} пан. · {section.width}×{section.height}</span>
         </div>
-        <SlideRoomViewSVG section={section} />
+        <SlideRoomViewSVG section={section} calc={calc} />
       </div>
       <div className="bg-surface/25 border border-tint/30 rounded-2xl p-4">
         <div className="flex items-center justify-between mb-3">
           <span className="text-[10px] font-bold uppercase tracking-widest text-accent/40">Схема · Вид сверху</span>
           <span className="text-[10px] text-fg/20 font-bold uppercase tracking-widest">{section.rails ?? 3}-рельс · {section.panels} пан.</span>
         </div>
-        <SlideSchemeSVG section={section} />
+        <SlideSchemeSVG section={section} calc={calc} />
       </div>
     </div>
   );

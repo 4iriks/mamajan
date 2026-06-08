@@ -115,6 +115,31 @@ class TestLocalPreview:
         assert r.status_code == 200
         assert "только для системы СЛАЙД" in r.text
 
+    def test_local_calc_returns_glass_and_catalog_profiles(self, client):
+        r = client.post(
+            "/api/projects/local/sections/calc",
+            json={
+                "project": {"number": "LOCAL-CALC"},
+                "section": {
+                    "name": "Секция 1",
+                    "system": "СЛАЙД",
+                    "width": 2000,
+                    "height": 2400,
+                    "panels": 3,
+                    "quantity": 1,
+                    "rails": 3,
+                    "threshold": "Стандартный анод",
+                    "first_panel_inside": "Справа",
+                },
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["glass"]
+        threshold = [p for p in data["profiles"] if p["article"] == "RS2323"][0]
+        assert threshold["section_width_mm"] == 76
+        assert threshold["paint_note"] == "НЕ КРАСИТЬ!!!"
+
 
 class TestProjectDocuments:
     def test_project_commercial_preview_returns_readonly_html(

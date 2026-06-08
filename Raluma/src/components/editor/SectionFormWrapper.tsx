@@ -3,9 +3,11 @@
  * Извлечено из ProjectEditor.tsx (строки 274–347, 604–657).
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Save, FileText, ClipboardList, Map } from 'lucide-react';
+import { calculateLocalSection, SlideCalcPreview } from '../../api/projects';
 import { Section, LBL, SYSTEM_COLORS } from './types';
+import { localToApi } from './converters';
 import { SectionDivider } from './FormInputs';
 import { MainTab, SlideSystemTab, BookSystemTab, LiftSystemTab, CsShapeTab, DoorSystemTab } from './FormTabs';
 import { EditorVisualizer } from './EditorVisualizer';
@@ -23,6 +25,8 @@ export interface SectionFormWrapperProps {
 export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
   section, onUpdate, onSave, onBack, isSaving, isDirty, onOpenDoc,
 }) => {
+  const [slideCalc, setSlideCalc] = useState<SlideCalcPreview | null>(null);
+
   // Ctrl+S → сохранить секцию
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
@@ -45,6 +49,29 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [isDirty]);
+
+  useEffect(() => {
+    if (section.system !== 'СЛАЙД') {
+      setSlideCalc(null);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      calculateLocalSection(localToApi(section, 0))
+        .then(calc => {
+          if (!cancelled) setSlideCalc(calc);
+        })
+        .catch(() => {
+          if (!cancelled) setSlideCalc(null);
+        });
+    }, 180);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [section]);
 
   // Метка системы для заголовка
   const systemLabel = (() => {
@@ -159,7 +186,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
           </div>
 
           {/* Мобильный визуализатор */}
-          <EditorVisualizer section={section} variant="mobile" />
+          <EditorVisualizer section={section} variant="mobile" calc={slideCalc} />
 
           {/* Нижняя панель: сохранить + кнопки документов */}
           <div className="flex flex-wrap gap-2 sm:gap-3 items-stretch">
@@ -190,7 +217,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
         </div>
 
         {/* Десктопный визуализатор (sticky) */}
-        <EditorVisualizer section={section} variant="desktop" />
+        <EditorVisualizer section={section} variant="desktop" calc={slideCalc} />
 
       </div>
     </>

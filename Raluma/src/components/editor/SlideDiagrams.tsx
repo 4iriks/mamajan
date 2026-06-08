@@ -1,11 +1,49 @@
 import React from 'react';
+import { SlideCalcPreview } from '../../api/projects';
 import { Section } from './types';
 
 // ── SVG Схема сверху (СЛАЙД) ──────────────────────────────────────────────────
 
-export function SlideSchemeSVG({ section }: { section: Section }) {
+function expandGlassWidths(calc: SlideCalcPreview | null | undefined, panels: number, fallbackWidth: number) {
+  if (!calc?.glass?.length || panels <= 0) {
+    return Array.from({ length: Math.max(panels, 1) }, () => Math.round(fallbackWidth / Math.max(panels, 1)));
+  }
+
+  const findWidth = (needle: string) => {
+    const item = calc.glass.find(glass => glass.qty > 0 && glass.position.toLowerCase().includes(needle));
+    return item?.width_mm;
+  };
+
+  const edge = findWidth('крайн');
+  const left = findWidth('лев');
+  const right = findWidth('прав');
+  const middle = findWidth('промеж') ?? edge ?? left ?? right ?? fallbackWidth / panels;
+
+  if (panels === 1) return [Math.round(middle)];
+
+  const widths = Array.from({ length: panels }, (_, index) => {
+    if (index === 0) return left ?? edge ?? middle;
+    if (index === panels - 1) return right ?? edge ?? middle;
+    return middle;
+  });
+
+  return widths.map(width => Math.round(width));
+}
+
+function buildPanelLayout(widthsMm: number[], startPx: number, totalPx: number) {
+  const totalMm = widthsMm.reduce((sum, width) => sum + Math.max(width, 0), 0) || 1;
+  let cursor = startPx;
+  return widthsMm.map(widthMm => {
+    const widthPx = Math.max(1, (Math.max(widthMm, 0) / totalMm) * totalPx);
+    const item = { x: cursor, width: widthPx, widthMm };
+    cursor += widthPx;
+    return item;
+  });
+}
+
+export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: SlideCalcPreview | null }) {
   const {
-    panels, rails = 3, firstPanelInside = 'Справа', unusedTrack, interGlassProfile,
+    panels, rails = 3, firstPanelInside = 'Справа', unusedTrack,
     width: sectionWidth,
   } = section;
   const railCount = rails as number;
@@ -38,9 +76,9 @@ export function SlideSchemeSVG({ section }: { section: Section }) {
     return availableRails[railIdx] ?? availableRails[railIdx % Math.max(availableRails.length, 1)] ?? pi % railCount;
   });
 
-  const panelW = railAreaW / panels;
+  const panelWidthsMm = expandGlassWidths(calc, panels, sectionWidth || railAreaW);
+  const panelLayout = buildPanelLayout(panelWidthsMm, leftW, railAreaW);
   const slideLeft = firstPanelInside === 'Справа';
-  const glassW = sectionWidth ? Math.round(sectionWidth / panels) : null;
 
   // Profile flags no longer used for SVG lines (removed per user request)
 
@@ -78,7 +116,9 @@ export function SlideSchemeSVG({ section }: { section: Section }) {
       {Array.from({ length: panels }, (_, pi) => {
         const ri = panelRailMap[pi];
         const cy = topPad + ri * rowH + rowH / 2;
-        const px = leftW + pi * panelW;
+        const layout = panelLayout[pi];
+        const px = layout.x;
+        const panelW = layout.width;
         const panelNum = firstPanelInside === 'Справа' ? panels - pi : pi + 1;
         const rx = px + (pi === 0 ? 5 : -6);
         const rRight = px + panelW + (pi === panels - 1 ? -5 : 6);
@@ -88,23 +128,14 @@ export function SlideSchemeSVG({ section }: { section: Section }) {
           <g key={pi}>
             <rect x={rx} y={cy - 9} width={rw} height={18} rx="2"
               fill="var(--theme-accent)" fillOpacity="0.13" stroke="var(--theme-accent)" strokeWidth="1.4" strokeOpacity="0.75" />
-            {glassW ? (
-              <text x={cx} y={cy + 5} textAnchor="middle" fontSize="8" fill="var(--theme-accent)" fillOpacity="0.9" fontWeight="bold">{glassW} · №{panelNum}</text>
+            {layout.widthMm ? (
+              <text x={cx} y={cy + 5} textAnchor="middle" fontSize="8" fill="var(--theme-accent)" fillOpacity="0.9" fontWeight="bold">{layout.widthMm} · №{panelNum}</text>
             ) : (
               <text x={cx} y={cy + 5} textAnchor="middle" fontSize="9" fill="var(--theme-accent)" fillOpacity="0.9" fontWeight="bold">{panelNum}</text>
             )}
           </g>
         );
       })}
-
-      {/* Inter-glass profile */}
-      {interGlassProfile && Array.from({ length: panels - 1 }, (_, pi) => (
-        <rect key={pi}
-          x={leftW + (pi + 1) * panelW - 2} y={topPad}
-          width={4} height={railCount * rowH}
-          fill="var(--theme-accent)" fillOpacity="0.15" stroke="var(--theme-accent)" strokeWidth="1" strokeOpacity="0.55" />
-      ))}
-
 
       {/* Direction arrow — bigger + "сдвиг" label */}
       {(() => {
@@ -131,7 +162,7 @@ export function SlideSchemeSVG({ section }: { section: Section }) {
 
 // ── SVG: Вид из помещения ─────────────────────────────────────────────────────
 
-export function SlideRoomViewSVG({ section }: { section: Section }) {
+export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: SlideCalcPreview | null }) {
   const panels  = section.panels;
   const firstRight = (section.firstPanelInside ?? 'Справа') === 'Справа';
   const W  = section.width;
@@ -155,9 +186,8 @@ export function SlideRoomViewSVG({ section }: { section: Section }) {
 
   const iX = fX + pt, iY = fY + pt;
   const iW = fW - 2 * pt, iH = fH - 2 * pt;
-  const pW = iW / panels;
-
-  const panelWmm = Math.round(W / panels);
+  const panelWidthsMm = expandGlassWidths(calc, panels, W);
+  const panelLayout = buildPanelLayout(panelWidthsMm, iX, iW);
   const arrowLeft = firstRight;
 
   // Left side = i=0, Right side = i=panels-1 (visual position, not panel number)
@@ -215,7 +245,9 @@ export function SlideRoomViewSVG({ section }: { section: Section }) {
       <rect x={fX} y={fY} width={fW} height={fH} fill="none" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.5" />
 
       {Array.from({ length: panels }).map((_, i) => {
-        const px = iX + i * pW;
+        const layout = panelLayout[i];
+        const px = layout.x;
+        const pW = layout.width;
         const cx = px + pW / 2;
         const cy = iY + iH / 2;
         const num = firstRight ? panels - i : i + 1;
@@ -281,10 +313,12 @@ export function SlideRoomViewSVG({ section }: { section: Section }) {
       })}
 
       {Array.from({ length: panels }).map((_, i) => {
-        const dx1 = iX + i * pW;
-        const dx2 = iX + (i + 1) * pW;
+        const layout = panelLayout[i];
+        const dx1 = layout.x;
+        const dx2 = layout.x + layout.width;
         const dy  = fY + fH + 18;
         const cx  = (dx1 + dx2) / 2;
+        const panelWmm = layout.widthMm;
         return (
           <g key={i}>
             <line x1={dx1 + 3} y1={dy} x2={dx2 - 3} y2={dy} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.35" />

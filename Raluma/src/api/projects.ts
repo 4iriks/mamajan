@@ -116,6 +116,34 @@ const hasAuthToken = () => Boolean(localStorage.getItem('access_token'));
 
 export type ProjectDocumentType = 'commercial' | 'paint' | 'glass';
 
+export interface SlideCalcGlass {
+  position: string;
+  width_mm: number;
+  height_mm: number;
+  qty: number;
+  glass_profile_length: number;
+}
+
+export interface SlideCalcProfile {
+  article: string;
+  name: string;
+  length_mm: number;
+  qty: number;
+  painted: boolean;
+  image?: string | null;
+  section_width_mm: number;
+  section_height_mm: number;
+  paint_mode: string;
+  color_variants: string[];
+  paint_note: string;
+}
+
+export interface SlideCalcPreview {
+  profiles: SlideCalcProfile[];
+  glass: SlideCalcGlass[];
+  panel_rails: number[];
+}
+
 // Documents
 export const getPreviewUrl = (projectId: number, sectionId: number) =>
   `/api/projects/${projectId}/sections/${sectionId}/preview`;
@@ -137,6 +165,17 @@ export const getLocalPreviewHtml = async (projectId: number, sectionId: number) 
   const payload = getLocalDocumentPayload(projectId, sectionId);
   const resp = await client.post<string>('/api/projects/local/sections/preview', payload, {
     responseType: 'text',
+  });
+  return resp.data;
+};
+
+export const calculateLocalSection = async (section: Partial<SectionOut>) => {
+  const resp = await client.post<SlideCalcPreview>('/api/projects/local/sections/calc', {
+    project: { number: 'preview', customer: '' },
+    section: {
+      name: 'Секция',
+      ...section,
+    },
   });
   return resp.data;
 };

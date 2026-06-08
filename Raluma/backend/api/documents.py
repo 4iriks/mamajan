@@ -8,6 +8,7 @@ PATCH /api/projects/{pid}/sections/{sid}/overrides → сохранить пра
 import io
 import json
 
+from dataclasses import asdict
 from types import SimpleNamespace
 from typing import Optional
 
@@ -143,6 +144,16 @@ def preview_local_section(payload: LocalDocumentPayload):
     calc = calculate_slide(section)
     html = render_preview(project, section, calc)
     return HTMLResponse(html)
+
+
+@router.post("/local/sections/calc")
+def calculate_local_section(payload: LocalDocumentPayload):
+    _, section = _build_local_document_objects(payload)
+    if section.system != "СЛАЙД":
+        raise HTTPException(
+            status_code=400, detail="Расчёт доступен только для системы СЛАЙД"
+        )
+    return asdict(calculate_slide(section))
 
 
 @router.post("/local/documents/{doc_type}/preview", response_class=HTMLResponse)
