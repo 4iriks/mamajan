@@ -12,7 +12,9 @@ import {
   Loader2, X, LogIn,
 } from 'lucide-react';
 import { getProject, updateProject, createSection, updateSection, deleteSection } from '../api/projects';
+import type { ProjectDocumentType } from '../api/projects';
 import ProductionSheetModal from './ProductionSheetModal';
+import ProjectDocumentModal from './ProjectDocumentModal';
 import { toast } from '../store/toastStore';
 import { useAuthStore } from '../store/authStore';
 
@@ -56,6 +58,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const [sectionToDelete, setSectionToDelete] = useState<Section | null>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewDocName, setPreviewDocName] = useState('');
+  const [projectDoc, setProjectDoc] = useState<{ type: ProjectDocumentType; title: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(true);
@@ -220,6 +223,10 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     setIsPreviewModalOpen(true);
   };
 
+  const openProjectDocument = (type: ProjectDocumentType, title: string) => {
+    setProjectDoc({ type, title });
+  };
+
   const handleSaveProjectNotes = async () => {
     if (!project) return;
     try {
@@ -335,13 +342,15 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       {!activeSectionId && (
         <div className="hidden sm:flex items-center gap-1 px-4 sm:px-8 py-2 border-b border-tint/20 bg-surface/20 flex-shrink-0">
           {[
-            { name: 'Коммерческое предложение', icon: FileText },
+            { name: 'Коммерческое предложение', icon: FileText, projectDoc: 'commercial' as const },
             { name: 'Спецификация', icon: FileText },
             { name: 'Накладная', icon: ClipboardList },
-            { name: 'Заказ стекла', icon: WindowIcon },
-            { name: 'Заявка покр.', icon: Palette },
+            { name: 'Заказ стекла', icon: WindowIcon, projectDoc: 'glass' as const },
+            { name: 'Заявка покр.', icon: Palette, projectDoc: 'paint' as const },
           ].map(doc => (
-            <button key={doc.name} onClick={() => openPreview(doc.name)}
+            <button
+              key={doc.name}
+              onClick={() => doc.projectDoc ? openProjectDocument(doc.projectDoc, doc.name) : openPreview(doc.name)}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-hi/[0.03] border border-hi/[0.06] hover:bg-tint/20 hover:border-tint/40 transition-all group">
               <doc.icon className="w-3 h-3 text-accent/50 group-hover:text-accent transition-colors flex-shrink-0" />
               <span className="text-[10px] font-bold text-fg/40 group-hover:text-fg transition-colors whitespace-nowrap">{doc.name}</span>
@@ -618,6 +627,17 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           sectionId={Number(activeSection.id)}
           projectNumber={project.number}
           sectionOrder={activeSection.id ? sections.findIndex(s => s.id === activeSection.id) + 1 : 1}
+        />
+      )}
+
+      {projectDoc && (
+        <ProjectDocumentModal
+          isOpen={Boolean(projectDoc)}
+          onClose={() => setProjectDoc(null)}
+          projectId={projectId}
+          projectNumber={project.number}
+          docType={projectDoc.type}
+          title={projectDoc.title}
         />
       )}
 

@@ -113,6 +113,14 @@ export function getLocalProject(id: number): ProjectFull {
   return project;
 }
 
+export function getLocalProjectDocumentPayload(projectId: number) {
+  const project = getLocalProject(projectId);
+  return {
+    project,
+    sections: project.sections,
+  };
+}
+
 export function createLocalProject(data: { number: string; customer: string; production_stages?: number }): ProjectFull {
   const projects = read();
   const createdAt = nowIso();

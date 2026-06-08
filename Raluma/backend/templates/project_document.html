@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ title }} {{ project.number }}</title>
+  <style>
+    @page { size: A4 portrait; margin: 10mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      background: #f2f2f2;
+      color: #111;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10pt;
+    }
+    .page {
+      width: 190mm;
+      min-height: 277mm;
+      margin: 0 auto 10mm;
+      padding: 8mm;
+      background: #fff;
+      page-break-after: always;
+    }
+    .page:last-child { page-break-after: auto; }
+    .topline {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8mm;
+      margin-bottom: 6mm;
+    }
+    h1 {
+      margin: 0 0 1mm;
+      font-size: 19pt;
+      line-height: 1.1;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+    .meta {
+      width: 72mm;
+      border: 1px solid #222;
+      border-collapse: collapse;
+      font-size: 9pt;
+    }
+    .meta td {
+      border: 1px solid #222;
+      padding: 1.5mm 2mm;
+      vertical-align: top;
+    }
+    .muted { color: #555; }
+    .accent-red {
+      color: #f00;
+      font-weight: 900;
+      font-size: 12pt;
+      line-height: 1.35;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid #111;
+      padding: 1.3mm 1.6mm;
+      vertical-align: middle;
+    }
+    th {
+      background: #efefef;
+      text-align: center;
+      font-weight: 900;
+    }
+    .center { text-align: center; }
+    .right { text-align: right; }
+    .small { font-size: 8.5pt; }
+    .section-title {
+      margin: 6mm 0 2mm;
+      font-weight: 900;
+      text-transform: uppercase;
+      font-size: 11pt;
+    }
+    .profile-img {
+      display: block;
+      width: 34mm;
+      max-height: 22mm;
+      object-fit: contain;
+      margin: 0 auto;
+    }
+    .paint-note {
+      color: #f00;
+      font-weight: 900;
+      text-align: center;
+      margin-bottom: 1mm;
+    }
+    .empty {
+      border: 1px dashed #aaa;
+      padding: 12mm;
+      text-align: center;
+      color: #777;
+    }
+    .commercial-note {
+      margin-top: 5mm;
+      padding: 3mm;
+      border: 1px solid #999;
+      color: #333;
+      font-size: 9pt;
+    }
+  </style>
+</head>
+<body>
+{% if doc_type == 'commercial' %}
+  <div class="page">
+    <div class="topline">
+      <div>
+        <h1>Коммерческое предложение</h1>
+        <div class="muted">Проект {{ project.number }}</div>
+      </div>
+      <table class="meta">
+        <tr><td><b>Заявка</b></td><td>{{ project.number }}</td></tr>
+        <tr><td><b>Заказчик</b></td><td>{{ project.customer }}</td></tr>
+      </table>
+    </div>
+
+    {% if commercial_rows %}
+    <table>
+      <thead>
+        <tr>
+          <th style="width:8mm;">№</th>
+          <th>Изделие</th>
+          <th style="width:33mm;">Габарит</th>
+          <th style="width:18mm;">Панели</th>
+          <th style="width:18mm;">Кол-во</th>
+          <th style="width:28mm;">Площадь, м²</th>
+          <th style="width:36mm;">Цвет</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in commercial_rows %}
+        <tr>
+          <td class="center">{{ row.order }}</td>
+          <td>
+            <b>{{ row.name }}</b><br>
+            <span class="small">{{ row.system }}</span><br>
+            <span class="small">Стекло: {{ row.glass }}</span><br>
+            <span class="small">Порог: {{ row.threshold }}</span>
+          </td>
+          <td class="center">{{ row.size }}</td>
+          <td class="center">{{ row.panels }}</td>
+          <td class="center">{{ row.qty }}</td>
+          <td class="right">{{ "%.2f"|format(row.area) }}</td>
+          <td class="center">{{ row.color }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <div class="commercial-note">
+      Стоимость и детализация КП будут рассчитаны после подключения цен каталога.
+    </div>
+    {% else %}
+      <div class="empty">В проекте нет секций СЛАЙД для коммерческого предложения.</div>
+    {% endif %}
+  </div>
+{% elif doc_type == 'paint' %}
+  {% if paint_pages %}
+    {% for page in paint_pages %}
+    <div class="page">
+      <div class="topline">
+        <div>
+          <h1>Заявка на покраску</h1>
+          <div class="muted">Алюминиевый профиль Ралюма</div>
+        </div>
+        <table class="meta">
+          <tr><td><b>Заявка №</b></td><td>{{ project.number }}</td></tr>
+          <tr><td><b>Заказчик</b></td><td>{{ project.customer }}</td></tr>
+          <tr><td><b>Цвет</b></td><td>{{ page.color }}</td></tr>
+        </table>
+      </div>
+      <div class="accent-red center" style="margin-bottom:4mm;">
+        В счете указать номер заявки и цвет профиля
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:24mm;">Артикул</th>
+            <th>Сечение</th>
+            <th style="width:21mm;">Кол-во</th>
+            <th style="width:26mm;">Чистовые размеры</th>
+            <th style="width:30mm;">С припуском 50мм</th>
+            <th style="width:23mm;">Общее, м.п.</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for row in page.rows %}
+          <tr>
+            <td class="center">{{ row.article }}</td>
+            <td>
+              {% if row.note %}<div class="paint-note">{{ row.note }}</div>{% endif %}
+              {% if row.image %}
+                {% set src = row.image | img_b64 %}
+                {% if src %}<img src="{{ src }}" class="profile-img" alt="{{ row.article }}">{% endif %}
+              {% endif %}
+              <div class="center small">{{ row.name }}</div>
+            </td>
+            <td class="center">{{ row.qty }}</td>
+            <td class="center">{{ row.clean|int if row.clean == row.clean|int else row.clean }}</td>
+            <td class="center">{{ row.allowance|int if row.allowance == row.allowance|int else row.allowance }}</td>
+            <td class="right">{{ "%.1f"|format(row.total_m) }}</td>
+          </tr>
+        {% endfor %}
+          <tr>
+            <td colspan="2" class="right"><b>Итого</b></td>
+            <td class="center"><b>{{ page.total_qty }}</b></td>
+            <td></td>
+            <td></td>
+            <td class="right"><b>{{ "%.1f"|format(page.total_m) }}</b></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="page">
+      <h1>Заявка на покраску</h1>
+      <div class="empty">В проекте нет окрашиваемых профилей.</div>
+    </div>
+  {% endif %}
+{% elif doc_type == 'glass' %}
+  <div class="page">
+    <div class="topline">
+      <div>
+        <h1>Заказ стекла</h1>
+        <div class="muted">Проект {{ project.number }}</div>
+      </div>
+      <table class="meta">
+        <tr><td><b>Заявка</b></td><td>{{ project.number }}</td></tr>
+        <tr><td><b>Заказчик</b></td><td>{{ project.customer }}</td></tr>
+      </table>
+    </div>
+    <div class="accent-red" style="margin-bottom:3mm;">
+      КРОМКИ ПОЛИРОВАННЫЕ. Печать закалки не ставить
+    </div>
+    {% if glass_rows %}
+    <table>
+      <thead>
+        <tr>
+          <th style="width:9mm;">№</th>
+          <th>Маркировка</th>
+          <th style="width:43mm;">Стекло</th>
+          <th style="width:20mm;">Ширина, мм</th>
+          <th style="width:20mm;">Высота, мм</th>
+          <th style="width:18mm;">Кол-во</th>
+          <th style="width:24mm;">Площадь, м²</th>
+          <th style="width:24mm;">Примечание</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in glass_rows %}
+        <tr>
+          <td class="center">{{ row.index }}</td>
+          <td class="small">{{ row.marking }}</td>
+          <td class="small">{{ row.glass_type }}</td>
+          <td class="center">{{ row.width }}</td>
+          <td class="center">{{ row.height }}</td>
+          <td class="center">{{ row.qty }}</td>
+          <td class="right">{{ "%.3f"|format(row.area) }}</td>
+          <td class="center">{{ row.note }}</td>
+        </tr>
+      {% endfor %}
+        <tr>
+          <td colspan="5" class="right"><b>Итого</b></td>
+          <td class="center"><b>{{ glass_total_qty }}</b></td>
+          <td class="right"><b>{{ "%.3f"|format(glass_total_area) }}</b></td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+    {% else %}
+      <div class="empty">В проекте нет расчетных стекол.</div>
+    {% endif %}
+    <div class="accent-red" style="margin-top:5mm;">
+      ОБРАЩАЮ ВНИМАНИЕ НА ПОВЫШЕННОЕ КАЧЕСТВО ИЗДЕЛИЙ<br>
+      Т.К. ФИРМА ИЗГОТАВЛИВАЕТ БЕЗРАМНОЕ ОСТЕКЛЕНИЕ<br>
+      ПЕРЕКОС ДИАГОНАЛИ НЕ ДОЛЖЕН ПРЕВЫШАТЬ 1-2ММ<br>
+      ГАБАРИТЫ СТЕКЛА НЕ ДОЛЖНЫ ПРЕВЫШАТЬ 2ММ
+    </div>
+  </div>
+{% endif %}
+</body>
+</html>

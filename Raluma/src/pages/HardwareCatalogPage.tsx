@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, BadgePercent, Box, Check, Edit2, Package,
-  Plus, Ruler, Save, Scale, Search, SlidersHorizontal, Trash2, X,
+  ImageIcon, Plus, Ruler, Save, Scale, Search, SlidersHorizontal, Trash2, X,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { toast } from '../store/toastStore';
 
-type HardwareGroup = 'Ручки' | 'Замки' | 'Защёлки' | 'Уплотнители' | 'Крепёж' | 'Расходники';
+type HardwareGroup = 'Профили' | 'Ручки' | 'Замки' | 'Защёлки' | 'Уплотнители' | 'Крепёж' | 'Расходники';
 type CatalogUnit = 'шт' | 'м.п.' | 'компл.' | 'кг';
+type PaintMode = 'Красится' | 'Не красится' | 'Частично';
 
 interface HardwareItem {
   id: number;
@@ -22,6 +23,11 @@ interface HardwareItem {
   markupPercent: number;
   weight: number;
   wastePercent: number;
+  sectionWidthMm: number;
+  sectionHeightMm: number;
+  imageFile: string;
+  paintMode: PaintMode;
+  colorVariants: string[];
   supplier: string;
   isActive: boolean;
   updatedAt: string;
@@ -30,10 +36,13 @@ interface HardwareItem {
 
 const STORAGE_KEY = 'raluma-hardware-catalog-draft-v1';
 
-const GROUPS: HardwareGroup[] = ['Ручки', 'Замки', 'Защёлки', 'Уплотнители', 'Крепёж', 'Расходники'];
+const GROUPS: HardwareGroup[] = ['Профили', 'Ручки', 'Замки', 'Защёлки', 'Уплотнители', 'Крепёж', 'Расходники'];
 const UNITS: CatalogUnit[] = ['шт', 'м.п.', 'компл.', 'кг'];
+const PAINT_MODES: PaintMode[] = ['Красится', 'Не красится', 'Частично'];
+const DEFAULT_COLOR_VARIANTS = ['Анод', 'RAL стандарт', 'RAL нестандарт'];
 
 const GROUP_COLORS: Record<HardwareGroup, string> = {
+  'Профили': 'bg-teal-500/15 text-teal-300 border-teal-500/25',
   'Ручки': 'bg-blue-500/15 text-blue-300 border-blue-500/25',
   'Замки': 'bg-amber-500/15 text-amber-300 border-amber-500/25',
   'Защёлки': 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25',
@@ -45,41 +54,244 @@ const GROUP_COLORS: Record<HardwareGroup, string> = {
 const INPUT_CLS = 'w-full bg-hi/8 border border-tint/35 rounded-2xl px-5 py-3.5 outline-none focus:border-accent/60 transition-all text-fg';
 const SELECT_CLS = `${INPUT_CLS} appearance-none`;
 
+function profileAssetUrl(filename: string) {
+  return filename ? `/api/catalog/profile-assets/${encodeURIComponent(filename)}` : '';
+}
+
 const seedItems: HardwareItem[] = [
   {
-    id: 1,
-    sku: 'RS112',
-    name: 'Ручка-профиль',
-    group: 'Ручки',
-    system: 'СЛАЙД',
+    id: 101,
+    sku: 'RS1313',
+    name: 'Верхний направляющий профиль 3-рельсовый',
+    group: 'Профили',
+    system: 'СЛАЙД 3',
     unit: 'м.п.',
     purchasePrice: 420,
     markupPercent: 35,
-    weight: 0.74,
+    weight: 0.72,
     wastePercent: 4,
+    sectionWidthMm: 72,
+    sectionHeightMm: 53,
+    imageFile: 'RS1313.png',
+    paintMode: 'Красится',
+    colorVariants: DEFAULT_COLOR_VARIANTS,
     supplier: 'Raluma',
     isActive: true,
     updatedAt: '2026-06-08',
-    note: 'Основная ручка для стандартного СЛАЙД',
+    note: 'Длина считается формулой, сечение используется для схем и документов',
   },
   {
-    id: 2,
+    id: 102,
+    sku: 'RS1315',
+    name: 'Верхний направляющий профиль 5-рельсовый',
+    group: 'Профили',
+    system: 'СЛАЙД 5',
+    unit: 'м.п.',
+    purchasePrice: 580,
+    markupPercent: 35,
+    weight: 0.96,
+    wastePercent: 4,
+    sectionWidthMm: 119,
+    sectionHeightMm: 53,
+    imageFile: 'RS1315.png',
+    paintMode: 'Красится',
+    colorVariants: DEFAULT_COLOR_VARIANTS,
+    supplier: 'Raluma',
+    isActive: true,
+    updatedAt: '2026-06-08',
+    note: 'Пять рельсов, геометрия нужна для масштабной схемы',
+  },
+  {
+    id: 103,
+    sku: 'RS2323',
+    name: 'Порог 3-рельсовый',
+    group: 'Профили',
+    system: 'СЛАЙД 3',
+    unit: 'м.п.',
+    purchasePrice: 380,
+    markupPercent: 35,
+    weight: 0.61,
+    wastePercent: 4,
+    sectionWidthMm: 76,
+    sectionHeightMm: 23,
+    imageFile: 'RS2323.jpg',
+    paintMode: 'Частично',
+    colorVariants: DEFAULT_COLOR_VARIANTS,
+    supplier: 'Raluma',
+    isActive: true,
+    updatedAt: '2026-06-08',
+    note: 'В заявке на покраску отмечать область, которую не красить',
+  },
+  {
+    id: 104,
+    sku: 'RS2325',
+    name: 'Порог 5-рельсовый',
+    group: 'Профили',
+    system: 'СЛАЙД 5',
+    unit: 'м.п.',
+    purchasePrice: 520,
+    markupPercent: 35,
+    weight: 0.88,
+    wastePercent: 4,
+    sectionWidthMm: 122,
+    sectionHeightMm: 23,
+    imageFile: 'RS1325.jpg',
+    paintMode: 'Красится',
+    colorVariants: DEFAULT_COLOR_VARIANTS,
+    supplier: 'Raluma',
+    isActive: true,
+    updatedAt: '2026-06-08',
+    note: 'Стандартный нижний направляющий профиль',
+  },
+  {
+    id: 105,
+    sku: 'RS2333',
+    name: 'Пристеночный профиль 3-рельсовый',
+    group: 'Профили',
+    system: 'СЛАЙД 3',
+    unit: 'м.п.',
+    purchasePrice: 330,
+    markupPercent: 35,
+    weight: 0.42,
+    wastePercent: 4,
+    sectionWidthMm: 76,
+    sectionHeightMm: 16,
+    imageFile: 'RS2333.jpg',
+    paintMode: 'Красится',
+    colorVariants: DEFAULT_COLOR_VARIANTS,
+    supplier: 'Raluma',
+    isActive: true,
+    updatedAt: '2026-06-08',
+    note: 'На схеме сверху добавляет 16 мм с выбранной стороны',
+  },
+  {
+    id: 106,
+    sku: 'RS2335',
+    name: 'Пристеночный профиль 5-рельсовый',
+    group: 'Профили',
+    system: 'СЛАЙД 5',
+    unit: 'м.п.',
+    purchasePrice: 450,
+    markupPercent: 35,
+    weight: 0.58,
+    wastePercent: 4,
+    sectionWidthMm: 122,
+    sectionHeightMm: 16,
+    imageFile: 'RS2335.jpg',
+    paintMode: 'Красится',
+    colorVariants: DEFAULT_COLOR_VARIANTS,
+    supplier: 'Raluma',
+    isActive: true,
+    updatedAt: '2026-06-08',
+    note: 'На схеме сверху добавляет 16 мм с выбранной стороны',
+  },
+  {
+    id: 107,
     sku: 'RS2081',
-    name: 'Боковой профиль-замок',
-    group: 'Замки',
+    name: 'Боковой П-образный профиль-замок',
+    group: 'Профили',
     system: 'СЛАЙД',
     unit: 'м.п.',
     purchasePrice: 510,
     markupPercent: 38,
     weight: 0.82,
     wastePercent: 4,
+    sectionWidthMm: 57,
+    sectionHeightMm: 25,
+    imageFile: 'RS2081.jpg',
+    paintMode: 'Красится',
+    colorVariants: DEFAULT_COLOR_VARIANTS,
     supplier: 'Raluma',
     isActive: true,
     updatedAt: '2026-06-08',
-    note: 'Используется при боковом замыкании',
+    note: 'Используется при боковом замыкании, красить весь периметр',
   },
   {
-    id: 3,
+    id: 108,
+    sku: 'RS1082',
+    name: 'Боковой П-профиль',
+    group: 'Профили',
+    system: 'СЛАЙД',
+    unit: 'м.п.',
+    purchasePrice: 260,
+    markupPercent: 35,
+    weight: 0.36,
+    wastePercent: 4,
+    sectionWidthMm: 25,
+    sectionHeightMm: 25,
+    imageFile: 'RS1082.jpg',
+    paintMode: 'Красится',
+    colorVariants: DEFAULT_COLOR_VARIANTS,
+    supplier: 'Raluma',
+    isActive: true,
+    updatedAt: '2026-06-08',
+    note: 'Боковой профиль без замка',
+  },
+  {
+    id: 109,
+    sku: 'RS112',
+    name: 'Профиль-ручка',
+    group: 'Профили',
+    system: 'СЛАЙД',
+    unit: 'м.п.',
+    purchasePrice: 420,
+    markupPercent: 35,
+    weight: 0.74,
+    wastePercent: 4,
+    sectionWidthMm: 52,
+    sectionHeightMm: 40,
+    imageFile: 'RS112.jpg',
+    paintMode: 'Красится',
+    colorVariants: DEFAULT_COLOR_VARIANTS,
+    supplier: 'Raluma',
+    isActive: true,
+    updatedAt: '2026-06-08',
+    note: 'Основная ручка для стандартного СЛАЙД',
+  },
+  {
+    id: 110,
+    sku: 'RS2061',
+    name: 'Межстекольный профиль',
+    group: 'Профили',
+    system: 'СЛАЙД',
+    unit: 'м.п.',
+    purchasePrice: 210,
+    markupPercent: 35,
+    weight: 0.28,
+    wastePercent: 4,
+    sectionWidthMm: 20,
+    sectionHeightMm: 12,
+    imageFile: 'RS2061.jpg',
+    paintMode: 'Красится',
+    colorVariants: DEFAULT_COLOR_VARIANTS,
+    supplier: 'Raluma',
+    isActive: true,
+    updatedAt: '2026-06-08',
+    note: 'В схеме сверху зеркалится по направлению первой панели',
+  },
+  {
+    id: 111,
+    sku: 'RS2021',
+    name: 'Стекольный профиль',
+    group: 'Профили',
+    system: 'СЛАЙД',
+    unit: 'м.п.',
+    purchasePrice: 190,
+    markupPercent: 35,
+    weight: 0.24,
+    wastePercent: 4,
+    sectionWidthMm: 75,
+    sectionHeightMm: 18,
+    imageFile: 'RS2021.jpg',
+    paintMode: 'Красится',
+    colorVariants: DEFAULT_COLOR_VARIANTS,
+    supplier: 'Raluma',
+    isActive: true,
+    updatedAt: '2026-06-08',
+    note: 'Длина считается отдельно по каждому стеклу',
+  },
+  {
+    id: 112,
     sku: 'RS1002',
     name: 'Пузырьковый уплотнитель',
     group: 'Уплотнители',
@@ -89,14 +301,19 @@ const seedItems: HardwareItem[] = [
     markupPercent: 45,
     weight: 0.09,
     wastePercent: 8,
+    sectionWidthMm: 0,
+    sectionHeightMm: 0,
+    imageFile: 'RS1002.jpg',
+    paintMode: 'Не красится',
+    colorVariants: ['Без цвета'],
     supplier: 'Склад',
     isActive: true,
     updatedAt: '2026-06-08',
     note: 'Норма зависит от стороны установки',
   },
   {
-    id: 4,
-    sku: 'FL-01',
+    id: 113,
+    sku: 'RS205',
     name: 'Защёлка в пол',
     group: 'Защёлки',
     system: 'СЛАЙД',
@@ -105,13 +322,18 @@ const seedItems: HardwareItem[] = [
     markupPercent: 40,
     weight: 0.12,
     wastePercent: 0,
+    sectionWidthMm: 0,
+    sectionHeightMm: 0,
+    imageFile: 'RS205.jpg',
+    paintMode: 'Не красится',
+    colorVariants: ['Без цвета'],
     supplier: 'Фурнитура СПБ',
     isActive: true,
     updatedAt: '2026-06-08',
     note: 'Ставится слева/справа по настройкам секции',
   },
   {
-    id: 5,
+    id: 114,
     sku: 'DIN7504M',
     name: 'Саморез сверлоконечный',
     group: 'Крепёж',
@@ -121,26 +343,15 @@ const seedItems: HardwareItem[] = [
     markupPercent: 60,
     weight: 0.004,
     wastePercent: 3,
+    sectionWidthMm: 0,
+    sectionHeightMm: 0,
+    imageFile: 'DIN7504M.png',
+    paintMode: 'Не красится',
+    colorVariants: ['Без цвета'],
     supplier: 'Метизы',
     isActive: true,
     updatedAt: '2026-06-08',
     note: 'Формула количества будет уточняться отдельно',
-  },
-  {
-    id: 6,
-    sku: 'CONS-GLUE',
-    name: 'Технологический расходник',
-    group: 'Расходники',
-    system: 'Все',
-    unit: 'компл.',
-    purchasePrice: 120,
-    markupPercent: 25,
-    weight: 0.18,
-    wastePercent: 0,
-    supplier: 'Склад',
-    isActive: false,
-    updatedAt: '2026-06-08',
-    note: 'Позиция для будущих норм расхода',
   },
 ];
 
@@ -148,25 +359,54 @@ const emptyDraft = (): HardwareItem => ({
   id: Date.now(),
   sku: '',
   name: '',
-  group: 'Ручки',
+  group: 'Профили',
   system: 'СЛАЙД',
   unit: 'шт',
   purchasePrice: 0,
   markupPercent: 0,
   weight: 0,
   wastePercent: 0,
+  sectionWidthMm: 0,
+  sectionHeightMm: 0,
+  imageFile: '',
+  paintMode: 'Красится',
+  colorVariants: DEFAULT_COLOR_VARIANTS,
   supplier: '',
   isActive: true,
   updatedAt: new Date().toISOString().slice(0, 10),
   note: '',
 });
 
+function normalizeItem(item: Partial<HardwareItem>): HardwareItem {
+  return {
+    id: item.id ?? Date.now(),
+    sku: item.sku ?? '',
+    name: item.name ?? '',
+    group: item.group ?? 'Профили',
+    system: item.system ?? 'СЛАЙД',
+    unit: item.unit ?? 'шт',
+    purchasePrice: item.purchasePrice ?? 0,
+    markupPercent: item.markupPercent ?? 0,
+    weight: item.weight ?? 0,
+    wastePercent: item.wastePercent ?? 0,
+    sectionWidthMm: item.sectionWidthMm ?? 0,
+    sectionHeightMm: item.sectionHeightMm ?? 0,
+    imageFile: item.imageFile ?? '',
+    paintMode: item.paintMode ?? 'Красится',
+    colorVariants: item.colorVariants?.length ? item.colorVariants : DEFAULT_COLOR_VARIANTS,
+    supplier: item.supplier ?? '',
+    isActive: item.isActive ?? true,
+    updatedAt: item.updatedAt ?? new Date().toISOString().slice(0, 10),
+    note: item.note ?? '',
+  };
+}
+
 function readItems() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return seedItems;
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed as HardwareItem[] : seedItems;
+    return Array.isArray(parsed) ? parsed.map(item => normalizeItem(item)) : seedItems;
   } catch {
     return seedItems;
   }
@@ -233,7 +473,9 @@ export default function HardwareCatalogPage() {
       const matchesSearch = !q ||
         item.sku.toLowerCase().includes(q) ||
         item.name.toLowerCase().includes(q) ||
-        item.supplier.toLowerCase().includes(q);
+        item.supplier.toLowerCase().includes(q) ||
+        item.paintMode.toLowerCase().includes(q) ||
+        item.colorVariants.some(variant => variant.toLowerCase().includes(q));
       const matchesGroup = group === 'Все' || item.group === group;
       const matchesStatus =
         status === 'all' ||
@@ -423,8 +665,34 @@ export default function HardwareCatalogPage() {
                     className="border-b border-tint/10 hover:bg-hi/[0.03] transition-colors group">
                     <td className="px-5 py-4 font-mono text-sm text-accent font-bold">{item.sku}</td>
                     <td className="px-5 py-4">
-                      <div className="font-bold text-sm text-fg">{item.name}</div>
-                      <div className="text-[11px] text-fg/35 mt-1">{item.system} · {item.supplier || 'поставщик не указан'}</div>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-16 h-12 rounded-xl bg-hi border border-tint/20 flex items-center justify-center overflow-hidden flex-shrink-0">
+                          {item.imageFile ? (
+                            <img src={profileAssetUrl(item.imageFile)} alt={item.sku} className="max-w-full max-h-full object-contain" />
+                          ) : (
+                            <ImageIcon className="w-5 h-5 text-black/25" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-sm text-fg truncate">{item.name}</div>
+                          <div className="text-[11px] text-fg/35 mt-1">
+                            {item.system} · {item.supplier || 'поставщик не указан'}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                            {(item.sectionWidthMm > 0 || item.sectionHeightMm > 0) && (
+                              <span className="px-2 py-0.5 rounded-md bg-tint/15 border border-tint/25 text-[10px] font-bold text-fg/45">
+                                {item.sectionWidthMm}×{item.sectionHeightMm} мм
+                              </span>
+                            )}
+                            <span className="px-2 py-0.5 rounded-md bg-accent/10 border border-accent/20 text-[10px] font-bold text-accent/80">
+                              {item.paintMode}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-md bg-hi/[0.04] border border-tint/20 text-[10px] font-bold text-fg/35">
+                              {item.colorVariants.join(', ')}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-5 py-4">
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border ${GROUP_COLORS[item.group]}`}>
@@ -525,6 +793,38 @@ export default function HardwareCatalogPage() {
                     </div>
                   </div>
 
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px_120px] gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Картинка сечения</label>
+                      <input value={draft.imageFile} onChange={event => setDraft({ ...draft, imageFile: event.target.value })}
+                        className={`${INPUT_CLS} font-mono`} placeholder="RS112.jpg" />
+                    </div>
+                    <NumberInput label="Ширина сечения" value={draft.sectionWidthMm} suffix="мм" onChange={value => setDraft({ ...draft, sectionWidthMm: value })} />
+                    <NumberInput label="Высота сечения" value={draft.sectionHeightMm} suffix="мм" onChange={value => setDraft({ ...draft, sectionHeightMm: value })} />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Покраска</label>
+                      <select value={draft.paintMode} onChange={event => setDraft({ ...draft, paintMode: event.target.value as PaintMode })}
+                        className={SELECT_CLS}>
+                        {PAINT_MODES.map(item => <option key={item} value={item}>{item}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Варианты цвета</label>
+                      <input
+                        value={draft.colorVariants.join(', ')}
+                        onChange={event => setDraft({
+                          ...draft,
+                          colorVariants: event.target.value.split(',').map(item => item.trim()).filter(Boolean),
+                        })}
+                        className={INPUT_CLS}
+                        placeholder="Анод, RAL стандарт, RAL нестандарт"
+                      />
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Комментарий</label>
                     <textarea value={draft.note} onChange={event => setDraft({ ...draft, note: event.target.value })}
@@ -535,6 +835,20 @@ export default function HardwareCatalogPage() {
                 </div>
 
                 <div className="space-y-4">
+                  <div className="bg-hi/[0.04] border border-tint/25 rounded-2xl p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-fg/30">Сечение</span>
+                      <ImageIcon className="w-3.5 h-3.5 text-accent/55" />
+                    </div>
+                    <div className="h-40 rounded-xl bg-hi flex items-center justify-center overflow-hidden">
+                      {draft.imageFile ? (
+                        <img src={profileAssetUrl(draft.imageFile)} alt={draft.sku || 'Сечение'} className="max-w-full max-h-full object-contain" />
+                      ) : (
+                        <ImageIcon className="w-10 h-10 text-black/20" />
+                      )}
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
                     <NumberInput label="Закупочная цена" value={draft.purchasePrice} suffix="₽" onChange={value => setDraft({ ...draft, purchasePrice: value })} />
                     <NumberInput label="Наценка" value={draft.markupPercent} suffix="%" onChange={value => setDraft({ ...draft, markupPercent: value })} />

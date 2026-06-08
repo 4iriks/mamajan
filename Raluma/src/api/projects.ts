@@ -11,6 +11,7 @@ import {
   getLocalProject,
   getLocalProjects,
   getLocalProjectsSignature,
+  getLocalProjectDocumentPayload,
   getLocalProjectsSnapshot,
   saveLocalDocumentOverrides,
   updateLocalProject,
@@ -113,9 +114,14 @@ export interface SectionOut {
 
 const hasAuthToken = () => Boolean(localStorage.getItem('access_token'));
 
+export type ProjectDocumentType = 'commercial' | 'paint' | 'glass';
+
 // Documents
 export const getPreviewUrl = (projectId: number, sectionId: number) =>
   `/api/projects/${projectId}/sections/${sectionId}/preview`;
+
+export const getProjectDocumentPreviewUrl = (projectId: number, docType: ProjectDocumentType) =>
+  `/api/projects/${projectId}/documents/${docType}/preview`;
 
 export const saveDocumentOverrides = (projectId: number, sectionId: number, overrides: Record<string, unknown>) =>
   hasAuthToken()
@@ -135,10 +141,30 @@ export const getLocalPreviewHtml = async (projectId: number, sectionId: number) 
   return resp.data;
 };
 
+export const getLocalProjectDocumentPreviewHtml = async (projectId: number, docType: ProjectDocumentType) => {
+  const payload = getLocalProjectDocumentPayload(projectId);
+  const resp = await client.post<string>(`/api/projects/local/documents/${docType}/preview`, payload, {
+    responseType: 'text',
+  });
+  return resp.data;
+};
+
 export const downloadPdf = async (projectId: number, sectionId: number, filename: string) => {
   const resp = hasAuthToken()
     ? await client.get(`/api/projects/${projectId}/sections/${sectionId}/pdf`, { responseType: 'blob' })
     : await client.post('/api/projects/local/sections/pdf', getLocalDocumentPayload(projectId, sectionId), { responseType: 'blob' });
+  const url = URL.createObjectURL(resp.data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+export const downloadProjectDocumentPdf = async (projectId: number, docType: ProjectDocumentType, filename: string) => {
+  const resp = hasAuthToken()
+    ? await client.get(`/api/projects/${projectId}/documents/${docType}/pdf`, { responseType: 'blob' })
+    : await client.post(`/api/projects/local/documents/${docType}/pdf`, getLocalProjectDocumentPayload(projectId), { responseType: 'blob' });
   const url = URL.createObjectURL(resp.data);
   const a = document.createElement('a');
   a.href = url;

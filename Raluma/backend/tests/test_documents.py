@@ -116,6 +116,87 @@ class TestLocalPreview:
         assert "только для системы СЛАЙД" in r.text
 
 
+class TestProjectDocuments:
+    def test_project_commercial_preview_returns_readonly_html(
+        self, client, admin_headers, project
+    ):
+        _create_slide_section(client, admin_headers, project["id"])
+        token = admin_headers["Authorization"].replace("Bearer ", "")
+
+        r = client.get(
+            f"/api/projects/{project['id']}/documents/commercial/preview",
+            params={"token": token},
+        )
+
+        assert r.status_code == 200
+        assert "text/html" in r.headers["content-type"]
+        assert "Коммерческое предложение" in r.text
+        assert "TEST-001" in r.text
+        assert "contenteditable" not in r.text
+
+    def test_project_paint_preview_returns_html(self, client, admin_headers, project):
+        _create_slide_section(client, admin_headers, project["id"])
+        token = admin_headers["Authorization"].replace("Bearer ", "")
+
+        r = client.get(
+            f"/api/projects/{project['id']}/documents/paint/preview",
+            params={"token": token},
+        )
+
+        assert r.status_code == 200
+        assert "Заявка на покраску" in r.text
+        assert "RS1313" in r.text
+
+    def test_project_glass_preview_returns_html(self, client, admin_headers, project):
+        _create_slide_section(client, admin_headers, project["id"])
+        token = admin_headers["Authorization"].replace("Bearer ", "")
+
+        r = client.get(
+            f"/api/projects/{project['id']}/documents/glass/preview",
+            params={"token": token},
+        )
+
+        assert r.status_code == 200
+        assert "Заказ стекла" in r.text
+        assert "КРОМКИ ПОЛИРОВАННЫЕ" in r.text
+
+    def test_project_document_preview_requires_token(
+        self, client, admin_headers, project
+    ):
+        _create_slide_section(client, admin_headers, project["id"])
+
+        r = client.get(
+            f"/api/projects/{project['id']}/documents/commercial/preview",
+        )
+
+        assert r.status_code == 401
+
+    def test_local_project_document_preview_without_auth(self, client):
+        r = client.post(
+            "/api/projects/local/documents/glass/preview",
+            json={
+                "project": {"number": "LOCAL-DOC", "customer": "Гость"},
+                "sections": [
+                    {
+                        "name": "Секция 1",
+                        "system": "СЛАЙД",
+                        "width": 2000,
+                        "height": 2400,
+                        "panels": 3,
+                        "quantity": 1,
+                        "rails": 3,
+                        "threshold": "Стандартный анод",
+                        "first_panel_inside": "Справа",
+                    }
+                ],
+            },
+        )
+
+        assert r.status_code == 200
+        assert "LOCAL-DOC" in r.text
+        assert "Заказ стекла" in r.text
+
+
 class TestOverrides:
     def test_save_overrides(self, client, admin_headers, project):
         section = _create_slide_section(client, admin_headers, project["id"])
