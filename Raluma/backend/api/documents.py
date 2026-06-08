@@ -25,6 +25,8 @@ from engine.pdf import render_preview, render_pdf_html, generate_pdf
 
 router = APIRouter(prefix="/api/projects", tags=["documents"])
 
+ADMIN_ROLES = ("admin", "superadmin")
+
 
 def _get_section_or_404(
     project_id: int, section_id: int, db: Session, current_user: models.User
@@ -32,7 +34,7 @@ def _get_section_or_404(
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Проект не найден")
-    if current_user.role == "user" and project.created_by != current_user.id:
+    if current_user.role not in ADMIN_ROLES and project.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Нет доступа")
     section = (
         db.query(models.Section)

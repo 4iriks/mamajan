@@ -8,6 +8,7 @@ services:
       - db_data:/app/data
     environment:
       - DATABASE_URL=sqlite:////app/data/raluma.db
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required}
     expose:
       - "8000"
 

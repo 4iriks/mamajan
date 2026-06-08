@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Plus, Search, Edit2, Key, Trash2, X,
-  User, Shield, Crown, Check, RefreshCw, Copy, LayoutGrid, Users
+  User, Shield, Crown, Check, RefreshCw, Copy, LayoutGrid, Users, Package, Building2
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import {
@@ -14,19 +14,22 @@ import {
 
 const ROLE_LABELS: Record<string, string> = {
   user: 'Сотрудник',
-  admin: 'Администратор',
-  superadmin: 'Суперадмин',
+  dealer: 'Дилер',
+  admin: 'Админ',
+  superadmin: 'Админ',
 };
 
 const ROLE_COLORS: Record<string, string> = {
   user: 'bg-hi/10 text-fg/70 border-hi/15',
+  dealer: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
   admin: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  superadmin: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+  superadmin: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
 };
 
 const RoleIcon = ({ role }: { role: string }) => {
   if (role === 'superadmin') return <Crown className="w-3.5 h-3.5" />;
   if (role === 'admin') return <Shield className="w-3.5 h-3.5" />;
+  if (role === 'dealer') return <Building2 className="w-3.5 h-3.5" />;
   return <User className="w-3.5 h-3.5" />;
 };
 
@@ -41,12 +44,54 @@ const emptyForm: UserCreate = {
   password: '',
   role: 'user',
   customer: null,
+  employee_number: '',
+  position: '',
+  dealer_company: '',
+  dealer_contact_name: '',
+  dealer_phone: '',
+  dealer_email: '',
+  dealer_city: '',
+  dealer_address: '',
+  dealer_inn: '',
+  dealer_discount_percent: 0,
+  dealer_notes: '',
   is_active: true,
 };
 
 function genPassword() {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#';
   return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+}
+
+function roleOptions(isSuperAdmin: boolean, role: string) {
+  return [
+    ...(isSuperAdmin ? [{ value: role === 'superadmin' ? 'superadmin' : 'admin', label: 'Админ' }] : []),
+    { value: 'user', label: 'Сотрудник' },
+    { value: 'dealer', label: 'Дилер' },
+  ];
+}
+
+function UserDetails({ user }: { user: UserOut }) {
+  if (user.role === 'dealer') {
+    return (
+      <div>
+        <div className="text-sm font-medium text-fg/80">{user.dealer_company || user.customer || '—'}</div>
+        <div className="text-[11px] text-fg/35 mt-1">
+          {user.dealer_discount_percent ? `скидка ${user.dealer_discount_percent}%` : 'скидка не задана'}
+          {user.dealer_city ? ` · ${user.dealer_city}` : ''}
+        </div>
+      </div>
+    );
+  }
+  if (user.role === 'user') {
+    return (
+      <div>
+        <div className="text-sm font-medium text-fg/80">{user.position || 'Должность не указана'}</div>
+        <div className="text-[11px] text-fg/35 mt-1">{user.employee_number ? `ID ${user.employee_number}` : 'ID не указан'}</div>
+      </div>
+    );
+  }
+  return <span className="text-sm text-fg/50">Полный доступ</span>;
 }
 
 export default function AdminPage() {
@@ -97,7 +142,11 @@ export default function AdminPage() {
 
   const filtered = users.filter(u =>
     u.username.toLowerCase().includes(search.toLowerCase()) ||
-    u.display_name.toLowerCase().includes(search.toLowerCase())
+    u.display_name.toLowerCase().includes(search.toLowerCase()) ||
+    (u.employee_number || '').toLowerCase().includes(search.toLowerCase()) ||
+    (u.position || '').toLowerCase().includes(search.toLowerCase()) ||
+    (u.dealer_company || '').toLowerCase().includes(search.toLowerCase()) ||
+    (u.dealer_contact_name || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const openCreate = () => {
@@ -119,6 +168,17 @@ export default function AdminPage() {
           display_name: form.display_name,
           role: form.role,
           customer: form.customer,
+          employee_number: form.employee_number || null,
+          position: form.position || null,
+          dealer_company: form.dealer_company || null,
+          dealer_contact_name: form.dealer_contact_name || null,
+          dealer_phone: form.dealer_phone || null,
+          dealer_email: form.dealer_email || null,
+          dealer_city: form.dealer_city || null,
+          dealer_address: form.dealer_address || null,
+          dealer_inn: form.dealer_inn || null,
+          dealer_discount_percent: form.dealer_discount_percent || 0,
+          dealer_notes: form.dealer_notes || null,
           is_active: form.is_active,
         };
         if (form.password) upd.password = form.password;
@@ -222,14 +282,21 @@ export default function AdminPage() {
 
       <main className="flex-1 p-4 sm:p-8 max-w-5xl mx-auto w-full z-10">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <button onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-fg/50 hover:text-accent transition-colors group">
-            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            <span className="text-sm font-bold uppercase tracking-wider">К проектам</span>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
+          <div className="flex items-center gap-4">
+            <button onClick={() => navigate('/')}
+              className="flex items-center gap-2 text-fg/50 hover:text-accent transition-colors group">
+              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+              <span className="text-sm font-bold uppercase tracking-wider">К проектам</span>
+            </button>
+            <div className="h-6 w-px bg-tint/25" />
+            <h1 className="text-2xl font-bold">Администрирование</h1>
+          </div>
+          <button onClick={() => navigate('/admin/catalog/hardware')}
+            className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-tint/25 hover:bg-tint/40 text-accent font-bold border border-tint/35 transition-all">
+            <Package className="w-4 h-4" />
+            Каталог фурнитуры
           </button>
-          <div className="h-6 w-px bg-tint/25" />
-          <h1 className="text-2xl font-bold">Администрирование</h1>
         </div>
 
         {/* Toolbar */}
@@ -250,7 +317,7 @@ export default function AdminPage() {
             <button onClick={openCreate}
               className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-4 bg-primary hover:bg-primary-h text-white font-bold rounded-2xl transition-all shadow-lg shadow-primary/20 whitespace-nowrap">
               <Plus className="w-5 h-5" />
-              Создать сотрудника
+              Создать учётку
             </button>
           </div>
         </div>
@@ -264,7 +331,7 @@ export default function AdminPage() {
                 <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/50">Логин</th>
                 <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/50">Имя</th>
                 <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/50">Роль</th>
-                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/50">Заказчик</th>
+                <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/50">Данные</th>
                 <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/50">Статус</th>
                 <th className="px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/50 text-right">Действия</th>
               </tr>
@@ -299,7 +366,9 @@ export default function AdminPage() {
                       {ROLE_LABELS[u.role]}
                     </span>
                   </td>
-                  <td className="px-8 py-5 text-sm text-fg/50">{u.customer || '—'}</td>
+                  <td className="px-8 py-5">
+                    <UserDetails user={u} />
+                  </td>
                   <td className="px-8 py-5">
                     <span className={`inline-flex items-center gap-1.5 text-xs font-bold ${u.is_active ? 'text-emerald-400' : 'text-red-400'}`}>
                       <span className={`w-2 h-2 rounded-full ${u.is_active ? 'bg-emerald-400' : 'bg-red-400'}`} />
@@ -330,7 +399,7 @@ export default function AdminPage() {
           </table>
           </div>
           <div className="px-8 py-4 bg-hi/[0.02] border-t border-tint/20 text-xs text-fg/40">
-            Всего сотрудников: <span className="text-fg font-bold">{users.length}</span>
+            Всего учёток: <span className="text-fg font-bold">{users.length}</span>
           </div>
         </div>
       </main>
@@ -347,7 +416,7 @@ export default function AdminPage() {
               <button onClick={() => setIsEditOpen(false)} className="absolute right-8 top-8 text-fg/30 hover:text-fg transition-colors">
                 <X className="w-6 h-6" />
               </button>
-              <h2 className="text-2xl font-bold mb-8">{editingUser ? 'Изменить сотрудника' : 'Новый сотрудник'}</h2>
+              <h2 className="text-2xl font-bold mb-8">{editingUser ? 'Изменить учётку' : 'Новая учётка'}</h2>
 
               <div className="space-y-5">
                 <div className="space-y-2">
@@ -390,25 +459,134 @@ export default function AdminPage() {
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-accent/50 ml-1">Роль</label>
                   <div className="flex gap-2">
-                    {(['user', 'admin', ...(isSuperAdmin() ? ['superadmin'] : [])] as string[]).map(role => (
-                      <button key={role} onClick={() => setForm(f => ({ ...f, role }))}
+                    {roleOptions(isSuperAdmin(), form.role).map(role => (
+                      <button key={role.value} onClick={() => setForm(f => ({ ...f, role: role.value }))}
                         className={`flex-1 py-3 rounded-xl border text-xs font-bold transition-all ${
-                          form.role === role ? 'bg-accent/10 border-accent/50 text-accent' : 'bg-hi/5 border-tint/25 text-fg/50 hover:border-tint/50'
+                          form.role === role.value ? 'bg-accent/10 border-accent/50 text-accent' : 'bg-hi/5 border-tint/25 text-fg/50 hover:border-tint/50'
                         }`}>
-                        {ROLE_LABELS[role]}
+                        {role.label}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-accent/50 ml-1">Заказчик</label>
-                  <select value={form.customer || ''} onChange={e => setForm(f => ({ ...f, customer: e.target.value || null }))}
-                    className={SELECT_CLS}>
-                    <option value="">Без привязки</option>
-                    {CUSTOMERS.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
+                {form.role === 'user' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-accent/50 ml-1">ID сотрудника</label>
+                      <input type="text" value={form.employee_number || ''}
+                        onChange={e => setForm(f => ({ ...f, employee_number: e.target.value }))}
+                        className={INPUT_CLS + ' font-mono'}
+                        placeholder="EMP-001"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-accent/50 ml-1">Должность</label>
+                      <input type="text" value={form.position || ''}
+                        onChange={e => setForm(f => ({ ...f, position: e.target.value }))}
+                        className={INPUT_CLS}
+                        placeholder="Менеджер проектов"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {form.role === 'dealer' && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-accent/50 ml-1">Компания</label>
+                        <input type="text" value={form.dealer_company || ''}
+                          onChange={e => setForm(f => ({ ...f, dealer_company: e.target.value, customer: e.target.value || null }))}
+                          className={INPUT_CLS}
+                          placeholder="ООО Прозрачные решения"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-accent/50 ml-1">Скидка</label>
+                        <div className="relative">
+                          <input type="number" value={form.dealer_discount_percent ?? 0}
+                            onChange={e => setForm(f => ({ ...f, dealer_discount_percent: Number(e.target.value) }))}
+                            className={INPUT_CLS + ' pr-12 font-mono'}
+                            min={0}
+                            max={100}
+                            step="0.1"
+                          />
+                          <span className="absolute right-5 top-1/2 -translate-y-1/2 text-xs font-bold text-fg/35">%</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-accent/50 ml-1">Контактное лицо</label>
+                        <input type="text" value={form.dealer_contact_name || ''}
+                          onChange={e => setForm(f => ({ ...f, dealer_contact_name: e.target.value }))}
+                          className={INPUT_CLS}
+                          placeholder="Иван Петров"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-accent/50 ml-1">Телефон</label>
+                        <input type="text" value={form.dealer_phone || ''}
+                          onChange={e => setForm(f => ({ ...f, dealer_phone: e.target.value }))}
+                          className={INPUT_CLS}
+                          placeholder="+7..."
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-accent/50 ml-1">Email</label>
+                        <input type="email" value={form.dealer_email || ''}
+                          onChange={e => setForm(f => ({ ...f, dealer_email: e.target.value }))}
+                          className={INPUT_CLS}
+                          placeholder="dealer@example.ru"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-accent/50 ml-1">ИНН</label>
+                        <input type="text" value={form.dealer_inn || ''}
+                          onChange={e => setForm(f => ({ ...f, dealer_inn: e.target.value }))}
+                          className={INPUT_CLS + ' font-mono'}
+                          placeholder="7800000000"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-accent/50 ml-1">Город</label>
+                        <input type="text" value={form.dealer_city || ''}
+                          onChange={e => setForm(f => ({ ...f, dealer_city: e.target.value }))}
+                          className={INPUT_CLS}
+                          placeholder="Санкт-Петербург"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-accent/50 ml-1">Адрес</label>
+                        <input type="text" value={form.dealer_address || ''}
+                          onChange={e => setForm(f => ({ ...f, dealer_address: e.target.value }))}
+                          className={INPUT_CLS}
+                          placeholder="Адрес дилера"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-accent/50 ml-1">Заметки по дилеру</label>
+                      <textarea value={form.dealer_notes || ''}
+                        onChange={e => setForm(f => ({ ...f, dealer_notes: e.target.value }))}
+                        rows={3}
+                        className={INPUT_CLS + ' resize-none'}
+                        placeholder="Условия, особенности оплаты, логистика..."
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {(form.role === 'admin' || form.role === 'superadmin') && (
+                  <div className="rounded-2xl bg-blue-500/10 border border-blue-500/20 px-5 py-4 text-sm font-medium text-blue-200">
+                    Админ имеет доступ к проектам, сотрудникам, дилерам и справочникам.
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between py-3 px-1">
                   <span className="text-sm font-medium text-fg/80">Активен</span>
@@ -468,12 +646,12 @@ export default function AdminPage() {
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-accent/50 ml-1">Роль</label>
                     <div className="flex gap-2">
-                      {(['user', 'admin', ...(isSuperAdmin() ? ['superadmin'] : [])] as string[]).map(role => (
-                        <button key={role} onClick={() => setBulkRole(role)}
+                      {roleOptions(isSuperAdmin(), bulkRole).map(role => (
+                        <button key={role.value} onClick={() => setBulkRole(role.value)}
                           className={`flex-1 py-3 rounded-xl border text-xs font-bold transition-all ${
-                            bulkRole === role ? 'bg-accent/10 border-accent/50 text-accent' : 'bg-hi/5 border-tint/25 text-fg/50 hover:border-tint/50'
+                            bulkRole === role.value ? 'bg-accent/10 border-accent/50 text-accent' : 'bg-hi/5 border-tint/25 text-fg/50 hover:border-tint/50'
                           }`}>
-                          {ROLE_LABELS[role]}
+                          {role.label}
                         </button>
                       ))}
                     </div>
@@ -583,7 +761,7 @@ export default function AdminPage() {
               </div>
               <h2 className="text-2xl font-bold mb-2">Удалить сотрудника?</h2>
               <p className="text-fg/60 mb-8">
-                Сотрудник <span className="text-fg font-bold">{deleteTarget.username}</span> будет удалён безвозвратно.
+                Учётка <span className="text-fg font-bold">{deleteTarget.username}</span> будет удалена безвозвратно.
               </p>
               <div className="flex gap-4">
                 <button onClick={() => setDeleteTarget(null)} className="flex-1 py-4 rounded-2xl bg-hi/5 hover:bg-hi/10 font-bold transition-all">Отмена</button>

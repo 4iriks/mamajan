@@ -14,6 +14,18 @@ from database import engine
 # ── Новые колонки ──────────────────────────────────────────────────────────────
 
 _ADD_COLUMNS = [
+    # users
+    "ALTER TABLE users ADD COLUMN employee_number VARCHAR",
+    "ALTER TABLE users ADD COLUMN position VARCHAR",
+    "ALTER TABLE users ADD COLUMN dealer_company VARCHAR",
+    "ALTER TABLE users ADD COLUMN dealer_contact_name VARCHAR",
+    "ALTER TABLE users ADD COLUMN dealer_phone VARCHAR",
+    "ALTER TABLE users ADD COLUMN dealer_email VARCHAR",
+    "ALTER TABLE users ADD COLUMN dealer_city VARCHAR",
+    "ALTER TABLE users ADD COLUMN dealer_address VARCHAR",
+    "ALTER TABLE users ADD COLUMN dealer_inn VARCHAR",
+    "ALTER TABLE users ADD COLUMN dealer_discount_percent FLOAT",
+    "ALTER TABLE users ADD COLUMN dealer_notes TEXT",
     # projects
     "ALTER TABLE projects ADD COLUMN subtype VARCHAR",
     "ALTER TABLE projects ADD COLUMN extra_parts VARCHAR",

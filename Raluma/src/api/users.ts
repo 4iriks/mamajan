@@ -4,8 +4,19 @@ export interface UserOut {
   id: number;
   username: string;
   display_name: string;
-  role: 'user' | 'admin' | 'superadmin';
+  role: 'user' | 'dealer' | 'admin' | 'superadmin';
   customer: string | null;
+  employee_number?: string | null;
+  position?: string | null;
+  dealer_company?: string | null;
+  dealer_contact_name?: string | null;
+  dealer_phone?: string | null;
+  dealer_email?: string | null;
+  dealer_city?: string | null;
+  dealer_address?: string | null;
+  dealer_inn?: string | null;
+  dealer_discount_percent?: number | null;
+  dealer_notes?: string | null;
   is_active: boolean;
   created_at: string;
   last_login: string | null;
@@ -17,6 +28,17 @@ export interface UserCreate {
   password: string;
   role: string;
   customer?: string | null;
+  employee_number?: string | null;
+  position?: string | null;
+  dealer_company?: string | null;
+  dealer_contact_name?: string | null;
+  dealer_phone?: string | null;
+  dealer_email?: string | null;
+  dealer_city?: string | null;
+  dealer_address?: string | null;
+  dealer_inn?: string | null;
+  dealer_discount_percent?: number | null;
+  dealer_notes?: string | null;
   is_active: boolean;
 }
 
@@ -24,6 +46,17 @@ export interface UserUpdate {
   display_name?: string;
   role?: string;
   customer?: string | null;
+  employee_number?: string | null;
+  position?: string | null;
+  dealer_company?: string | null;
+  dealer_contact_name?: string | null;
+  dealer_phone?: string | null;
+  dealer_email?: string | null;
+  dealer_city?: string | null;
+  dealer_address?: string | null;
+  dealer_inn?: string | null;
+  dealer_discount_percent?: number | null;
+  dealer_notes?: string | null;
   is_active?: boolean;
   password?: string;
 }

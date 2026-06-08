@@ -4,7 +4,7 @@ export interface UserMe {
   id: number;
   username: string;
   display_name: string;
-  role: 'user' | 'admin' | 'superadmin';
+  role: 'user' | 'dealer' | 'admin' | 'superadmin';
   customer: string | null;
   is_active: boolean;
   created_at: string;

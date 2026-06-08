@@ -20,8 +20,21 @@ class User(Base):
     username = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
     display_name = Column(String, nullable=False)
-    role = Column(String, default="user", nullable=False)  # user | admin | superadmin
+    role = Column(
+        String, default="user", nullable=False
+    )  # user | dealer | admin | superadmin
     customer = Column(String, nullable=True)
+    employee_number = Column(String, nullable=True)
+    position = Column(String, nullable=True)
+    dealer_company = Column(String, nullable=True)
+    dealer_contact_name = Column(String, nullable=True)
+    dealer_phone = Column(String, nullable=True)
+    dealer_email = Column(String, nullable=True)
+    dealer_city = Column(String, nullable=True)
+    dealer_address = Column(String, nullable=True)
+    dealer_inn = Column(String, nullable=True)
+    dealer_discount_percent = Column(Float, nullable=True)
+    dealer_notes = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)

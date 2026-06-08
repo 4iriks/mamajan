@@ -9,6 +9,8 @@ from auth import get_current_user
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
+ADMIN_ROLES = ("admin", "superadmin")
+
 
 def _get_project_or_404(
     project_id: int, db: Session, current_user: models.User
@@ -16,8 +18,8 @@ def _get_project_or_404(
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Проект не найден")
-    # user видит только свои проекты; admin/superadmin видят все
-    if current_user.role == "user" and project.created_by != current_user.id:
+    # admin/superadmin видят все; остальные роли видят только свои проекты
+    if current_user.role not in ADMIN_ROLES and project.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Нет доступа к проекту")
     return project
 
@@ -28,7 +30,7 @@ def list_projects(
     current_user: models.User = Depends(get_current_user),
 ):
     query = db.query(models.Project)
-    if current_user.role == "user":
+    if current_user.role not in ADMIN_ROLES:
         query = query.filter(models.Project.created_by == current_user.id)
     return query.order_by(models.Project.created_at.desc()).all()
 

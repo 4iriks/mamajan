@@ -30,6 +30,17 @@ class UserBase(BaseModel):
     display_name: str
     role: str = "user"
     customer: Optional[str] = None
+    employee_number: Optional[str] = None
+    position: Optional[str] = None
+    dealer_company: Optional[str] = None
+    dealer_contact_name: Optional[str] = None
+    dealer_phone: Optional[str] = None
+    dealer_email: Optional[str] = None
+    dealer_city: Optional[str] = None
+    dealer_address: Optional[str] = None
+    dealer_inn: Optional[str] = None
+    dealer_discount_percent: Optional[float] = None
+    dealer_notes: Optional[str] = None
     is_active: bool = True
 
 
@@ -41,6 +52,17 @@ class UserUpdate(BaseModel):
     display_name: Optional[str] = None
     role: Optional[str] = None
     customer: Optional[str] = None
+    employee_number: Optional[str] = None
+    position: Optional[str] = None
+    dealer_company: Optional[str] = None
+    dealer_contact_name: Optional[str] = None
+    dealer_phone: Optional[str] = None
+    dealer_email: Optional[str] = None
+    dealer_city: Optional[str] = None
+    dealer_address: Optional[str] = None
+    dealer_inn: Optional[str] = None
+    dealer_discount_percent: Optional[float] = None
+    dealer_notes: Optional[str] = None
     is_active: Optional[bool] = None
     password: Optional[str] = None
 

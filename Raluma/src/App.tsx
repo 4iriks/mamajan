@@ -11,6 +11,7 @@ import { getMe } from './api/auth';
 import LoginPage from './pages/LoginPage';
 import ProjectsPage from './pages/ProjectsPage';
 import AdminPage from './pages/AdminPage';
+import HardwareCatalogPage from './pages/HardwareCatalogPage';
 import ToastContainer from './components/Toast';
 
 // ── Editor Page wrapper ───────────────────────────────────────────────────────
@@ -48,6 +49,7 @@ export default function App() {
         <Route path="/" element={<ProjectsPage />} />
         <Route path="/projects/:id" element={<EditorPage />} />
         <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
+        <Route path="/admin/catalog/hardware" element={<AdminRoute><HardwareCatalogPage /></AdminRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
