@@ -184,6 +184,10 @@ class TestProjectDocuments:
         assert r.status_code == 200
         assert "Заказ стекла" in r.text
         assert "КРОМКИ ПОЛИРОВАННЫЕ" in r.text
+        assert "ОБРАЩАЮ ВНИМАНИЕ" in r.text
+        assert r.text.index("ОБРАЩАЮ ВНИМАНИЕ") < r.text.index(
+            "КРОМКИ ПОЛИРОВАННЫЕ"
+        )
 
     def test_project_document_preview_requires_token(
         self, client, admin_headers, project
