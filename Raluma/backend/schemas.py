@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -81,6 +81,37 @@ class UserMe(UserOut):
 
 class ResetPasswordResponse(BaseModel):
     new_password: str
+
+
+# ── Catalog ───────────────────────────────────────────────────────────────────
+
+
+class CatalogItemBase(BaseModel):
+    sku: str
+    name: str
+    group: str = "Профили"
+    system: str = "СЛАЙД"
+    unit: str = "шт"
+    purchasePrice: float = 0
+    markupPercent: float = 0
+    weight: float = 0
+    wastePercent: float = 0
+    sectionWidthMm: float = 0
+    sectionHeightMm: float = 0
+    imageFile: Optional[str] = None
+    paintMode: str = "Не красится"
+    colorVariants: List[str] = Field(default_factory=list)
+    supplier: Optional[str] = None
+    isActive: bool = True
+    note: Optional[str] = None
+
+
+class CatalogItemCreate(CatalogItemBase):
+    pass
+
+
+class CatalogItemUpdate(CatalogItemBase):
+    pass
 
 
 # ── Section ───────────────────────────────────────────────────────────────────

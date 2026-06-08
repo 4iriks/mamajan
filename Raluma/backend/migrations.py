@@ -11,6 +11,36 @@ from sqlalchemy import text
 from database import engine
 
 
+# ── Новые таблицы ─────────────────────────────────────────────────────────────
+
+_CREATE_TABLES = [
+    """
+    CREATE TABLE IF NOT EXISTS catalog_items (
+        id INTEGER PRIMARY KEY,
+        sku VARCHAR NOT NULL UNIQUE,
+        name VARCHAR NOT NULL,
+        "group" VARCHAR NOT NULL DEFAULT 'Профили',
+        system VARCHAR NOT NULL DEFAULT 'СЛАЙД',
+        unit VARCHAR NOT NULL DEFAULT 'шт',
+        purchase_price FLOAT NOT NULL DEFAULT 0,
+        markup_percent FLOAT NOT NULL DEFAULT 0,
+        weight FLOAT NOT NULL DEFAULT 0,
+        waste_percent FLOAT NOT NULL DEFAULT 0,
+        section_width_mm FLOAT NOT NULL DEFAULT 0,
+        section_height_mm FLOAT NOT NULL DEFAULT 0,
+        image_file VARCHAR,
+        paint_mode VARCHAR NOT NULL DEFAULT 'Не красится',
+        color_variants TEXT NOT NULL DEFAULT '[]',
+        supplier VARCHAR,
+        is_active BOOLEAN DEFAULT 1,
+        note TEXT,
+        created_at DATETIME,
+        updated_at DATETIME
+    )
+    """,
+]
+
+
 # ── Новые колонки ──────────────────────────────────────────────────────────────
 
 _ADD_COLUMNS = [
@@ -94,6 +124,14 @@ _DATA_MIGRATIONS = [
 
 def run_migrations():
     """Выполнить все миграции. Безопасно вызывать при каждом старте."""
+    with engine.connect() as conn:
+        for table_sql in _CREATE_TABLES:
+            try:
+                conn.execute(text(table_sql))
+                conn.commit()
+            except Exception:
+                pass
+
     with engine.connect() as conn:
         for col_sql in _ADD_COLUMNS:
             try:

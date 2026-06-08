@@ -173,3 +173,28 @@ class Section(Base):
     document_overrides = Column(Text, default="{}")
 
     project = relationship("Project", back_populates="sections")
+
+
+class CatalogItem(Base):
+    __tablename__ = "catalog_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    sku = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    group = Column(String, default="Профили", nullable=False)
+    system = Column(String, default="СЛАЙД", nullable=False)
+    unit = Column(String, default="шт", nullable=False)
+    purchase_price = Column(Float, default=0, nullable=False)
+    markup_percent = Column(Float, default=0, nullable=False)
+    weight = Column(Float, default=0, nullable=False)
+    waste_percent = Column(Float, default=0, nullable=False)
+    section_width_mm = Column(Float, default=0, nullable=False)
+    section_height_mm = Column(Float, default=0, nullable=False)
+    image_file = Column(String, nullable=True)
+    paint_mode = Column(String, default="Не красится", nullable=False)
+    color_variants = Column(Text, default="[]", nullable=False)
+    supplier = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

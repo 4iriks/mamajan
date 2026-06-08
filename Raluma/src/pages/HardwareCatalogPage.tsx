@@ -6,7 +6,10 @@ import {
   ImageIcon, Plus, Ruler, Save, Scale, Search, SlidersHorizontal, Trash2, X,
 } from 'lucide-react';
 import {
+  archiveHardwareCatalogItem,
+  createHardwareCatalogItem,
   listHardwareCatalog,
+  updateHardwareCatalogItem,
   type CatalogUnit,
   type HardwareCatalogItem,
   type HardwareGroup,
@@ -384,35 +387,6 @@ function normalizeItem(item: Partial<HardwareItem>): HardwareItem {
   };
 }
 
-function mergeCatalogItems(seed: HardwareItem[], localItems: HardwareItem[]) {
-  const localBySku = new Map(
-    localItems
-      .filter(item => item.sku.trim())
-      .map(item => [item.sku.trim().toUpperCase(), item]),
-  );
-  const seedSkus = new Set(seed.map(item => item.sku.trim().toUpperCase()));
-
-  const mergedSeed = seed.map(item => {
-    const local = localBySku.get(item.sku.trim().toUpperCase());
-    if (!local) return item;
-
-    return normalizeItem({
-      ...item,
-      purchasePrice: local.purchasePrice,
-      markupPercent: local.markupPercent,
-      weight: local.weight,
-      wastePercent: local.wastePercent,
-      supplier: local.supplier,
-      isActive: local.isActive,
-      updatedAt: local.updatedAt,
-      note: local.note || item.note,
-    });
-  });
-
-  const customItems = localItems.filter(item => !seedSkus.has(item.sku.trim().toUpperCase()));
-  return [...mergedSeed, ...customItems];
-}
-
 function readItems(seed: HardwareItem[] = seedItems) {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -491,8 +465,7 @@ export default function HardwareCatalogPage() {
     listHardwareCatalog()
       .then(remoteItems => {
         if (cancelled) return;
-        const seed = remoteItems.map(item => normalizeItem(item));
-        const next = mergeCatalogItems(seed, readItems(seed));
+        const next = remoteItems.map(item => normalizeItem(item));
         setItems(next);
         saveItems(next);
       })
@@ -542,12 +515,7 @@ export default function HardwareCatalogPage() {
     };
   }, [items]);
 
-  const persist = (next: HardwareItem[]) => {
-    setItems(next);
-    saveItems(next);
-  };
-
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!draft) return;
     if (!draft.sku.trim() || !draft.name.trim()) {
       toast.error('Заполните артикул и название');
@@ -561,17 +529,43 @@ export default function HardwareCatalogPage() {
       updatedAt: new Date().toISOString().slice(0, 10),
     };
     const exists = items.some(item => item.id === normalized.id);
-    const next = exists
-      ? items.map(item => item.id === normalized.id ? normalized : item)
-      : [normalized, ...items];
-    persist(next);
-    setDraft(null);
-    toast.success('Позиция сохранена');
+    try {
+      if (catalogError) {
+        const next = exists
+          ? items.map(item => item.id === normalized.id ? normalized : item)
+          : [normalized, ...items];
+        setItems(next);
+        saveItems(next);
+      } else {
+        const saved = exists
+          ? await updateHardwareCatalogItem(normalized.id, normalized)
+          : await createHardwareCatalogItem(normalized);
+        const normalizedSaved = normalizeItem(saved);
+        setItems(prev => exists
+          ? prev.map(item => item.id === normalizedSaved.id ? normalizedSaved : item)
+          : [normalizedSaved, ...prev]);
+      }
+      setDraft(null);
+      toast.success('Позиция сохранена');
+    } catch {
+      toast.error('Не удалось сохранить позицию');
+    }
   };
 
-  const handleDelete = (id: number) => {
-    persist(items.filter(item => item.id !== id));
-    toast.success('Позиция удалена');
+  const handleDelete = async (id: number) => {
+    try {
+      if (catalogError) {
+        const next = items.filter(item => item.id !== id);
+        setItems(next);
+        saveItems(next);
+      } else {
+        const archived = normalizeItem(await archiveHardwareCatalogItem(id));
+        setItems(prev => prev.map(item => item.id === id ? archived : item));
+      }
+      toast.success('Позиция перенесена в архив');
+    } catch {
+      toast.error('Не удалось архивировать позицию');
+    }
   };
 
   return (

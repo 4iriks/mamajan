@@ -26,6 +26,66 @@ def test_hardware_catalog_returns_calculation_seed(client, admin_headers):
     )
 
 
+def test_hardware_catalog_updates_item(client, admin_headers):
+    items = client.get("/api/catalog/hardware", headers=admin_headers).json()
+    item = next(row for row in items if row["sku"] == "RS112")
+    payload = {**item, "purchasePrice": 777, "markupPercent": 41}
+
+    r = client.put(
+        f"/api/catalog/hardware/{item['id']}",
+        headers=admin_headers,
+        json=payload,
+    )
+
+    assert r.status_code == 200
+    data = r.json()
+    assert data["purchasePrice"] == 777
+    assert data["markupPercent"] == 41
+
+    listed = client.get("/api/catalog/hardware", headers=admin_headers).json()
+    updated = next(row for row in listed if row["sku"] == "RS112")
+    assert updated["purchasePrice"] == 777
+
+
+def test_hardware_catalog_create_duplicate_and_archive(client, admin_headers):
+    payload = {
+        "sku": "TEST-CAT-001",
+        "name": "Тестовая позиция",
+        "group": "Расходники",
+        "system": "Все",
+        "unit": "шт",
+        "purchasePrice": 12.5,
+        "markupPercent": 20,
+        "weight": 0.1,
+        "wastePercent": 0,
+        "sectionWidthMm": 0,
+        "sectionHeightMm": 0,
+        "imageFile": "",
+        "paintMode": "Не красится",
+        "colorVariants": ["Без цвета"],
+        "supplier": "Тест",
+        "isActive": True,
+        "note": "pytest",
+    }
+
+    created = client.post("/api/catalog/hardware", headers=admin_headers, json=payload)
+    assert created.status_code == 201
+    item = created.json()
+    assert item["sku"] == payload["sku"]
+
+    duplicate = client.post(
+        "/api/catalog/hardware", headers=admin_headers, json=payload
+    )
+    assert duplicate.status_code == 400
+
+    archived = client.delete(
+        f"/api/catalog/hardware/{item['id']}",
+        headers=admin_headers,
+    )
+    assert archived.status_code == 200
+    assert archived.json()["isActive"] is False
+
+
 def test_profile_asset_returns_existing_image(client):
     r = client.get("/api/catalog/profile-assets/RS112.jpg")
 

@@ -30,3 +30,18 @@ export const listHardwareCatalog = async () => {
   const resp = await client.get<HardwareCatalogItem[]>('/api/catalog/hardware');
   return resp.data;
 };
+
+export const createHardwareCatalogItem = async (data: HardwareCatalogItem) => {
+  const resp = await client.post<HardwareCatalogItem>('/api/catalog/hardware', data);
+  return resp.data;
+};
+
+export const updateHardwareCatalogItem = async (id: number, data: HardwareCatalogItem) => {
+  const resp = await client.put<HardwareCatalogItem>(`/api/catalog/hardware/${id}`, data);
+  return resp.data;
+};
+
+export const archiveHardwareCatalogItem = async (id: number) => {
+  const resp = await client.delete<HardwareCatalogItem>(`/api/catalog/hardware/${id}`);
+  return resp.data;
+};
