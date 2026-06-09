@@ -94,7 +94,7 @@ export function ProfileCheckbox({ checked, onChange, label, indent, disabled }: 
 export function getSectionTypeLabel(s: Section): string {
   switch (s.system) {
     case 'СЛАЙД': {
-      const rows = '1 ряд';
+      const rows = s.slideRows === 2 ? '2 ряда' : '1 ряд';
       return `${rows} · ${s.panels ?? 3} пан.`;
     }
     case 'КНИЖКА': {
