@@ -5,6 +5,24 @@ PDF-генерацию не тестируем (требует WeasyPrint + си
 
 import json
 
+from engine.pdf import _img_b64, get_profile_asset_path
+
+
+class TestProfileAssetSafety:
+    def test_img_b64_accepts_known_profile_image(self):
+        assert get_profile_asset_path("RS112.jpg") is not None
+        assert _img_b64("RS112.jpg").startswith("data:image/jpeg;base64,")
+
+    def test_img_b64_rejects_path_traversal(self):
+        assert get_profile_asset_path("../models.py") is None
+        assert get_profile_asset_path("..\\models.py") is None
+        assert _img_b64("../models.py") == ""
+        assert _img_b64("..\\models.py") == ""
+
+    def test_img_b64_rejects_non_image_extension(self):
+        assert get_profile_asset_path("models.py") is None
+        assert _img_b64("models.py") == ""
+
 
 def _create_slide_section(client, admin_headers, project_id):
     r = client.post(

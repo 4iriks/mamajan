@@ -6,27 +6,45 @@ Jinja2 → HTML → WeasyPrint → bytes
 import base64
 import json
 import os
+from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATES_DIR = os.path.join(BACKEND_DIR, "templates")
 ASSETS_DIR = os.path.join(BACKEND_DIR, "assets", "profiles")
+ASSETS_PATH = Path(ASSETS_DIR).resolve()
+IMAGE_MIME_TYPES = {
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "png": "image/png",
+}
+
+
+def get_profile_asset_path(filename: str | None) -> Path | None:
+    """Return a safe profile asset path inside ASSETS_DIR, or None."""
+    if not filename:
+        return None
+    if "/" in filename or "\\" in filename:
+        return None
+    ext = filename.rsplit(".", 1)[-1].lower()
+    if ext not in IMAGE_MIME_TYPES:
+        return None
+    path = (ASSETS_PATH / filename).resolve()
+    if path.parent != ASSETS_PATH or not path.is_file():
+        return None
+    return path
 
 
 def _img_b64(filename: str) -> str:
     """Jinja2-фильтр: имя файла → data URI base64 или пустая строка."""
-    if not filename:
+    path = get_profile_asset_path(filename)
+    if not path:
         return ""
-    path = os.path.join(ASSETS_DIR, filename)
-    if not os.path.exists(path):
-        return ""
-    with open(path, "rb") as f:
+    with path.open("rb") as f:
         data = base64.b64encode(f.read()).decode()
     ext = filename.rsplit(".", 1)[-1].lower()
-    mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png"}.get(
-        ext, "image/jpeg"
-    )
+    mime = IMAGE_MIME_TYPES[ext]
     return f"data:{mime};base64,{data}"
 
 

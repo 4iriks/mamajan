@@ -98,3 +98,9 @@ def test_profile_asset_rejects_path_traversal(client):
     r = client.get("/api/catalog/profile-assets/..%2Fmodels.py")
 
     assert r.status_code == 404
+
+
+def test_profile_asset_rejects_non_image_extension(client):
+    r = client.get("/api/catalog/profile-assets/models.py")
+
+    assert r.status_code == 404

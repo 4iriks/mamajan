@@ -1,5 +1,4 @@
 import json
-import os
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -8,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from auth import require_admin
 from database import get_db
-from engine.pdf import ASSETS_DIR
+from engine.pdf import get_profile_asset_path
 from engine.profile_catalog import PROFILE_CATALOG
 import models
 import schemas
@@ -196,8 +195,7 @@ def archive_hardware_item(
 
 @router.get("/profile-assets/{filename}")
 def get_profile_asset(filename: str):
-    safe_name = os.path.basename(filename)
-    path = os.path.join(ASSETS_DIR, safe_name)
-    if safe_name != filename or not os.path.isfile(path):
+    path = get_profile_asset_path(filename)
+    if not path:
         raise HTTPException(status_code=404, detail="Изображение не найдено")
     return FileResponse(path)
