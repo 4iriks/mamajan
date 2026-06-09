@@ -72,6 +72,22 @@ def expand_glass_widths(calc, panels: int, fallback_width: float) -> list[float]
     return [round(width, 1) for width in widths]
 
 
+def profile_dimension(
+    calc,
+    articles: list[str],
+    key: str,
+    fallback: float,
+) -> float:
+    profiles = getattr(calc, "profiles", None) or []
+    for profile in profiles:
+        if getattr(profile, "article", None) not in articles:
+            continue
+        value = float(getattr(profile, key, 0) or 0)
+        if value > 0:
+            return value
+    return fallback
+
+
 def _img_b64(filename: str) -> str:
     """Jinja2-фильтр: имя файла → data URI base64 или пустая строка."""
     path = get_profile_asset_path(filename)
@@ -89,6 +105,7 @@ def _get_env() -> Environment:
     env.filters["img_b64"] = _img_b64
     env.filters["enumerate"] = enumerate
     env.globals["glass_widths"] = expand_glass_widths
+    env.globals["profile_dimension"] = profile_dimension
     return env
 
 

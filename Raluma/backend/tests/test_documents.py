@@ -6,7 +6,12 @@ PDF-генерацию не тестируем (требует WeasyPrint + си
 import json
 from types import SimpleNamespace
 
-from engine.pdf import _img_b64, expand_glass_widths, get_profile_asset_path
+from engine.pdf import (
+    _img_b64,
+    expand_glass_widths,
+    get_profile_asset_path,
+    profile_dimension,
+)
 
 
 class TestProfileAssetSafety:
@@ -47,6 +52,15 @@ class TestDiagramGlassWidths:
 
         assert expand_glass_widths(calc, 3, 1510) == [540, 470, 500]
 
+    def test_profile_dimension_reads_calculation_metadata(self):
+        calc = SimpleNamespace(
+            profiles=[
+                SimpleNamespace(article="RS2333", section_height_mm=16),
+            ]
+        )
+
+        assert profile_dimension(calc, ["RS2333"], "section_height_mm", 10) == 16
+
 
 def _create_slide_section(client, admin_headers, project_id):
     r = client.post(
@@ -82,6 +96,8 @@ class TestPreview:
         assert r.status_code == 200
         assert "text/html" in r.headers["content-type"]
         assert "contenteditable" in r.text
+        assert 'data-profile="RS2333-left"' in r.text
+        assert 'data-profile="RS2333-right"' in r.text
 
     def test_preview_no_token(self, client, project, admin_headers):
         section = _create_slide_section(client, admin_headers, project["id"])

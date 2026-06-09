@@ -252,6 +252,9 @@
       {% set first_right = (section.first_panel_inside or 'Справа') == 'Справа' %}
       {% set top_panel_widths = glass_widths(calc, P, section.width) %}
       {% set top_total_width = top_panel_widths | sum %}
+      {% set wall_article = 'RS2335' if rails == 5 else 'RS2333' %}
+      {% set wall_profile_mm = profile_dimension(calc, [wall_article], 'section_height_mm', 16) %}
+      {% set wall_px = [3, wall_profile_mm * rail_w / (section.width or rail_w)] | max %}
       <svg viewBox="0 0 {{ sw }} {{ sh }}"
            xmlns="http://www.w3.org/2000/svg" style="display:block; width:100%;">
 
@@ -266,6 +269,16 @@
         {# Вертикальные ограничители #}
         <line x1="{{ left_w }}" y1="{{ top_pad - 4 }}" x2="{{ left_w }}" y2="{{ top_pad + rails * row_h + 4 }}" stroke="#000" stroke-width="1.5"/>
         <line x1="{{ left_w + rail_w }}" y1="{{ top_pad - 4 }}" x2="{{ left_w + rail_w }}" y2="{{ top_pad + rails * row_h + 4 }}" stroke="#000" stroke-width="1.5"/>
+
+        {# Пристеночный профиль #}
+        {% if section.profile_left_wall %}
+        <rect data-profile="{{ wall_article }}-left" x="{{ left_w }}" y="{{ top_pad - 4 }}" width="{{ wall_px }}" height="{{ rails * row_h + 8 }}" fill="#e8e8e8" stroke="#666" stroke-width="0.3"/>
+        <text x="{{ left_w + wall_px / 2 }}" y="{{ top_pad + 6 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#666">{{ wall_profile_mm|round|int }}</text>
+        {% endif %}
+        {% if section.profile_right_wall %}
+        <rect data-profile="{{ wall_article }}-right" x="{{ left_w + rail_w - wall_px }}" y="{{ top_pad - 4 }}" width="{{ wall_px }}" height="{{ rails * row_h + 8 }}" fill="#e8e8e8" stroke="#666" stroke-width="0.3"/>
+        <text x="{{ left_w + rail_w - wall_px / 2 }}" y="{{ top_pad + 6 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#666">{{ wall_profile_mm|round|int }}</text>
+        {% endif %}
 
         {# Рельсы #}
         {% for ri in range(rails) %}
