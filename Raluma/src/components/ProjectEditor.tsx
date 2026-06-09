@@ -88,9 +88,18 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   }, [activeSectionId]);
 
 
-  const defaultsForSystem = (system: SystemType, opts?: { bookSubtype?: string; liftPanels?: number; csShape?: string }): Partial<Section> => {
+  const defaultsForSystem = (system: SystemType, opts?: { slideRails?: 3 | 5; slideRows?: 1 | 2; bookSubtype?: string; liftPanels?: number; csShape?: string }): Partial<Section> => {
     switch (system) {
-      case 'СЛАЙД':  return { rails: 3, firstPanelInside: 'Справа', panels: 3 };
+      case 'СЛАЙД': {
+        const rows = opts?.slideRows ?? 1;
+        return {
+          rails: opts?.slideRails ?? 3,
+          slideRows: rows,
+          firstPanelInside: rows === 1 ? 'Справа' : undefined,
+          unusedTrack: rows === 2 ? 'Внешний' : undefined,
+          panels: rows === 2 ? 4 : 3,
+        };
+      }
       case 'КНИЖКА': {
         const sub = opts?.bookSubtype || 'doors';
         const hasDoors = sub === 'doors' || sub === 'doors_and_angle';
@@ -107,10 +116,11 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     }
   };
 
-  const handleAddSection = async (system: SystemType, opts?: { slideRails?: 3 | 5; bookSubtype?: string; liftPanels?: number; csShape?: string }) => {
+  const handleAddSection = async (system: SystemType, opts?: { slideRails?: 3 | 5; slideRows?: 1 | 2; bookSubtype?: string; liftPanels?: number; csShape?: string }) => {
     if (!project) return;
     const extra: Partial<Section> = {};
     if (system === 'СЛАЙД' && opts?.slideRails) extra.rails = opts.slideRails;
+    if (system === 'СЛАЙД' && opts?.slideRows) extra.slideRows = opts.slideRows;
     if (system === 'КНИЖКА' && opts?.bookSubtype) extra.bookSubtype = opts.bookSubtype;
     if (system === 'ЛИФТ' && opts?.liftPanels) extra.panels = opts.liftPanels;
     if (system === 'ЦС' && opts?.csShape) extra.csShape = opts.csShape;

@@ -56,10 +56,21 @@ def expand_glass_widths(calc, panels: int, fallback_width: float) -> list[float]
     edge = find_width("крайн")
     left = find_width("лев")
     right = find_width("прав")
+    center = find_width("централь")
     middle = find_width("промеж") or edge or left or right or fallback_panel
 
     if safe_panels == 1:
         return [round(middle, 1)]
+    if center and safe_panels >= 4:
+        side_middle_count = max(safe_panels - 4, 0) // 2
+        widths = [left or middle]
+        widths.extend([middle] * side_middle_count)
+        widths.extend([center, center])
+        widths.extend([middle] * side_middle_count)
+        widths.append(right or middle)
+        if len(widths) < safe_panels:
+            widths.extend([middle] * (safe_panels - len(widths)))
+        return [round(width, 1) for width in widths[:safe_panels]]
 
     widths = []
     for index in range(safe_panels):

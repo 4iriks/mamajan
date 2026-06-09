@@ -40,6 +40,12 @@ def _make_section(**overrides):
         handle_offset_right=0,
         floor_latches_left=False,
         floor_latches_right=False,
+        slide_rows=1,
+        center_handle=None,
+        center_lock=None,
+        center_handle_offset=0,
+        center_floor_latches_left=False,
+        center_floor_latches_right=False,
     )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -987,3 +993,112 @@ class TestRS1006FullName:
         )
         rs107l = _find_hardware(r, "RS107L")
         assert len(rs107l) == 1
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# СЛАЙД 2 РЯДА
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestSlideTwoRows:
+    """Отдельная ветка расчета СЛАЙД стандарт 2 ряда."""
+
+    def test_system_text_and_panel_rails_3rail_4panels_center_first(self):
+        r = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                rails=3,
+                panels=4,
+                unused_track="Внешний",
+                first_panel_inside=None,
+            )
+        )
+        assert r.system_text == "SLIDE-стандарт 2 ряда"
+        assert r.panel_rails == [1, 2, 2, 1]
+
+    def test_glass_formula_has_central_pair(self):
+        r = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                rails=3,
+                panels=4,
+                unused_track="Внешний",
+                first_panel_inside=None,
+            )
+        )
+        left = _find_glass(r, "Левое")[0]
+        center = _find_glass(r, "Центральные")[0]
+        right = _find_glass(r, "Правое")[0]
+        expected = round((2000 - 3 - 16 - 16 + 9.5 * 2) / 4, 1)
+        assert left.width_mm == expected
+        assert center.width_mm == expected
+        assert center.qty == 2
+        assert right.width_mm == expected
+
+    def test_5rail_8panels_has_middle_glass(self):
+        r = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                rails=5,
+                panels=8,
+                unused_track="Внешний",
+                first_panel_inside=None,
+            )
+        )
+        middle = _find_glass(r, "Промежуточные")[0]
+        assert middle.qty == 4
+        assert r.panel_rails == [1, 2, 3, 4, 4, 3, 2, 1]
+
+    def test_center_rs112_adds_profiles_and_skips_rs3110(self):
+        r = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                rails=3,
+                panels=4,
+                center_handle="Ручки-профиль RS112 (2шт)",
+                center_lock="Без",
+                first_panel_inside=None,
+            )
+        )
+        rs112 = _find_profile(r, "RS112")[0]
+        rs1083 = _find_profile(r, "RS1083")[0]
+        ru010 = _find_profile(r, "RU010")[0]
+        assert rs112.qty == 2
+        assert rs1083.length_mm == 2255
+        assert ru010.qty == 2
+        assert not _find_hardware(r, "RS3110")
+
+    def test_center_locks_are_separate_hardware(self):
+        glass_lock = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                panels=4,
+                center_handle="Ручка-кноб RS3014",
+                center_lock="Замок стекло-стекло RS30301",
+                first_panel_inside=None,
+            )
+        )
+        latch = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                panels=4,
+                center_handle="Ручки-профиль RS112 (2шт)",
+                center_lock="Накидная защёлка RS206",
+                first_panel_inside=None,
+            )
+        )
+        assert _find_hardware(glass_lock, "RS30301")[0].value == 1
+        assert _find_hardware(latch, "RS206")[0].value == 1
+
+    def test_center_floor_latches_are_counted_with_side_latches(self):
+        r = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                panels=4,
+                center_floor_latches_left=True,
+                center_floor_latches_right=True,
+                floor_latches_left=True,
+                first_panel_inside=None,
+            )
+        )
+        assert _find_profile(r, "RS205")[0].qty == 3

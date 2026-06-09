@@ -138,11 +138,16 @@
       {% set riH = rfH - 2 * rpt %}
       {% set room_panel_widths = glass_widths(calc, section.panels, section.width) %}
       {% set room_total_width = room_panel_widths | sum %}
-      {% set room_first_right = (section.first_panel_inside or 'Справа') == 'Справа' %}
+      {% set is2row = (section.slide_rows or 1) == 2 %}
+      {% set room_first_right = (not is2row) and (section.first_panel_inside or 'Справа') == 'Справа' %}
       {% set hL = (section.handle_left or 'Без')|lower %}
       {% set hR = (section.handle_right or 'Без')|lower %}
       {% set lL = (section.lock_left or 'Без')|lower %}
       {% set lR = (section.lock_right or 'Без')|lower %}
+      {% set hC = (section.center_handle or 'Без ручки (глухие)')|lower %}
+      {% set centerDeaf = is2row and ('глух' in hC or hC == '') %}
+      {% set centerLeftIdx = (section.panels // 2) - 1 %}
+      {% set centerRightIdx = section.panels // 2 %}
       {% set leftDeaf = ('без' in hL or 'глухая' in hL) and 'без' in lL and not section.profile_left_handle_bar %}
       {% set rightDeaf = ('без' in hR or 'глухая' in hR) and 'без' in lR and not section.profile_right_handle_bar %}
       {% set symY = riY + riH / 2 %}
@@ -170,9 +175,11 @@
         {% if i < section.panels - 1 %}
         <rect x="{{ gpx + rpW - 1 }}" y="{{ riY }}" width="2" height="{{ riH }}" fill="#e0e0e0" stroke="#ccc" stroke-width="0.3"/>
         {% endif %}
-        {% set pnum = section.panels - i if room_first_right else i + 1 %}
+        {% set pnum = i + 1 if is2row else (section.panels - i if room_first_right else i + 1) %}
         {# Deaf panel — X #}
-        {% if (i == 0 and leftDeaf) or (i == section.panels - 1 and rightDeaf) %}
+        {% set isCenterPanel = is2row and (i == centerLeftIdx or i == centerRightIdx) %}
+        {% set panelDeaf = (i == 0 and leftDeaf) or (i == section.panels - 1 and rightDeaf) or (isCenterPanel and centerDeaf) %}
+        {% if panelDeaf %}
         <line x1="{{ gpx + 8 }}" y1="{{ riY + 6 }}" x2="{{ gpx + rpW - 8 }}" y2="{{ riY + riH - 6 }}" stroke="#aaa" stroke-width="0.7"/>
         <line x1="{{ gpx + rpW - 8 }}" y1="{{ riY + 6 }}" x2="{{ gpx + 8 }}" y2="{{ riY + riH - 6 }}" stroke="#aaa" stroke-width="0.7"/>
         {% endif %}
@@ -180,9 +187,10 @@
         <text x="{{ gcx }}" y="{{ gcy - 4 }}" text-anchor="middle" font-size="7" font-family="Arial" font-weight="bold" fill="#555">{{ pnum }}</text>
         <text x="{{ gcx }}" y="{{ riY + riH - 2 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#777">{{ panel_w_mm|round|int }}</text>
         {# Arrow (non-deaf panels) #}
-        {% if not ((i == 0 and leftDeaf) or (i == section.panels - 1 and rightDeaf)) %}
+        {% if not panelDeaf %}
         {% set alen = [10, rpW * 0.35] | min %}
-        {% if room_first_right %}
+        {% set panelArrowLeft = (i < section.panels / 2) if is2row else room_first_right %}
+        {% if panelArrowLeft %}
         <line x1="{{ gcx + alen/2 }}" y1="{{ gcy + 4 }}" x2="{{ gcx - alen/2 }}" y2="{{ gcy + 4 }}" stroke="#999" stroke-width="0.8"/>
         <polyline points="{{ gcx - alen/2 + 3 }},{{ gcy + 2 }} {{ gcx - alen/2 }},{{ gcy + 4 }} {{ gcx - alen/2 + 3 }},{{ gcy + 6 }}" stroke="#999" stroke-width="0.8" fill="none"/>
         {% else %}
@@ -196,6 +204,12 @@
         {% endif %}
         {% if i == section.panels - 1 and section.floor_latches_right %}
         <rect x="{{ riX + riW - 9 }}" y="{{ riY + riH - 1 }}" width="5" height="5" fill="#666" stroke="#000" stroke-width="0.5"/>
+        {% endif %}
+        {% if is2row and i == centerLeftIdx and section.center_floor_latches_left %}
+        <rect x="{{ gpx + rpW - 9 }}" y="{{ riY + riH - 1 }}" width="5" height="5" fill="#666" stroke="#000" stroke-width="0.5"/>
+        {% endif %}
+        {% if is2row and i == centerRightIdx and section.center_floor_latches_right %}
+        <rect x="{{ gpx + 4 }}" y="{{ riY + riH - 1 }}" width="5" height="5" fill="#666" stroke="#000" stroke-width="0.5"/>
         {% endif %}
         {% set room_ns.x = room_ns.x + rpW %}
         {% endfor %}
@@ -249,7 +263,8 @@
       {% set rail_w = 300 %}
       {% set sw = left_w + rail_w + right_w %}
       {% set sh = top_pad + rails * row_h + bot_pad %}
-      {% set first_right = (section.first_panel_inside or 'Справа') == 'Справа' %}
+      {% set is2row = (section.slide_rows or 1) == 2 %}
+      {% set first_right = (not is2row) and (section.first_panel_inside or 'Справа') == 'Справа' %}
       {% set top_panel_widths = glass_widths(calc, P, section.width) %}
       {% set top_total_width = top_panel_widths | sum %}
       {% set wall_article = 'RS2335' if rails == 5 else 'RS2333' %}
@@ -303,11 +318,11 @@
         {# Панель — тонкий прямоугольник #}
         <rect x="{{ gx1 }}" y="{{ cy - 5 }}" width="{{ gx2 - gx1 }}" height="10" fill="#ddeef5" stroke="#000" stroke-width="0.8"/>
         {# Номер панели #}
-        {% set pnum = P - pi if first_right else pi + 1 %}
+        {% set pnum = pi + 1 if is2row else (P - pi if first_right else pi + 1) %}
         <text x="{{ (gx1 + gx2) / 2 }}" y="{{ cy + 3 }}" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#333">{{ panel_w_mm|round|int }} · {{ pnum }}</text>
         {% if section.inter_glass_profile and section.inter_glass_profile != '— Без межстекольного профиля —' and pi < P - 1 %}
         {% set ix = px + panel_w %}
-        {% set idir = -1 if first_right else 1 %}
+        {% set idir = -1 if is2row or first_right else 1 %}
         {% set iw = 8 %}
         <path d="M {{ ix + idir * iw }} {{ cy - 6 }} L {{ ix }} {{ cy - 6 }} L {{ ix }} {{ cy + 6 }} L {{ ix + idir * iw }} {{ cy + 6 }}" fill="none" stroke="#666" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/>
         {% endif %}
@@ -320,7 +335,12 @@
         {% set ay = top_pad + rails * row_h + 18 %}
         {% set ax = left_w + rail_w / 2 %}
         {% set alen = 60 %}
-        {% if first_right %}
+        {% if is2row %}
+        <line x1="{{ ax - alen/2 }}" y1="{{ ay }}" x2="{{ ax + alen/2 }}" y2="{{ ay }}" stroke="#000" stroke-width="0.8"/>
+        <polyline points="{{ ax - alen/2 + 5 }},{{ ay - 3 }} {{ ax - alen/2 }},{{ ay }} {{ ax - alen/2 + 5 }},{{ ay + 3 }}" stroke="#000" stroke-width="0.8" fill="none"/>
+        <polyline points="{{ ax + alen/2 - 5 }},{{ ay - 3 }} {{ ax + alen/2 }},{{ ay }} {{ ax + alen/2 - 5 }},{{ ay + 3 }}" stroke="#000" stroke-width="0.8" fill="none"/>
+        <text x="{{ ax }}" y="{{ ay + 9 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#666">сдвиг</text>
+        {% elif first_right %}
         <line x1="{{ ax - alen/2 }}" y1="{{ ay }}" x2="{{ ax + alen/2 }}" y2="{{ ay }}" stroke="#000" stroke-width="0.8"/>
         <polyline points="{{ ax - alen/2 + 5 }},{{ ay - 3 }} {{ ax - alen/2 }},{{ ay }} {{ ax - alen/2 + 5 }},{{ ay + 3 }}" stroke="#000" stroke-width="0.8" fill="none"/>
         <text x="{{ ax + alen/2 + 3 }}" y="{{ ay + 3 }}" font-size="5" font-family="Arial" fill="#666">сдвиг</text>

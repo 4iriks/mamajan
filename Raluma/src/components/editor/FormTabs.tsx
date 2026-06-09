@@ -90,6 +90,7 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
   const showUnused = is2row
     ? (s.panels ?? 4) < maxPanels2row
     : (s.panels ?? 3) < maxPanels1row;
+  const firstPanelsPlacement = (s.unusedTrack ?? 'Внешний') === 'Внешний' ? 'В центре' : 'Снаружи';
 
   const showLockLeft  = (s.profileLeftLockBar  || s.profileLeftHandleBar)  && !(s.profileLeftPBar  && s.profileLeftHandleBar);
   const showNoLockLeft  = s.profileLeftPBar  && s.profileLeftHandleBar;
@@ -119,7 +120,11 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
               onChange={v => {
                 const newRails = v.startsWith('3') ? 3 : 5;
                 const curRows = s.slideRows ?? 1;
-                const defaultPanels = curRows === 2 ? 4 : Math.min(s.panels ?? 3, newRails);
+                const allowed = curRows === 2
+                  ? (newRails === 5 ? [4, 6, 8, 10] : [4, 6])
+                  : (newRails === 5 ? [2, 3, 4, 5] : [2, 3]);
+                const curPanels = s.panels ?? (curRows === 2 ? 4 : 3);
+                const defaultPanels = allowed.includes(curPanels) ? curPanels : allowed[0];
                 update({ rails: newRails, panels: defaultPanels });
               }}
             />
@@ -132,7 +137,11 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
               onChange={v => {
                 const newRows = v === '2 ряда' ? 2 : 1;
                 const defaultPanels = newRows === 2 ? 4 : Math.min(s.panels ?? 3, rails);
-                update({ slideRows: newRows, panels: defaultPanels });
+                update({
+                  slideRows: newRows,
+                  panels: defaultPanels,
+                  ...(newRows === 2 ? { unusedTrack: s.unusedTrack ?? 'Внешний' } : { firstPanelInside: s.firstPanelInside ?? 'Справа' }),
+                });
               }}
             />
           </div>
@@ -144,16 +153,26 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
           </div>
           {showUnused && (
             <div className="space-y-1.5">
-              <label className={LBL}>Неиспользуемый рельс</label>
-              <ToggleGroup value={s.unusedTrack ?? 'Внутренний'} options={['Внутренний', 'Внешний']}
-                onChange={v => update({ unusedTrack: v })} />
+              <label className={LBL}>{is2row ? 'Первые панели' : 'Неиспользуемый рельс'}</label>
+              {is2row ? (
+                <ToggleGroup
+                  value={firstPanelsPlacement}
+                  options={['В центре', 'Снаружи']}
+                  onChange={v => update({ unusedTrack: v === 'В центре' ? 'Внешний' : 'Внутренний' })}
+                />
+              ) : (
+                <ToggleGroup value={s.unusedTrack ?? 'Внутренний'} options={['Внутренний', 'Внешний']}
+                  onChange={v => update({ unusedTrack: v })} />
+              )}
             </div>
           )}
-          <div className="space-y-1.5">
-            <label className={LBL}>1-я панель внутри помещения</label>
-            <ToggleGroup value={s.firstPanelInside} options={['Слева', 'Справа']}
-              onChange={v => update({ firstPanelInside: v })} />
-          </div>
+          {!is2row && (
+            <div className="space-y-1.5">
+              <label className={LBL}>1-я панель внутри помещения</label>
+              <ToggleGroup value={s.firstPanelInside} options={['Слева', 'Справа']}
+                onChange={v => update({ firstPanelInside: v })} />
+            </div>
+          )}
         </div>
         <div className="space-y-4">
           <div className="space-y-1.5">
@@ -302,9 +321,7 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
                 ]}
                 onChange={v => {
                   const upd: Partial<Section> = { centerHandle: v };
-                  if (v === 'Ручки-профиль RS112 (2шт)') {
-                    upd.centerLock = 'Накидная защёлка RS206';
-                  } else if (!v || v === 'Без ручки (глухие)') {
+                  if (!v || v === 'Без ручки (глухие)') {
                     upd.centerLock = undefined;
                     upd.centerFloorLatchesLeft = false;
                     upd.centerFloorLatchesRight = false;
@@ -331,7 +348,7 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
               <div className="space-y-1.5">
                 <label className={LBL}>Замок центральных</label>
                 <RadioList value={s.centerLock} noneLabel="Без замка"
-                  options={['Замок стекло-стекло', 'Накидная защёлка RS206']}
+                  options={['Замок стекло-стекло RS30301', 'Накидная защёлка RS206']}
                   onChange={v => update({ centerLock: v })} />
               </div>
             )}
@@ -339,10 +356,9 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
             {centerIsRS112 && (
               <div className="space-y-1.5">
                 <label className={LBL}>Замок центральных</label>
-                <div className="px-4 py-2 bg-black/10 border border-tint/20 rounded-xl space-y-1">
-                  <span className="text-xs text-fg/40 font-bold">Без замка</span>
-                  <div className="text-xs text-fg/50">Накидная защёлка RS206 на 2 створки</div>
-                </div>
+                <RadioList value={s.centerLock} noneLabel="Без замка"
+                  options={['Накидная защёлка RS206']}
+                  onChange={v => update({ centerLock: v })} />
               </div>
             )}
 

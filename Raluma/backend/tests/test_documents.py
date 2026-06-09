@@ -52,6 +52,18 @@ class TestDiagramGlassWidths:
 
         assert expand_glass_widths(calc, 3, 1510) == [540, 470, 500]
 
+    def test_expands_two_row_central_glass_widths(self):
+        calc = SimpleNamespace(
+            glass=[
+                SimpleNamespace(position="Левое", width_mm=520, qty=1),
+                SimpleNamespace(position="Промежуточные", width_mm=470, qty=2),
+                SimpleNamespace(position="Центральные", width_mm=500, qty=2),
+                SimpleNamespace(position="Правое", width_mm=530, qty=1),
+            ]
+        )
+
+        assert expand_glass_widths(calc, 6, 3000) == [520, 470, 500, 500, 470, 530]
+
     def test_profile_dimension_reads_calculation_metadata(self):
         calc = SimpleNamespace(
             profiles=[
@@ -161,6 +173,35 @@ class TestLocalPreview:
         assert "text/html" in r.headers["content-type"]
         assert "LOCAL-001" in r.text
         assert "contenteditable" in r.text
+
+    def test_local_preview_two_rows_renders_central_glass(self, client):
+        r = client.post(
+            "/api/projects/local/sections/preview",
+            json={
+                "project": {"number": "LOCAL-2R", "customer": "Тест"},
+                "section": {
+                    "name": "Секция 2",
+                    "system": "СЛАЙД",
+                    "width": 2000,
+                    "height": 2400,
+                    "panels": 4,
+                    "quantity": 1,
+                    "rails": 3,
+                    "slide_rows": 2,
+                    "unused_track": "Внешний",
+                    "threshold": "Стандартный анод",
+                    "inter_glass_profile": "Алюминиевый RS2061",
+                    "profile_left_wall": True,
+                    "profile_right_wall": True,
+                    "center_handle": "Ручка-кноб RS3014",
+                    "center_lock": "Замок стекло-стекло RS30301",
+                },
+            },
+        )
+        assert r.status_code == 200
+        assert "SLIDE-стандарт 2 ряда" in r.text
+        assert "Центральные" in r.text
+        assert "RS30301" in r.text
 
     def test_local_preview_non_slide(self, client):
         r = client.post(

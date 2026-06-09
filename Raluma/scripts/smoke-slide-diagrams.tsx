@@ -70,4 +70,35 @@ assert.match(schemeMarkup, />16</, 'top scheme must show wall profile thickness'
 assert.match(schemeMarkup, /RS112/, 'top scheme must render selected side profile stack');
 assert.match(schemeMarkup, /stroke-linecap="round"/, 'top scheme must render the mirrored inter-glass profile path');
 
+const sectionTwoRows: Section = {
+  ...section,
+  id: 'diagram-smoke-2row',
+  panels: 4,
+  slideRows: 2,
+  firstPanelInside: undefined,
+  unusedTrack: 'Внешний',
+  centerHandle: 'Ручка-кноб RS3014',
+  centerLock: 'Замок стекло-стекло RS30301',
+  centerFloorLatchesLeft: true,
+  centerFloorLatchesRight: true,
+};
+
+const calcTwoRows: SlideCalcPreview = {
+  glass: [
+    { position: 'Левое', width_mm: 520, height_mm: 2294, qty: 1, glass_profile_length: 520 },
+    { position: 'Центральные', width_mm: 500, height_mm: 2294, qty: 2, glass_profile_length: 497 },
+    { position: 'Правое', width_mm: 530, height_mm: 2294, qty: 1, glass_profile_length: 530 },
+  ],
+  profiles: calc.profiles,
+  panel_rails: [1, 2, 2, 1],
+};
+
+const roomMarkupTwoRows = renderToStaticMarkup(<SlideRoomViewSVG section={sectionTwoRows} calc={calcTwoRows} />);
+const schemeMarkupTwoRows = renderToStaticMarkup(<SlideSchemeSVG section={sectionTwoRows} calc={calcTwoRows} />);
+
+assert.match(roomMarkupTwoRows, />500</, '2-row room view must render central glass widths');
+assert.match(schemeMarkupTwoRows, /500 · №2/, '2-row top scheme must render left central panel with calculated width');
+assert.match(schemeMarkupTwoRows, /500 · №3/, '2-row top scheme must render right central panel with calculated width');
+assert.match(schemeMarkupTwoRows, />сдвиг</, '2-row top scheme must render bidirectional shift label');
+
 console.log('slide diagram smoke passed');

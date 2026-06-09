@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, ChevronRight, ClipboardList } from 'lucide-react';
+import { Plus, Trash2, ChevronRight } from 'lucide-react';
 import { Section, SystemType, SYSTEM_COLORS, SYSTEM_ACCENT_BG, SYSTEM_PICKER_COLORS } from './types';
 import { getSectionTypeLabel, getSectionColorLabel } from './FormInputs';
 
@@ -15,6 +15,7 @@ export interface EditorSidebarProps {
   onSelectSection: (id: string | null) => void;
   onAddSection: (system: SystemType, opts?: {
     slideRails?: 3 | 5;
+    slideRows?: 1 | 2;
     bookSubtype?: string;
     liftPanels?: number;
     csShape?: string;
@@ -98,11 +99,11 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
                   </button>
                   {slideSubVisible && (
                     <div className="grid grid-cols-2 border-t border-tint/25">
-                      <button onClick={() => handleAdd('СЛАЙД', { slideRails: 3 })}
+                      <button onClick={() => handleAdd('СЛАЙД', { slideRails: 3, slideRows: 1 })}
                         className={`py-2 font-bold text-[11px] transition-all border-r border-tint/25 ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
                         Стандарт 1 ряд
                       </button>
-                      <button onClick={() => handleAdd('СЛАЙД', { slideRails: 5 })}
+                      <button onClick={() => handleAdd('СЛАЙД', { slideRails: 3, slideRows: 2 })}
                         className={`py-2 font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['СЛАЙД']}`}>
                         2 ряда от центра
                       </button>
