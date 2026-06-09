@@ -4,8 +4,9 @@ PDF-генерацию не тестируем (требует WeasyPrint + си
 """
 
 import json
+from types import SimpleNamespace
 
-from engine.pdf import _img_b64, get_profile_asset_path
+from engine.pdf import _img_b64, expand_glass_widths, get_profile_asset_path
 
 
 class TestProfileAssetSafety:
@@ -22,6 +23,29 @@ class TestProfileAssetSafety:
     def test_img_b64_rejects_non_image_extension(self):
         assert get_profile_asset_path("models.py") is None
         assert _img_b64("models.py") == ""
+
+
+class TestDiagramGlassWidths:
+    def test_expands_edge_and_middle_glass_widths(self):
+        calc = SimpleNamespace(
+            glass=[
+                SimpleNamespace(position="Крайние", width_mm=520, qty=2),
+                SimpleNamespace(position="Промежуточные", width_mm=470, qty=2),
+            ]
+        )
+
+        assert expand_glass_widths(calc, 4, 2000) == [520, 470, 470, 520]
+
+    def test_expands_asymmetric_glass_widths(self):
+        calc = SimpleNamespace(
+            glass=[
+                SimpleNamespace(position="Левое", width_mm=540, qty=1),
+                SimpleNamespace(position="Промежуточные", width_mm=470, qty=1),
+                SimpleNamespace(position="Правое", width_mm=500, qty=1),
+            ]
+        )
+
+        assert expand_glass_widths(calc, 3, 1510) == [540, 470, 500]
 
 
 def _create_slide_section(client, admin_headers, project_id):

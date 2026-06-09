@@ -136,7 +136,8 @@
       {% set riY = rfY + rpt %}
       {% set riW = rfW - 2 * rpt %}
       {% set riH = rfH - 2 * rpt %}
-      {% set rpW = riW / section.panels %}
+      {% set room_panel_widths = glass_widths(calc, section.panels, section.width) %}
+      {% set room_total_width = room_panel_widths | sum %}
       {% set room_first_right = (section.first_panel_inside or 'Справа') == 'Справа' %}
       {% set hL = (section.handle_left or 'Без')|lower %}
       {% set hR = (section.handle_right or 'Без')|lower %}
@@ -158,8 +159,11 @@
         <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rpt }}" height="{{ rfH }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
         <rect x="{{ rfX + rfW - rpt }}" y="{{ rfY }}" width="{{ rpt }}" height="{{ rfH }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
         {# Panels #}
+        {% set room_ns = namespace(x=riX) %}
         {% for i in range(section.panels) %}
-        {% set gpx = riX + i * rpW %}
+        {% set panel_w_mm = room_panel_widths[i] if i < room_panel_widths|length else section.width / section.panels %}
+        {% set rpW = riW * panel_w_mm / room_total_width if room_total_width else riW / section.panels %}
+        {% set gpx = room_ns.x %}
         {% set gcx = gpx + rpW / 2 %}
         {% set gcy = riY + riH / 2 %}
         <rect x="{{ gpx }}" y="{{ riY }}" width="{{ rpW }}" height="{{ riH }}" fill="#f4f9fb" stroke="none"/>
@@ -174,6 +178,7 @@
         {% endif %}
         {# Panel number #}
         <text x="{{ gcx }}" y="{{ gcy - 4 }}" text-anchor="middle" font-size="7" font-family="Arial" font-weight="bold" fill="#555">{{ pnum }}</text>
+        <text x="{{ gcx }}" y="{{ riY + riH - 2 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#777">{{ panel_w_mm|round|int }}</text>
         {# Arrow (non-deaf panels) #}
         {% if not ((i == 0 and leftDeaf) or (i == section.panels - 1 and rightDeaf)) %}
         {% set alen = [10, rpW * 0.35] | min %}
@@ -192,6 +197,7 @@
         {% if i == section.panels - 1 and section.floor_latches_right %}
         <rect x="{{ riX + riW - 9 }}" y="{{ riY + riH - 1 }}" width="5" height="5" fill="#666" stroke="#000" stroke-width="0.5"/>
         {% endif %}
+        {% set room_ns.x = room_ns.x + rpW %}
         {% endfor %}
         {# Handle symbols (on door panel) #}
         {% if 'кноб' in hL or 'rs3014' in hL %}
@@ -244,7 +250,8 @@
       {% set sw = left_w + rail_w + right_w %}
       {% set sh = top_pad + rails * row_h + bot_pad %}
       {% set first_right = (section.first_panel_inside or 'Справа') == 'Справа' %}
-      {% set panel_w = rail_w / P %}
+      {% set top_panel_widths = glass_widths(calc, P, section.width) %}
+      {% set top_total_width = top_panel_widths | sum %}
       <svg viewBox="0 0 {{ sw }} {{ sh }}"
            xmlns="http://www.w3.org/2000/svg" style="display:block; width:100%;">
 
@@ -267,10 +274,13 @@
         {% endfor %}
 
         {# Панели стекла #}
+        {% set top_ns = namespace(x=left_w) %}
         {% for pi in range(P) %}
+        {% set panel_w_mm = top_panel_widths[pi] if pi < top_panel_widths|length else section.width / P %}
+        {% set panel_w = rail_w * panel_w_mm / top_total_width if top_total_width else rail_w / P %}
         {% set ri = calc.panel_rails[pi] if pi < calc.panel_rails|length else pi %}
         {% set cy = top_pad + ri * row_h + row_h / 2 %}
-        {% set px = left_w + pi * panel_w %}
+        {% set px = top_ns.x %}
         {% set gl = 4 %}
         {% set gr = 4 %}
         {% if pi == 0 %}{% set gl = 3 %}{% endif %}
@@ -281,16 +291,15 @@
         <rect x="{{ gx1 }}" y="{{ cy - 5 }}" width="{{ gx2 - gx1 }}" height="10" fill="#ddeef5" stroke="#000" stroke-width="0.8"/>
         {# Номер панели #}
         {% set pnum = P - pi if first_right else pi + 1 %}
-        <text x="{{ (gx1 + gx2) / 2 }}" y="{{ cy + 3 }}" text-anchor="middle" font-size="7" font-family="Arial" font-weight="bold" fill="#333">{{ pnum }}</text>
-        {% endfor %}
-
-        {# Межстекольный профиль #}
-        {% if section.inter_glass_profile and section.inter_glass_profile != '— Без межстекольного профиля —' and P > 1 %}
-        {% for pi in range(P - 1) %}
-        {% set ix = left_w + (pi + 1) * panel_w %}
-        <rect x="{{ ix - 1.5 }}" y="{{ top_pad }}" width="3" height="{{ rails * row_h }}" fill="#bbb" stroke="#666" stroke-width="0.3"/>
-        {% endfor %}
+        <text x="{{ (gx1 + gx2) / 2 }}" y="{{ cy + 3 }}" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#333">{{ panel_w_mm|round|int }} · {{ pnum }}</text>
+        {% if section.inter_glass_profile and section.inter_glass_profile != '— Без межстекольного профиля —' and pi < P - 1 %}
+        {% set ix = px + panel_w %}
+        {% set idir = -1 if first_right else 1 %}
+        {% set iw = 8 %}
+        <path d="M {{ ix + idir * iw }} {{ cy - 6 }} L {{ ix }} {{ cy - 6 }} L {{ ix }} {{ cy + 6 }} L {{ ix + idir * iw }} {{ cy + 6 }}" fill="none" stroke="#666" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/>
         {% endif %}
+        {% set top_ns.x = top_ns.x + panel_w %}
+        {% endfor %}
 
         {# Без боковых профилей — только вертикальные ограничители выше #}
 

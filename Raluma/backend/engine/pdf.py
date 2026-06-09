@@ -36,6 +36,42 @@ def get_profile_asset_path(filename: str | None) -> Path | None:
     return path
 
 
+def expand_glass_widths(calc, panels: int, fallback_width: float) -> list[float]:
+    safe_panels = max(int(panels or 0), 1)
+    fallback_panel = float(fallback_width or 0) / safe_panels
+    glass_rows = getattr(calc, "glass", None) or []
+    if not glass_rows:
+        return [round(fallback_panel, 1) for _ in range(safe_panels)]
+
+    def find_width(needle: str) -> float | None:
+        for glass in glass_rows:
+            qty = float(getattr(glass, "qty", 0) or 0)
+            position = str(getattr(glass, "position", "") or "").lower()
+            if qty > 0 and needle in position:
+                width = float(getattr(glass, "width_mm", 0) or 0)
+                if width > 0:
+                    return width
+        return None
+
+    edge = find_width("крайн")
+    left = find_width("лев")
+    right = find_width("прав")
+    middle = find_width("промеж") or edge or left or right or fallback_panel
+
+    if safe_panels == 1:
+        return [round(middle, 1)]
+
+    widths = []
+    for index in range(safe_panels):
+        if index == 0:
+            widths.append(left or edge or middle)
+        elif index == safe_panels - 1:
+            widths.append(right or edge or middle)
+        else:
+            widths.append(middle)
+    return [round(width, 1) for width in widths]
+
+
 def _img_b64(filename: str) -> str:
     """Jinja2-фильтр: имя файла → data URI base64 или пустая строка."""
     path = get_profile_asset_path(filename)
@@ -52,6 +88,7 @@ def _get_env() -> Environment:
     env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=False)
     env.filters["img_b64"] = _img_b64
     env.filters["enumerate"] = enumerate
+    env.globals["glass_widths"] = expand_glass_widths
     return env
 
 
