@@ -323,6 +323,7 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
 export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: SlideCalcPreview | null }) {
   const panels  = section.panels;
   const firstRight = (section.firstPanelInside ?? 'Справа') === 'Справа';
+  const rails = section.rails ?? 3;
   const W  = section.width;
   const Hh = section.height;
 
@@ -339,11 +340,37 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
     && lockRight === 'Без' && !section.profileRightHandleBar;
 
   const vbW = 540, vbH = 330;
-  const fX = 50, fY = 35, fW = 400, fH = 210;
-  const pt = 10;
+  const maxDrawingW = 400;
+  const maxDrawingH = 210;
+  const drawingOriginX = 50;
+  const drawingOriginY = 35;
+  const safeW = Math.max(W, 1);
+  const safeH = Math.max(Hh, 1);
+  const drawingScale = Math.min(maxDrawingW / safeW, maxDrawingH / safeH);
+  const fW = safeW * drawingScale;
+  const fH = safeH * drawingScale;
+  const fX = drawingOriginX + (maxDrawingW - fW) / 2;
+  const fY = drawingOriginY + (maxDrawingH - fH) / 2;
 
-  const iX = fX + pt, iY = fY + pt;
-  const iW = fW - 2 * pt, iH = fH - 2 * pt;
+  const topProfileMm = findProfileDimension(calc, rails === 5 ? ['RS1315'] : ['RS1313'], 'section_height_mm', 53);
+  const thresholdArticles = rails === 5
+    ? ['RS2325', 'RS23251']
+    : ['RS2323', 'RS23231'];
+  const bottomProfileMm = findProfileDimension(calc, thresholdArticles, 'section_height_mm', 23);
+  const sideProfileMm = Math.max(
+    section.profileLeftWall || section.profileRightWall
+      ? findProfileDimension(calc, rails === 5 ? ['RS2335'] : ['RS2333'], 'section_height_mm', 16)
+      : 0,
+    16,
+  );
+  const minProfilePx = 4;
+  const topPx = Math.max(minProfilePx, topProfileMm * drawingScale);
+  const bottomPx = Math.max(minProfilePx, bottomProfileMm * drawingScale);
+  const sidePx = Math.max(minProfilePx, sideProfileMm * drawingScale);
+
+  const iX = fX + sidePx, iY = fY + topPx;
+  const iW = Math.max(1, fW - 2 * sidePx);
+  const iH = Math.max(1, fH - topPx - bottomPx);
   const panelWidthsMm = expandGlassWidths(calc, panels, W);
   const panelLayout = buildPanelLayout(panelWidthsMm, iX, iW);
   const arrowLeft = firstRight;
@@ -355,8 +382,9 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
   // Lock symbols stay at frame edges; handles shift inward onto door panel
   const lockLeftX = fX + 5;
   const lockRightX = fX + fW - 5;
-  const handleLeftX = iX + 20;
-  const handleRightX = iX + iW - 20;
+  const handleInset = Math.min(20, Math.max(10, iW * 0.08));
+  const handleLeftX = iX + handleInset;
+  const handleRightX = iX + iW - handleInset;
   const symY = iY + iH / 2;
 
   const renderHandleSymbol = (handle: string, x: number) => {
@@ -396,11 +424,21 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
   return (
     <svg viewBox={`0 0 ${vbW} ${vbH}`} className="w-full" style={{ maxWidth: 540, maxHeight: 330 }}>
 
-      <rect x={fX} y={fY} width={fW} height={pt} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.6" strokeOpacity="0.4" />
-      <rect x={fX} y={fY + fH - pt} width={fW} height={pt} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.6" strokeOpacity="0.4" />
-      <rect x={fX} y={fY} width={pt} height={fH} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.6" strokeOpacity="0.4" />
-      <rect x={fX + fW - pt} y={fY} width={pt} height={fH} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.6" strokeOpacity="0.4" />
+      <rect x={fX} y={fY} width={fW} height={topPx} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.6" strokeOpacity="0.4" />
+      <rect x={fX} y={fY + fH - bottomPx} width={fW} height={bottomPx} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.6" strokeOpacity="0.4" />
+      <rect x={fX} y={fY} width={sidePx} height={fH} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.6" strokeOpacity="0.4" />
+      <rect x={fX + fW - sidePx} y={fY} width={sidePx} height={fH} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.6" strokeOpacity="0.4" />
       <rect x={fX} y={fY} width={fW} height={fH} fill="none" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.5" />
+      {topPx >= minProfilePx && (
+        <text x={fX + fW / 2} y={fY + Math.max(8, topPx / 2 + 3)} textAnchor="middle" fontSize="7" fill="var(--theme-accent)" fillOpacity="0.42">
+          {Math.round(topProfileMm)}
+        </text>
+      )}
+      {bottomPx >= minProfilePx && (
+        <text x={fX + fW / 2} y={fY + fH - Math.max(3, bottomPx / 2 - 3)} textAnchor="middle" fontSize="7" fill="var(--theme-accent)" fillOpacity="0.42">
+          {Math.round(bottomProfileMm)}
+        </text>
+      )}
 
       {Array.from({ length: panels }).map((_, i) => {
         const layout = panelLayout[i];
