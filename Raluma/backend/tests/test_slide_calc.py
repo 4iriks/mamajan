@@ -623,14 +623,26 @@ class TestScrews:
         assert screw.qty == (rs105_val + rs106_val) * 2
 
     def test_screw_3913m_no_lock_bar(self):
-        """DIN7504M = RU005*2 + lb_count*7*Q. Без профиля-замка: только ролики."""
+        """DIN7504M без RS2081: только ролики."""
         r = calculate_slide(_make_section(panels=3))
         ru005 = _find_hardware(r, "RU005")[0].value  # 3*2*1 = 6
         screw = _find_screw(r, "DIN7504M")[0]
         assert screw.qty == ru005 * 2  # 12
 
-    def test_screw_3913m_with_lock_bar(self):
-        """DIN7504M = RU005*2 + lb_count*7*Q. С профилем-замком RS2081."""
+    def test_screw_3913m_with_one_lock_bar_by_height(self):
+        """DIN7504M: ролики + ceil((H-200)/300) на одну сторону RS2081."""
+        r = calculate_slide(
+            _make_section(
+                panels=3,
+                profile_left_lock_bar=True,
+            )
+        )
+        ru005 = _find_hardware(r, "RU005")[0].value  # 6
+        screw = _find_screw(r, "DIN7504M")[0]
+        assert screw.qty == ru005 * 2 + 8  # 12 + 8 = 20
+
+    def test_screw_3913m_with_two_lock_bars_by_height(self):
+        """DIN7504M: при H=2400 на две стороны RS2081 нужно 16 шт."""
         r = calculate_slide(
             _make_section(
                 panels=3,
@@ -640,7 +652,34 @@ class TestScrews:
         )
         ru005 = _find_hardware(r, "RU005")[0].value  # 6
         screw = _find_screw(r, "DIN7504M")[0]
-        assert screw.qty == ru005 * 2 + 2 * 7 * 1  # 12 + 14 = 26
+        assert screw.qty == ru005 * 2 + 2 * 8 * 1  # 12 + 16 = 28
+
+    def test_screw_3913m_lock_bar_uses_actual_height(self):
+        """DIN7504M для RS2081 меняется от высоты секции."""
+        r = calculate_slide(
+            _make_section(
+                height=3000,
+                panels=3,
+                profile_left_lock_bar=True,
+                profile_right_lock_bar=True,
+            )
+        )
+        ru005 = _find_hardware(r, "RU005")[0].value  # 6
+        screw = _find_screw(r, "DIN7504M")[0]
+        assert screw.qty == ru005 * 2 + 2 * 10 * 1  # ceil((3000-200)/300)=10
+
+    def test_screw_3913m_lock_bar_respects_quantity(self):
+        """DIN7504M для RS2081 умножается на количество одинаковых секций."""
+        r = calculate_slide(
+            _make_section(
+                panels=3,
+                quantity=2,
+                profile_left_lock_bar=True,
+            )
+        )
+        ru005 = _find_hardware(r, "RU005")[0].value  # 12
+        screw = _find_screw(r, "DIN7504M")[0]
+        assert screw.qty == ru005 * 2 + 8 * 1 * 2  # 24 + 16 = 40
 
     def test_screw_4838_standard_3rails(self):
         screw = _find_screw(calculate_slide(_make_section(rails=3)), "4,8×38")[0]
@@ -811,6 +850,59 @@ class TestQuantity:
     def test_rollers_qty(self):
         ru005 = _find_hardware(self.r, "RU005")[0]
         assert ru005.value == 3 * 2 * 3  # P=3, 2 ролика, Q=3
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# НАРЕЗКА ДЛИННЫХ ПРОФИЛЕЙ
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestLongProfileCuts:
+    def test_short_threshold_and_top_are_not_split(self):
+        r = calculate_slide(_make_section(width=5982))
+        threshold = _find_profile(r, "RS2323")
+        top = _find_profile(r, "RS1313")
+        assert [p.length_mm for p in threshold] == [5950]
+        assert [p.length_mm for p in top] == [5950]
+        assert threshold[0].field_key == "threshold_length"
+        assert top[0].field_key == "top_guide_length"
+
+    def test_6123_threshold_and_top_split_to_two_parts(self):
+        r = calculate_slide(_make_section(width=6155))
+        threshold = _find_profile(r, "RS2323")
+        top = _find_profile(r, "RS1313")
+        assert [p.length_mm for p in threshold] == [3061, 3062]
+        assert [p.length_mm for p in top] == [3061, 3062]
+        assert sum(p.length_mm * p.qty for p in threshold) == 6123
+        assert all(p.length_mm <= 5950 for p in threshold + top)
+
+    def test_7000_threshold_splits_evenly(self):
+        r = calculate_slide(_make_section(width=7032))
+        threshold = _find_profile(r, "RS2323")
+        top = _find_profile(r, "RS1313")
+        assert [p.length_mm for p in threshold] == [3500, 3500]
+        assert [p.length_mm for p in top] == [3500, 3500]
+
+    def test_7001_threshold_split_respects_quantity(self):
+        r = calculate_slide(_make_section(width=7033, quantity=2))
+        threshold = _find_profile(r, "RS2323")
+        assert [p.length_mm for p in threshold] == [3500, 3501]
+        assert [p.qty for p in threshold] == [2, 2]
+        assert sum(p.length_mm * p.qty for p in threshold) == 7001 * 2
+
+    def test_12000_threshold_splits_to_three_parts(self):
+        r = calculate_slide(_make_section(width=12032))
+        threshold = _find_profile(r, "RS2323")
+        top = _find_profile(r, "RS1313")
+        assert [p.length_mm for p in threshold] == [4000, 4000, 4000]
+        assert [p.length_mm for p in top] == [4000, 4000, 4000]
+
+    def test_two_row_threshold_and_top_are_split_too(self):
+        r = calculate_slide(_make_section(slide_rows=2, panels=4, width=6155))
+        threshold = _find_profile(r, "RS2323")
+        top = _find_profile(r, "RS1313")
+        assert [p.length_mm for p in threshold] == [3061, 3062]
+        assert [p.length_mm for p in top] == [3061, 3062]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1102,3 +1194,77 @@ class TestSlideTwoRows:
             )
         )
         assert _find_profile(r, "RS205")[0].qty == 3
+
+    def test_inter_glass_plugs_use_both_sides_and_half_panel_formula(self):
+        cases = [
+            (4, 1),
+            (6, 2),
+            (8, 3),
+            (10, 4),
+        ]
+        for panels, expected_per_side in cases:
+            r = calculate_slide(
+                _make_section(
+                    slide_rows=2,
+                    panels=panels,
+                    quantity=1,
+                    inter_glass_profile="Алюминиевый RS2061",
+                    first_panel_inside=None,
+                )
+            )
+            assert _find_hardware(r, "RS107L")[0].value == expected_per_side
+            assert _find_hardware(r, "RS107R")[0].value == expected_per_side
+
+    def test_inter_glass_plugs_two_rows_respect_quantity(self):
+        r = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                panels=4,
+                quantity=2,
+                inter_glass_profile="Алюминиевый RS2061",
+                first_panel_inside=None,
+            )
+        )
+        assert _find_hardware(r, "RS107L")[0].value == 2
+        assert _find_hardware(r, "RS107R")[0].value == 2
+
+    def test_inter_glass_plugs_two_rows_do_not_depend_on_unused_track(self):
+        external = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                panels=8,
+                unused_track="Внешний",
+                inter_glass_profile="Алюминиевый RS2061",
+                first_panel_inside=None,
+            )
+        )
+        internal = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                panels=8,
+                unused_track="Внутренний",
+                inter_glass_profile="Алюминиевый RS2061",
+                first_panel_inside=None,
+            )
+        )
+        assert [
+            _find_hardware(external, "RS107L")[0].value,
+            _find_hardware(external, "RS107R")[0].value,
+        ] == [3, 3]
+        assert [
+            _find_hardware(internal, "RS107L")[0].value,
+            _find_hardware(internal, "RS107R")[0].value,
+        ] == [3, 3]
+
+    def test_inter_glass_plugs_two_rows_absent_without_supported_profile(self):
+        for inter_glass_profile in ("Без", "h-профиль RS1004"):
+            r = calculate_slide(
+                _make_section(
+                    slide_rows=2,
+                    panels=4,
+                    inter_glass_profile=inter_glass_profile,
+                    first_panel_inside=None,
+                )
+            )
+            assert not _find_hardware(r, "RS107L")
+            assert not _find_hardware(r, "RS107R")
