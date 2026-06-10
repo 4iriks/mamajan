@@ -867,6 +867,15 @@ class TestLongProfileCuts:
         assert threshold[0].field_key == "threshold_length"
         assert top[0].field_key == "top_guide_length"
 
+    def test_fractional_length_above_limit_is_rounded_up_before_split(self):
+        r = calculate_slide(_make_section(width=5982.4))
+        threshold = _find_profile(r, "RS2323")
+        top = _find_profile(r, "RS1313")
+        assert [p.length_mm for p in threshold] == [2975, 2976]
+        assert [p.length_mm for p in top] == [2975, 2976]
+        assert sum(p.length_mm for p in threshold) == 5951
+        assert all(p.length_mm <= 5950 for p in threshold + top)
+
     def test_6123_threshold_and_top_split_to_two_parts(self):
         r = calculate_slide(_make_section(width=6155))
         threshold = _find_profile(r, "RS2323")

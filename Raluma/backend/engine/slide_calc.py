@@ -118,13 +118,13 @@ def _is_deaf_panel(handle: str | None, lock: str | None, has_handle_bar: bool) -
 
 
 def _split_profile_lengths(length_mm: float) -> list[float]:
-    rounded_length = int(round(length_mm))
-    if rounded_length <= MAX_PROFILE_LENGTH_MM:
-        return [round(length_mm, 1)]
+    normalized_length = max(0, int(ceil(length_mm)))
+    if normalized_length <= MAX_PROFILE_LENGTH_MM:
+        return [float(normalized_length)]
 
-    part_count = ceil(rounded_length / MAX_PROFILE_LENGTH_MM)
-    base_length = rounded_length // part_count
-    remainder = rounded_length % part_count
+    part_count = ceil(normalized_length / MAX_PROFILE_LENGTH_MM)
+    base_length = normalized_length // part_count
+    remainder = normalized_length % part_count
 
     return [
         float(base_length + (1 if idx >= part_count - remainder else 0))
