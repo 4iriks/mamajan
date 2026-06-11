@@ -138,13 +138,17 @@ DIN7504M = RU005 * 2 + ceil((H - 200) / 300) * количество_сторон
 - `Raluma/backend/engine/slide_calc.py`
 - `Raluma/backend/tests/test_slide_calc.py`
 - `pytest.ini`
+- `conftest.py`
 
 Что сделано:
 
 - Edge-case распила `5950.4` закрыт: `_split_profile_lengths()` больше не использует `round(length_mm)` для решения, резать или нет.
 - Длина профиля нормализуется через `ceil(length_mm)`, поэтому дробная длина выше лимита не пройдет одним куском больше `5950`.
 - Добавлен тест на `width=5982.4`, где чистая длина порога/верхнего направляющего равна `5950.4`.
-- Добавлен корневой `pytest.ini`, чтобы `pytest` из корня репозитория запускал только тесты `raluma/backend/tests` и не цеплял временные тесты `appglass/scraper/tmp_*_test.py`.
+- Добавлен корневой `pytest.ini`, чтобы `pytest` из корня репозитория запускал только тесты `Raluma/backend/tests` и не цеплял временные тесты `appglass/scraper/tmp_*_test.py`.
+- В `pytest.ini` пути исправлены на регистр из Git: `Raluma/backend/tests` и `Raluma/backend`.
+- Добавлен корневой `conftest.py`: он подключает `Raluma/backend` в `sys.path` и переиспользует backend-фикстуры `client`, `admin_headers`, `project`, `section`.
+- Причина `conftest.py`: в текущем Windows checkout физическая папка отображается как `raluma`, а Git хранит `Raluma`; без корневого подключения фикстур `pytest -q` из корня видел тесты, но часть тестов не видела фикстуру `client`.
 
 Что важно проверить ревьюеру:
 
@@ -157,7 +161,7 @@ DIN7504M = RU005 * 2 + ceil((H - 200) / 300) * количество_сторон
 Выполнено:
 
 ```powershell
-cd C:\Users\Vadim\PycharmProjects\mamajan\raluma\backend
+cd C:\Users\Vadim\PycharmProjects\mamajan\Raluma\backend
 pytest -q tests\test_slide_calc.py::TestScrews tests\test_slide_calc.py::TestLongProfileCuts tests\test_slide_calc.py::TestSlideTwoRows
 ```
 
@@ -170,7 +174,7 @@ pytest -q tests\test_slide_calc.py::TestScrews tests\test_slide_calc.py::TestLon
 Выполнено после ревью:
 
 ```powershell
-cd C:\Users\Vadim\PycharmProjects\mamajan\raluma\backend
+cd C:\Users\Vadim\PycharmProjects\mamajan\Raluma\backend
 pytest -q tests\test_slide_calc.py::TestLongProfileCuts
 ```
 
@@ -183,7 +187,7 @@ pytest -q tests\test_slide_calc.py::TestLongProfileCuts
 Выполнено:
 
 ```powershell
-cd C:\Users\Vadim\PycharmProjects\mamajan\raluma\backend
+cd C:\Users\Vadim\PycharmProjects\mamajan\Raluma\backend
 pytest -q
 ```
 
@@ -201,6 +205,7 @@ Warnings старые, про `datetime.utcnow()` и сторонние мест
 cd C:\Users\Vadim\PycharmProjects\mamajan
 pytest --collect-only -q
 pytest -q
+pytest -q Raluma\backend\tests
 ```
 
 Результат:
@@ -208,14 +213,21 @@ pytest -q
 ```text
 192 tests collected
 192 passed, 282 warnings
+192 passed, 282 warnings
 ```
 
 Корневой `pytest` больше не собирает временные тесты из `appglass`.
 
+Дополнение по Linux/CI:
+
+- В `pytest.ini` пути указаны с тем же регистром, что и в Git: `Raluma/backend/tests` и `Raluma/backend`.
+- На Windows нижний регистр проходил бы, но на Linux мог бы сломать корневой запуск тестов.
+- Корневой `conftest.py` оставлен минимальным: он не дублирует fixture-код, а импортирует уже существующие backend-фикстуры.
+
 Выполнено:
 
 ```powershell
-cd C:\Users\Vadim\PycharmProjects\mamajan\raluma\backend
+cd C:\Users\Vadim\PycharmProjects\mamajan\Raluma\backend
 ruff check .
 ruff format --check engine\slide_calc.py tests\test_slide_calc.py
 ```
@@ -235,7 +247,7 @@ All checks passed
 Выполнено:
 
 ```powershell
-cd C:\Users\Vadim\PycharmProjects\mamajan\raluma
+cd C:\Users\Vadim\PycharmProjects\mamajan\Raluma
 npm.cmd run typecheck
 npm.cmd run lint
 npm.cmd run build
