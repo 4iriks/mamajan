@@ -402,6 +402,79 @@ class TestProjectGlassOrder:
         assert plain_row["qty"] == 2
         assert plain_row["marking"] == "P-002 2,1, P-002 2,4"
 
+    def test_two_row_left_center_floor_latch_marks_one_central_glass(self):
+        project = SimpleNamespace(number="P-003")
+        section = SimpleNamespace(
+            panels=4,
+            quantity=1,
+            slide_rows=2,
+            lock_left="Без замка",
+            lock_right="Без замка",
+            handle_left="Без ручки (глухая)",
+            handle_right="Без ручки (глухая)",
+            floor_latches_left=False,
+            floor_latches_right=False,
+            center_lock="Без замка",
+            center_handle="Без ручки (подвижные)",
+            center_floor_latches_left=True,
+            center_floor_latches_right=False,
+        )
+        calc = SimpleNamespace(
+            glass_type="10ММ",
+            glass=[
+                SimpleNamespace(position="Левое", width_mm=500, height_mm=2200, qty=1),
+                SimpleNamespace(
+                    position="Центральные", width_mm=500, height_mm=2200, qty=2
+                ),
+                SimpleNamespace(position="Правое", width_mm=500, height_mm=2200, qty=1),
+            ],
+        )
+
+        rows = _build_glass_rows(
+            project, [CalculatedSection(order=3, section=section, calc=calc)]
+        )
+
+        drawing_row = [row for row in rows if row["note"] == "(чертеж)"][0]
+        plain_row = [row for row in rows if row["note"] == ""][0]
+        assert drawing_row["qty"] == 1
+        assert drawing_row["marking"] == "P-003 3,2"
+        assert plain_row["qty"] == 3
+        assert plain_row["marking"] == "P-003 3,1, P-003 3,3, P-003 3,4"
+
+    def test_no_hardware_labels_do_not_create_drawing_note(self):
+        project = SimpleNamespace(number="P-004")
+        section = SimpleNamespace(
+            panels=3,
+            quantity=1,
+            slide_rows=1,
+            lock="Без замка",
+            handle="Без ручки",
+            lock_left="Без замка",
+            lock_right="Без замка",
+            handle_left="Без ручки (глухая)",
+            handle_right="Без ручки (глухая)",
+            floor_latches_left=False,
+            floor_latches_right=False,
+        )
+        calc = SimpleNamespace(
+            glass_type="10ММ",
+            glass=[
+                SimpleNamespace(
+                    position="Крайние", width_mm=500, height_mm=2200, qty=2
+                ),
+                SimpleNamespace(
+                    position="Промежуточные", width_mm=450, height_mm=2200, qty=1
+                ),
+            ],
+        )
+
+        rows = _build_glass_rows(
+            project, [CalculatedSection(order=4, section=section, calc=calc)]
+        )
+
+        assert [row for row in rows if row["note"] == "(чертеж)"] == []
+        assert sum(row["qty"] for row in rows if row["note"] == "") == 3
+
 
 class TestOverrides:
     def test_save_overrides(self, client, admin_headers, project):

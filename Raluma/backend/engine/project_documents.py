@@ -71,8 +71,17 @@ def _format_mm(value: float) -> str:
     return str(rounded).replace(".", ",")
 
 
+def _drawing_hardware_text(value: object) -> str:
+    text = str(value or "").strip().lower().strip("—- ")
+    if not text or text == "none" or text.startswith(("без", "нет")):
+        return ""
+    return text
+
+
 def _has_drawing_hardware(*values: object) -> bool:
-    combined = " ".join(str(value or "") for value in values).lower()
+    combined = " ".join(
+        text for text in (_drawing_hardware_text(value) for value in values) if text
+    )
     return any(
         token in combined
         for token in (
@@ -98,12 +107,17 @@ def _side_has_glass_drawing(section: object, side: str) -> bool:
     ) or bool(getattr(section, f"floor_latches_{side}", False))
 
 
-def _center_has_glass_drawing(section: object) -> bool:
-    return (
-        _has_drawing_hardware(
-            getattr(section, "center_lock", None),
-            getattr(section, "center_handle", None),
+def _center_has_glass_drawing(section: object, side: str | None = None) -> bool:
+    has_common_drawing = _has_drawing_hardware(
+        getattr(section, "center_lock", None),
+        getattr(section, "center_handle", None),
+    )
+    if side in ("left", "right"):
+        return has_common_drawing or bool(
+            getattr(section, f"center_floor_latches_{side}", False)
         )
+    return (
+        has_common_drawing
         or bool(getattr(section, "center_floor_latches_left", False))
         or bool(getattr(section, "center_floor_latches_right", False))
     )
@@ -124,6 +138,10 @@ def _glass_note_for_role(section: object, role: str) -> str:
         has_drawing = _side_has_glass_drawing(section, "right")
     elif role == "center":
         has_drawing = _center_has_glass_drawing(section)
+    elif role == "center_left":
+        has_drawing = _center_has_glass_drawing(section, "left")
+    elif role == "center_right":
+        has_drawing = _center_has_glass_drawing(section, "right")
     elif role == "single":
         has_drawing = (
             _side_has_glass_drawing(section, "left")
@@ -217,9 +235,9 @@ def _expand_2row_glass(section: object, calc: object) -> list[PhysicalGlassItem]
             for _ in range(left_middle_count):
                 result.append(_physical_glass(middle, ""))
         if center is not None:
-            for _ in range(2):
+            for role in ("center_left", "center_right"):
                 result.append(
-                    _physical_glass(center, _glass_note_for_role(section, "center"))
+                    _physical_glass(center, _glass_note_for_role(section, role))
                 )
         if middle is not None:
             for _ in range(right_middle_count):
