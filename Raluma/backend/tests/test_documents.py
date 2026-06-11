@@ -12,6 +12,7 @@ from engine.pdf import (
     get_profile_asset_path,
     profile_dimension,
 )
+from engine.project_documents import CalculatedSection, _build_glass_rows
 
 
 class TestProfileAssetSafety:
@@ -284,9 +285,7 @@ class TestProjectDocuments:
         assert "Заказ стекла" in r.text
         assert "КРОМКИ ПОЛИРОВАННЫЕ" in r.text
         assert "ОБРАЩАЮ ВНИМАНИЕ" in r.text
-        assert r.text.index("ОБРАЩАЮ ВНИМАНИЕ") < r.text.index(
-            "КРОМКИ ПОЛИРОВАННЫЕ"
-        )
+        assert r.text.index("ОБРАЩАЮ ВНИМАНИЕ") < r.text.index("КРОМКИ ПОЛИРОВАННЫЕ")
 
     def test_project_document_preview_requires_token(
         self, client, admin_headers, project
@@ -323,6 +322,85 @@ class TestProjectDocuments:
         assert r.status_code == 200
         assert "LOCAL-DOC" in r.text
         assert "Заказ стекла" in r.text
+
+
+class TestProjectGlassOrder:
+    def test_left_edge_drawing_does_not_mark_whole_section(self):
+        project = SimpleNamespace(number="P-001")
+        section = SimpleNamespace(
+            panels=3,
+            quantity=1,
+            slide_rows=1,
+            lock_left="ЗАМОК-ЗАЩЕЛКА 1стор",
+            lock_right="Без",
+            handle_left="Без ручки (глухая)",
+            handle_right="Без ручки (глухая)",
+            floor_latches_left=False,
+            floor_latches_right=False,
+        )
+        calc = SimpleNamespace(
+            glass_type="10ММ",
+            glass=[
+                SimpleNamespace(
+                    position="Крайние", width_mm=500, height_mm=2200, qty=2
+                ),
+                SimpleNamespace(
+                    position="Промежуточные", width_mm=450, height_mm=2200, qty=1
+                ),
+            ],
+        )
+
+        rows = _build_glass_rows(
+            project, [CalculatedSection(order=1, section=section, calc=calc)]
+        )
+
+        drawing_rows = [row for row in rows if row["note"] == "(чертеж)"]
+        assert len(drawing_rows) == 1
+        assert drawing_rows[0]["width"] == 500
+        assert drawing_rows[0]["qty"] == 1
+        assert drawing_rows[0]["marking"] == "P-001 1,1"
+
+        plain_qty = sum(row["qty"] for row in rows if row["note"] == "")
+        assert plain_qty == 2
+
+    def test_two_row_center_drawing_marks_only_central_glass(self):
+        project = SimpleNamespace(number="P-002")
+        section = SimpleNamespace(
+            panels=4,
+            quantity=1,
+            slide_rows=2,
+            lock_left="Без",
+            lock_right="Без",
+            handle_left="Без ручки (глухая)",
+            handle_right="Без ручки (глухая)",
+            floor_latches_left=False,
+            floor_latches_right=False,
+            center_lock="Замок стекло-стекло RS30301",
+            center_handle="Без ручки (подвижные)",
+            center_floor_latches_left=False,
+            center_floor_latches_right=False,
+        )
+        calc = SimpleNamespace(
+            glass_type="10ММ",
+            glass=[
+                SimpleNamespace(position="Левое", width_mm=500, height_mm=2200, qty=1),
+                SimpleNamespace(
+                    position="Центральные", width_mm=500, height_mm=2200, qty=2
+                ),
+                SimpleNamespace(position="Правое", width_mm=500, height_mm=2200, qty=1),
+            ],
+        )
+
+        rows = _build_glass_rows(
+            project, [CalculatedSection(order=2, section=section, calc=calc)]
+        )
+
+        drawing_row = [row for row in rows if row["note"] == "(чертеж)"][0]
+        plain_row = [row for row in rows if row["note"] == ""][0]
+        assert drawing_row["qty"] == 2
+        assert drawing_row["marking"] == "P-002 2,2, P-002 2,3"
+        assert plain_row["qty"] == 2
+        assert plain_row["marking"] == "P-002 2,1, P-002 2,4"
 
 
 class TestOverrides:

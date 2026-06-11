@@ -16,11 +16,19 @@ DOC_TITLES = {
     "glass": "Заказ стекла",
 }
 
+
 @dataclass
 class CalculatedSection:
     order: int
     section: object
     calc: object
+
+
+@dataclass
+class PhysicalGlassItem:
+    width_mm: float
+    height_mm: float
+    note: str = ""
 
 
 def _get_env() -> Environment:
@@ -63,25 +71,9 @@ def _format_mm(value: float) -> str:
     return str(rounded).replace(".", ",")
 
 
-def _has_glass_drawing(section: object) -> bool:
-    values = [
-        getattr(section, "lock", None),
-        getattr(section, "handle", None),
-        getattr(section, "lock_left", None),
-        getattr(section, "lock_right", None),
-        getattr(section, "handle_left", None),
-        getattr(section, "handle_right", None),
-        getattr(section, "center_lock", None),
-        getattr(section, "center_handle", None),
-    ]
-    flags = [
-        getattr(section, "floor_latches_left", False),
-        getattr(section, "floor_latches_right", False),
-        getattr(section, "center_floor_latches_left", False),
-        getattr(section, "center_floor_latches_right", False),
-    ]
+def _has_drawing_hardware(*values: object) -> bool:
     combined = " ".join(str(value or "") for value in values).lower()
-    has_named_hardware = any(
+    return any(
         token in combined
         for token in (
             "зам",
@@ -94,9 +86,157 @@ def _has_glass_drawing(section: object) -> bool:
             "rs3017",
             "rs3018",
             "rs3019",
+            "rs30301",
         )
     )
-    return has_named_hardware or any(bool(flag) for flag in flags)
+
+
+def _side_has_glass_drawing(section: object, side: str) -> bool:
+    return _has_drawing_hardware(
+        getattr(section, f"lock_{side}", None),
+        getattr(section, f"handle_{side}", None),
+    ) or bool(getattr(section, f"floor_latches_{side}", False))
+
+
+def _center_has_glass_drawing(section: object) -> bool:
+    return (
+        _has_drawing_hardware(
+            getattr(section, "center_lock", None),
+            getattr(section, "center_handle", None),
+        )
+        or bool(getattr(section, "center_floor_latches_left", False))
+        or bool(getattr(section, "center_floor_latches_right", False))
+    )
+
+
+def _legacy_has_glass_drawing(section: object) -> bool:
+    return _has_drawing_hardware(
+        getattr(section, "lock", None),
+        getattr(section, "handle", None),
+    )
+
+
+def _glass_note_for_role(section: object, role: str) -> str:
+    has_drawing = False
+    if role == "left":
+        has_drawing = _side_has_glass_drawing(section, "left")
+    elif role == "right":
+        has_drawing = _side_has_glass_drawing(section, "right")
+    elif role == "center":
+        has_drawing = _center_has_glass_drawing(section)
+    elif role == "single":
+        has_drawing = (
+            _side_has_glass_drawing(section, "left")
+            or _side_has_glass_drawing(section, "right")
+            or _center_has_glass_drawing(section)
+        )
+
+    if role in ("left", "right", "single"):
+        has_drawing = has_drawing or _legacy_has_glass_drawing(section)
+
+    return "(чертеж)" if has_drawing else ""
+
+
+def _positive_int(value: object, default: int = 0) -> int:
+    try:
+        return max(0, int(value or default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _glass_by_position(calc: object) -> dict[str, object]:
+    rows = {}
+    for glass in getattr(calc, "glass", []) or []:
+        if getattr(glass, "qty", 0) <= 0:
+            continue
+        rows.setdefault(getattr(glass, "position", ""), glass)
+    return rows
+
+
+def _physical_glass(glass: object, note: str) -> PhysicalGlassItem:
+    return PhysicalGlassItem(
+        width_mm=float(getattr(glass, "width_mm", 0) or 0),
+        height_mm=float(getattr(glass, "height_mm", 0) or 0),
+        note=note,
+    )
+
+
+def _expand_1row_glass(section: object, calc: object) -> list[PhysicalGlassItem]:
+    rows = _glass_by_position(calc)
+    panels = _positive_int(getattr(section, "panels", 0), 1)
+    quantity = _positive_int(getattr(section, "quantity", 0), 1)
+    result: list[PhysicalGlassItem] = []
+
+    if panels <= 1:
+        single = rows.get("Промежуточное") or next(iter(rows.values()), None)
+        if single is None:
+            return result
+        for _ in range(quantity):
+            result.append(
+                _physical_glass(single, _glass_note_for_role(section, "single"))
+            )
+        return result
+
+    edge = rows.get("Крайние")
+    left = rows.get("Левое") or edge
+    middle = rows.get("Промежуточные")
+    right = rows.get("Правое") or edge
+
+    for _ in range(quantity):
+        if left is not None:
+            result.append(_physical_glass(left, _glass_note_for_role(section, "left")))
+        if middle is not None:
+            for _ in range(max(panels - 2, 0)):
+                result.append(_physical_glass(middle, ""))
+        if right is not None:
+            result.append(
+                _physical_glass(right, _glass_note_for_role(section, "right"))
+            )
+
+    return result
+
+
+def _expand_2row_glass(section: object, calc: object) -> list[PhysicalGlassItem]:
+    rows = _glass_by_position(calc)
+    panels = _positive_int(getattr(section, "panels", 0), 4)
+    quantity = _positive_int(getattr(section, "quantity", 0), 1)
+    result: list[PhysicalGlassItem] = []
+
+    left = rows.get("Левое")
+    middle = rows.get("Промежуточные")
+    center = rows.get("Центральные")
+    right = rows.get("Правое")
+    middle_count = max(panels - 4, 0)
+    left_middle_count = middle_count // 2
+    right_middle_count = middle_count - left_middle_count
+
+    for _ in range(quantity):
+        if left is not None:
+            result.append(_physical_glass(left, _glass_note_for_role(section, "left")))
+        if middle is not None:
+            for _ in range(left_middle_count):
+                result.append(_physical_glass(middle, ""))
+        if center is not None:
+            for _ in range(2):
+                result.append(
+                    _physical_glass(center, _glass_note_for_role(section, "center"))
+                )
+        if middle is not None:
+            for _ in range(right_middle_count):
+                result.append(_physical_glass(middle, ""))
+        if right is not None:
+            result.append(
+                _physical_glass(right, _glass_note_for_role(section, "right"))
+            )
+
+    return result
+
+
+def _expand_glass_for_order(section: object, calc: object) -> list[PhysicalGlassItem]:
+    rows = _positive_int(getattr(section, "slide_rows", 1), 1)
+    if rows == 2:
+        return _expand_2row_glass(section, calc)
+    return _expand_1row_glass(section, calc)
 
 
 def _build_commercial_rows(calculated: list[CalculatedSection]) -> list[dict]:
@@ -177,18 +317,18 @@ def _build_paint_pages(calculated: list[CalculatedSection]) -> list[dict]:
     return sorted(pages, key=lambda page: page["color"])
 
 
-def _build_glass_rows(project: object, calculated: list[CalculatedSection]) -> list[dict]:
+def _build_glass_rows(
+    project: object, calculated: list[CalculatedSection]
+) -> list[dict]:
     grouped: dict[tuple, dict] = {}
 
     for item in calculated:
-        has_drawing = _has_glass_drawing(item.section)
-        glass_index = 1
-        for glass in item.calc.glass:
-            if glass.qty <= 0:
-                continue
+        for glass_index, glass in enumerate(
+            _expand_glass_for_order(item.section, item.calc), start=1
+        ):
             width = int(round(glass.width_mm))
             height = int(round(glass.height_mm))
-            note = "(чертеж)" if has_drawing else ""
+            note = glass.note
             key = (item.calc.glass_type, width, height, note)
             row = grouped.setdefault(
                 key,
@@ -202,12 +342,10 @@ def _build_glass_rows(project: object, calculated: list[CalculatedSection]) -> l
                     "note": note,
                 },
             )
-            for _ in range(int(glass.qty)):
-                row["markings"].append(
-                    f"{getattr(project, 'number', '')} {item.order},{glass_index}"
-                )
-                glass_index += 1
-            row["qty"] += int(glass.qty)
+            row["markings"].append(
+                f"{getattr(project, 'number', '')} {item.order},{glass_index}"
+            )
+            row["qty"] += 1
             row["area"] = round(width * height * row["qty"] / 1_000_000, 3)
 
     rows = sorted(
