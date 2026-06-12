@@ -130,22 +130,6 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
             />
           </div>
           <div className="space-y-1.5">
-            <label className={LBL}>Система</label>
-            <ToggleGroup
-              value={is2row ? '2 ряда' : '1 ряд'}
-              options={['1 ряд', '2 ряда']}
-              onChange={v => {
-                const newRows = v === '2 ряда' ? 2 : 1;
-                const defaultPanels = newRows === 2 ? 4 : Math.min(s.panels ?? 3, rails);
-                update({
-                  slideRows: newRows,
-                  panels: defaultPanels,
-                  ...(newRows === 2 ? { unusedTrack: s.unusedTrack ?? 'Внешний' } : { firstPanelInside: s.firstPanelInside ?? 'Справа' }),
-                });
-              }}
-            />
-          </div>
-          <div className="space-y-1.5">
             <label className={LBL}>Кол-во панелей</label>
             <ToggleGroup value={String(s.panels)}
               options={panelOptions}

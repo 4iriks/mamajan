@@ -246,6 +246,13 @@ async function runScenario(cdp) {
   await waitForExpression(cdp, 'document.body.innerText.includes("Стандарт 1 ряд")', 'slide subtype picker');
   await clickText(cdp, 'Стандарт 1 ряд');
   await waitForExpression(cdp, 'document.body.innerText.includes("СЛАЙД стандарт 1 ряд") && document.body.innerText.toLowerCase().includes("1-я панель внутри помещения")', 'one row form');
+  await check('one_row_no_row_switch', `(() => {
+    return ![...document.querySelectorAll('label')].some(label => {
+      const text = (label.textContent || '').replace(/\\s+/g, ' ').trim();
+      const block = label.parentElement?.innerText || '';
+      return text === 'Система' && block.includes('1 ряд') && block.includes('2 ряда');
+    });
+  })()`, 'row switch hidden in 1-row edit form');
   shot.oneRowForm = await screenshot(cdp, '03-one-row-form');
   await clickText(cdp, 'Производственный лист');
   await waitForExpression(cdp, 'document.querySelector("iframe[title=\\"Производственный лист\\"]")', 'one row production modal');
@@ -265,6 +272,13 @@ async function runScenario(cdp) {
   await clickText(cdp, 'СЛАЙД');
   await clickText(cdp, '2 ряда от центра');
   await waitForExpression(cdp, 'document.body.innerText.includes("СЛАЙД стандарт 2 ряда")', 'two row form title');
+  await check('two_row_no_row_switch', `(() => {
+    return ![...document.querySelectorAll('label')].some(label => {
+      const text = (label.textContent || '').replace(/\\s+/g, ' ').trim();
+      const block = label.parentElement?.innerText || '';
+      return text === 'Система' && block.includes('1 ряд') && block.includes('2 ряда');
+    });
+  })()`, 'row switch hidden in 2-row edit form');
   await check('two_row_default', '(() => { const text = document.body.innerText.toLowerCase(); return text.includes("3х рельсовая") && text.includes("4") && text.includes("первые панели"); })()', '2 row default 3 rails, 4 panels, first panels control');
   await check('two_row_sidebar_label', 'document.body.innerText.includes("2 ряда · 4 пан.")', 'sidebar card labels 2-row sections correctly');
   await check('two_row_no_first_panel_control', '!document.body.innerText.toLowerCase().includes("1-я панель внутри помещения")', 'old first panel control hidden for 2 rows');
