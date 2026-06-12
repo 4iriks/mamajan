@@ -23,6 +23,8 @@ class TestProfileAssetSafety:
     def test_img_b64_accepts_known_svg_profile_image(self):
         assert get_profile_asset_path("RS23231.svg") is not None
         assert _img_b64("RS23231.svg").startswith("data:image/svg+xml;base64,")
+        assert get_profile_asset_path("RS2021.svg") is not None
+        assert _img_b64("RS2021.svg").startswith("data:image/svg+xml;base64,")
 
     def test_img_b64_rejects_path_traversal(self):
         assert get_profile_asset_path("../models.py") is None

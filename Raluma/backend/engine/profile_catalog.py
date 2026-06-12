@@ -175,7 +175,7 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     "RS2021": ProfileCatalogItem(
         "RS2021",
         "Стекольный профиль",
-        "RS2021.jpg",
+        "RS2021.svg",
         75,
         18,
         "Красится",

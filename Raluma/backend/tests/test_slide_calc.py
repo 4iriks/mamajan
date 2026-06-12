@@ -780,6 +780,7 @@ class TestGlassProfile:
         r = calculate_slide(_make_section())
         rs2021 = _find_profile(r, "RS2021")
         assert len(rs2021) >= 1
+        assert all(item.image == "RS2021.svg" for item in rs2021)
 
     def test_rs2021_handle_bar_adds_16(self):
         """Ручка-профиль слева → левое стекло RS2021 +16."""

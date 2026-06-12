@@ -63,8 +63,8 @@
   .gp-tbl { width: auto; margin-top: 0.3mm; }
   .gp-tbl td { border: 1px solid #bbb; padding: 0.1mm 1mm; font-size: 8pt; }
   .gp-tbl td:nth-child(2), .gp-tbl td:nth-child(3) { text-align: center; font-weight: 700; }
-  .gp-img-box { width: 32mm; height: 12mm; display: flex; align-items: center; justify-content: center; overflow: visible; }
-  .gp-img { width: 10mm; height: 30mm; object-fit: contain; transform: rotate(90deg); transform-origin: center; }
+  .gp-img-box { width: 36mm; height: 15mm; display: flex; align-items: center; justify-content: center; }
+  .gp-img { width: 35mm; height: 14mm; object-fit: contain; }
 
   /* ── Фурнитура ── */
   .hw-tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -478,7 +478,7 @@
     <td colspan="3">
       {% set gp = glass_profiles[0] %}
       <table style="width:100%; border:none; border-collapse:collapse;"><tr>
-        <td style="border:none; padding:0; width:34mm; vertical-align:top;">
+        <td style="border:none; padding:0; width:38mm; vertical-align:top;">
           {% if gp.image %}{% set src = gp.image | img_b64 %}{% if src %}<div class="gp-img-box"><img src="{{ src }}" class="gp-img" alt="{{ gp.article }}"></div>{% endif %}{% endif %}
         </td>
         <td style="border:none; padding:0 0 0 1mm; vertical-align:top;">
