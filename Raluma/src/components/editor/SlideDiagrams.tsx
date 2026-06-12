@@ -144,9 +144,15 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
     }),
     0,
   );
-  const interGlassIsAluminum = (section.interGlassProfile ?? '').includes('RS2061');
-  const interGlassPx = mmToPx(findProfileDimension(calc, ['RS2061'], 'section_width_mm', 20), 6);
-  const interGlassDir = is2row ? -1 : (firstPanelInside === 'Справа' ? -1 : 1);
+  const interGlassText = (section.interGlassProfile ?? '').toLowerCase();
+  const hasInterGlassProfile = Boolean(interGlassText) && !interGlassText.includes('без');
+  const interGlassArticle = interGlassText.includes('rs1006')
+    ? 'RS1006'
+    : interGlassText.includes('rs1004')
+      ? 'RS1004'
+      : 'RS2061';
+  const interGlassPx = mmToPx(findProfileDimension(calc, [interGlassArticle], 'section_width_mm', 20), 6);
+  const interGlassDir = is2row ? -1 : (firstPanelInside === 'Справа' ? 1 : -1);
 
   const renderSideStack = (side: 'left' | 'right', articles: string[]) => {
     if (!articles.length) return null;
@@ -306,7 +312,7 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
         );
       })}
 
-      {interGlassIsAluminum && panelLayout.slice(0, -1).map((layout, pi) => {
+      {hasInterGlassProfile && panelLayout.slice(0, -1).map((layout, pi) => {
         const ri = panelRailMap[pi];
         const cy = topPad + ri * rowH + rowH / 2;
         return renderInterGlassProfile(layout.x + layout.width, cy, pi);

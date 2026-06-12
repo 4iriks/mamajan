@@ -96,6 +96,49 @@ def _is_painted(painting_type: str | None) -> bool:
     return "рал" in pt or "ral" in pt
 
 
+def _format_color_text(
+    painting_type: str | None, ral_color: str | None, threshold: str | None
+) -> str:
+    """Текст цвета для производственного листа без служебного стандарт/нестандарт."""
+    if _is_painted(painting_type):
+        ral = " ".join((ral_color or "").split())
+        return f"RAL {ral}" if ral else "RAL"
+    if "анод" in (threshold or "").lower():
+        return "Анодированный"
+    return painting_type or "—"
+
+
+def _threshold_profile_name(rails: int, standard_threshold: bool) -> str:
+    base = f"Порог {rails}-рельсовый"
+    return base if standard_threshold else f"{base} накладной"
+
+
+def _threshold_profile_image(article: str) -> str:
+    if article in ("RS23231", "RS23251"):
+        return f"{article}.svg"
+    if article == "RS2325":
+        return "RS1325.jpg"
+    return f"{article}.jpg"
+
+
+def _is_no_inter_glass_profile(value: str | None) -> bool:
+    text = (value or "").strip().lower()
+    return not text or "без" in text
+
+
+def _inter_glass_article(value: str | None) -> str:
+    if _is_no_inter_glass_profile(value):
+        return ""
+    text = (value or "").lower()
+    if "rs1006" in text:
+        return "RS1006"
+    if "rs1004" in text:
+        return "RS1004"
+    if "rs2061" in text:
+        return "RS2061"
+    return ""
+
+
 def calculate_slide(section) -> SlideCalcResult:
     rows = int(getattr(section, "slide_rows", 1) or 1)
     if rows == 2:
@@ -213,12 +256,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     std = _is_standard_threshold(threshold)
     painted = _is_painted(painting_type)
 
-    if painted and ral_color:
-        result.color_text = f"RAL {ral_color} {painting_type.upper().replace('RAL ', '').replace('РАЛ ', '')}"
-    elif "анод" in threshold.lower():
-        result.color_text = "Анодированный"
-    else:
-        result.color_text = painting_type or "—"
+    result.color_text = _format_color_text(painting_type, ral_color, threshold)
 
     result.glass_type = (
         _get(section, "glass_type", None) or "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
@@ -362,13 +400,13 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     _append_profile_with_splits(
         result,
         article=threshold_article,
-        name=f"Порог {rails}-рельсовый",
+        name=_threshold_profile_name(rails, std),
         length_mm=threshold_len,
         qty=Q,
         painted=painted,
-        image=f"{threshold_article}.jpg",
+        image=_threshold_profile_image(threshold_article),
         field_key="threshold_length",
-        note="рассверлить дренажные отверстия" if rails == 5 else "",
+        note="рассверлить дренажные отверстия",
     )
 
     top_article = "RS1313" if rails == 3 else "RS1315"
@@ -400,14 +438,8 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
             )
         )
 
-    if inter_glass_type != "Без" and P > 1:
-        ig_articles = {
-            "Алюминиевый RS2061": "RS2061",
-            "Прозрачный RS1006": "RS1006",
-            "Прозрачный с фетром RS1006": "RS1006",
-            "h-профиль RS1004": "RS1004",
-        }
-        ig_article = ig_articles.get(inter_glass_type, "RS2061")
+    ig_article = _inter_glass_article(inter_glass_type)
+    if ig_article and P > 1:
         result.profiles.append(
             ProfileItem(
                 article=ig_article,
@@ -548,7 +580,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
             else:
                 base_len -= 3
         elif glass.position == "Промежуточные":
-            if inter_glass_type != "Без":
+            if ig_article:
                 base_len -= 3
         glass.glass_profile_length = round(base_len, 1)
 
@@ -567,11 +599,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     inter_glass_count_each = (P - 1) if P > 1 else 0
     inter_glass_cnt = inter_glass_count_each * Q
     ru007_m = 0.0
-    if inter_glass_cnt > 0 and inter_glass_type in (
-        "Алюминиевый RS2061",
-        "Прозрачный RS1006",
-        "Прозрачный с фетром RS1006",
-    ):
+    if inter_glass_cnt > 0 and ig_article in ("RS2061", "RS1006"):
         ru007_m = round((inter_glass_len / 1000 + 0.03) * inter_glass_cnt, 3)
 
     result.hardware.append(
@@ -711,11 +739,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
             )
         )
 
-    if inter_glass_cnt > 0 and inter_glass_type in (
-        "Алюминиевый RS2061",
-        "Прозрачный RS1006",
-        "Прозрачный с фетром RS1006",
-    ):
+    if inter_glass_cnt > 0 and ig_article in ("RS2061", "RS1006"):
         plug_qty_per_side = max(0, (P // 2 - 1) * Q)
         if plug_qty_per_side > 0:
             result.hardware.append(
@@ -865,13 +889,6 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     result.screws.append(ScrewItem("Наклейка RALUMA", "RU1039", Q))
     result.screws.append(ScrewItem("Инструкция СЛАЙД", "RS150", Q))
 
-    ig_article_map = {
-        "Алюминиевый RS2061": "RS2061",
-        "Прозрачный RS1006": "RS1006",
-        "Прозрачный с фетром RS1006": "RS1006",
-        "h-профиль RS1004": "RS1004",
-    }
-    ig_article = ig_article_map.get(inter_glass_type, "")
     if ig_article in ("RS2061", "RS1006") and P > 1:
         result.checklist.append(f"Вставить фетровое уплотнение 7×12 в {ig_article}")
     result.checklist.append(f"Вставить фетровое уплотнение 7×6 в {top_article}")
@@ -921,12 +938,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
 
     # ── Текстовые описания ────────────────────────────────────────────────────
 
-    if painted and ral_color:
-        result.color_text = f"RAL {ral_color} {painting_type.upper().replace('RAL ', '').replace('РАЛ ', '')}"
-    elif "анод" in threshold.lower():
-        result.color_text = "Анодированный"
-    else:
-        result.color_text = painting_type or "—"
+    result.color_text = _format_color_text(painting_type, ral_color, threshold)
 
     result.glass_type = section.glass_type or "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
     result.threshold_text = threshold
@@ -1094,13 +1106,13 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     _append_profile_with_splits(
         result,
         article=threshold_article,
-        name=f"Порог {rails}-рельсовый",
+        name=_threshold_profile_name(rails, std),
         length_mm=threshold_len,
         qty=Q,
         painted=painted,
-        image=f"{threshold_article}.jpg",
+        image=_threshold_profile_image(threshold_article),
         field_key="threshold_length",
-        note="рассверлить дренажные отверстия" if rails == 5 else "",
+        note="рассверлить дренажные отверстия",
     )
 
     # Верхний направляющий
@@ -1136,14 +1148,8 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
         )
 
     # Межстекольный
-    if inter_glass_type != "Без" and P > 1:
-        ig_articles = {
-            "Алюминиевый RS2061": "RS2061",
-            "Прозрачный RS1006": "RS1006",
-            "Прозрачный с фетром RS1006": "RS1006",
-            "h-профиль RS1004": "RS1004",
-        }
-        ig_article = ig_articles.get(inter_glass_type, "RS2061")
+    ig_article = _inter_glass_article(inter_glass_type)
+    if ig_article and P > 1:
         ig_note = (
             "вставить фетровое уплотнение" if ig_article in ("RS2061", "RS1006") else ""
         )
@@ -1262,7 +1268,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
             if bubble_l and not left_is_deaf:
                 base_len -= 3
         elif g.position == "Промежуточные" or g.position == "Промежуточное":
-            if inter_glass_type != "Без":
+            if ig_article:
                 base_len -= 3
         g.glass_profile_length = round(base_len, 1)
 
@@ -1296,11 +1302,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
 
     inter_glass_cnt = (P - 1) * Q if P > 1 else 0
     ru007_m = 0.0
-    if inter_glass_cnt > 0 and inter_glass_type in (
-        "Алюминиевый RS2061",
-        "Прозрачный RS1006",
-        "Прозрачный с фетром RS1006",
-    ):
+    if inter_glass_cnt > 0 and ig_article in ("RS2061", "RS1006"):
         ig_len_m = inter_glass_len / 1000
         ru007_m = round((ig_len_m + 0.03) * inter_glass_cnt, 3)
 
@@ -1432,11 +1434,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
 
     # RS107R/L заглушка межстекольного
     first_panel = section.first_panel_inside or "Справа"
-    if inter_glass_cnt > 0 and inter_glass_type in (
-        "Алюминиевый RS2061",
-        "Прозрачный RS1006",
-        "Прозрачный с фетром RS1006",
-    ):
+    if inter_glass_cnt > 0 and ig_article in ("RS2061", "RS1006"):
         if first_panel == "Справа":
             # 1-я панель справа → сдвиг влево → RS107L
             result.hardware.append(
@@ -1581,16 +1579,8 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
 
     # ── Чеклист ───────────────────────────────────────────────────────────────
 
-    ig = section.inter_glass_profile or "Без"
-    ig_article_map = {
-        "Алюминиевый RS2061": "RS2061",
-        "Прозрачный RS1006": "RS1006",
-        "Прозрачный с фетром RS1006": "RS1006",
-        "h-профиль RS1004": "RS1004",
-    }
-    ig_a = ig_article_map.get(ig, "")
-    if ig_a in ("RS2061", "RS1006") and P > 1:
-        result.checklist.append(f"Вставить фетровое уплотнение 7×12 в {ig_a}")
+    if ig_article in ("RS2061", "RS1006") and P > 1:
+        result.checklist.append(f"Вставить фетровое уплотнение 7×12 в {ig_article}")
 
     result.checklist.append(f"Вставить фетровое уплотнение 7×6 в {top_article}")
 

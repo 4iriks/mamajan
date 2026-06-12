@@ -18,6 +18,7 @@ IMAGE_MIME_TYPES = {
     "jpg": "image/jpeg",
     "jpeg": "image/jpeg",
     "png": "image/png",
+    "svg": "image/svg+xml",
 }
 
 

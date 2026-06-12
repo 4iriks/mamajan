@@ -153,6 +153,27 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     }
   };
 
+  const handleCopySection = async (source: Section) => {
+    if (!project) return;
+    const maxNum = sections.reduce((m, sec) => Math.max(m, parseInt(sec.name.replace(/\D/g, '')) || 0), 0);
+    const copy: Section = {
+      ...source,
+      id: `tmp-${Date.now()}`,
+      name: `Секция ${maxNum + 1}`,
+      documentOverrides: '{}',
+    };
+    try {
+      const created = await createSection(project.id, localToApi(copy, sections.length));
+      const local = apiToLocal(created);
+      setSections(prev => [...prev, local]);
+      setActiveSectionId(local.id);
+      toast.success('Секция скопирована');
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } };
+      toast.error(err.response?.data?.detail || 'Не удалось скопировать секцию');
+    }
+  };
+
   const updateActiveSection = (updates: Partial<Section>) => {
     if (!activeSectionId) return;
     setIsDirty(true);
@@ -377,6 +398,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           activeSectionId={activeSectionId}
           onSelectSection={requestNavigate}
           onAddSection={handleAddSection}
+          onCopySection={handleCopySection}
           onDeleteSection={section => { setSectionToDelete(section); setIsDeleteModalOpen(true); }}
           mobileSidebarOpen={mobileSidebarOpen}
           setMobileSidebarOpen={setMobileSidebarOpen}

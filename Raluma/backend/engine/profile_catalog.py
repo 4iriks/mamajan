@@ -80,8 +80,8 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     ),
     "RS23231": ProfileCatalogItem(
         "RS23231",
-        "Накладной порог 3-рельсовый",
-        "RS2323.jpg",
+        "Порог 3-рельсовый накладной",
+        "RS23231.svg",
         76,
         11,
         "Красится",
@@ -92,8 +92,8 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     ),
     "RS23251": ProfileCatalogItem(
         "RS23251",
-        "Накладной порог 5-рельсовый",
-        "RS1325.jpg",
+        "Порог 5-рельсовый накладной",
+        "RS23251.svg",
         122,
         11,
         "Красится",

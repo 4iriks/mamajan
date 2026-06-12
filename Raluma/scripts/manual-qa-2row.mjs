@@ -133,6 +133,18 @@ async function clickText(cdp, text) {
   assert(result?.ok, `Не найдена кликабельная надпись "${text}".\n${result?.body ?? ''}`);
 }
 
+async function clickAriaLabel(cdp, label) {
+  const result = await cdp.evaluate(`(() => {
+    const element = [...document.querySelectorAll('button, a, [role="button"]')]
+      .find(item => (item.getAttribute('aria-label') || '') === ${JSON.stringify(label)});
+    if (!element) return { ok: false, body: document.body.innerText.slice(0, 1400) };
+    element.scrollIntoView({ block: 'center', inline: 'center' });
+    element.click();
+    return { ok: true };
+  })()`);
+  assert(result?.ok, `Не найдена кнопка "${label}".\n${result?.body ?? ''}`);
+}
+
 async function fillBySelector(cdp, selector, value) {
   const result = await cdp.evaluate(`(() => {
     const element = document.querySelector(${JSON.stringify(selector)});
@@ -180,19 +192,21 @@ async function iframeText(cdp, title) {
 }
 
 async function closeTopModal(cdp) {
-  const point = await cdp.evaluate(`(() => {
+  const clicked = await cdp.evaluate(`(() => {
     window.confirm = () => true;
-    const closeButton = [...document.querySelectorAll('.fixed button')]
-      .find(button => button.querySelector('svg.lucide-x'));
-    const target = closeButton || document.querySelector('.fixed .absolute.inset-0');
-    if (!target) return null;
-    const rect = target.getBoundingClientRect();
-    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    const modals = [...document.querySelectorAll('.fixed .relative')];
+    const modal = modals.find(item => item.innerText.includes('Производственный лист') || item.innerText.includes('Заказ стекла'))
+      ?? modals.at(-1);
+    if (modal) {
+      const button = modal.querySelector('.border-b button:last-child');
+      if (button instanceof HTMLElement) {
+        button.click();
+        return true;
+      }
+    }
+    return false;
   })()`);
-  assert(point, 'Не найдена кнопка/область закрытия модалки.');
-  await cdp.command('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y });
-  await cdp.command('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount: 1 });
-  await cdp.command('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1 });
+  assert(clicked, 'Не найдена кнопка закрытия модалки.');
 }
 
 async function runScenario(cdp) {
@@ -253,6 +267,9 @@ async function runScenario(cdp) {
       return text === 'Система' && block.includes('1 ряд') && block.includes('2 ряда');
     });
   })()`, 'row switch hidden in 1-row edit form');
+  await clickAriaLabel(cdp, 'Копировать Секция 1');
+  await waitForExpression(cdp, 'document.body.innerText.includes("Секция 2") && document.body.innerText.includes("СЛАЙД стандарт 1 ряд")', 'copied one row section');
+  await check('section_copy_created', 'document.body.innerText.includes("Секция 2") && document.body.innerText.includes("1 ряд · 3 пан.")', 'copy section button creates a new section');
   shot.oneRowForm = await screenshot(cdp, '03-one-row-form');
   await clickText(cdp, 'Производственный лист');
   await waitForExpression(cdp, 'document.querySelector("iframe[title=\\"Производственный лист\\"]")', 'one row production modal');

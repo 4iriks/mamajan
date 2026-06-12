@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, ChevronRight } from 'lucide-react';
+import { Copy, Plus, Trash2, ChevronRight } from 'lucide-react';
 import { Section, SystemType, SYSTEM_COLORS, SYSTEM_ACCENT_BG, SYSTEM_PICKER_COLORS } from './types';
 import { getSectionTypeLabel, getSectionColorLabel } from './FormInputs';
 
@@ -20,6 +20,7 @@ export interface EditorSidebarProps {
     liftPanels?: number;
     csShape?: string;
   }) => void;
+  onCopySection: (section: Section) => void;
   onDeleteSection: (section: Section) => void;
   mobileSidebarOpen: boolean;
   setMobileSidebarOpen: (v: boolean | ((prev: boolean) => boolean)) => void;
@@ -35,6 +36,7 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
   activeSectionId,
   onSelectSection,
   onAddSection,
+  onCopySection,
   onDeleteSection,
   mobileSidebarOpen,
   setMobileSidebarOpen,
@@ -203,10 +205,24 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
                 <span className={`text-sm font-bold leading-snug ${activeSectionId === section.id ? 'text-accent' : 'text-fg'}`}>
                   {section.name}
                 </span>
-                <button onClick={e => { e.stopPropagation(); onDeleteSection(section); }}
-                  className="p-1 rounded-lg hover:bg-red-500/20 text-red-400 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0 ml-1">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex items-center gap-1 ml-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+                  <button
+                    onClick={e => { e.stopPropagation(); onCopySection(section); }}
+                    className="p-1 rounded-lg hover:bg-blue-500/20 text-blue-300 transition-colors flex-shrink-0"
+                    aria-label={`Копировать ${section.name}`}
+                    title="Копировать секцию"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); onDeleteSection(section); }}
+                    className="p-1 rounded-lg hover:bg-red-500/20 text-red-400 transition-colors flex-shrink-0"
+                    aria-label={`Удалить ${section.name}`}
+                    title="Удалить секцию"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
               <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
                 <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${SYSTEM_COLORS[section.system]}`}>

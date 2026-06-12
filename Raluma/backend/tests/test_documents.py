@@ -20,6 +20,10 @@ class TestProfileAssetSafety:
         assert get_profile_asset_path("RS112.jpg") is not None
         assert _img_b64("RS112.jpg").startswith("data:image/jpeg;base64,")
 
+    def test_img_b64_accepts_known_svg_profile_image(self):
+        assert get_profile_asset_path("RS23231.svg") is not None
+        assert _img_b64("RS23231.svg").startswith("data:image/svg+xml;base64,")
+
     def test_img_b64_rejects_path_traversal(self):
         assert get_profile_asset_path("../models.py") is None
         assert get_profile_asset_path("..\\models.py") is None
@@ -214,6 +218,39 @@ class TestLocalPreview:
         )
         assert r.status_code == 200
         assert "только для системы СЛАЙД" in r.text
+
+    def test_local_preview_unused_track_and_side_profile(self, client):
+        r = client.post(
+            "/api/projects/local/sections/preview",
+            json={
+                "project": {"number": "LOCAL-TRACK", "customer": "Тест"},
+                "section": {
+                    "name": "Секция 1",
+                    "system": "СЛАЙД",
+                    "width": 3000,
+                    "height": 3000,
+                    "panels": 2,
+                    "quantity": 1,
+                    "rails": 3,
+                    "threshold": "Накладной окраш",
+                    "painting_type": "RAL нестандарт",
+                    "ral_color": "9016 МАТОВЫЙ",
+                    "unused_track": "Внутренний",
+                    "inter_glass_profile": "— Без межстекольного профиля —",
+                    "profile_left_lock_bar": True,
+                    "profile_left_handle_bar": True,
+                },
+            },
+        )
+
+        assert r.status_code == 200
+        assert "RAL 9016 МАТОВЫЙ" in r.text
+        assert "НЕСТАНДАРТ" not in r.text
+        assert "Не используется внутренняя полоса" in r.text
+        assert "Порог 3-рельсовый накладной" in r.text
+        assert "RS23231.svg" not in r.text  # картинка встраивается data-uri
+        assert "Межстекольный профиль" not in r.text
+        assert 'data-profile="left-side-stack"' in r.text
 
     def test_local_calc_returns_glass_and_catalog_profiles(self, client):
         r = client.post(

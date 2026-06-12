@@ -63,6 +63,7 @@
   .gp-tbl { width: auto; margin-top: 0.3mm; }
   .gp-tbl td { border: 1px solid #bbb; padding: 0.1mm 1mm; font-size: 8pt; }
   .gp-tbl td:nth-child(2), .gp-tbl td:nth-child(3) { text-align: center; font-weight: 700; }
+  .gp-img { width: 30mm; height: 10mm; object-fit: contain; }
 
   /* ── Фурнитура ── */
   .hw-tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -270,6 +271,21 @@
       {% set wall_article = 'RS2335' if rails == 5 else 'RS2333' %}
       {% set wall_profile_mm = profile_dimension(calc, [wall_article], 'section_height_mm', 16) %}
       {% set wall_px = [3, wall_profile_mm * rail_w / (section.width or rail_w)] | max %}
+      {% set left_side_profiles = [] %}
+      {% if section.profile_left_lock_bar %}{% set _ = left_side_profiles.append('RS2081') %}{% endif %}
+      {% if section.profile_left_p_bar %}{% set _ = left_side_profiles.append('RS1082') %}{% endif %}
+      {% if section.profile_left_handle_bar %}{% set _ = left_side_profiles.append('RS112') %}{% endif %}
+      {% if section.profile_left_bubble %}{% set _ = left_side_profiles.append('RS1002') %}{% endif %}
+      {% set right_side_profiles = [] %}
+      {% if section.profile_right_lock_bar %}{% set _ = right_side_profiles.append('RS2081') %}{% endif %}
+      {% if section.profile_right_p_bar %}{% set _ = right_side_profiles.append('RS1082') %}{% endif %}
+      {% if section.profile_right_handle_bar %}{% set _ = right_side_profiles.append('RS112') %}{% endif %}
+      {% if section.profile_right_bubble %}{% set _ = right_side_profiles.append('RS1002') %}{% endif %}
+      {% set side_profile_px = 12 %}
+      {% set inter_glass_text = (section.inter_glass_profile or '')|lower %}
+      {% set has_inter_glass = inter_glass_text and ('без' not in inter_glass_text) %}
+      {% set inter_glass_article = 'RS1006' if 'rs1006' in inter_glass_text else ('RS1004' if 'rs1004' in inter_glass_text else 'RS2061') %}
+      {% set inter_glass_px = [5, profile_dimension(calc, [inter_glass_article], 'section_width_mm', 20) * rail_w / (section.width or rail_w)] | max %}
       <svg viewBox="0 0 {{ sw }} {{ sh }}"
            xmlns="http://www.w3.org/2000/svg" style="display:block; width:100%;">
 
@@ -293,6 +309,16 @@
         {% if section.profile_right_wall %}
         <rect data-profile="{{ wall_article }}-right" x="{{ left_w + rail_w - wall_px }}" y="{{ top_pad - 4 }}" width="{{ wall_px }}" height="{{ rails * row_h + 8 }}" fill="#e8e8e8" stroke="#666" stroke-width="0.3"/>
         <text x="{{ left_w + rail_w - wall_px / 2 }}" y="{{ top_pad + 6 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#666">{{ wall_profile_mm|round|int }}</text>
+        {% endif %}
+
+        {# Боковые профили и фурнитура #}
+        {% if left_side_profiles %}
+        <rect data-profile="left-side-stack" x="{{ left_w - side_profile_px - 3 }}" y="{{ top_pad - 4 }}" width="{{ side_profile_px }}" height="{{ rails * row_h + 8 }}" fill="#f4f4f4" stroke="#666" stroke-width="0.6"/>
+        <text x="{{ left_w - side_profile_px / 2 - 3 }}" y="{{ top_pad + rails * row_h / 2 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#666" transform="rotate(-90 {{ left_w - side_profile_px / 2 - 3 }} {{ top_pad + rails * row_h / 2 }})">{{ left_side_profiles|join('/') }}</text>
+        {% endif %}
+        {% if right_side_profiles %}
+        <rect data-profile="right-side-stack" x="{{ left_w + rail_w + 3 }}" y="{{ top_pad - 4 }}" width="{{ side_profile_px }}" height="{{ rails * row_h + 8 }}" fill="#f4f4f4" stroke="#666" stroke-width="0.6"/>
+        <text x="{{ left_w + rail_w + 3 + side_profile_px / 2 }}" y="{{ top_pad + rails * row_h / 2 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#666" transform="rotate(-90 {{ left_w + rail_w + 3 + side_profile_px / 2 }} {{ top_pad + rails * row_h / 2 }})">{{ right_side_profiles|join('/') }}</text>
         {% endif %}
 
         {# Рельсы #}
@@ -320,10 +346,10 @@
         {# Номер панели #}
         {% set pnum = pi + 1 if is2row else (P - pi if first_right else pi + 1) %}
         <text x="{{ (gx1 + gx2) / 2 }}" y="{{ cy + 3 }}" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#333">{{ panel_w_mm|round|int }} · {{ pnum }}</text>
-        {% if section.inter_glass_profile and section.inter_glass_profile != '— Без межстекольного профиля —' and pi < P - 1 %}
+        {% if has_inter_glass and pi < P - 1 %}
         {% set ix = px + panel_w %}
-        {% set idir = -1 if is2row or first_right else 1 %}
-        {% set iw = 8 %}
+        {% set idir = -1 if is2row else (1 if first_right else -1) %}
+        {% set iw = inter_glass_px %}
         <path d="M {{ ix + idir * iw }} {{ cy - 6 }} L {{ ix }} {{ cy - 6 }} L {{ ix }} {{ cy + 6 }} L {{ ix + idir * iw }} {{ cy + 6 }}" fill="none" stroke="#666" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/>
         {% endif %}
         {% set top_ns.x = top_ns.x + panel_w %}
@@ -363,6 +389,11 @@
         <tr><td style="border:none; padding:0.2mm 0;"><b>СТЕКЛО</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ calc.glass_type }}</td></tr>
         <tr><td style="border:none; padding:0.2mm 0;"><b>ПОРОГ</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ calc.threshold_text }}</td></tr>
         <tr><td style="border:none; padding:0.2mm 0;"><b>СИСТЕМА</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ section.rails }}-рельсовая</td></tr>
+        {% set params_is2row = (section.slide_rows or 1) == 2 %}
+        {% set params_unused = section.unused_track or ('Внутренний' if (not params_is2row and section.panels < section.rails) else '') %}
+        {% if not params_is2row and section.panels < section.rails and params_unused %}
+        <tr><td style="border:none; padding:0.2mm 0;"><b>ПОЛОСА</b></td><td style="border:none; padding:0.2mm 0;" class="val">Не используется {{ 'внешняя' if params_unused == 'Внешний' else 'внутренняя' }} полоса</td></tr>
+        {% endif %}
       </table>
       <table class="glass-tbl" style="margin-top:0.2mm;">
         <tr><th>СТЁКЛА</th><th>ширина</th><th>высота</th><th>кол-во</th></tr>
@@ -446,8 +477,8 @@
     <td colspan="3">
       {% set gp = glass_profiles[0] %}
       <table style="width:100%; border:none; border-collapse:collapse;"><tr>
-        <td style="border:none; padding:0; width:16mm; vertical-align:top;">
-          {% if gp.image %}{% set src = gp.image | img_b64 %}{% if src %}<img src="{{ src }}" style="width:13mm; height:11mm; object-fit:contain; transform:rotate(90deg);">{% endif %}{% endif %}
+        <td style="border:none; padding:0; width:32mm; vertical-align:top;">
+          {% if gp.image %}{% set src = gp.image | img_b64 %}{% if src %}<img src="{{ src }}" class="gp-img" alt="{{ gp.article }}">{% endif %}{% endif %}
         </td>
         <td style="border:none; padding:0 0 0 1mm; vertical-align:top;">
           <div class="prof-name">Стекольный профиль</div>

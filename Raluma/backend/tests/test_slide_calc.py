@@ -337,6 +337,19 @@ class TestInterGlass:
         assert not _find_profile(r, "RS1006")
         assert not _find_profile(r, "RS1004")
 
+    def test_no_inter_glass_frontend_label(self):
+        r = calculate_slide(
+            _make_section(inter_glass_profile="— Без межстекольного профиля —")
+        )
+        assert not _find_profile(r, "RS2061")
+        assert not _find_profile(r, "RS1006")
+        assert not _find_profile(r, "RS1004")
+        assert not _find_hardware(r, "RS107L")
+        assert not _find_hardware(r, "RS107R")
+        brush = [h for h in r.hardware if h.field_key == "brush"][0]
+        ru007 = [item for item in brush.sub_items if item.article == "RU007"][0]
+        assert ru007.value == 0.0
+
     def test_rs1006(self):
         r = calculate_slide(_make_section(inter_glass_profile="Прозрачный RS1006"))
         assert _find_profile(r, "RS1006")
@@ -938,6 +951,13 @@ class TestPainting:
         )
         assert "RAL" in r.color_text
         assert "9016" in r.color_text
+        assert "СТАНДАРТ" not in r.color_text
+
+    def test_color_text_ral_nonstandard_drops_service_word(self):
+        r = calculate_slide(
+            _make_section(painting_type="RAL нестандарт", ral_color="9016 МАТОВЫЙ")
+        )
+        assert r.color_text == "RAL 9016 МАТОВЫЙ"
 
     def test_color_text_anod(self):
         r = calculate_slide(
@@ -961,6 +981,18 @@ class TestPainting:
         r = calculate_slide(_make_section(rails=5))
         threshold = _find_profile(r, "RS2325")[0]
         assert threshold.image == "RS1325.jpg"
+
+    def test_overlay_threshold_has_own_name_image_and_drain_note(self):
+        r = calculate_slide(_make_section(threshold="Накладной окраш"))
+        threshold = _find_profile(r, "RS23231")[0]
+        assert threshold.name == "Порог 3-рельсовый накладной"
+        assert threshold.image == "RS23231.svg"
+        assert threshold.note == "рассверлить дренажные отверстия"
+
+    def test_standard_threshold_has_drain_note(self):
+        r = calculate_slide(_make_section(threshold="Стандартный анод"))
+        threshold = _find_profile(r, "RS2323")[0]
+        assert threshold.note == "рассверлить дренажные отверстия"
 
 
 # ═══════════════════════════════════════════════════════════════════════════

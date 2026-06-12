@@ -94,6 +94,17 @@ def test_profile_asset_returns_existing_image(client):
     assert len(r.content) > 0
 
 
+def test_profile_asset_returns_existing_svg(client):
+    r = client.get("/api/catalog/profile-assets/RS23231.svg")
+
+    assert r.status_code == 200
+    assert r.headers["content-type"] in (
+        "image/svg+xml",
+        "image/svg+xml; charset=utf-8",
+    )
+    assert len(r.content) > 0
+
+
 def test_profile_asset_rejects_path_traversal(client):
     r = client.get("/api/catalog/profile-assets/..%2Fmodels.py")
 
