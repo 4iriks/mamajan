@@ -252,6 +252,30 @@ class TestLocalPreview:
         assert "Межстекольный профиль" not in r.text
         assert 'data-profile="left-side-stack"' in r.text
 
+    def test_local_preview_rs2021_skips_zero_intermediate_label(self, client):
+        r = client.post(
+            "/api/projects/local/sections/preview",
+            json={
+                "project": {"number": "LOCAL-RS2021", "customer": "Тест"},
+                "section": {
+                    "name": "Секция 1",
+                    "system": "СЛАЙД",
+                    "width": 3000,
+                    "height": 3000,
+                    "panels": 2,
+                    "quantity": 1,
+                    "rails": 3,
+                    "threshold": "Стандартный анод",
+                    "inter_glass_profile": "— Без межстекольного профиля —",
+                },
+            },
+        )
+
+        assert r.status_code == 200
+        assert "Стекольный профиль" in r.text
+        assert "Крайние" in r.text
+        assert "Промежуточные" not in r.text
+
     def test_local_calc_returns_glass_and_catalog_profiles(self, client):
         r = client.post(
             "/api/projects/local/sections/calc",

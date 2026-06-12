@@ -835,6 +835,15 @@ class TestGlassProfile:
         mid = _find_glass(r, "Промежуточные")[0]
         assert mid.glass_profile_length == mid.width_mm
 
+    def test_rs2021_ignores_zero_qty_glass_rows(self):
+        """2 панели не должны создавать нулевую строку RS2021 для промежуточных."""
+        r = calculate_slide(_make_section(panels=2, inter_glass_profile="Без"))
+        rs2021 = _find_profile(r, "RS2021")
+
+        assert rs2021
+        assert all(item.qty > 0 for item in rs2021)
+        assert all("Промежуточ" not in item.glass_positions for item in rs2021)
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # QUANTITY > 1

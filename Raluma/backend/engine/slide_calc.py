@@ -28,6 +28,7 @@ class ProfileItem:
     paint_mode: str = ""
     color_variants: list[str] = field(default_factory=list)
     paint_note: str = ""
+    glass_positions: str = ""
 
 
 @dataclass
@@ -37,6 +38,12 @@ class GlassItem:
     height_mm: float
     qty: int
     glass_profile_length: float = 0  # длина RS2021 для этого стекла
+
+
+@dataclass
+class GlassProfileGroup:
+    qty: int = 0
+    positions: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -212,27 +219,33 @@ def _rs2081_screws_per_side(height_mm: float) -> int:
     return ceil(max(height_mm - 200, 0) / 300)
 
 
-def _aggregate_glass_profiles(result: SlideCalcResult) -> None:
-    glass_profile_items = {}
+def _aggregate_glass_profiles(
+    result: SlideCalcResult, *, painted: bool = False
+) -> None:
+    glass_profile_items: dict[float, GlassProfileGroup] = {}
     for glass in result.glass:
         if glass.qty <= 0:
             continue
         key = round(glass.glass_profile_length, 1)
         if key not in glass_profile_items:
-            glass_profile_items[key] = 0
-        glass_profile_items[key] += glass.qty
+            glass_profile_items[key] = GlassProfileGroup()
+        group = glass_profile_items[key]
+        group.qty += glass.qty
+        if glass.position not in group.positions:
+            group.positions.append(glass.position)
 
-    for length, qty in glass_profile_items.items():
+    for length, group in glass_profile_items.items():
         result.profiles.append(
             ProfileItem(
                 article="RS2021",
                 name="Стекольный профиль",
                 length_mm=length,
-                qty=qty,
-                painted=False,
+                qty=group.qty,
+                painted=painted,
                 image="RS2021.jpg",
                 field_key=f"glass_profile_{length}",
                 note="прикрутить ролики и заглушки",
+                glass_positions=", ".join(group.positions),
             )
         )
 
@@ -584,10 +597,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 base_len -= 3
         glass.glass_profile_length = round(base_len, 1)
 
-    _aggregate_glass_profiles(result)
-    for profile in result.profiles:
-        if profile.article == "RS2021":
-            profile.painted = painted
+    _aggregate_glass_profiles(result, painted=painted)
 
     handle_bar_len_m = handle_bar_len / 1000
     top_len_m = top_len / 1000
@@ -1272,26 +1282,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
                 base_len -= 3
         g.glass_profile_length = round(base_len, 1)
 
-    glass_profile_items = {}
-    for g in result.glass:
-        key = round(g.glass_profile_length, 1)
-        if key not in glass_profile_items:
-            glass_profile_items[key] = 0
-        glass_profile_items[key] += g.qty
-
-    for length, qty in glass_profile_items.items():
-        result.profiles.append(
-            ProfileItem(
-                article="RS2021",
-                name="Стекольный профиль",
-                length_mm=length,
-                qty=qty,
-                painted=painted,
-                image="RS2021.jpg",
-                field_key=f"glass_profile_{length}",
-                note="прикрутить ролики и заглушки",
-            )
-        )
+    _aggregate_glass_profiles(result, painted=painted)
 
     # ── Фурнитура ─────────────────────────────────────────────────────────────
 

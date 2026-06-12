@@ -525,6 +525,44 @@ node scripts/manual-qa-2row.mjs http://localhost:5173
 - Скриншоты smoke: `C:\tmp\raluma-qa-2row`.
 - Локальные dev-серверы после проверки остановлены.
 
+### Дополнение после ревью: RS2021 в производственном листе
+
+Статус: исправлено после замечаний ревьюера.
+
+Файлы:
+
+- `Raluma/backend/engine/slide_calc.py`
+- `Raluma/backend/templates/section_sheet.html`
+- `Raluma/backend/tests/test_slide_calc.py`
+- `Raluma/backend/tests/test_documents.py`
+
+Что исправлено:
+
+- RS2021 больше не агрегируется отдельной ручной логикой в 1-рядной ветке.
+- Используется общий helper `_aggregate_glass_profiles()`.
+- Нулевые стекольные строки (`qty <= 0`) больше не создают строки RS2021.
+- Каждая строка RS2021 хранит свою подпись `glass_positions`, поэтому шаблон больше не угадывает позицию через индекс `calc.glass[j]`.
+- Для 2-панельной секции без промежуточного стекла в RS2021-таблице не появляется подпись `Промежуточные`.
+- Картинка `RS2021.jpg` снова повернута горизонтально, но оставлена в увеличенном боксе, чтобы не отображаться тонкой вертикальной полоской.
+
+Проверки:
+
+```powershell
+pytest -q Raluma\backend\tests\test_slide_calc.py::TestGlassProfile Raluma\backend\tests\test_documents.py::TestLocalPreview::test_local_preview_rs2021_skips_zero_intermediate_label
+ruff check Raluma\backend\engine\slide_calc.py Raluma\backend\tests\test_slide_calc.py Raluma\backend\tests\test_documents.py
+ruff format --check Raluma\backend\engine\slide_calc.py Raluma\backend\tests\test_slide_calc.py Raluma\backend\tests\test_documents.py
+pytest -q
+```
+
+Результат:
+
+```text
+9 passed
+All checks passed
+3 files already formatted
+205 passed, 282 warnings
+```
+
 ## Актуальный backlog: согласовано, но отложено
 
 ### Шаблоны секций из Image #5

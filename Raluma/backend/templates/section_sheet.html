@@ -63,7 +63,8 @@
   .gp-tbl { width: auto; margin-top: 0.3mm; }
   .gp-tbl td { border: 1px solid #bbb; padding: 0.1mm 1mm; font-size: 8pt; }
   .gp-tbl td:nth-child(2), .gp-tbl td:nth-child(3) { text-align: center; font-weight: 700; }
-  .gp-img { width: 30mm; height: 10mm; object-fit: contain; }
+  .gp-img-box { width: 32mm; height: 12mm; display: flex; align-items: center; justify-content: center; overflow: visible; }
+  .gp-img { width: 10mm; height: 30mm; object-fit: contain; transform: rotate(90deg); transform-origin: center; }
 
   /* ── Фурнитура ── */
   .hw-tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -477,8 +478,8 @@
     <td colspan="3">
       {% set gp = glass_profiles[0] %}
       <table style="width:100%; border:none; border-collapse:collapse;"><tr>
-        <td style="border:none; padding:0; width:32mm; vertical-align:top;">
-          {% if gp.image %}{% set src = gp.image | img_b64 %}{% if src %}<img src="{{ src }}" class="gp-img" alt="{{ gp.article }}">{% endif %}{% endif %}
+        <td style="border:none; padding:0; width:34mm; vertical-align:top;">
+          {% if gp.image %}{% set src = gp.image | img_b64 %}{% if src %}<div class="gp-img-box"><img src="{{ src }}" class="gp-img" alt="{{ gp.article }}"></div>{% endif %}{% endif %}
         </td>
         <td style="border:none; padding:0 0 0 1mm; vertical-align:top;">
           <div class="prof-name">Стекольный профиль</div>
@@ -491,7 +492,7 @@
             {% set gfk = "gp_" ~ j ~ "_len" %}
             {% set gfkq = "gp_" ~ j ~ "_qty" %}
             <tr>
-              <td>{{ calc.glass[j].position if j < calc.glass|length else '—' }}</td>
+              <td>{{ gpi.glass_positions or (calc.glass[j].position if j < calc.glass|length else '—') }}</td>
               <td {{ ce(gfk, gpi.length_mm|int) }}>{{ ov(gfk, gpi.length_mm|int) }}</td>
               <td {{ ce(gfkq, gpi.qty) }}>{{ ov(gfkq, gpi.qty) }}</td>
             </tr>
