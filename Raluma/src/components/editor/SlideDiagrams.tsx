@@ -152,7 +152,7 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
       ? 'RS1004'
       : 'RS2061';
   const interGlassPx = mmToPx(findProfileDimension(calc, [interGlassArticle], 'section_width_mm', 20), 6);
-  const interGlassDir = is2row ? -1 : (firstPanelInside === 'Справа' ? 1 : -1);
+  const interGlassDir = is2row || firstPanelInside === 'Справа' ? -1 : 1;
 
   const renderSideStack = (side: 'left' | 'right', articles: string[]) => {
     if (!articles.length) return null;
@@ -200,6 +200,7 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
     return (
       <g key={`inter-${index}`}>
         <path
+          data-profile="inter-glass"
           d={`M ${innerX} ${top} L ${x} ${top} L ${x} ${bottom} L ${innerX} ${bottom}`}
           fill="none"
           stroke="var(--theme-accent)"
@@ -313,7 +314,8 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
       })}
 
       {hasInterGlassProfile && panelLayout.slice(0, -1).map((layout, pi) => {
-        const ri = panelRailMap[pi];
+        const ownerIndex = !is2row && firstPanelInside === 'Справа' ? pi + 1 : pi;
+        const ri = panelRailMap[ownerIndex] ?? panelRailMap[pi];
         const cy = topPad + ri * rowH + rowH / 2;
         return renderInterGlassProfile(layout.x + layout.width, cy, pi);
       })}

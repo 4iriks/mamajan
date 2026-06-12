@@ -274,7 +274,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     result.glass_type = (
         _get(section, "glass_type", None) or "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
     )
-    result.threshold_text = threshold
+    result.threshold_text = _threshold_profile_name(rails, std)
     result.system_text = "SLIDE-стандарт 2 ряда"
 
     # Панели идут симметрично от левого края к центру и от центра к правому краю.
@@ -951,7 +951,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     result.color_text = _format_color_text(painting_type, ral_color, threshold)
 
     result.glass_type = section.glass_type or "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
-    result.threshold_text = threshold
+    result.threshold_text = _threshold_profile_name(rails, std)
     result.system_text = "SLIDE-стандарт 1 ряд"
 
     # ── Маппинг панелей → рельсы (для схемы вид сверху) ──────────────────────
