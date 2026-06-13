@@ -298,7 +298,7 @@
 
         {# Пристеночный профиль #}
         {% if section.profile_left_wall %}
-        {% set left_wall_x = left_w - wall_img_w - 5 %}
+        {% set left_wall_x = left_w - wall_img_w %}
         {% if wall_img_src %}
         <g data-profile="{{ wall_article }}-left" data-profile-image="{{ wall_article }}-left" transform="translate({{ left_wall_x }} {{ wall_img_y + wall_img_h }}) rotate(-90)">
           <image href="{{ wall_img_src }}" x="0" y="0" width="{{ wall_img_h }}" height="{{ wall_img_w }}" preserveAspectRatio="none"/>
@@ -309,7 +309,7 @@
         <text x="{{ left_wall_x + wall_img_w / 2 }}" y="{{ top_pad + 6 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#666">{{ wall_profile_mm|round|int }}</text>
         {% endif %}
         {% if section.profile_right_wall %}
-        {% set right_wall_x = left_w + rail_w + 5 %}
+        {% set right_wall_x = left_w + rail_w %}
         {% if wall_img_src %}
         <g data-profile="{{ wall_article }}-right" data-profile-image="{{ wall_article }}-right" transform="translate({{ right_wall_x + wall_img_w }} {{ wall_img_y }}) rotate(90)">
           <image href="{{ wall_img_src }}" x="0" y="0" width="{{ wall_img_h }}" height="{{ wall_img_w }}" preserveAspectRatio="none"/>
