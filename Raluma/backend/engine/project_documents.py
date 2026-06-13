@@ -306,6 +306,7 @@ def _build_paint_pages(calculated: list[CalculatedSection]) -> list[dict]:
                     "article": profile.article,
                     "name": profile.name,
                     "image": profile.image,
+                    "paint_marker": profile.paint_mode == "Частично",
                     "qty": 0,
                     "clean": clean,
                     "allowance": allowance,

@@ -369,6 +369,9 @@ class TestProjectDocuments:
         assert r.status_code == 200
         assert "Заявка на покраску" in r.text
         assert "RS1313" in r.text
+        assert 'class="doc-head"' in r.text
+        assert 'class="meta paint-meta"' in r.text
+        assert "paint-bosses-marker" in r.text
 
     def test_project_glass_preview_returns_html(self, client, admin_headers, project):
         _create_slide_section(client, admin_headers, project["id"])
