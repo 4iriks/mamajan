@@ -360,9 +360,7 @@ def _build_glass_rows(
                     "note": note,
                 },
             )
-            row["markings"].append(
-                f"{getattr(project, 'number', '')} {item.order},{glass_index}"
-            )
+            row["markings"].append(f"{item.order},{glass_index}")
             row["qty"] += 1
             row["area"] = round(width * height * row["qty"] / 1_000_000, 3)
 
@@ -372,7 +370,7 @@ def _build_glass_rows(
     )
     for index, row in enumerate(rows, start=1):
         row["index"] = index
-        row["marking"] = ", ".join(row["markings"])
+        row["marking"] = " ".join(row["markings"])
     return rows
 
 

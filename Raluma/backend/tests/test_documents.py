@@ -1,10 +1,12 @@
 """
 Тесты API производственных документов (preview, overrides).
-PDF-генерацию не тестируем (требует WeasyPrint + системные библиотеки).
+PDF-генерацию проверяем только если установлен WeasyPrint.
 """
 
 import json
 from types import SimpleNamespace
+
+import pytest
 
 from engine.pdf import (
     _img_b64,
@@ -381,7 +383,9 @@ class TestProjectDocuments:
         assert "Заказ стекла" in r.text
         assert "КРОМКИ ПОЛИРОВАННЫЕ" in r.text
         assert "ОБРАЩАЮ ВНИМАНИЕ" in r.text
-        assert r.text.index("ОБРАЩАЮ ВНИМАНИЕ") < r.text.index("КРОМКИ ПОЛИРОВАННЫЕ")
+        assert f"Проект {project['number']}" not in r.text
+        assert 'class="doc-head"' in r.text
+        assert r.text.index("КРОМКИ ПОЛИРОВАННЫЕ") < r.text.index("ОБРАЩАЮ ВНИМАНИЕ")
 
     def test_project_document_preview_requires_token(
         self, client, admin_headers, project
@@ -418,6 +422,34 @@ class TestProjectDocuments:
         assert r.status_code == 200
         assert "LOCAL-DOC" in r.text
         assert "Заказ стекла" in r.text
+        assert "Проект LOCAL-DOC" not in r.text
+
+    def test_local_project_glass_pdf_download_returns_pdf(self, client):
+        pytest.importorskip("weasyprint")
+
+        r = client.post(
+            "/api/projects/local/documents/glass/pdf",
+            json={
+                "project": {"number": "LOCAL-DOC", "customer": "Гость"},
+                "sections": [
+                    {
+                        "name": "Секция 1",
+                        "system": "СЛАЙД",
+                        "width": 2000,
+                        "height": 2400,
+                        "panels": 3,
+                        "quantity": 1,
+                        "rails": 3,
+                        "threshold": "Стандартный анод",
+                        "first_panel_inside": "Справа",
+                    }
+                ],
+            },
+        )
+
+        assert r.status_code == 200
+        assert r.headers["content-type"] == "application/pdf"
+        assert r.content.startswith(b"%PDF")
 
 
 class TestProjectGlassOrder:
@@ -454,7 +486,7 @@ class TestProjectGlassOrder:
         assert len(drawing_rows) == 1
         assert drawing_rows[0]["width"] == 500
         assert drawing_rows[0]["qty"] == 1
-        assert drawing_rows[0]["marking"] == "P-001 1,1"
+        assert drawing_rows[0]["marking"] == "1,1"
 
         plain_qty = sum(row["qty"] for row in rows if row["note"] == "")
         assert plain_qty == 2
@@ -494,9 +526,9 @@ class TestProjectGlassOrder:
         drawing_row = [row for row in rows if row["note"] == "(чертеж)"][0]
         plain_row = [row for row in rows if row["note"] == ""][0]
         assert drawing_row["qty"] == 2
-        assert drawing_row["marking"] == "P-002 2,2, P-002 2,3"
+        assert drawing_row["marking"] == "2,2 2,3"
         assert plain_row["qty"] == 2
-        assert plain_row["marking"] == "P-002 2,1, P-002 2,4"
+        assert plain_row["marking"] == "2,1 2,4"
 
     def test_two_row_left_center_floor_latch_marks_one_central_glass(self):
         project = SimpleNamespace(number="P-003")
@@ -533,9 +565,9 @@ class TestProjectGlassOrder:
         drawing_row = [row for row in rows if row["note"] == "(чертеж)"][0]
         plain_row = [row for row in rows if row["note"] == ""][0]
         assert drawing_row["qty"] == 1
-        assert drawing_row["marking"] == "P-003 3,2"
+        assert drawing_row["marking"] == "3,2"
         assert plain_row["qty"] == 3
-        assert plain_row["marking"] == "P-003 3,1, P-003 3,3, P-003 3,4"
+        assert plain_row["marking"] == "3,1 3,3 3,4"
 
     def test_no_hardware_labels_do_not_create_drawing_note(self):
         project = SimpleNamespace(number="P-004")

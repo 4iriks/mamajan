@@ -104,6 +104,22 @@
       color: #333;
       font-size: 9pt;
     }
+    .doc-head {
+      width: 100%;
+      table-layout: fixed;
+      border-collapse: collapse;
+      margin-bottom: 5mm;
+    }
+    .doc-head > tbody > tr > td,
+    .doc-head > tr > td {
+      border: none;
+      padding: 0;
+      vertical-align: top;
+    }
+    .doc-head .head-meta {
+      width: 72mm;
+      padding-left: 8mm;
+    }
   </style>
 </head>
 <body>
@@ -225,21 +241,21 @@
   {% endif %}
 {% elif doc_type == 'glass' %}
   <div class="page">
-    <div class="topline">
-      <div>
+    <table class="doc-head">
+      <tr>
+        <td>
         <h1>Заказ стекла</h1>
-        <div class="muted">Проект {{ project.number }}</div>
-      </div>
-      <table class="meta">
-        <tr><td><b>Заявка</b></td><td>{{ project.number }}</td></tr>
-        <tr><td><b>Заказчик</b></td><td>{{ project.customer }}</td></tr>
-      </table>
-    </div>
+        </td>
+        <td class="head-meta">
+          <table class="meta">
+            <tr><td><b>Заявка</b></td><td>{{ project.number }}</td></tr>
+            <tr><td><b>Заказчик</b></td><td>{{ project.customer }}</td></tr>
+          </table>
+        </td>
+      </tr>
+    </table>
     <div class="accent-red" style="margin-bottom:3mm;">
-      ОБРАЩАЮ ВНИМАНИЕ НА ПОВЫШЕННОЕ КАЧЕСТВО ИЗДЕЛИЙ<br>
-      Т.К. ФИРМА ИЗГОТАВЛИВАЕТ БЕЗРАМНОЕ ОСТЕКЛЕНИЕ<br>
-      ПЕРЕКОС ДИАГОНАЛИ НЕ ДОЛЖЕН ПРЕВЫШАТЬ 1-2ММ<br>
-      ГАБАРИТЫ СТЕКЛА НЕ ДОЛЖНЫ ПРЕВЫШАТЬ 2ММ
+      КРОМКИ ПОЛИРОВАННЫЕ. Печать закалки не ставить
     </div>
     {% if glass_rows %}
     <table>
@@ -280,7 +296,10 @@
       <div class="empty">В проекте нет расчетных стекол.</div>
     {% endif %}
     <div class="accent-red" style="margin-top:5mm;">
-      КРОМКИ ПОЛИРОВАННЫЕ. Печать закалки не ставить
+      ОБРАЩАЮ ВНИМАНИЕ НА ПОВЫШЕННОЕ КАЧЕСТВО ИЗДЕЛИЙ<br>
+      Т.К. ФИРМА ИЗГОТАВЛИВАЕТ БЕЗРАМНОЕ ОСТЕКЛЕНИЕ<br>
+      ПЕРЕКОС ДИАГОНАЛИ НЕ ДОЛЖЕН ПРЕВЫШАТЬ 1-2ММ<br>
+      ГАБАРИТЫ СТЕКЛА НЕ ДОЛЖНЫ ПРЕВЫШАТЬ 2ММ
     </div>
   </div>
 {% endif %}
