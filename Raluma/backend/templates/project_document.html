@@ -117,8 +117,13 @@
       vertical-align: top;
     }
     .doc-head .head-meta {
-      width: 72mm;
+      width: 80mm;
       padding-left: 8mm;
+      padding-right: 8mm;
+    }
+    .doc-head .glass-meta {
+      width: 64mm;
+      margin-left: auto;
     }
   </style>
 </head>
@@ -247,7 +252,7 @@
         <h1>Заказ стекла</h1>
         </td>
         <td class="head-meta">
-          <table class="meta">
+          <table class="meta glass-meta">
             <tr><td><b>Заявка</b></td><td>{{ project.number }}</td></tr>
             <tr><td><b>Заказчик</b></td><td>{{ project.customer }}</td></tr>
           </table>

@@ -385,6 +385,7 @@ class TestProjectDocuments:
         assert "ОБРАЩАЮ ВНИМАНИЕ" in r.text
         assert f"Проект {project['number']}" not in r.text
         assert 'class="doc-head"' in r.text
+        assert 'class="meta glass-meta"' in r.text
         assert r.text.index("КРОМКИ ПОЛИРОВАННЫЕ") < r.text.index("ОБРАЩАЮ ВНИМАНИЕ")
 
     def test_project_document_preview_requires_token(
