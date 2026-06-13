@@ -152,7 +152,7 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
       ? 'RS1004'
       : 'RS2061';
   const interGlassPx = mmToPx(findProfileDimension(calc, [interGlassArticle], 'section_width_mm', 20), 6);
-  const interGlassDir = is2row || firstPanelInside === 'Справа' ? -1 : 1;
+  const interGlassDir = is2row ? -1 : (firstPanelInside === 'Справа' ? 1 : -1);
 
   const renderSideStack = (side: 'left' | 'right', articles: string[]) => {
     if (!articles.length) return null;

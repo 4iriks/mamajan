@@ -249,12 +249,14 @@ class TestLocalPreview:
         assert "RAL 9016 МАТОВЫЙ" in r.text
         assert "НЕСТАНДАРТ" not in r.text
         assert "Не используется внутренняя полоса" in r.text
-        assert "Порог 3-рельсовый накладной" in r.text
+        assert "Порог 3-рельсовый накладной окраш" in r.text
         assert ">Накладной окраш<" not in r.text
         assert "RS23231.svg" not in r.text  # картинка встраивается data-uri
         assert "Межстекольный профиль" not in r.text
         assert 'data-profile="left-side-stack"' in r.text
         assert 'data-articles="RS2081/RS112"' in r.text
+        assert 'data-profile-image="RS2081-left"' in r.text
+        assert 'data-profile-image="RS112-left"' in r.text
 
     def test_local_preview_inter_glass_mirrors_for_first_panel_right(self, client):
         r = client.post(
@@ -277,9 +279,10 @@ class TestLocalPreview:
         )
 
         assert r.status_code == 200
-        assert 'data-profile="inter-glass" data-panel="2" data-dir="-1"' in r.text
-        assert 'data-profile="inter-glass" data-panel="1" data-dir="-1"' in r.text
+        assert 'data-profile="inter-glass" data-panel="2" data-dir="1"' in r.text
+        assert 'data-profile="inter-glass" data-panel="1" data-dir="1"' in r.text
         assert 'data-profile="inter-glass" data-panel="3"' not in r.text
+        assert 'class="prof-img mirror-x" alt="RS2061"' in r.text
 
     def test_local_preview_rs2021_skips_zero_intermediate_label(self, client):
         r = client.post(

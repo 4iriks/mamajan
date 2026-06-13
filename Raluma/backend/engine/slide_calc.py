@@ -120,6 +120,18 @@ def _threshold_profile_name(rails: int, standard_threshold: bool) -> str:
     return base if standard_threshold else f"{base} накладной"
 
 
+def _threshold_display_name(
+    rails: int, standard_threshold: bool, threshold: str | None, painting_type: str | None
+) -> str:
+    base = _threshold_profile_name(rails, standard_threshold)
+    text = f"{threshold or ''} {painting_type or ''}".lower()
+    if _is_painted(painting_type) or "окраш" in text:
+        return f"{base} окраш"
+    if "анод" in text:
+        return f"{base} анод"
+    return base
+
+
 def _threshold_profile_image(article: str) -> str:
     if article in ("RS23231", "RS23251"):
         return f"{article}.svg"
@@ -274,7 +286,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     result.glass_type = (
         _get(section, "glass_type", None) or "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
     )
-    result.threshold_text = _threshold_profile_name(rails, std)
+    result.threshold_text = _threshold_display_name(rails, std, threshold, painting_type)
     result.system_text = "SLIDE-стандарт 2 ряда"
 
     # Панели идут симметрично от левого края к центру и от центра к правому краю.
@@ -951,7 +963,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     result.color_text = _format_color_text(painting_type, ral_color, threshold)
 
     result.glass_type = section.glass_type or "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
-    result.threshold_text = _threshold_profile_name(rails, std)
+    result.threshold_text = _threshold_display_name(rails, std, threshold, painting_type)
     result.system_text = "SLIDE-стандарт 1 ряд"
 
     # ── Маппинг панелей → рельсы (для схемы вид сверху) ──────────────────────

@@ -252,29 +252,29 @@ class TestThresholdArticles:
     def test_3_standard(self):
         r = calculate_slide(_make_section(rails=3, threshold="Стандартный анод"))
         assert _find_profile(r, "RS2323")
-        assert r.threshold_text == "Порог 3-рельсовый"
+        assert r.threshold_text == "Порог 3-рельсовый анод"
 
     def test_3_overlay(self):
         r = calculate_slide(_make_section(rails=3, threshold="Накладной анод"))
         assert _find_profile(r, "RS23231")
-        assert r.threshold_text == "Порог 3-рельсовый накладной"
+        assert r.threshold_text == "Порог 3-рельсовый накладной анод"
 
     def test_5_standard(self):
         r = calculate_slide(_make_section(rails=5, threshold="Стандартный анод"))
         assert _find_profile(r, "RS2325")
-        assert r.threshold_text == "Порог 5-рельсовый"
+        assert r.threshold_text == "Порог 5-рельсовый анод"
 
     def test_5_overlay(self):
         r = calculate_slide(_make_section(rails=5, threshold="Накладной анод"))
         assert _find_profile(r, "RS23251")
-        assert r.threshold_text == "Порог 5-рельсовый накладной"
+        assert r.threshold_text == "Порог 5-рельсовый накладной анод"
 
     def test_two_rows_threshold_text_uses_profile_name(self):
         r = calculate_slide(
             _make_section(slide_rows=2, panels=4, threshold="Накладной окраш")
         )
         assert _find_profile(r, "RS23231")
-        assert r.threshold_text == "Порог 3-рельсовый накладной"
+        assert r.threshold_text == "Порог 3-рельсовый накладной окраш"
 
 
 # ═══════════════════════════════════════════════════════════════════════════

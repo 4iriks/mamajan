@@ -4,6 +4,17 @@ import { Checkbox, ToggleGroup, RadioList, ProfileCheckbox, SectionDivider } fro
 // ── Tab: Основное (общая для всех систем) ─────────────────────────────────────
 
 export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
+  const thresholdKind = (s.threshold || '').includes('Накладной') ? 'Накладной' : 'Стандартный';
+  const paintingThreshold = (type: Section['paintingType']) =>
+    `${thresholdKind} ${type === 'Анодированный' ? 'анод' : 'окраш'}`;
+  const setPaintingType = (type: Section['paintingType']) => {
+    update({
+      paintingType: type,
+      threshold: paintingThreshold(type),
+      ...(type.includes('RAL') && !s.ralColor ? { ralColor: '9016 МАТОВЫЙ' } : {}),
+    });
+  };
+
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
       <div className="space-y-4">
@@ -49,7 +60,7 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
           <label className={LBL}>Окрашивание</label>
           <div className="space-y-1.5">
             {(['RAL стандарт', 'RAL нестандарт', 'Анодированный'] as const).map(type => (
-              <button key={type} onClick={() => update({ paintingType: type })}
+              <button key={type} onClick={() => setPaintingType(type)}
                 className={`flex items-center gap-3 w-full px-3 py-2 rounded-xl border transition-all text-left ${
                   s.paintingType === type ? 'bg-accent/10 border-accent/50 text-accent' : 'bg-black/10 border-tint/20 text-fg/50 hover:border-tint/50'
                 }`}
@@ -57,14 +68,21 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
                 <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${s.paintingType === type ? 'border-accent' : 'border-hi/10'}`}>
                   {s.paintingType === type && <div className="w-2 h-2 rounded-full bg-accent" />}
                 </div>
-                <span className="text-xs font-medium">{type}</span>
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-xs font-medium">{type}</span>
+                  {s.paintingType === type && type.includes('RAL') && (
+                    <span className="truncate text-[10px] font-semibold opacity-70">
+                      {s.ralColor ? `RAL ${s.ralColor}` : 'Цвет не указан'}
+                    </span>
+                  )}
+                </span>
               </button>
             ))}
           </div>
           {s.paintingType.includes('RAL') && (
             <div className="mt-2 space-y-1.5">
               <label className={LBL}>Цвет RAL</label>
-              <input type="text" value={s.ralColor || ''} onChange={e => update({ ralColor: e.target.value })} className={INP} placeholder="Напр. 9016" />
+              <input type="text" value={s.ralColor || ''} onChange={e => update({ ralColor: e.target.value })} className={INP} placeholder="Напр. 9016 МАТОВЫЙ" />
             </div>
           )}
         </div>
@@ -78,6 +96,12 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
 export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
   const is2row = (s.slideRows ?? 1) === 2;
   const rails = s.rails ?? 3;
+  const thresholdFinish = s.paintingType === 'Анодированный' ? 'анод' : 'окраш';
+  const thresholdKind = (s.threshold || '').includes('Накладной') ? 'Накладной' : 'Стандартный';
+  const thresholdOptions = [`Стандартный ${thresholdFinish}`, `Накладной ${thresholdFinish}`];
+  const thresholdValue = thresholdOptions.includes(s.threshold || '')
+    ? s.threshold || thresholdOptions[0]
+    : `${thresholdKind} ${thresholdFinish}`;
 
   // Панели: 1 ряд — 2..rails, 2 ряда — чётные от 4 до rails*2
   const panelOptions = is2row
@@ -161,11 +185,8 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
         <div className="space-y-4">
           <div className="space-y-1.5">
             <label className={LBL}>Порог</label>
-            <select value={s.threshold || 'Стандартный анод'} onChange={e => update({ threshold: e.target.value })} className={SEL}>
-              <option>Стандартный анод</option>
-              <option>Стандартный окраш</option>
-              <option>Накладной анод</option>
-              <option>Накладной окраш</option>
+            <select value={thresholdValue} onChange={e => update({ threshold: e.target.value })} className={SEL}>
+              {thresholdOptions.map(option => <option key={option}>{option}</option>)}
             </select>
           </div>
           <div className="space-y-1.5">
