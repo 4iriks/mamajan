@@ -65,24 +65,6 @@ function findProfileDimension(
   return typeof value === 'number' && value > 0 ? value : fallback;
 }
 
-function getSideProfileStack(section: Section, side: 'left' | 'right') {
-  const prefix = side === 'left' ? 'profileLeft' : 'profileRight';
-  const flags = {
-    lockBar: section[`${prefix}LockBar` as keyof Section],
-    pBar: section[`${prefix}PBar` as keyof Section],
-    handleBar: section[`${prefix}HandleBar` as keyof Section],
-    bubble: section[`${prefix}Bubble` as keyof Section],
-  };
-
-  const articles: string[] = [];
-  if (flags.lockBar) articles.push('RS2081');
-  if (flags.pBar) articles.push('RS1082');
-  if (flags.handleBar) articles.push('RS112');
-  if (flags.bubble) articles.push('RS1002');
-
-  return articles;
-}
-
 export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: SlideCalcPreview | null }) {
   const {
     panels, rails = 3, firstPanelInside = 'Справа', unusedTrack,
@@ -133,17 +115,6 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
   const sideTopY = topPad - 4;
   const sideBottomY = topPad + railCount * rowH + 4;
   const sideHeight = sideBottomY - sideTopY;
-  const leftSideArticles = getSideProfileStack(section, 'left');
-  const rightSideArticles = getSideProfileStack(section, 'right');
-  const sideProfileWidthMm = (articles: string[]) => Math.max(
-    ...articles.map(article => {
-      if (article === 'RS2081') return findProfileDimension(calc, ['RS2081'], 'section_width_mm', 57);
-      if (article === 'RS112') return findProfileDimension(calc, ['RS112'], 'section_width_mm', 52);
-      if (article === 'RS1082') return findProfileDimension(calc, ['RS1082'], 'section_width_mm', 25);
-      return 3;
-    }),
-    0,
-  );
   const interGlassText = (section.interGlassProfile ?? '').toLowerCase();
   const hasInterGlassProfile = Boolean(interGlassText) && !interGlassText.includes('без');
   const interGlassArticle = interGlassText.includes('rs1006')
@@ -153,43 +124,6 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
       : 'RS2061';
   const interGlassPx = mmToPx(findProfileDimension(calc, [interGlassArticle], 'section_width_mm', 20), 6);
   const interGlassDir = is2row ? -1 : (firstPanelInside === 'Справа' ? 1 : -1);
-
-  const renderSideStack = (side: 'left' | 'right', articles: string[]) => {
-    if (!articles.length) return null;
-    const widthPx = mmToPx(sideProfileWidthMm(articles), 7);
-    const x = side === 'left' ? leftW - widthPx - 8 : leftW + railAreaW + 8;
-    const textX = x + widthPx / 2;
-    const label = articles.join('/');
-
-    return (
-      <g>
-        <rect
-          x={x}
-          y={sideTopY}
-          width={widthPx}
-          height={sideHeight}
-          rx="2"
-          fill="var(--theme-accent)"
-          fillOpacity="0.11"
-          stroke="var(--theme-accent)"
-          strokeWidth="1"
-          strokeOpacity="0.5"
-        />
-        <text
-          x={textX}
-          y={sideTopY + sideHeight / 2}
-          textAnchor="middle"
-          fontSize="7"
-          fill="var(--theme-accent)"
-          fillOpacity="0.65"
-          fontWeight="bold"
-          transform={`rotate(-90,${textX},${sideTopY + sideHeight / 2})`}
-        >
-          {label}
-        </text>
-      </g>
-    );
-  };
 
   const renderInterGlassProfile = (x: number, y: number, index: number) => {
     const h = 20;
@@ -236,9 +170,6 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
       {/* Vertical boundary lines */}
       <line x1={leftW} y1={topPad - 4} x2={leftW} y2={topPad + railCount * rowH + 4} stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.5" />
       <line x1={leftW + railAreaW} y1={topPad - 4} x2={leftW + railAreaW} y2={topPad + railCount * rowH + 4} stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.5" />
-
-      {renderSideStack('left', leftSideArticles)}
-      {renderSideStack('right', rightSideArticles)}
 
       {section.profileLeftWall && (
         <g>

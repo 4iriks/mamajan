@@ -273,17 +273,10 @@
       {% set wall_article = 'RS2335' if rails == 5 else 'RS2333' %}
       {% set wall_profile_mm = profile_dimension(calc, [wall_article], 'section_height_mm', 16) %}
       {% set wall_px = [3, wall_profile_mm * rail_w / (section.width or rail_w)] | max %}
-      {% set left_side_profiles = [] %}
-      {% if section.profile_left_lock_bar %}{% set _ = left_side_profiles.append('RS2081') %}{% endif %}
-      {% if section.profile_left_p_bar %}{% set _ = left_side_profiles.append('RS1082') %}{% endif %}
-      {% if section.profile_left_handle_bar %}{% set _ = left_side_profiles.append('RS112') %}{% endif %}
-      {% if section.profile_left_bubble %}{% set _ = left_side_profiles.append('RS1002') %}{% endif %}
-      {% set right_side_profiles = [] %}
-      {% if section.profile_right_lock_bar %}{% set _ = right_side_profiles.append('RS2081') %}{% endif %}
-      {% if section.profile_right_p_bar %}{% set _ = right_side_profiles.append('RS1082') %}{% endif %}
-      {% if section.profile_right_handle_bar %}{% set _ = right_side_profiles.append('RS112') %}{% endif %}
-      {% if section.profile_right_bubble %}{% set _ = right_side_profiles.append('RS1002') %}{% endif %}
-      {% set side_img_w = 12 %}
+      {% set wall_img_src = (wall_article ~ '.jpg') | img_b64 %}
+      {% set wall_img_w = 18 %}
+      {% set wall_img_y = top_pad - 6 %}
+      {% set wall_img_h = rails * row_h + 12 %}
       {% set inter_glass_text = (section.inter_glass_profile or '')|lower %}
       {% set has_inter_glass = inter_glass_text and ('без' not in inter_glass_text) %}
       {% set inter_glass_article = 'RS1006' if 'rs1006' in inter_glass_text else ('RS1004' if 'rs1004' in inter_glass_text else 'RS2061') %}
@@ -305,51 +298,26 @@
 
         {# Пристеночный профиль #}
         {% if section.profile_left_wall %}
-        <rect data-profile="{{ wall_article }}-left" x="{{ left_w }}" y="{{ top_pad - 4 }}" width="{{ wall_px }}" height="{{ rails * row_h + 8 }}" fill="#e8e8e8" stroke="#666" stroke-width="0.3"/>
-        <text x="{{ left_w + wall_px / 2 }}" y="{{ top_pad + 6 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#666">{{ wall_profile_mm|round|int }}</text>
+        {% set left_wall_x = left_w - wall_img_w - 5 %}
+        {% if wall_img_src %}
+        <g data-profile="{{ wall_article }}-left" data-profile-image="{{ wall_article }}-left" transform="translate({{ left_wall_x }} {{ wall_img_y + wall_img_h }}) rotate(-90)">
+          <image href="{{ wall_img_src }}" x="0" y="0" width="{{ wall_img_h }}" height="{{ wall_img_w }}" preserveAspectRatio="none"/>
+        </g>
+        {% else %}
+        <rect data-profile="{{ wall_article }}-left" x="{{ left_wall_x }}" y="{{ wall_img_y }}" width="{{ wall_img_w }}" height="{{ wall_img_h }}" fill="#e8e8e8" stroke="#666" stroke-width="0.3"/>
+        {% endif %}
+        <text x="{{ left_wall_x + wall_img_w / 2 }}" y="{{ top_pad + 6 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#666">{{ wall_profile_mm|round|int }}</text>
         {% endif %}
         {% if section.profile_right_wall %}
-        <rect data-profile="{{ wall_article }}-right" x="{{ left_w + rail_w - wall_px }}" y="{{ top_pad - 4 }}" width="{{ wall_px }}" height="{{ rails * row_h + 8 }}" fill="#e8e8e8" stroke="#666" stroke-width="0.3"/>
-        <text x="{{ left_w + rail_w - wall_px / 2 }}" y="{{ top_pad + 6 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#666">{{ wall_profile_mm|round|int }}</text>
-        {% endif %}
-
-        {# Боковые профили и фурнитура #}
-        {% if left_side_profiles %}
-        {% set ltotal = side_img_w * (left_side_profiles|length) %}
-        {% set lsx = left_w - ltotal - 5 %}
-        {% set lsy = top_pad - 6 %}
-        {% set lsh = rails * row_h + 12 %}
-        <g data-profile="left-side-stack" data-articles="{{ left_side_profiles|join('/') }}">
-          {% for article in left_side_profiles %}
-          {% set src = (article ~ '.jpg') | img_b64 %}
-          {% if src %}
-          <image data-profile-image="{{ article }}-left" href="{{ src }}" x="{{ lsx + loop.index0 * side_img_w }}" y="{{ lsy }}" width="{{ side_img_w }}" height="{{ lsh }}" preserveAspectRatio="none"/>
-          {% else %}
-          <rect data-profile-image="{{ article }}-left" x="{{ lsx + loop.index0 * side_img_w }}" y="{{ lsy }}" width="{{ side_img_w }}" height="{{ lsh }}" fill="#f7f7f7" stroke="#555" stroke-width="0.7"/>
-          {% endif %}
-          {% endfor %}
-          <rect x="{{ lsx }}" y="{{ lsy }}" width="{{ ltotal }}" height="{{ lsh }}" fill="none" stroke="#555" stroke-width="0.5"/>
+        {% set right_wall_x = left_w + rail_w + 5 %}
+        {% if wall_img_src %}
+        <g data-profile="{{ wall_article }}-right" data-profile-image="{{ wall_article }}-right" transform="translate({{ right_wall_x + wall_img_w }} {{ wall_img_y }}) rotate(90)">
+          <image href="{{ wall_img_src }}" x="0" y="0" width="{{ wall_img_h }}" height="{{ wall_img_w }}" preserveAspectRatio="none"/>
         </g>
+        {% else %}
+        <rect data-profile="{{ wall_article }}-right" x="{{ right_wall_x }}" y="{{ wall_img_y }}" width="{{ wall_img_w }}" height="{{ wall_img_h }}" fill="#e8e8e8" stroke="#666" stroke-width="0.3"/>
         {% endif %}
-        {% if right_side_profiles %}
-        {% set rtotal = side_img_w * (right_side_profiles|length) %}
-        {% set rsx = left_w + rail_w + 5 %}
-        {% set rsy = top_pad - 6 %}
-        {% set rsh = rails * row_h + 12 %}
-        <g data-profile="right-side-stack" data-articles="{{ right_side_profiles|join('/') }}">
-          {% for article in right_side_profiles %}
-          {% set img_x = rsx + loop.index0 * side_img_w %}
-          {% set src = (article ~ '.jpg') | img_b64 %}
-          {% if src %}
-          <g transform="translate({{ img_x + side_img_w }} 0) scale(-1 1)">
-            <image data-profile-image="{{ article }}-right" href="{{ src }}" x="0" y="{{ rsy }}" width="{{ side_img_w }}" height="{{ rsh }}" preserveAspectRatio="none"/>
-          </g>
-          {% else %}
-          <rect data-profile-image="{{ article }}-right" x="{{ img_x }}" y="{{ rsy }}" width="{{ side_img_w }}" height="{{ rsh }}" fill="#f7f7f7" stroke="#555" stroke-width="0.7"/>
-          {% endif %}
-          {% endfor %}
-          <rect x="{{ rsx }}" y="{{ rsy }}" width="{{ rtotal }}" height="{{ rsh }}" fill="none" stroke="#555" stroke-width="0.5"/>
-        </g>
+        <text x="{{ right_wall_x + wall_img_w / 2 }}" y="{{ top_pad + 6 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#666">{{ wall_profile_mm|round|int }}</text>
         {% endif %}
 
         {# Рельсы #}

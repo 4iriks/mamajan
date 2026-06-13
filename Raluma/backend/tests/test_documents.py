@@ -239,6 +239,8 @@ class TestLocalPreview:
                     "ral_color": "9016 МАТОВЫЙ",
                     "unused_track": "Внутренний",
                     "inter_glass_profile": "— Без межстекольного профиля —",
+                    "profile_left_wall": True,
+                    "profile_right_wall": True,
                     "profile_left_lock_bar": True,
                     "profile_left_handle_bar": True,
                 },
@@ -253,10 +255,11 @@ class TestLocalPreview:
         assert ">Накладной окраш<" not in r.text
         assert "RS23231.svg" not in r.text  # картинка встраивается data-uri
         assert "Межстекольный профиль" not in r.text
-        assert 'data-profile="left-side-stack"' in r.text
-        assert 'data-articles="RS2081/RS112"' in r.text
-        assert 'data-profile-image="RS2081-left"' in r.text
-        assert 'data-profile-image="RS112-left"' in r.text
+        assert 'data-profile="left-side-stack"' not in r.text
+        assert 'data-profile-image="RS2081-left"' not in r.text
+        assert 'data-profile-image="RS112-left"' not in r.text
+        assert 'data-profile="RS2333-left" data-profile-image="RS2333-left"' in r.text
+        assert 'data-profile="RS2333-right" data-profile-image="RS2333-right"' in r.text
 
     def test_local_preview_inter_glass_mirrors_for_first_panel_right(self, client):
         r = client.post(
