@@ -103,7 +103,7 @@ export const SectionTemplatesPanel: React.FC<SectionTemplatesPanelProps> = ({
         <span className="text-[10px] font-bold text-fg/25">{templates.length}/{MAX_TEMPLATES}</span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+      <div className="grid grid-cols-10 gap-1.5">
         {slots.map((template, index) => {
           if (!template) {
             if (!isAdmin) return null;
@@ -112,11 +112,11 @@ export const SectionTemplatesPanel: React.FC<SectionTemplatesPanelProps> = ({
                 key={`empty-${index}`}
                 onClick={onCreate}
                 disabled={isLoading}
-                className="h-32 rounded-xl border border-dashed border-tint/30 bg-hi/[0.025] hover:bg-tint/10 hover:border-accent/35 transition-all flex flex-col items-center justify-center gap-2 text-accent/60 disabled:opacity-50"
+                className="h-24 rounded-lg border border-dashed border-tint/30 bg-hi/[0.025] hover:bg-tint/10 hover:border-accent/35 transition-all flex flex-col items-center justify-center gap-1.5 text-accent/60 disabled:opacity-50"
                 title="Добавить шаблон"
               >
-                <Plus className="w-5 h-5" />
-                <span className="text-[10px] font-bold uppercase tracking-wider">Добавить</span>
+                <Plus className="w-4 h-4" />
+                <span className="text-[8px] font-bold uppercase tracking-wide">Добавить</span>
               </button>
             );
           }
@@ -125,7 +125,7 @@ export const SectionTemplatesPanel: React.FC<SectionTemplatesPanelProps> = ({
           return (
             <div
               key={template.id}
-              className="relative h-32 rounded-xl border border-tint/25 bg-surface/45 hover:bg-tint/10 hover:border-accent/45 overflow-hidden transition-all text-left group"
+              className="relative h-24 rounded-lg border border-tint/25 bg-surface/45 hover:bg-tint/10 hover:border-accent/45 overflow-hidden transition-all text-left group"
             >
               <button
                 type="button"
@@ -134,40 +134,40 @@ export const SectionTemplatesPanel: React.FC<SectionTemplatesPanelProps> = ({
                 className="absolute inset-0 text-left disabled:opacity-60"
                 title="Применить шаблон"
               >
-                <span className="absolute inset-x-2 top-2 h-[72px] rounded-lg bg-page/70 border border-tint/15 overflow-hidden">
+                <span className="absolute inset-x-1.5 top-1.5 h-[58px] rounded-md bg-page/70 border border-tint/15 overflow-hidden">
                   <TemplatePreview section={previewSection} />
                 </span>
-                <span className="absolute left-3 right-3 bottom-3">
-                  <span className="block text-xs font-bold text-fg/80 truncate">{template.name}</span>
-                  <span className="block text-[10px] font-bold text-fg/35 truncate">{sectionLabel(previewSection)}</span>
+                <span className="absolute left-2 right-2 bottom-2">
+                  <span className="block text-[10px] leading-tight font-bold text-fg/80 truncate">{template.name}</span>
+                  <span className="block text-[8px] leading-tight font-bold text-fg/35 truncate">{sectionLabel(previewSection)}</span>
                 </span>
               </button>
 
               {isAdmin && (
-                <div className="absolute right-2 top-2 z-10 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity">
+                <div className="absolute right-1.5 top-1.5 z-10 flex gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity">
                   <button
                     type="button"
                     onClick={event => { event.stopPropagation(); onRefresh(template); }}
-                    className="w-7 h-7 rounded-lg bg-page/90 border border-tint/30 text-fg/45 hover:text-accent hover:border-accent/40 flex items-center justify-center"
+                    className="w-5 h-5 rounded-md bg-page/90 border border-tint/30 text-fg/45 hover:text-accent hover:border-accent/40 flex items-center justify-center"
                     title="Обновить из текущей секции"
                   >
-                    <RefreshCw className="w-3.5 h-3.5" />
+                    <RefreshCw className="w-3 h-3" />
                   </button>
                   <button
                     type="button"
                     onClick={event => { event.stopPropagation(); onRename(template); }}
-                    className="w-7 h-7 rounded-lg bg-page/90 border border-tint/30 text-fg/45 hover:text-accent hover:border-accent/40 flex items-center justify-center"
+                    className="w-5 h-5 rounded-md bg-page/90 border border-tint/30 text-fg/45 hover:text-accent hover:border-accent/40 flex items-center justify-center"
                     title="Переименовать"
                   >
-                    <Pencil className="w-3.5 h-3.5" />
+                    <Pencil className="w-3 h-3" />
                   </button>
                   <button
                     type="button"
                     onClick={event => { event.stopPropagation(); onDelete(template); }}
-                    className="w-7 h-7 rounded-lg bg-page/90 border border-red-500/25 text-red-400/60 hover:text-red-300 hover:border-red-400/50 flex items-center justify-center"
+                    className="w-5 h-5 rounded-md bg-page/90 border border-red-500/25 text-red-400/60 hover:text-red-300 hover:border-red-400/50 flex items-center justify-center"
                     title="Удалить"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-3 h-3" />
                   </button>
                 </div>
               )}
