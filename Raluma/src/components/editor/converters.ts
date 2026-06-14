@@ -115,3 +115,28 @@ export function localToApi(s: Section, order: number): Omit<SectionOut, 'id' | '
     document_overrides: s.documentOverrides,
   };
 }
+
+export function localToTemplateData(s: Section): Partial<SectionOut> {
+  const data: Partial<SectionOut> = { ...localToApi(s, 0) };
+  delete data.name;
+  delete data.order;
+  delete data.document_overrides;
+  return data;
+}
+
+export function applyTemplateDataToSection(
+  section: Section,
+  templateData: Partial<SectionOut>,
+): Section {
+  const currentApi = localToApi(section, 0);
+  const merged: SectionOut = {
+    ...currentApi,
+    ...templateData,
+    id: Number.parseInt(section.id, 10) || 0,
+    project_id: 0,
+    order: currentApi.order,
+    name: section.name,
+    document_overrides: '{}',
+  };
+  return apiToLocal(merged);
+}

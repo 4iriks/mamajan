@@ -13,22 +13,37 @@ import {
 } from 'lucide-react';
 import { getProject, updateProject, createSection, updateSection, deleteSection } from '../api/projects';
 import type { ProjectDocumentType } from '../api/projects';
+import {
+  createSectionTemplate,
+  deleteSectionTemplate,
+  getSectionTemplates,
+  updateSectionTemplate,
+} from '../api/sectionTemplates';
+import type { SectionTemplate } from '../api/sectionTemplates';
 import ProductionSheetModal from './ProductionSheetModal';
 import ProjectDocumentModal from './ProjectDocumentModal';
 import { toast } from '../store/toastStore';
 import { useAuthStore } from '../store/authStore';
 
 import { Section, OrderItem, ProjectEditorProps, SystemType, LBL, INP, SEL } from './editor/types';
-import { apiToLocal, localToApi } from './editor/converters';
+import { apiToLocal, applyTemplateDataToSection, localToApi, localToTemplateData } from './editor/converters';
 import { EditorSidebar } from './editor/EditorSidebar';
 import { SectionFormWrapper } from './editor/SectionFormWrapper';
 
 export type { SystemType };
 export type { Section };
 
+function sortTemplates(templates: SectionTemplate[]) {
+  return [...templates].sort((a, b) =>
+    a.system.localeCompare(b.system, 'ru') ||
+    a.sort_order - b.sort_order ||
+    a.id - b.id
+  );
+}
+
 export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack }) => {
   const navigate = useNavigate();
-  const { token } = useAuthStore();
+  const { token, isAdmin } = useAuthStore();
   const [project, setProject] = useState<{ id: number; number: string; customer: string } | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
   const [loadingProject, setLoadingProject] = useState(true);
@@ -76,11 +91,37 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [unsavedModalOpen, setUnsavedModalOpen] = useState(false);
   const [pendingNavTarget, setPendingNavTarget] = useState<string | null>(null);
+  const [sectionTemplates, setSectionTemplates] = useState<SectionTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(true);
 
   const activeSection = useMemo(() =>
     sections.find(s => s.id === activeSectionId) || null,
     [sections, activeSectionId]
   );
+
+  const canManageTemplates = Boolean(token) && isAdmin();
+  const activeSectionTemplates = useMemo(
+    () => activeSection
+      ? sectionTemplates.filter(template => template.system === activeSection.system)
+      : [],
+    [activeSection, sectionTemplates]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    setTemplatesLoading(true);
+    getSectionTemplates()
+      .then(templates => {
+        if (!cancelled) setSectionTemplates(sortTemplates(templates));
+      })
+      .catch(() => {
+        if (!cancelled) toast.error('Не удалось загрузить шаблоны');
+      })
+      .finally(() => {
+        if (!cancelled) setTemplatesLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     setIsDirty(false);
@@ -194,6 +235,116 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } } };
       toast.error(err.response?.data?.detail || 'Не удалось сохранить секцию');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCreateTemplate = async () => {
+    if (!activeSection || !canManageTemplates) return;
+    if (activeSectionTemplates.length >= 10) {
+      toast.error('Для этого типа секции уже есть 10 шаблонов');
+      return;
+    }
+
+    const name = window.prompt('Название шаблона', `${activeSection.system} ${activeSectionTemplates.length + 1}`);
+    if (!name?.trim()) return;
+
+    setTemplatesLoading(true);
+    try {
+      const created = await createSectionTemplate({
+        name: name.trim(),
+        system: activeSection.system,
+        template_data: localToTemplateData(activeSection),
+        sort_order: activeSectionTemplates.length + 1,
+      });
+      setSectionTemplates(prev => sortTemplates([...prev, created]));
+      toast.success('Шаблон создан');
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } };
+      toast.error(err.response?.data?.detail || 'Не удалось создать шаблон');
+    } finally {
+      setTemplatesLoading(false);
+    }
+  };
+
+  const handleRenameTemplate = async (template: SectionTemplate) => {
+    if (!canManageTemplates) return;
+    const name = window.prompt('Новое название шаблона', template.name);
+    if (!name?.trim() || name.trim() === template.name) return;
+
+    setTemplatesLoading(true);
+    try {
+      const updated = await updateSectionTemplate(template.id, { name: name.trim() });
+      setSectionTemplates(prev => sortTemplates(prev.map(item => item.id === updated.id ? updated : item)));
+      toast.success('Шаблон переименован');
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } };
+      toast.error(err.response?.data?.detail || 'Не удалось переименовать шаблон');
+    } finally {
+      setTemplatesLoading(false);
+    }
+  };
+
+  const handleRefreshTemplate = async (template: SectionTemplate) => {
+    if (!activeSection || !canManageTemplates) return;
+    if (!window.confirm(`Обновить шаблон «${template.name}» параметрами текущей секции?`)) return;
+
+    setTemplatesLoading(true);
+    try {
+      const updated = await updateSectionTemplate(template.id, {
+        system: activeSection.system,
+        template_data: localToTemplateData(activeSection),
+      });
+      setSectionTemplates(prev => sortTemplates(prev.map(item => item.id === updated.id ? updated : item)));
+      toast.success('Шаблон обновлен');
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } };
+      toast.error(err.response?.data?.detail || 'Не удалось обновить шаблон');
+    } finally {
+      setTemplatesLoading(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (template: SectionTemplate) => {
+    if (!canManageTemplates) return;
+    if (!window.confirm(`Удалить шаблон «${template.name}»?`)) return;
+
+    setTemplatesLoading(true);
+    try {
+      await deleteSectionTemplate(template.id);
+      setSectionTemplates(prev => prev.filter(item => item.id !== template.id));
+      toast.success('Шаблон удален');
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } };
+      toast.error(err.response?.data?.detail || 'Не удалось удалить шаблон');
+    } finally {
+      setTemplatesLoading(false);
+    }
+  };
+
+  const handleApplyTemplate = async (template: SectionTemplate) => {
+    if (!activeSection || !project || isSaving) return;
+    const message = isDirty
+      ? `Применить шаблон «${template.name}» и заменить параметры секции? Несохраненные изменения будут потеряны.`
+      : `Применить шаблон «${template.name}» и заменить параметры секции?`;
+    if (!window.confirm(message)) return;
+
+    const sectionId = parseInt(activeSection.id);
+    if (isNaN(sectionId)) return;
+    const idx = sections.findIndex(s => s.id === activeSectionId);
+    const nextSection = applyTemplateDataToSection(activeSection, template.template_data);
+
+    setIsSaving(true);
+    try {
+      const saved = await updateSection(project.id, sectionId, localToApi(nextSection, idx));
+      const local = apiToLocal(saved);
+      setSections(prev => prev.map(section => section.id === activeSection.id ? local : section));
+      setIsDirty(false);
+      toast.success('Шаблон применен');
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } };
+      toast.error(err.response?.data?.detail || 'Не удалось применить шаблон');
     } finally {
       setIsSaving(false);
     }
@@ -578,6 +729,14 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   isSaving={isSaving}
                   isDirty={isDirty}
                   onOpenDoc={openPreview}
+                  templates={activeSectionTemplates}
+                  templatesLoading={templatesLoading}
+                  canManageTemplates={canManageTemplates}
+                  onApplyTemplate={handleApplyTemplate}
+                  onCreateTemplate={handleCreateTemplate}
+                  onRenameTemplate={handleRenameTemplate}
+                  onRefreshTemplate={handleRefreshTemplate}
+                  onDeleteTemplate={handleDeleteTemplate}
                 />
               </motion.div>
             )}

@@ -175,6 +175,19 @@ class Section(Base):
     project = relationship("Project", back_populates="sections")
 
 
+class SectionTemplate(Base):
+    __tablename__ = "section_templates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    system = Column(String, nullable=False, index=True)
+    template_data = Column(Text, nullable=False)
+    sort_order = Column(Integer, default=0, nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class CatalogItem(Base):
     __tablename__ = "catalog_items"
 

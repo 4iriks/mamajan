@@ -306,6 +306,59 @@ DIN7504M = RU005 * 2 + ceil((H - 200) / 300) * количество_сторон
 - Шапка заявки на покраску больше не должна съезжать.
 - Значения в столбце `Общее, м.п.` должны быть по центру.
 
+### 7. Шаблоны секций
+
+Статус: реализовано.
+
+Файлы:
+
+- `Raluma/backend/models.py`
+- `Raluma/backend/migrations.py`
+- `Raluma/backend/schemas.py`
+- `Raluma/backend/api/section_templates.py`
+- `Raluma/backend/main.py`
+- `Raluma/backend/tests/test_section_templates.py`
+- `Raluma/src/api/sectionTemplates.ts`
+- `Raluma/src/components/ProjectEditor.tsx`
+- `Raluma/src/components/editor/SectionFormWrapper.tsx`
+- `Raluma/src/components/editor/SectionTemplatesPanel.tsx`
+- `Raluma/src/components/editor/converters.ts`
+
+Что сделано:
+
+- Добавлена таблица `section_templates`.
+- Добавлен публичный `GET /api/section-templates`, доступный без авторизации для гостей.
+- Добавлены admin-only операции `POST/PATCH/DELETE /api/section-templates`.
+- Лимит: максимум 10 шаблонов на каждый тип секции (`СЛАЙД`, `КНИЖКА`, `ЛИФТ`, `ЦС`, `КОМПЛЕКТАЦИЯ`).
+- В `template_data` сохраняются редактируемые параметры секции.
+- Backend принудительно выкидывает из шаблона служебные поля: `id`, `project_id`, `order`, `name`, `created_at`, `updated_at`, `created_by`, `document_overrides`.
+- В редактор секции добавлен блок `Шаблоны` с 10 слотами.
+- Шаблоны фильтруются по текущему типу секции.
+- Для админа пустые слоты показываются как `Добавить`.
+- Для не-админов и гостей показываются только существующие шаблоны.
+- Создание шаблона идет из текущей секции.
+- Для админа доступны действия: переименовать, обновить из текущей секции, удалить.
+- Клик по шаблону требует подтверждения и заменяет параметры текущей секции.
+- При применении шаблона сохраняются `id`, `project_id`, `order`, `name`; `document_overrides` сбрасывается в `{}`.
+- После применения шаблон сразу сохраняется через существующий `updateSection`; для гостей работает через localStorage.
+- Мини-схема шаблона строится на frontend из `template_data`, отдельные картинки в БД не хранятся.
+
+Покрыто тестами:
+
+- Список шаблонов доступен без авторизации.
+- Обычный пользователь и гость не могут создавать/изменять/удалять шаблоны.
+- Админ может создавать, переименовывать, обновлять и удалять.
+- Backend очищает служебные поля из `template_data`.
+- Лимит 10 работает отдельно на каждый тип секции.
+
+Что важно проверить ревьюеру:
+
+- В UI шаблоны должны отображаться у гостей без входа.
+- У админа должны быть пустые слоты и кнопки управления.
+- У обычного пользователя не должно быть кнопок создания/редактирования.
+- Применение шаблона должно менять параметры текущей секции, но не менять название секции.
+- После применения старые ручные правки производственного листа не должны переноситься.
+
 ## Проверки текущей итерации
 
 Выполнено:
@@ -428,6 +481,35 @@ All checks passed
 Примечание:
 
 - `skipped` - это PDF-download тест, который запускается только если в окружении установлен `WeasyPrint`. На сервере PDF-движок есть в контейнере, локально в текущем Python-окружении его нет.
+
+Выполнено после добавления шаблонов секций:
+
+```powershell
+cd C:\Users\Vadim\PycharmProjects\mamajan
+pytest -q Raluma\backend\tests\test_section_templates.py
+ruff check Raluma\backend\api\section_templates.py Raluma\backend\tests\test_section_templates.py Raluma\backend\models.py Raluma\backend\schemas.py Raluma\backend\main.py Raluma\backend\migrations.py
+pytest -q
+cd C:\Users\Vadim\PycharmProjects\mamajan\Raluma
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run build
+```
+
+Результат:
+
+```text
+4 passed
+All checks passed
+211 passed, 1 skipped, 347 warnings
+typecheck passed
+lint passed with 14 old warnings
+build passed
+```
+
+Примечание:
+
+- Новые warnings не добавлялись. Старые frontend warnings остались в `App.tsx`, `AdminPage.tsx`, `LoginPage.tsx`, `ProjectsPage.tsx`, `FormInputs.tsx`.
+- Vite build оставил старый warning про chunk больше 500 kB.
 
 Дополнение по Linux/CI:
 

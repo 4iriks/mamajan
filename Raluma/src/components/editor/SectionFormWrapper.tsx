@@ -6,11 +6,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Save, FileText, ClipboardList, Map } from 'lucide-react';
 import { calculateLocalSection, SlideCalcPreview } from '../../api/projects';
+import type { SectionTemplate } from '../../api/sectionTemplates';
 import { Section, LBL, SYSTEM_COLORS } from './types';
 import { localToApi } from './converters';
 import { SectionDivider } from './FormInputs';
 import { MainTab, SlideSystemTab, BookSystemTab, LiftSystemTab, CsShapeTab, DoorSystemTab } from './FormTabs';
 import { EditorVisualizer } from './EditorVisualizer';
+import { SectionTemplatesPanel } from './SectionTemplatesPanel';
 
 export interface SectionFormWrapperProps {
   section: Section;
@@ -20,10 +22,26 @@ export interface SectionFormWrapperProps {
   isSaving: boolean;
   isDirty: boolean;
   onOpenDoc?: (docName: string) => void;
+  templates?: SectionTemplate[];
+  templatesLoading?: boolean;
+  canManageTemplates?: boolean;
+  onApplyTemplate?: (template: SectionTemplate) => void;
+  onCreateTemplate?: () => void;
+  onRenameTemplate?: (template: SectionTemplate) => void;
+  onRefreshTemplate?: (template: SectionTemplate) => void;
+  onDeleteTemplate?: (template: SectionTemplate) => void;
 }
 
 export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
   section, onUpdate, onSave, onBack, isSaving, isDirty, onOpenDoc,
+  templates = [],
+  templatesLoading = false,
+  canManageTemplates = false,
+  onApplyTemplate,
+  onCreateTemplate,
+  onRenameTemplate,
+  onRefreshTemplate,
+  onDeleteTemplate,
 }) => {
   const [slideCalc, setSlideCalc] = useState<SlideCalcPreview | null>(null);
 
@@ -107,6 +125,18 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
           </span>
         </div>
       </div>
+
+      <SectionTemplatesPanel
+        section={section}
+        templates={templates}
+        isAdmin={canManageTemplates}
+        isLoading={templatesLoading}
+        onApply={template => onApplyTemplate?.(template)}
+        onCreate={() => onCreateTemplate?.()}
+        onRename={template => onRenameTemplate?.(template)}
+        onRefresh={template => onRefreshTemplate?.(template)}
+        onDelete={template => onDeleteTemplate?.(template)}
+      />
 
       {/* Flex-контейнер: форма слева, схема справа (на xl) */}
       <div className={section.system === 'СЛАЙД' ? 'xl:flex xl:gap-5 xl:items-start' : ''}>

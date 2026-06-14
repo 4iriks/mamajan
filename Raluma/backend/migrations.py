@@ -38,6 +38,19 @@ _CREATE_TABLES = [
         updated_at DATETIME
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS section_templates (
+        id INTEGER PRIMARY KEY,
+        name VARCHAR NOT NULL,
+        system VARCHAR NOT NULL,
+        template_data TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_by INTEGER,
+        created_at DATETIME,
+        updated_at DATETIME,
+        FOREIGN KEY(created_by) REFERENCES users(id)
+    )
+    """,
 ]
 
 
