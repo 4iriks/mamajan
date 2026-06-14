@@ -134,12 +134,12 @@ export const SectionTemplatesPanel: React.FC<SectionTemplatesPanelProps> = ({
                 className="absolute inset-0 text-left disabled:opacity-60"
                 title="Применить шаблон"
               >
-                <span className="absolute inset-x-1.5 top-1.5 h-[58px] rounded-md bg-page/70 border border-tint/15 overflow-hidden">
+                <span className="absolute inset-x-1 top-1 h-[66px] rounded-md bg-page/70 border border-tint/15 overflow-hidden">
                   <TemplatePreview section={previewSection} />
                 </span>
-                <span className="absolute left-2 right-2 bottom-2">
-                  <span className="block text-[10px] leading-tight font-bold text-fg/80 truncate">{template.name}</span>
-                  <span className="block text-[8px] leading-tight font-bold text-fg/35 truncate">{sectionLabel(previewSection)}</span>
+                <span className="absolute left-2 right-2 bottom-1.5">
+                  <span className="block text-[8px] leading-tight font-bold text-fg/80 truncate">{template.name}</span>
+                  <span className="block text-[7px] leading-tight font-bold text-fg/35 truncate">{sectionLabel(previewSection)}</span>
                 </span>
               </button>
 
