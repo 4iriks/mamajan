@@ -192,7 +192,7 @@ def download_local_project_document_pdf(
 ):
     doc_type = _validate_project_doc_type(doc_type)
     project, sections = _build_local_project_document_objects(payload)
-    html = render_project_document_html(project, sections, doc_type)
+    html = render_project_document_html(project, sections, doc_type, is_pdf=True)
     pdf_bytes = generate_pdf(html)
     filename = f"{DOC_TITLES[doc_type]}_{project.number}.pdf"
     from urllib.parse import quote
@@ -228,7 +228,7 @@ def download_project_document_pdf(
 ):
     doc_type = _validate_project_doc_type(doc_type)
     project = _get_project_or_404(project_id, db, current_user)
-    html = render_project_document_html(project, project.sections, doc_type)
+    html = render_project_document_html(project, project.sections, doc_type, is_pdf=True)
     pdf_bytes = generate_pdf(html)
     filename = f"{DOC_TITLES[doc_type]}_{project.number}.pdf"
     from urllib.parse import quote

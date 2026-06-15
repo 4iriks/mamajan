@@ -61,8 +61,8 @@
   .prof-note { font-size: 7pt; font-style: italic; color: #555; margin-top: 0.1mm; font-weight: 400; }
 
   /* ── Стекольный профиль подтаблица ── */
-  .gp-tbl { width: auto; margin-top: 0.3mm; }
-  .gp-tbl td { border: 1px solid #bbb; padding: 0.1mm 1mm; font-size: 8pt; }
+  .gp-tbl { width: auto; margin-top: 0.5mm; }
+  .gp-tbl td { border: 1px solid #bbb; padding: 0.25mm 1.4mm; font-size: 9.2pt; }
   .gp-tbl td:nth-child(2), .gp-tbl td:nth-child(3) { text-align: center; font-weight: 700; }
   .gp-img-box { width: 36mm; height: 15mm; display: flex; align-items: center; justify-content: center; }
   .gp-img { width: 35mm; height: 14mm; object-fit: contain; }
@@ -436,7 +436,7 @@
     {% set _ = reg_profiles.append(p) %}
   {% endif %}
 {% endfor %}
-{% set all_profiles = reg_profiles[:] %}
+{% set all_profiles = display_profiles(reg_profiles) %}
 
 <table class="prof-tbl">
   <tr class="bar-row">
@@ -465,8 +465,15 @@
         <div class="prof-name">{{ p.name }}</div>
         <div class="prof-line cf">
           <span class="vals">
+            {% if p.display_cuts is defined and p.display_cuts %}
+              {% for cut in p.display_cuts %}
+                <span class="dim">{{ cut.length }}</span>
+                <span class="qty">{{ cut.qty }}</span>{% if not loop.last %}<br>{% endif %}
+              {% endfor %}
+            {% else %}
             <span class="dim" {% if p.length_mm > 0 %}{{ ce(fk_l, p.length_mm|int) }}{% endif %}>{% if p.length_mm > 0 %}{{ ov(fk_l, p.length_mm|int) }}{% endif %}</span>
             <span class="qty" {{ ce(fk_q, p.qty) }}>{{ ov(fk_q, p.qty) }}</span>
+            {% endif %}
           </span>
           <span class="art">{{ p.article }}</span>
         </div>
@@ -491,8 +498,6 @@
           <div class="prof-name">Стекольный профиль</div>
           <div class="prof-line"><span class="art">{{ gp.article }}</span></div>
           {% if gp.note %}<div class="prof-note">{{ gp.note }}</div>{% endif %}
-        </td>
-        <td style="border:none; padding:0 0 0 2mm; vertical-align:top;">
           <table class="gp-tbl">
             {% for j, gpi in glass_profiles | enumerate %}
             {% set gfk = "gp_" ~ j ~ "_len" %}

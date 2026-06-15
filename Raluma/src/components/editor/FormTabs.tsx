@@ -4,13 +4,9 @@ import { Checkbox, ToggleGroup, RadioList, ProfileCheckbox, SectionDivider } fro
 // ── Tab: Основное (общая для всех систем) ─────────────────────────────────────
 
 export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
-  const thresholdKind = (s.threshold || '').includes('Накладной') ? 'Накладной' : 'Стандартный';
-  const paintingThreshold = (type: Section['paintingType']) =>
-    `${thresholdKind} ${type === 'Анодированный' ? 'анод' : 'окраш'}`;
   const setPaintingType = (type: Section['paintingType']) => {
     update({
       paintingType: type,
-      threshold: paintingThreshold(type),
       ...(type.includes('RAL') && !s.ralColor ? { ralColor: '9016 МАТОВЫЙ' } : {}),
     });
   };
@@ -70,11 +66,6 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
                 </div>
                 <span className="flex min-w-0 flex-col">
                   <span className="text-xs font-medium">{type}</span>
-                  {s.paintingType === type && type.includes('RAL') && (
-                    <span className="truncate text-[10px] font-semibold opacity-70">
-                      {s.ralColor ? `RAL ${s.ralColor}` : 'Цвет не указан'}
-                    </span>
-                  )}
                 </span>
               </button>
             ))}
@@ -96,12 +87,11 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
 export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
   const is2row = (s.slideRows ?? 1) === 2;
   const rails = s.rails ?? 3;
-  const thresholdFinish = s.paintingType === 'Анодированный' ? 'анод' : 'окраш';
   const thresholdKind = (s.threshold || '').includes('Накладной') ? 'Накладной' : 'Стандартный';
-  const thresholdOptions = [`Стандартный ${thresholdFinish}`, `Накладной ${thresholdFinish}`];
+  const thresholdOptions = ['Стандартный анод', 'Накладной анод', 'Стандартный окраш', 'Накладной окраш'];
   const thresholdValue = thresholdOptions.includes(s.threshold || '')
     ? s.threshold || thresholdOptions[0]
-    : `${thresholdKind} ${thresholdFinish}`;
+    : `${thresholdKind} ${(s.threshold || '').toLowerCase().includes('анод') ? 'анод' : 'окраш'}`;
 
   // Панели: 1 ряд — 2..rails, 2 ряда — чётные от 4 до rails*2
   const panelOptions = is2row

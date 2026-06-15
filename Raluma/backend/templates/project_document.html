@@ -55,6 +55,10 @@
       font-size: 12pt;
       line-height: 1.35;
     }
+    .glass-quality-note {
+      font-size: 10pt;
+      line-height: 1.25;
+    }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -95,9 +99,9 @@
       content: "";
       position: absolute;
       left: 8%;
-      top: 0.6mm;
+      top: 0.8mm;
       width: 84%;
-      height: 7.2mm;
+      height: 4.8mm;
       border: 1.2pt solid #f00;
       border-radius: 0.8mm;
       pointer-events: none;
@@ -143,9 +147,15 @@
       width: 64mm;
       margin-left: auto;
     }
+    {% if doc_type == 'glass' and not is_pdf %}
+    [contenteditable] { outline: none; cursor: text; border-radius: 1px; transition: background 0.1s; }
+    [contenteditable]:hover { background: #fffde7 !important; }
+    [contenteditable]:focus { background: #fff9c4 !important; box-shadow: 0 0 0 1px #f9a825; }
+    {% endif %}
   </style>
 </head>
 <body>
+{% macro editable(field, value) %}{% if not is_pdf %}contenteditable="true" data-field="{{ field }}" data-original="{{ value }}"{% endif %}{% endmacro %}
 {% if doc_type == 'commercial' %}
   <div class="page">
     <div class="topline">
@@ -279,8 +289,8 @@
         </td>
         <td class="head-meta">
           <table class="meta glass-meta">
-            <tr><td><b>Заявка</b></td><td>{{ project.number }}</td></tr>
-            <tr><td><b>Заказчик</b></td><td>{{ project.customer }}</td></tr>
+            <tr><td><b>Заявка</b></td><td {{ editable('project_number', project.number) }}>{{ project.number }}</td></tr>
+            <tr><td><b>Заказчик</b></td><td {{ editable('project_customer', project.customer) }}>{{ project.customer }}</td></tr>
           </table>
         </td>
       </tr>
@@ -326,7 +336,7 @@
     {% else %}
       <div class="empty">В проекте нет расчетных стекол.</div>
     {% endif %}
-    <div class="accent-red" style="margin-top:5mm;">
+    <div class="accent-red glass-quality-note" style="margin-top:5mm;">
       ОБРАЩАЮ ВНИМАНИЕ НА ПОВЫШЕННОЕ КАЧЕСТВО ИЗДЕЛИЙ<br>
       Т.К. ФИРМА ИЗГОТАВЛИВАЕТ БЕЗРАМНОЕ ОСТЕКЛЕНИЕ<br>
       ПЕРЕКОС ДИАГОНАЛИ НЕ ДОЛЖЕН ПРЕВЫШАТЬ 1-2ММ<br>

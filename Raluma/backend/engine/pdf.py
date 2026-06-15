@@ -6,7 +6,9 @@ Jinja2 → HTML → WeasyPrint → bytes
 import base64
 import json
 import os
+import re
 from pathlib import Path
+from types import SimpleNamespace
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -100,6 +102,72 @@ def profile_dimension(
     return fallback
 
 
+def _format_length_for_display(value: float) -> str:
+    rounded = round(float(value), 1)
+    if rounded == int(rounded):
+        return str(int(rounded))
+    return str(rounded).replace(".", ",")
+
+
+def _strip_split_note(note: str) -> str:
+    return re.sub(r"^часть \d+/\d+;?\s*", "", note or "").strip()
+
+
+def display_profiles(profiles: list) -> list:
+    rows = []
+    grouped: dict[tuple, SimpleNamespace] = {}
+
+    for profile in profiles:
+        field_key = getattr(profile, "field_key", "") or ""
+        note = getattr(profile, "note", "") or ""
+        is_split = "_part_" in field_key or note.startswith("часть ")
+        if not is_split:
+            rows.append(profile)
+            continue
+
+        base_field_key = field_key.split("_part_", 1)[0]
+        clean_note = _strip_split_note(note)
+        key = (
+            getattr(profile, "article", ""),
+            getattr(profile, "name", ""),
+            getattr(profile, "image", ""),
+            base_field_key,
+            clean_note,
+        )
+        row = grouped.get(key)
+        if row is None:
+            row = SimpleNamespace(
+                article=getattr(profile, "article", ""),
+                name=getattr(profile, "name", ""),
+                length_mm=0,
+                qty=0,
+                painted=getattr(profile, "painted", False),
+                image=getattr(profile, "image", None),
+                field_key=base_field_key,
+                note=clean_note,
+                section_width_mm=getattr(profile, "section_width_mm", 0),
+                section_height_mm=getattr(profile, "section_height_mm", 0),
+                paint_mode=getattr(profile, "paint_mode", ""),
+                color_variants=getattr(profile, "color_variants", []),
+                paint_note=getattr(profile, "paint_note", ""),
+                glass_positions=getattr(profile, "glass_positions", ""),
+                display_cuts=[],
+            )
+            grouped[key] = row
+            rows.append(row)
+
+        length = _format_length_for_display(getattr(profile, "length_mm", 0))
+        qty = int(getattr(profile, "qty", 0) or 0)
+        for cut in row.display_cuts:
+            if cut["length"] == length:
+                cut["qty"] += qty
+                break
+        else:
+            row.display_cuts.append({"length": length, "qty": qty})
+
+    return rows
+
+
 def _img_b64(filename: str) -> str:
     """Jinja2-фильтр: имя файла → data URI base64 или пустая строка."""
     path = get_profile_asset_path(filename)
@@ -118,6 +186,7 @@ def _get_env() -> Environment:
     env.filters["enumerate"] = enumerate
     env.globals["glass_widths"] = expand_glass_widths
     env.globals["profile_dimension"] = profile_dimension
+    env.globals["display_profiles"] = display_profiles
     return env
 
 

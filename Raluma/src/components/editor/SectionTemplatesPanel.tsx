@@ -18,6 +18,11 @@ function sectionLabel(section: Section) {
   return section.doorSystem || 'комплект';
 }
 
+function templateSystemLabel(section: Section) {
+  if (section.system !== 'СЛАЙД') return section.system;
+  return section.slideRows === 2 ? 'СЛАЙД 2 ряда' : 'СЛАЙД 1 ряд';
+}
+
 function GenericTemplatePreview({ section }: { section: Section }) {
   const panels = Math.max(1, Math.min(section.panels || 1, 8));
   const width = 220;
@@ -90,6 +95,7 @@ export const SectionTemplatesPanel: React.FC<SectionTemplatesPanelProps> = ({
   if (!isAdmin && templates.length === 0) return null;
 
   const slots = Array.from({ length: MAX_TEMPLATES }, (_, index) => templates[index] || null);
+  const systemLabel = templateSystemLabel(section);
 
   return (
     <div className="mb-4">
@@ -97,7 +103,7 @@ export const SectionTemplatesPanel: React.FC<SectionTemplatesPanelProps> = ({
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-accent/45">Шаблоны</span>
           <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold border ${SYSTEM_COLORS[section.system]}`}>
-            {section.system}
+            {systemLabel}
           </span>
         </div>
         <span className="text-[10px] font-bold text-fg/25">{templates.length}/{MAX_TEMPLATES}</span>

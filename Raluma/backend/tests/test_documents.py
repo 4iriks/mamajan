@@ -10,11 +10,12 @@ import pytest
 
 from engine.pdf import (
     _img_b64,
+    display_profiles,
     expand_glass_widths,
     get_profile_asset_path,
     profile_dimension,
 )
-from engine.project_documents import CalculatedSection, _build_glass_rows
+from engine.project_documents import CalculatedSection, _build_glass_rows, _build_paint_pages
 
 
 class TestProfileAssetSafety:
@@ -37,6 +38,53 @@ class TestProfileAssetSafety:
     def test_img_b64_rejects_non_image_extension(self):
         assert get_profile_asset_path("models.py") is None
         assert _img_b64("models.py") == ""
+
+
+class TestProfileDisplayRows:
+    def test_split_profile_parts_are_grouped_for_sheet_display(self):
+        rows = display_profiles(
+            [
+                SimpleNamespace(
+                    article="RS2323",
+                    name="Порог",
+                    length_mm=2975,
+                    qty=2,
+                    painted=True,
+                    image="RS2323.jpg",
+                    field_key="threshold_length_part_1",
+                    note="часть 1/2; рассверлить",
+                    section_width_mm=76,
+                    section_height_mm=23,
+                    paint_mode="Частично",
+                    color_variants=[],
+                    paint_note="НЕ КРАСИТЬ!!!",
+                    glass_positions="",
+                ),
+                SimpleNamespace(
+                    article="RS2323",
+                    name="Порог",
+                    length_mm=2976,
+                    qty=2,
+                    painted=True,
+                    image="RS2323.jpg",
+                    field_key="threshold_length_part_2",
+                    note="часть 2/2; рассверлить",
+                    section_width_mm=76,
+                    section_height_mm=23,
+                    paint_mode="Частично",
+                    color_variants=[],
+                    paint_note="НЕ КРАСИТЬ!!!",
+                    glass_positions="",
+                ),
+            ]
+        )
+
+        assert len(rows) == 1
+        assert rows[0].note == "рассверлить"
+        assert rows[0].display_cuts == [
+            {"length": "2975", "qty": 2},
+            {"length": "2976", "qty": 2},
+        ]
 
 
 class TestDiagramGlassWidths:
@@ -456,16 +504,55 @@ class TestProjectDocuments:
         assert r.content.startswith(b"%PDF")
 
 
+class TestProjectPaintOrder:
+    def test_clean_size_rounds_up_to_50_mm_step(self):
+        section = SimpleNamespace()
+        calc = SimpleNamespace(
+            color_text="RAL 9016",
+            profiles=[
+                SimpleNamespace(
+                    article="RS2021",
+                    name="Стекольный профиль",
+                    length_mm=1445.2,
+                    qty=2,
+                    painted=True,
+                    image="RS2021.svg",
+                    paint_note="",
+                    paint_mode="Красится",
+                ),
+                SimpleNamespace(
+                    article="RS2333",
+                    name="Пристеночный профиль",
+                    length_mm=3000,
+                    qty=1,
+                    painted=True,
+                    image="RS2333.jpg",
+                    paint_note="",
+                    paint_mode="Красится",
+                ),
+            ],
+        )
+
+        pages = _build_paint_pages(
+            [CalculatedSection(order=1, section=section, calc=calc)]
+        )
+
+        rows = {row["article"]: row for row in pages[0]["rows"]}
+        assert rows["RS2021"]["clean"] == 1450
+        assert rows["RS2021"]["allowance"] == 1500
+        assert rows["RS2333"]["clean"] == 3000
+
+
 class TestProjectGlassOrder:
-    def test_left_edge_drawing_does_not_mark_whole_section(self):
+    def test_left_edge_knob_drawing_does_not_mark_whole_section(self):
         project = SimpleNamespace(number="P-001")
         section = SimpleNamespace(
             panels=3,
             quantity=1,
             slide_rows=1,
-            lock_left="ЗАМОК-ЗАЩЕЛКА 1стор",
+            lock_left="Без",
             lock_right="Без",
-            handle_left="Без ручки (глухая)",
+            handle_left="Ручка-кноб RS3014",
             handle_right="Без ручки (глухая)",
             floor_latches_left=False,
             floor_latches_right=False,
@@ -495,7 +582,7 @@ class TestProjectGlassOrder:
         plain_qty = sum(row["qty"] for row in rows if row["note"] == "")
         assert plain_qty == 2
 
-    def test_two_row_center_drawing_marks_only_central_glass(self):
+    def test_two_row_center_bracket_drawing_marks_only_central_glass(self):
         project = SimpleNamespace(number="P-002")
         section = SimpleNamespace(
             panels=4,
@@ -507,8 +594,8 @@ class TestProjectGlassOrder:
             handle_right="Без ручки (глухая)",
             floor_latches_left=False,
             floor_latches_right=False,
-            center_lock="Замок стекло-стекло RS30301",
-            center_handle="Без ручки (подвижные)",
+            center_lock="Без замка",
+            center_handle="Ручка-скоба",
             center_floor_latches_left=False,
             center_floor_latches_right=False,
         )
@@ -530,11 +617,11 @@ class TestProjectGlassOrder:
         drawing_row = [row for row in rows if row["note"] == "(чертеж)"][0]
         plain_row = [row for row in rows if row["note"] == ""][0]
         assert drawing_row["qty"] == 2
-        assert drawing_row["marking"] == "2,2 2,3"
+        assert drawing_row["marking"] == "2,2"
         assert plain_row["qty"] == 2
-        assert plain_row["marking"] == "2,1 2,4"
+        assert plain_row["marking"] == "2,1"
 
-    def test_two_row_left_center_floor_latch_marks_one_central_glass(self):
+    def test_two_row_left_center_floor_latch_does_not_create_drawing_note(self):
         project = SimpleNamespace(number="P-003")
         section = SimpleNamespace(
             panels=4,
@@ -566,12 +653,10 @@ class TestProjectGlassOrder:
             project, [CalculatedSection(order=3, section=section, calc=calc)]
         )
 
-        drawing_row = [row for row in rows if row["note"] == "(чертеж)"][0]
         plain_row = [row for row in rows if row["note"] == ""][0]
-        assert drawing_row["qty"] == 1
-        assert drawing_row["marking"] == "3,2"
-        assert plain_row["qty"] == 3
-        assert plain_row["marking"] == "3,1 3,3 3,4"
+        assert [row for row in rows if row["note"] == "(чертеж)"] == []
+        assert plain_row["qty"] == 4
+        assert plain_row["marking"] == "3,1"
 
     def test_no_hardware_labels_do_not_create_drawing_note(self):
         project = SimpleNamespace(number="P-004")

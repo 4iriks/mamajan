@@ -41,6 +41,11 @@ function sortTemplates(templates: SectionTemplate[]) {
   );
 }
 
+function templateSystemForSection(section: Section) {
+  if (section.system !== 'СЛАЙД') return section.system;
+  return section.slideRows === 2 ? 'СЛАЙД 2 ряда' : 'СЛАЙД 1 ряд';
+}
+
 export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack }) => {
   const navigate = useNavigate();
   const { token, isAdmin } = useAuthStore();
@@ -102,7 +107,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const canManageTemplates = Boolean(token) && isAdmin();
   const activeSectionTemplates = useMemo(
     () => activeSection
-      ? sectionTemplates.filter(template => template.system === activeSection.system)
+      ? sectionTemplates.filter(template => template.system === templateSystemForSection(activeSection))
       : [],
     [activeSection, sectionTemplates]
   );
@@ -247,14 +252,15 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       return;
     }
 
-    const name = window.prompt('Название шаблона', `${activeSection.system} ${activeSectionTemplates.length + 1}`);
+    const templateSystem = templateSystemForSection(activeSection);
+    const name = window.prompt('Название шаблона', `${templateSystem} ${activeSectionTemplates.length + 1}`);
     if (!name?.trim()) return;
 
     setTemplatesLoading(true);
     try {
       const created = await createSectionTemplate({
         name: name.trim(),
-        system: activeSection.system,
+        system: templateSystem,
         template_data: localToTemplateData(activeSection),
         sort_order: activeSectionTemplates.length + 1,
       });
@@ -293,7 +299,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     setTemplatesLoading(true);
     try {
       const updated = await updateSectionTemplate(template.id, {
-        system: activeSection.system,
+        system: templateSystemForSection(activeSection),
         template_data: localToTemplateData(activeSection),
       });
       setSectionTemplates(prev => sortTemplates(prev.map(item => item.id === updated.id ? updated : item)));
@@ -431,7 +437,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     }
   };
 
-  const saveStatus = async (updates: Partial<{ status: string; glass_status: string; glass_invoice: string; glass_ready_date: string; paint_status: string; paint_ship_date: string; paint_received_date: string; current_stage: number; order_items: string; production_stages: number; }>) => {
+  const saveStatus = async (updates: Partial<{ customer: string; status: string; glass_status: string; glass_invoice: string; glass_ready_date: string; paint_status: string; paint_ship_date: string; paint_received_date: string; current_stage: number; order_items: string; production_stages: number; }>) => {
     if (!project) return;
     try { await updateProject(project.id, updates); }
     catch { toast.error('Не удалось сохранить'); }
@@ -586,6 +592,20 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                     </div>
                   </div>
                 )}
+
+                {/* Customer */}
+                <div className="bg-surface/40 border border-tint/30 rounded-2xl p-5 sm:p-6 mb-4">
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40">Заказчик</span>
+                  </div>
+                  <input
+                    value={project.customer || ''}
+                    onChange={e => setProject(prev => prev ? { ...prev, customer: e.target.value } : prev)}
+                    onBlur={() => saveStatus({ customer: project.customer || '' })}
+                    className={INP}
+                    placeholder="Укажите заказчика"
+                  />
+                </div>
 
                 {/* Status */}
                 <div className="bg-surface/40 border border-tint/30 rounded-2xl p-5 sm:p-6 mb-4">

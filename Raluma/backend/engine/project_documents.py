@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
+from math import ceil
 from typing import Iterable
 
 from jinja2 import Environment, FileSystemLoader
@@ -78,54 +79,34 @@ def _drawing_hardware_text(value: object) -> str:
     return text
 
 
-def _has_drawing_hardware(*values: object) -> bool:
+def _has_drawing_handle(*values: object) -> bool:
     combined = " ".join(
         text for text in (_drawing_hardware_text(value) for value in values) if text
     )
     return any(
         token in combined
         for token in (
-            "зам",
-            "защёл",
-            "защел",
-            "ключ",
             "кноб",
             "скоб",
             "rs3014",
-            "rs3017",
-            "rs3018",
-            "rs3019",
-            "rs30301",
         )
     )
 
 
 def _side_has_glass_drawing(section: object, side: str) -> bool:
-    return _has_drawing_hardware(
-        getattr(section, f"lock_{side}", None),
+    return _has_drawing_handle(
         getattr(section, f"handle_{side}", None),
-    ) or bool(getattr(section, f"floor_latches_{side}", False))
+    )
 
 
 def _center_has_glass_drawing(section: object, side: str | None = None) -> bool:
-    has_common_drawing = _has_drawing_hardware(
-        getattr(section, "center_lock", None),
+    return _has_drawing_handle(
         getattr(section, "center_handle", None),
-    )
-    if side in ("left", "right"):
-        return has_common_drawing or bool(
-            getattr(section, f"center_floor_latches_{side}", False)
-        )
-    return (
-        has_common_drawing
-        or bool(getattr(section, "center_floor_latches_left", False))
-        or bool(getattr(section, "center_floor_latches_right", False))
     )
 
 
 def _legacy_has_glass_drawing(section: object) -> bool:
-    return _has_drawing_hardware(
-        getattr(section, "lock", None),
+    return _has_drawing_handle(
         getattr(section, "handle", None),
     )
 
@@ -290,7 +271,7 @@ def _build_paint_pages(calculated: list[CalculatedSection]) -> list[dict]:
         for profile in item.calc.profiles:
             if not profile.painted or profile.length_mm <= 0:
                 continue
-            clean = round(float(profile.length_mm), 1)
+            clean = _ceil_to_step(profile.length_mm, 50)
             allowance = clean + 50
             note = profile.paint_note
             key = (
@@ -336,6 +317,10 @@ def _build_paint_pages(calculated: list[CalculatedSection]) -> list[dict]:
     return sorted(pages, key=lambda page: page["color"])
 
 
+def _ceil_to_step(value: float, step: int) -> int:
+    return int(ceil(float(value) / step) * step)
+
+
 def _build_glass_rows(
     project: object, calculated: list[CalculatedSection]
 ) -> list[dict]:
@@ -371,7 +356,7 @@ def _build_glass_rows(
     )
     for index, row in enumerate(rows, start=1):
         row["index"] = index
-        row["marking"] = " ".join(row["markings"])
+        row["marking"] = row["markings"][0] if row["markings"] else ""
     return rows
 
 
@@ -405,7 +390,9 @@ def render_project_document_html(
     project: object,
     sections: Iterable[object],
     doc_type: str,
+    is_pdf: bool = False,
 ) -> str:
     context = build_project_document_context(project, sections, doc_type)
+    context["is_pdf"] = is_pdf
     template = _get_env().get_template("project_document.html")
     return template.render(**context)
