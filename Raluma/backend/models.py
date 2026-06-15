@@ -167,6 +167,7 @@ class Section(Base):
 
     # Примечания к секции
     extra_parts = Column(String, nullable=True)
+    extra_components = Column(Text, default="[]")
     comments = Column(String, nullable=True)
 
     # Производственный лист — ручные правки поверх расчёта

@@ -95,16 +95,25 @@
       max-height: 22mm;
       margin: 0 auto;
     }
-    .profile-img-wrap.paint-bosses-marker::after {
+    .profile-img-wrap.paint-marker-standard-threshold::after,
+    .profile-img-wrap.paint-marker-overlay-threshold::after {
       content: "";
       position: absolute;
-      left: 8%;
-      top: 0.8mm;
-      width: 84%;
-      height: 4.8mm;
       border: 1.2pt solid #f00;
       border-radius: 0.8mm;
       pointer-events: none;
+    }
+    .profile-img-wrap.paint-marker-standard-threshold::after {
+      left: 8%;
+      top: 0.8mm;
+      width: 70%;
+      height: 4.4mm;
+    }
+    .profile-img-wrap.paint-marker-overlay-threshold::after {
+      left: 15%;
+      top: 1.0mm;
+      width: 68%;
+      height: 3.8mm;
     }
     .paint-note {
       color: #f00;
@@ -251,7 +260,7 @@
               {% if row.image %}
                 {% set src = row.image | img_b64 %}
                 {% if src %}
-                <span class="profile-img-wrap{% if row.paint_marker %} paint-bosses-marker{% endif %}">
+                <span class="profile-img-wrap{% if row.paint_marker %} paint-bosses-marker {{ row.paint_marker_class }}{% endif %}">
                   <img src="{{ src }}" class="profile-img" alt="{{ row.article }}">
                 </span>
                 {% endif %}

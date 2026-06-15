@@ -11,8 +11,8 @@ import {
   ClipboardList, Square as WindowIcon, Palette,
   Loader2, X, LogIn,
 } from 'lucide-react';
-import { getProject, updateProject, createSection, updateSection, deleteSection } from '../api/projects';
-import type { ProjectDocumentType } from '../api/projects';
+import { getProject, getProjects, updateProject, createSection, updateSection, deleteSection } from '../api/projects';
+import type { ProjectDocumentType, ProjectList } from '../api/projects';
 import {
   createSectionTemplate,
   deleteSectionTemplate,
@@ -29,6 +29,7 @@ import { Section, OrderItem, ProjectEditorProps, SystemType, LBL, INP, SEL } fro
 import { apiToLocal, applyTemplateDataToSection, localToApi, localToTemplateData } from './editor/converters';
 import { EditorSidebar } from './editor/EditorSidebar';
 import { SectionFormWrapper } from './editor/SectionFormWrapper';
+import { buildCustomerOptions, filterCustomerOptions } from '../utils/customers';
 
 export type { SystemType };
 export type { Section };
@@ -48,14 +49,18 @@ function templateSystemForSection(section: Section) {
 
 export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack }) => {
   const navigate = useNavigate();
-  const { token, isAdmin } = useAuthStore();
+  const { token, user, isAdmin } = useAuthStore();
   const [project, setProject] = useState<{ id: number; number: string; customer: string } | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
   const [loadingProject, setLoadingProject] = useState(true);
+  const [allProjects, setAllProjects] = useState<ProjectList[]>([]);
+  const [projectCustomerDraft, setProjectCustomerDraft] = useState('');
+  const [showProjectCustomerDrop, setShowProjectCustomerDrop] = useState(false);
 
   useEffect(() => {
     getProject(projectId).then(p => {
       setProject({ id: p.id, number: p.number, customer: p.customer });
+      setProjectCustomerDraft(p.customer || '');
       setProjectExtraParts(p.extra_parts || '');
       setProjectComments(p.comments || '');
       setProductionStages((p.production_stages as 1 | 2) || 1);
@@ -72,6 +77,18 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       setLoadingProject(false);
     }).catch(() => { setLoadingProject(false); onBack(); });
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    let cancelled = false;
+    getProjects()
+      .then(items => {
+        if (!cancelled) setAllProjects(items);
+      })
+      .catch(() => {
+        if (!cancelled) setAllProjects([]);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -105,6 +122,14 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   );
 
   const canManageTemplates = Boolean(token) && isAdmin();
+  const customerOptions = useMemo(
+    () => buildCustomerOptions(allProjects, user?.customer, project?.customer),
+    [allProjects, project?.customer, user?.customer],
+  );
+  const filteredProjectCustomers = useMemo(
+    () => filterCustomerOptions(customerOptions, projectCustomerDraft),
+    [customerOptions, projectCustomerDraft],
+  );
   const activeSectionTemplates = useMemo(
     () => activeSection
       ? sectionTemplates.filter(template => template.system === templateSystemForSection(activeSection))
@@ -443,6 +468,16 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     catch { toast.error('Не удалось сохранить'); }
   };
 
+  const saveProjectCustomer = async (value: string = projectCustomerDraft) => {
+    if (!project) return;
+    const customer = value.trim();
+    if (!customer || customer === project.customer) return;
+    setProject(prev => prev ? { ...prev, customer } : prev);
+    setProjectCustomerDraft(customer);
+    setShowProjectCustomerDrop(false);
+    await saveStatus({ customer });
+  };
+
   const addOrderItem = () => {
     const newItem: OrderItem = { id: `oi-${Date.now()}`, name: '', invoice: '', paidDate: '', deliveredDate: '' };
     const next = [...orderItems, newItem];
@@ -594,18 +629,43 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                 )}
 
                 {/* Customer */}
-                <div className="bg-surface/40 border border-tint/30 rounded-2xl p-5 sm:p-6 mb-4">
-                  <div className="flex items-center gap-3 mb-4">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40">Заказчик</span>
+                {!project.customer.trim() && (
+                  <div className="bg-surface/40 border border-tint/30 rounded-2xl p-5 sm:p-6 mb-4">
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40">Заказчик</span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        value={projectCustomerDraft}
+                        onChange={e => { setProjectCustomerDraft(e.target.value); setShowProjectCustomerDrop(true); }}
+                        onFocus={() => setShowProjectCustomerDrop(true)}
+                        onBlur={() => {
+                          window.setTimeout(() => setShowProjectCustomerDrop(false), 150);
+                          saveProjectCustomer();
+                        }}
+                        className={INP}
+                        placeholder="Укажите заказчика"
+                      />
+                      {showProjectCustomerDrop && filteredProjectCustomers.length > 0 && (
+                        <div className="absolute left-0 right-0 top-full mt-2 bg-[var(--theme-dropdown)] border border-tint/40 rounded-2xl overflow-y-auto shadow-2xl shadow-black/50 z-20" style={{ maxHeight: '172px' }}>
+                          {filteredProjectCustomers.map(customer => (
+                            <button
+                              key={customer}
+                              type="button"
+                              onMouseDown={event => {
+                                event.preventDefault();
+                                saveProjectCustomer(customer);
+                              }}
+                              className="w-full text-left px-4 py-3 text-sm text-fg/70 hover:bg-tint/20 hover:text-fg transition-colors border-b border-tint/10 last:border-0"
+                            >
+                              {customer}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <input
-                    value={project.customer || ''}
-                    onChange={e => setProject(prev => prev ? { ...prev, customer: e.target.value } : prev)}
-                    onBlur={() => saveStatus({ customer: project.customer || '' })}
-                    className={INP}
-                    placeholder="Укажите заказчика"
-                  />
-                </div>
+                )}
 
                 {/* Status */}
                 <div className="bg-surface/40 border border-tint/30 rounded-2xl p-5 sm:p-6 mb-4">

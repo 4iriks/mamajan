@@ -16,6 +16,93 @@
 
 ## Выполнено в текущей итерации
 
+### Дополнение 2026-06-15: заказчик проекта, заказ стекла, покраска, схемы и доп. комплектующие
+
+Статус: реализовано локально, проверено тестами, подготовлено к коммиту и деплою.
+
+Файлы:
+
+- `Raluma/backend/api/catalog.py`
+- `Raluma/backend/api/documents.py`
+- `Raluma/backend/api/projects.py`
+- `Raluma/backend/engine/pdf.py`
+- `Raluma/backend/engine/profile_catalog.py`
+- `Raluma/backend/engine/project_documents.py`
+- `Raluma/backend/migrations.py`
+- `Raluma/backend/models.py`
+- `Raluma/backend/schemas.py`
+- `Raluma/backend/templates/project_document.html`
+- `Raluma/backend/templates/section_sheet.html`
+- `Raluma/backend/tests/test_catalog.py`
+- `Raluma/backend/tests/test_documents.py`
+- `Raluma/backend/tests/test_sections.py`
+- `Raluma/scripts/smoke-slide-diagrams.tsx`
+- `Raluma/src/api/catalog.ts`
+- `Raluma/src/api/localProjects.ts`
+- `Raluma/src/api/projects.ts`
+- `Raluma/src/components/ProjectEditor.tsx`
+- `Raluma/src/components/editor/ExtraComponentsEditor.tsx`
+- `Raluma/src/components/editor/SectionFormWrapper.tsx`
+- `Raluma/src/components/editor/SlideDiagrams.tsx`
+- `Raluma/src/components/editor/converters.ts`
+- `Raluma/src/components/editor/types.ts`
+- `Raluma/src/pages/ProjectsPage.tsx`
+- `Raluma/src/utils/customers.ts`
+
+Что сделано:
+
+- На странице проекта добавлен блок выбора заказчика, если проект был создан без заказчика.
+- Блок заказчика скрывается, когда заказчик уже выбран.
+- Список заказчиков вынесен в общий helper: базовые `ООО ПР`, `ООО КИ`, `ООО СПК` плюс уже встречающиеся значения из проектов.
+- Модалка создания проекта и страница проекта используют один источник списка заказчиков.
+- В заказе стекла маркировка теперь сортируется численно по физическим стеклам: сначала `1,1`, потом `1,2`, затем `2,1` и т.д.
+- Для документов используется визуальный номер секции после сортировки секций проекта, а не сырое `section.order`.
+- Внутри сгруппированной строки маркировки тоже сортируются численно.
+- Для 1-рядных и 2-рядных схем размеры стекол в схеме и таблице берутся из одного расчетного значения через общий formatter, чтобы не было расхождения `1484` на схеме и `1483` в таблице.
+- Размеры стекол на схеме вида из помещения увеличены и сделаны заметнее для печати.
+- Межстекольный профиль на схеме сверху теперь зеркалится отдельно для левой и правой половины 2-рядной системы.
+- В UI-схеме редактора добавлены `data-dir="1"` и `data-dir="-1"` для проверки направления межстекольного профиля.
+- Для заявки на покраску добавлены отдельные marker-классы по артикулам порогов: стандартные `RS2323/RS2325` и накладные `RS23231/RS23251`.
+- У порогов с верхними бобышками в заявке на покраску сохраняется красная надпись `НЕ КРАСИТЬ!!!`.
+- Красная рамка для бобышек теперь article-specific, чтобы можно было отдельно довести стандартные и накладные пороги.
+- В seed-каталоге и миграции уточнены режимы покраски для порогов `RS2323`, `RS2325`, `RS23231`, `RS23251`: они частично окрашиваемые, бобышки не красить.
+- Добавлен публичный read-only endpoint `GET /api/catalog/hardware/options`, чтобы редактор секции мог выбирать комплектующие из каталога без админских цен.
+- В секцию добавлено нормальное поле `extra_components` как JSON/TEXT, а не iframe/document override.
+- `extra_components` проходит через backend schema, model, migrations, create/update/copy section, guest/local projects и шаблоны секций.
+- На странице редактирования секции добавлен блок `Дополнительные комплектующие`: выбор позиции из каталога, артикул, цвет, размер, количество, удаление и добавление строк.
+- Производственный лист берет дополнительные комплектующие из `section.extra_components`; старый `overrides.extra_components` оставлен как fallback для совместимости.
+- Smoke-сценарий схем обновлен под новую договоренность: на схеме сверху не должны появляться `RS112/RS2081`, а для 2 рядов должны быть оба направления межстекольного профиля.
+
+Проверки:
+
+```powershell
+pytest Raluma/backend/tests/test_catalog.py Raluma/backend/tests/test_sections.py Raluma/backend/tests/test_documents.py -q
+pytest -q
+cd Raluma
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run build
+npm.cmd run smoke:diagrams
+```
+
+Результат:
+
+- Точечные backend-тесты: `57 passed, 1 skipped`.
+- Полный `pytest -q`: `220 passed, 1 skipped`.
+- `typecheck` прошел.
+- `lint` прошел без ошибок, остались 14 старых frontend warnings.
+- `build` прошел, остался старый Vite warning про chunk больше 500 kB.
+- `smoke:diagrams` прошел.
+
+Что важно проверить ревьюеру:
+
+- Заказчик: если проект создан без заказчика, блок выбора появляется на странице проекта; после выбора скрывается.
+- Заказ стекла: маркировка идет в правильном порядке и не перемешивается между секциями.
+- Производственный лист: цифры размеров стекол на схеме и в таблице совпадают.
+- 2 ряда: межстекольный профиль слева и справа должен быть зеркальным, а не одинаково направленным.
+- Заявка на покраску: пороги с верхними бобышками должны иметь корректную красную рамку только по бобышкам.
+- Дополнительные комплектующие: выбранные позиции должны сохраняться в секции, переноситься в шаблон и попадать в производственный лист.
+
 ### Дополнение 2026-06-15: закрытие замечаний ревью по заказу стекла и распилу
 
 Статус: реализовано локально, подготовлено к коммиту.

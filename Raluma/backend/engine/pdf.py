@@ -109,6 +109,10 @@ def _format_length_for_display(value: float) -> str:
     return str(rounded).replace(".", ",")
 
 
+def glass_mm(value: float) -> int:
+    return int(round(float(value or 0)))
+
+
 def _strip_split_note(note: str) -> str:
     return re.sub(r"^часть \d+/\d+;?\s*", "", note or "").strip()
 
@@ -177,6 +181,43 @@ def display_profiles(profiles: list) -> list:
     return rows
 
 
+def _parse_json_list(value) -> list:
+    if isinstance(value, list):
+        return value
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except Exception:
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
+def _normalize_extra_component(row) -> dict | None:
+    if not isinstance(row, dict):
+        return None
+    art = str(row.get("art") or row.get("sku") or "").strip()
+    name = str(row.get("name") or "").strip()
+    size = str(row.get("size") or "").strip()
+    qty = str(row.get("qty") or row.get("quantity") or "").strip()
+    color = str(row.get("color") or "").strip()
+    if not any((art, name, size, qty, color)):
+        return None
+    return {"art": art, "name": name, "size": size, "qty": qty, "color": color}
+
+
+def section_extra_components(section, overrides: dict | None = None) -> list[dict]:
+    override_rows = _parse_json_list((overrides or {}).get("extra_components"))
+    section_rows = _parse_json_list(getattr(section, "extra_components", None))
+    source = override_rows if override_rows else section_rows
+    rows: list[dict] = []
+    for row in source:
+        normalized = _normalize_extra_component(row)
+        if normalized is not None:
+            rows.append(normalized)
+    return rows
+
+
 def _img_b64(filename: str) -> str:
     """Jinja2-фильтр: имя файла → data URI base64 или пустая строка."""
     path = get_profile_asset_path(filename)
@@ -193,9 +234,11 @@ def _get_env() -> Environment:
     env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=False)
     env.filters["img_b64"] = _img_b64
     env.filters["enumerate"] = enumerate
+    env.filters["glass_mm"] = glass_mm
     env.globals["glass_widths"] = expand_glass_widths
     env.globals["profile_dimension"] = profile_dimension
     env.globals["display_profiles"] = display_profiles
+    env.globals["section_extra_components"] = section_extra_components
     return env
 
 

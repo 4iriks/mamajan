@@ -108,6 +108,7 @@ export interface SectionOut {
   cs_shape?: string;
   cs_width2?: number;
   extra_parts?: string;
+  extra_components?: string;
   comments?: string;
   document_overrides?: string;
 }

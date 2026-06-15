@@ -2,6 +2,15 @@
 
 export type SystemType = 'СЛАЙД' | 'КНИЖКА' | 'ЛИФТ' | 'ЦС' | 'КОМПЛЕКТАЦИЯ';
 
+export interface ExtraComponent {
+  id?: string;
+  sku: string;
+  name: string;
+  color: string;
+  size: string;
+  qty: string;
+}
+
 export interface Section {
   id: string;
   name: string;
@@ -69,6 +78,7 @@ export interface Section {
   csWidth2?: number;
   // Примечания к секции
   extraParts?: string;
+  extraComponents?: ExtraComponent[];
   comments?: string;
   documentOverrides?: string;
 }

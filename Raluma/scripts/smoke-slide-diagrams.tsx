@@ -67,7 +67,7 @@ assert(!renderedWidths.some(width => width === 400), 'room view must not use the
 assert.match(roomMarkup, />53</, 'room view must render top profile size from catalog metadata');
 assert.match(roomMarkup, />23</, 'room view must render threshold size from catalog metadata');
 assert.match(schemeMarkup, />16</, 'top scheme must show wall profile thickness');
-assert.match(schemeMarkup, /RS112/, 'top scheme must render selected side profile stack');
+assert.doesNotMatch(schemeMarkup, /RS112|RS2081/, 'top scheme must not render old side profile stack');
 assert.match(schemeMarkup, /stroke-linecap="round"/, 'top scheme must render the mirrored inter-glass profile path');
 
 const sectionTwoRows: Section = {
@@ -99,6 +99,8 @@ const schemeMarkupTwoRows = renderToStaticMarkup(<SlideSchemeSVG section={sectio
 assert.match(roomMarkupTwoRows, />500</, '2-row room view must render central glass widths');
 assert.match(schemeMarkupTwoRows, /500 · №2/, '2-row top scheme must render left central panel with calculated width');
 assert.match(schemeMarkupTwoRows, /500 · №3/, '2-row top scheme must render right central panel with calculated width');
+assert.match(schemeMarkupTwoRows, /data-dir="1"/, '2-row top scheme must mirror left-side inter-glass profile');
+assert.match(schemeMarkupTwoRows, /data-dir="-1"/, '2-row top scheme must mirror right-side inter-glass profile');
 assert.match(schemeMarkupTwoRows, />сдвиг</, '2-row top scheme must render bidirectional shift label');
 
 console.log('slide diagram smoke passed');

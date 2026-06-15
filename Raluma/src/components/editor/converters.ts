@@ -1,5 +1,38 @@
-import { Section, SystemType } from './types';
-import { SectionOut } from '../../api/projects';
+import type { ExtraComponent, Section, SystemType } from './types';
+import type { SectionOut } from '../../api/projects';
+
+function parseExtraComponents(raw?: string): ExtraComponent[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((row, index) => ({
+        id: typeof row?.id === 'string' ? row.id : `ec-${index}`,
+        sku: String(row?.sku ?? row?.art ?? ''),
+        name: String(row?.name ?? ''),
+        color: String(row?.color ?? ''),
+        size: String(row?.size ?? ''),
+        qty: String(row?.qty ?? row?.quantity ?? ''),
+      }))
+      .filter(row => row.sku || row.name || row.color || row.size || row.qty);
+  } catch {
+    return [];
+  }
+}
+
+function stringifyExtraComponents(rows?: ExtraComponent[]): string {
+  const normalized = (rows ?? [])
+    .map(row => ({
+      sku: row.sku.trim(),
+      name: row.name.trim(),
+      color: row.color.trim(),
+      size: row.size.trim(),
+      qty: row.qty.trim(),
+    }))
+    .filter(row => row.sku || row.name || row.color || row.size || row.qty);
+  return JSON.stringify(normalized);
+}
 
 export function apiToLocal(s: SectionOut): Section {
   // Backwards compat: migrate legacy 'ДВЕРЬ' value
@@ -65,6 +98,7 @@ export function apiToLocal(s: SectionOut): Section {
     csShape: s.cs_shape,
     csWidth2: s.cs_width2,
     extraParts: s.extra_parts,
+    extraComponents: parseExtraComponents(s.extra_components),
     comments: s.comments,
     documentOverrides: s.document_overrides,
   };
@@ -112,6 +146,7 @@ export function localToApi(s: Section, order: number): Omit<SectionOut, 'id' | '
     angle_left: s.angleLeft, angle_right: s.angleRight, book_system: s.bookSystem,
     door_system: s.doorSystem, cs_shape: s.csShape, cs_width2: s.csWidth2,
     extra_parts: s.extraParts, comments: s.comments,
+    extra_components: stringifyExtraComponents(s.extraComponents),
     document_overrides: s.documentOverrides,
   };
 }

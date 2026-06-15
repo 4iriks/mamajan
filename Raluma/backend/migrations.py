@@ -107,6 +107,7 @@ _ADD_COLUMNS = [
     "ALTER TABLE sections ADD COLUMN comments VARCHAR",
     "ALTER TABLE sections ADD COLUMN handle_offset_left INTEGER",
     "ALTER TABLE sections ADD COLUMN handle_offset_right INTEGER",
+    "ALTER TABLE sections ADD COLUMN extra_components TEXT DEFAULT '[]'",
     "ALTER TABLE sections ADD COLUMN document_overrides TEXT DEFAULT '{}'",
     # СЛАЙД 2 ряда
     "ALTER TABLE sections ADD COLUMN slide_rows INTEGER DEFAULT 1",
@@ -132,6 +133,8 @@ _DATA_MIGRATIONS = [
     "UPDATE sections SET lock_left = 'ЗАМОК-ЗАЩЕЛКА 2стор с ключом' WHERE lock_left = '2-сторонний с ключом RS3019'",
     "UPDATE sections SET lock_right = 'ЗАМОК-ЗАЩЕЛКА 1стор' WHERE lock_right = '1-сторонний RS3018'",
     "UPDATE sections SET lock_right = 'ЗАМОК-ЗАЩЕЛКА 2стор с ключом' WHERE lock_right = '2-сторонний с ключом RS3019'",
+    "UPDATE catalog_items SET paint_mode = 'Частично', note = 'В заявке на покраску отмечать область, которую не красить' WHERE sku IN ('RS2323', 'RS2325')",
+    "UPDATE catalog_items SET paint_mode = 'Частично', note = 'Накладной порог, верхние бобышки не красить' WHERE sku IN ('RS23231', 'RS23251')",
 ]
 
 

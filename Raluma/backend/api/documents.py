@@ -95,6 +95,7 @@ def _build_local_document_objects(payload: LocalDocumentPayload):
     section_values["document_overrides"] = (
         section_values.get("document_overrides") or "{}"
     )
+    section_values["extra_components"] = section_values.get("extra_components") or "[]"
 
     project = SimpleNamespace(
         id=project_data.get("id") or 0,
@@ -124,6 +125,7 @@ def _build_local_project_document_objects(payload: LocalProjectDocumentPayload):
         section_values["document_overrides"] = (
             section_values.get("document_overrides") or "{}"
         )
+        section_values["extra_components"] = section_values.get("extra_components") or "[]"
         sections.append(SimpleNamespace(**section_values))
     return project, sections
 

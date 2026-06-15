@@ -1,3 +1,6 @@
+import json
+
+
 def test_create_section(client, admin_headers, project):
     r = client.post(
         f"/api/projects/{project['id']}/sections",
@@ -18,6 +21,44 @@ def test_create_section(client, admin_headers, project):
     assert data["system"] == "СЛАЙД"
     assert data["width"] == 1500
     assert data["project_id"] == project["id"]
+
+
+def test_section_extra_components_save_through_api(client, admin_headers, project):
+    components = [
+        {
+            "sku": "BOX-1",
+            "name": "Бокс",
+            "color": "RAL 9016",
+            "size": "1200",
+            "qty": "2",
+        }
+    ]
+    r = client.post(
+        f"/api/projects/{project['id']}/sections",
+        headers=admin_headers,
+        json={
+            "name": "Секция с комплектующими",
+            "system": "СЛАЙД",
+            "extra_components": json.dumps(components, ensure_ascii=False),
+        },
+    )
+
+    assert r.status_code == 201
+    section = r.json()
+    assert json.loads(section["extra_components"]) == components
+
+    updated_components = [{**components[0], "qty": "3"}]
+    updated = client.put(
+        f"/api/projects/{project['id']}/sections/{section['id']}",
+        headers=admin_headers,
+        json={
+            **section,
+            "extra_components": json.dumps(updated_components, ensure_ascii=False),
+        },
+    )
+
+    assert updated.status_code == 200
+    assert json.loads(updated.json()["extra_components"]) == updated_components
 
 
 def test_list_sections(client, admin_headers, project, section):

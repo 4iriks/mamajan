@@ -19,6 +19,7 @@ import {
   ProjectList
 } from '../api/projects';
 import { toast } from '../store/toastStore';
+import { buildCustomerOptions, filterCustomerOptions } from '../utils/customers';
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 
@@ -130,14 +131,11 @@ export default function ProjectsPage() {
   }, [projects, searchQuery, viewTab]);
 
   const customerOptions = useMemo(() => {
-    const seen = new Set<string>(['ООО КРОКНА ИНЖИНИРИНГ', 'ООО ПРОЗРАЧНЫЕ РЕШЕНИЯ', 'ООО СТУДИЯ СПК']);
-    if (user?.customer) seen.add(user.customer);
-    projects.forEach(p => { if (p.customer) seen.add(p.customer); });
-    return [...seen];
+    return buildCustomerOptions(projects, user?.customer);
   }, [projects, user]);
 
   const filteredCustomers = useMemo(() =>
-    customerOptions.filter(c => c.toLowerCase().includes(newCustomer.toLowerCase())),
+    filterCustomerOptions(customerOptions, newCustomer),
     [customerOptions, newCustomer]
   );
 

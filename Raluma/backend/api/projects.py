@@ -181,6 +181,7 @@ def copy_project(
             cs_shape=s.cs_shape,
             cs_width2=s.cs_width2,
             extra_parts=s.extra_parts,
+            extra_components=s.extra_components,
             comments=s.comments,
         )
         db.add(new_section)

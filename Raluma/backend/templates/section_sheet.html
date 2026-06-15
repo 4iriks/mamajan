@@ -188,7 +188,7 @@
         {% endif %}
         {# Panel number #}
         <text x="{{ gcx }}" y="{{ gcy - 4 }}" text-anchor="middle" font-size="7" font-family="Arial" font-weight="bold" fill="#555">{{ pnum }}</text>
-        <text x="{{ gcx }}" y="{{ riY + riH - 2 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#777">{{ panel_w_mm|round|int }}</text>
+        <text x="{{ gcx }}" y="{{ riY + riH - 2 }}" text-anchor="middle" font-size="9" font-family="Arial" font-weight="bold" fill="#777">{{ panel_w_mm|glass_mm }}</text>
         {# Arrow (non-deaf panels) #}
         {% if not panelDeaf %}
         {% set alen = [10, rpW * 0.35] | min %}
@@ -344,13 +344,13 @@
         <rect x="{{ gx1 }}" y="{{ cy - 5 }}" width="{{ gx2 - gx1 }}" height="10" fill="#ddeef5" stroke="#000" stroke-width="0.8"/>
         {# Номер панели #}
         {% set pnum = pi + 1 if is2row else (P - pi if first_right else pi + 1) %}
-        <text x="{{ (gx1 + gx2) / 2 }}" y="{{ cy + 3 }}" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#333">{{ panel_w_mm|round|int }} · {{ pnum }}</text>
+        <text x="{{ (gx1 + gx2) / 2 }}" y="{{ cy + 3 }}" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#333">{{ panel_w_mm|glass_mm }} · {{ pnum }}</text>
         {% if has_inter_glass and pi < P - 1 %}
         {% set ix = px + panel_w %}
         {% set owner_pi = pi + 1 if (not is2row and first_right) else pi %}
         {% set owner_ri = calc.panel_rails[owner_pi] if owner_pi < calc.panel_rails|length else ri %}
         {% set icy = top_pad + owner_ri * row_h + row_h / 2 %}
-        {% set idir = 1 if (not is2row and first_right) else -1 %}
+        {% set idir = (1 if pi < P / 2 else -1) if is2row else (1 if first_right else -1) %}
         {% set owner_pnum = owner_pi + 1 if is2row else (P - owner_pi if first_right else owner_pi + 1) %}
         {% set iw = inter_glass_px %}
         <path data-profile="inter-glass" data-panel="{{ owner_pnum }}" data-dir="{{ idir }}" d="M {{ ix + idir * iw }} {{ icy - 6 }} L {{ ix }} {{ icy - 6 }} L {{ ix }} {{ icy + 6 }} L {{ ix + idir * iw }} {{ icy + 6 }}" fill="none" stroke="#666" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -407,8 +407,8 @@
         {% set fk_gq = "glass_" ~ i ~ "_q" %}
         <tr>
           <td>{{ g.position }}</td>
-          <td {{ ce(fk_gw, g.width_mm|int) }}>{{ ov(fk_gw, g.width_mm|int) }}</td>
-          <td {{ ce(fk_gh, g.height_mm|int) }}>{{ ov(fk_gh, g.height_mm|int) }}</td>
+          <td {{ ce(fk_gw, g.width_mm|glass_mm) }}>{{ ov(fk_gw, g.width_mm|glass_mm) }}</td>
+          <td {{ ce(fk_gh, g.height_mm|glass_mm) }}>{{ ov(fk_gh, g.height_mm|glass_mm) }}</td>
           <td {{ ce(fk_gq, g.qty) }}>{{ ov(fk_gq, g.qty) }}</td>
         </tr>
         {% endif %}
@@ -613,8 +613,8 @@
 </table>
 
 <!-- ══════ СТРАНИЦА 2: ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ ══════ -->
-{% set ec_rows_check = overrides.get('extra_components', []) %}
-{% set has_ec = ec_rows_check | length > 0 and ec_rows_check | selectattr('art') | list | length > 0 %}
+{% set ec_rows = section_extra_components(section, overrides) %}
+{% set has_ec = ec_rows | length > 0 %}
 {% if not is_pdf or has_ec %}
 <div class="page-break">
   <div class="bar" style="margin-bottom:0;">
@@ -632,7 +632,6 @@
       </tr>
     </thead>
     <tbody>
-      {% set ec_rows = overrides.get('extra_components', []) %}
       {% for row in ec_rows %}
       <tr class="ec-row">
         {% if not is_pdf %}<td style="text-align:center;"><button class="del-row-btn" title="Удалить">✕</button></td>{% endif %}

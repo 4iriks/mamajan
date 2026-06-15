@@ -184,6 +184,7 @@ class SectionBase(BaseModel):
     cs_width2: Optional[float] = None
     # Примечания к секции
     extra_parts: Optional[str] = None
+    extra_components: Optional[str] = "[]"
     comments: Optional[str] = None
     # Производственный лист — ручные правки
     document_overrides: Optional[str] = "{}"

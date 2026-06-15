@@ -13,6 +13,7 @@ import { SectionDivider } from './FormInputs';
 import { MainTab, SlideSystemTab, BookSystemTab, LiftSystemTab, CsShapeTab, DoorSystemTab } from './FormTabs';
 import { EditorVisualizer } from './EditorVisualizer';
 import { SectionTemplatesPanel } from './SectionTemplatesPanel';
+import { ExtraComponentsEditor } from './ExtraComponentsEditor';
 
 export interface SectionFormWrapperProps {
   section: Section;
@@ -196,6 +197,16 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
                   </div>
                 </div>
               )}
+
+              <div>
+                <SectionDivider label="Дополнительные комплектующие" />
+                <div className="mt-3">
+                  <ExtraComponentsEditor
+                    items={section.extraComponents || []}
+                    onChange={extraComponents => onUpdate({ extraComponents })}
+                  />
+                </div>
+              </div>
 
               <div>
                 <SectionDivider label="Примечания к секции" />

@@ -123,18 +123,18 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
       ? 'RS1004'
       : 'RS2061';
   const interGlassPx = mmToPx(findProfileDimension(calc, [interGlassArticle], 'section_width_mm', 20), 6);
-  const interGlassDir = is2row ? -1 : (firstPanelInside === 'Справа' ? 1 : -1);
 
-  const renderInterGlassProfile = (x: number, y: number, index: number) => {
+  const renderInterGlassProfile = (x: number, y: number, index: number, dir: number) => {
     const h = 20;
     const top = y - h / 2;
     const bottom = y + h / 2;
-    const innerX = x + interGlassDir * interGlassPx;
+    const innerX = x + dir * interGlassPx;
 
     return (
       <g key={`inter-${index}`}>
         <path
           data-profile="inter-glass"
+          data-dir={dir}
           d={`M ${innerX} ${top} L ${x} ${top} L ${x} ${bottom} L ${innerX} ${bottom}`}
           fill="none"
           stroke="var(--theme-accent)"
@@ -248,7 +248,8 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
         const ownerIndex = !is2row && firstPanelInside === 'Справа' ? pi + 1 : pi;
         const ri = panelRailMap[ownerIndex] ?? panelRailMap[pi];
         const cy = topPad + ri * rowH + rowH / 2;
-        return renderInterGlassProfile(layout.x + layout.width, cy, pi);
+        const dir = is2row ? (pi < panels / 2 ? 1 : -1) : (firstPanelInside === 'Справа' ? 1 : -1);
+        return renderInterGlassProfile(layout.x + layout.width, cy, pi, dir);
       })}
 
       {/* Direction arrow */}
@@ -504,7 +505,7 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
             <line x1={dx1 + 3} y1={dy} x2={dx2 - 3} y2={dy} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.35" />
             <line x1={dx1 + 3} y1={dy - 4} x2={dx1 + 3} y2={dy + 4} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.35" />
             <line x1={dx2 - 3} y1={dy - 4} x2={dx2 - 3} y2={dy + 4} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.35" />
-            <text x={cx} y={dy + 12} textAnchor="middle" fontSize="9" fill="var(--theme-accent)" fillOpacity="0.45">{panelWmm}</text>
+            <text x={cx} y={dy + 14} textAnchor="middle" fontSize="14" fontWeight="bold" fill="var(--theme-accent)" fillOpacity="0.55">{panelWmm}</text>
           </g>
         );
       })}

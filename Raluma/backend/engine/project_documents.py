@@ -52,12 +52,13 @@ def _iter_slide_sections(sections: Iterable[object]) -> list[CalculatedSection]:
         list(sections),
         key=lambda section: _section_order(section, 999999),
     )
-    for index, section in enumerate(sorted_sections, start=1):
-        if getattr(section, "system", None) != "СЛАЙД":
-            continue
+    slide_sections = [
+        section for section in sorted_sections if getattr(section, "system", None) == "СЛАЙД"
+    ]
+    for index, section in enumerate(slide_sections, start=1):
         rows.append(
             CalculatedSection(
-                order=_section_order(section, index),
+                order=index,
                 section=section,
                 calc=calculate_slide(section),
             )
@@ -288,6 +289,7 @@ def _build_paint_pages(calculated: list[CalculatedSection]) -> list[dict]:
                     "name": profile.name,
                     "image": profile.image,
                     "paint_marker": profile.paint_mode == "Частично",
+                    "paint_marker_class": _paint_marker_class(profile.article),
                     "qty": 0,
                     "clean": clean,
                     "allowance": allowance,
@@ -317,8 +319,25 @@ def _build_paint_pages(calculated: list[CalculatedSection]) -> list[dict]:
     return sorted(pages, key=lambda page: page["color"])
 
 
+def _paint_marker_class(article: str) -> str:
+    normalized = str(article or "").lower()
+    if normalized in {"rs2323", "rs2325"}:
+        return "paint-marker-standard-threshold"
+    if normalized in {"rs23231", "rs23251"}:
+        return "paint-marker-overlay-threshold"
+    return ""
+
+
 def _ceil_to_step(value: float, step: int) -> int:
     return int(ceil(float(value) / step) * step)
+
+
+def _marking_key(marking: str) -> tuple[int, int]:
+    try:
+        section_part, glass_part = marking.split(",", 1)
+        return int(section_part), int(glass_part)
+    except (ValueError, TypeError):
+        return 999999, 999999
 
 
 def _build_glass_rows(
@@ -350,9 +369,12 @@ def _build_glass_rows(
             row["qty"] += 1
             row["area"] = round(width * height * row["qty"] / 1_000_000, 3)
 
+    for row in grouped.values():
+        row["markings"].sort(key=_marking_key)
+
     rows = sorted(
         grouped.values(),
-        key=lambda row: (row["glass_type"], row["width"], row["height"], row["note"]),
+        key=lambda row: _marking_key(row["markings"][0] if row["markings"] else ""),
     )
     for index, row in enumerate(rows, start=1):
         row["index"] = index

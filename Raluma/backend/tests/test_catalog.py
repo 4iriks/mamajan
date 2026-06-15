@@ -4,6 +4,15 @@ def test_hardware_catalog_requires_admin(client):
     assert r.status_code in (401, 403)
 
 
+def test_hardware_catalog_options_are_public(client):
+    r = client.get("/api/catalog/hardware/options")
+
+    assert r.status_code == 200
+    data = r.json()
+    assert any(item["sku"] == "RS2323" for item in data)
+    assert "purchasePrice" not in data[0]
+
+
 def test_hardware_catalog_returns_calculation_seed(client, admin_headers):
     r = client.get("/api/catalog/hardware", headers=admin_headers)
 

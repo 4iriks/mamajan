@@ -26,8 +26,20 @@ export interface HardwareCatalogItem {
   note: string;
 }
 
+export interface HardwareCatalogOption {
+  id: number;
+  sku: string;
+  name: string;
+  isActive: boolean;
+}
+
 export const listHardwareCatalog = async () => {
   const resp = await client.get<HardwareCatalogItem[]>('/api/catalog/hardware');
+  return resp.data;
+};
+
+export const listHardwareCatalogOptions = async () => {
+  const resp = await client.get<HardwareCatalogOption[]>('/api/catalog/hardware/options');
   return resp.data;
 };
 

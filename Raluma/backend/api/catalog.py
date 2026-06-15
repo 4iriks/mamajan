@@ -86,6 +86,15 @@ def _item_to_dict(item: models.CatalogItem) -> dict:
     }
 
 
+def _item_to_option(item: models.CatalogItem) -> dict:
+    return {
+        "id": item.id,
+        "sku": item.sku,
+        "name": item.name,
+        "isActive": bool(item.is_active),
+    }
+
+
 def _apply_payload(item: models.CatalogItem, data: schemas.CatalogItemBase) -> None:
     item.sku = data.sku.strip()
     item.name = data.name.strip()
@@ -143,6 +152,18 @@ def list_hardware_catalog(
     _ensure_catalog_seed(db)
     items = db.query(models.CatalogItem).order_by(models.CatalogItem.id).all()
     return [_item_to_dict(item) for item in items]
+
+
+@router.get("/hardware/options")
+def list_hardware_options(db: Session = Depends(get_db)):
+    _ensure_catalog_seed(db)
+    items = (
+        db.query(models.CatalogItem)
+        .filter(models.CatalogItem.is_active == True)  # noqa: E712
+        .order_by(models.CatalogItem.sku)
+        .all()
+    )
+    return [_item_to_option(item) for item in items]
 
 
 @router.post("/hardware", status_code=201)

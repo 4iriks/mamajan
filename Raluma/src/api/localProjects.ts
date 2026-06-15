@@ -96,6 +96,7 @@ function normalizeSection(
     cs_shape: section.cs_shape,
     cs_width2: section.cs_width2,
     extra_parts: section.extra_parts,
+    extra_components: section.extra_components ?? '[]',
     comments: section.comments,
     document_overrides: section.document_overrides ?? '{}',
   };

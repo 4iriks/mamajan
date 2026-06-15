@@ -269,6 +269,8 @@ class TestLocalPreview:
         assert "SLIDE-стандарт 2 ряда" in r.text
         assert "Центральные" in r.text
         assert "RS30301" in r.text
+        assert 'data-profile="inter-glass" data-panel="1" data-dir="1"' in r.text
+        assert 'data-profile="inter-glass" data-panel="3" data-dir="-1"' in r.text
 
     def test_local_preview_non_slide(self, client):
         r = client.post(
@@ -371,6 +373,42 @@ class TestLocalPreview:
         assert "Крайние" in r.text
         assert "Промежуточные" not in r.text
 
+    def test_local_preview_extra_components_from_section(self, client):
+        r = client.post(
+            "/api/projects/local/sections/preview",
+            json={
+                "project": {"number": "LOCAL-EC", "customer": "Тест"},
+                "section": {
+                    "name": "Секция 1",
+                    "system": "СЛАЙД",
+                    "width": 2000,
+                    "height": 2400,
+                    "panels": 3,
+                    "quantity": 1,
+                    "rails": 3,
+                    "threshold": "Стандартный анод",
+                    "first_panel_inside": "Справа",
+                    "extra_components": json.dumps(
+                        [
+                            {
+                                "sku": "BOX-1",
+                                "name": "Бокс",
+                                "color": "RAL 9016",
+                                "size": "1200",
+                                "qty": "2",
+                            }
+                        ],
+                        ensure_ascii=False,
+                    ),
+                },
+            },
+        )
+
+        assert r.status_code == 200
+        assert "ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ" in r.text
+        assert "BOX-1" in r.text
+        assert "RAL 9016" in r.text
+
     def test_local_calc_returns_glass_and_catalog_profiles(self, client):
         r = client.post(
             "/api/projects/local/sections/calc",
@@ -430,6 +468,35 @@ class TestProjectDocuments:
         assert 'class="doc-head"' in r.text
         assert 'class="meta paint-meta"' in r.text
         assert "paint-bosses-marker" in r.text
+        assert "paint-marker-standard-threshold" in r.text
+
+    def test_local_project_paint_overlay_threshold_marks_bosses(self, client):
+        r = client.post(
+            "/api/projects/local/documents/paint/preview",
+            json={
+                "project": {"number": "LOCAL-PAINT", "customer": "Тест"},
+                "sections": [
+                    {
+                        "name": "Секция 1",
+                        "system": "СЛАЙД",
+                        "width": 2000,
+                        "height": 2400,
+                        "panels": 3,
+                        "quantity": 1,
+                        "rails": 3,
+                        "threshold": "Накладной окраш",
+                        "painting_type": "RAL стандарт",
+                        "ral_color": "9016 МАТОВЫЙ",
+                        "first_panel_inside": "Справа",
+                    }
+                ],
+            },
+        )
+
+        assert r.status_code == 200
+        assert "RS23231" in r.text
+        assert "НЕ КРАСИТЬ!!!" in r.text
+        assert "paint-marker-overlay-threshold" in r.text
 
     def test_project_glass_preview_returns_html(self, client, admin_headers, project):
         _create_slide_section(client, admin_headers, project["id"])
@@ -555,6 +622,42 @@ class TestProjectPaintOrder:
         assert rows["RS2021"]["allowance"] == 1500
         assert rows["RS2333"]["clean"] == 3000
 
+    def test_threshold_marker_classes_are_article_specific(self):
+        section = SimpleNamespace()
+        calc = SimpleNamespace(
+            color_text="RAL 9016",
+            profiles=[
+                SimpleNamespace(
+                    article="RS2323",
+                    name="Порог 3-рельсовый",
+                    length_mm=2968,
+                    qty=1,
+                    painted=True,
+                    image="RS2323.jpg",
+                    paint_note="НЕ КРАСИТЬ!!!",
+                    paint_mode="Частично",
+                ),
+                SimpleNamespace(
+                    article="RS23231",
+                    name="Порог 3-рельсовый накладной",
+                    length_mm=2968,
+                    qty=1,
+                    painted=True,
+                    image="RS23231.svg",
+                    paint_note="НЕ КРАСИТЬ!!!",
+                    paint_mode="Частично",
+                ),
+            ],
+        )
+
+        pages = _build_paint_pages(
+            [CalculatedSection(order=1, section=section, calc=calc)]
+        )
+        rows = {row["article"]: row for row in pages[0]["rows"]}
+
+        assert rows["RS2323"]["paint_marker_class"] == "paint-marker-standard-threshold"
+        assert rows["RS23231"]["paint_marker_class"] == "paint-marker-overlay-threshold"
+
 
 class TestProjectGlassOrder:
     def test_left_edge_knob_drawing_does_not_mark_whole_section(self):
@@ -594,6 +697,39 @@ class TestProjectGlassOrder:
 
         plain_qty = sum(row["qty"] for row in rows if row["note"] == "")
         assert plain_qty == 2
+
+    def test_glass_rows_sort_by_first_physical_marking(self):
+        project = SimpleNamespace(number="P-ORDER")
+        section = SimpleNamespace(
+            panels=3,
+            quantity=1,
+            slide_rows=1,
+            lock_left="Без",
+            lock_right="Без",
+            handle_left="Без ручки (глухая)",
+            handle_right="Без ручки (глухая)",
+            floor_latches_left=False,
+            floor_latches_right=False,
+        )
+        calc = SimpleNamespace(
+            glass_type="10ММ",
+            glass=[
+                SimpleNamespace(position="Левое", width_mm=1003, height_mm=2200, qty=1),
+                SimpleNamespace(
+                    position="Промежуточные", width_mm=995, height_mm=2200, qty=1
+                ),
+                SimpleNamespace(position="Правое", width_mm=1003, height_mm=2200, qty=1),
+            ],
+        )
+
+        rows = _build_glass_rows(
+            project, [CalculatedSection(order=1, section=section, calc=calc)]
+        )
+
+        assert rows[0]["marking"] == "1,1"
+        assert rows[0]["markings"] == ["1,1", "1,3"]
+        assert rows[0]["width"] == 1003
+        assert rows[1]["marking"] == "1,2"
 
     def test_two_row_center_bracket_drawing_marks_only_central_glass(self):
         project = SimpleNamespace(number="P-002")
