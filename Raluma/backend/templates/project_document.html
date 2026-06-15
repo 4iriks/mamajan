@@ -151,6 +151,7 @@
     [contenteditable] { outline: none; cursor: text; border-radius: 1px; transition: background 0.1s; }
     [contenteditable]:hover { background: #fffde7 !important; }
     [contenteditable]:focus { background: #fff9c4 !important; box-shadow: 0 0 0 1px #f9a825; }
+    [contenteditable].changed { background: #fff3cd !important; }
     {% endif %}
   </style>
 </head>
@@ -343,6 +344,18 @@
       ГАБАРИТЫ СТЕКЛА НЕ ДОЛЖНЫ ПРЕВЫШАТЬ 2ММ
     </div>
   </div>
+{% endif %}
+{% if doc_type == 'glass' and not is_pdf %}
+<script>
+(function() {
+  document.querySelectorAll('[data-field]').forEach(function(el) {
+    el.addEventListener('input', function() {
+      el.classList.toggle('changed', el.textContent.trim() !== (el.dataset.original || ''));
+      window.parent && window.parent.postMessage({ type: 'dirty', dirty: true }, '*');
+    });
+  });
+})();
+</script>
 {% endif %}
 </body>
 </html>

@@ -82,8 +82,18 @@ class TestProfileDisplayRows:
         assert len(rows) == 1
         assert rows[0].note == "рассверлить"
         assert rows[0].display_cuts == [
-            {"length": "2975", "qty": 2},
-            {"length": "2976", "qty": 2},
+            {
+                "length": "2975",
+                "qty": 2,
+                "length_field": "threshold_length_part_1",
+                "qty_field": "threshold_length_part_1_qty",
+            },
+            {
+                "length": "2976",
+                "qty": 2,
+                "length_field": "threshold_length_part_2",
+                "qty_field": "threshold_length_part_2_qty",
+            },
         ]
 
 
@@ -434,6 +444,9 @@ class TestProjectDocuments:
         assert "Заказ стекла" in r.text
         assert "КРОМКИ ПОЛИРОВАННЫЕ" in r.text
         assert "ОБРАЩАЮ ВНИМАНИЕ" in r.text
+        assert 'data-field="project_number"' in r.text
+        assert 'data-field="project_customer"' in r.text
+        assert "postMessage({ type: 'dirty'" in r.text
         assert f"Проект {project['number']}" not in r.text
         assert 'class="doc-head"' in r.text
         assert 'class="meta glass-meta"' in r.text

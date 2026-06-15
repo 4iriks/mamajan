@@ -115,6 +115,10 @@ export interface SectionOut {
 const hasAuthToken = () => Boolean(localStorage.getItem('access_token'));
 
 export type ProjectDocumentType = 'commercial' | 'paint' | 'glass';
+export type ProjectDocumentOverrides = Partial<{
+  project_number: string;
+  project_customer: string;
+}>;
 
 export interface SlideCalcGlass {
   position: string;
@@ -200,10 +204,50 @@ export const downloadPdf = async (projectId: number, sectionId: number, filename
   URL.revokeObjectURL(url);
 };
 
-export const downloadProjectDocumentPdf = async (projectId: number, docType: ProjectDocumentType, filename: string) => {
-  const resp = hasAuthToken()
-    ? await client.get(`/api/projects/${projectId}/documents/${docType}/pdf`, { responseType: 'blob' })
-    : await client.post(`/api/projects/local/documents/${docType}/pdf`, getLocalProjectDocumentPayload(projectId), { responseType: 'blob' });
+function applyProjectDocumentOverrides(
+  payload: { project: Partial<ProjectList>; sections: SectionOut[] },
+  overrides?: ProjectDocumentOverrides,
+) {
+  if (!overrides || Object.keys(overrides).length === 0) return payload;
+  return {
+    ...payload,
+    project: {
+      ...payload.project,
+      number: Object.prototype.hasOwnProperty.call(overrides, 'project_number')
+        ? String(overrides.project_number ?? '')
+        : payload.project.number,
+      customer: Object.prototype.hasOwnProperty.call(overrides, 'project_customer')
+        ? String(overrides.project_customer ?? '')
+        : payload.project.customer,
+    },
+  };
+}
+
+export const downloadProjectDocumentPdf = async (
+  projectId: number,
+  docType: ProjectDocumentType,
+  filename: string,
+  overrides?: ProjectDocumentOverrides,
+) => {
+  const hasOverrides = Boolean(overrides && Object.keys(overrides).length > 0);
+  let resp;
+  if (hasOverrides) {
+    const payload = hasAuthToken()
+      ? await client.get<ProjectFull>(`/api/projects/${projectId}`).then(r => ({
+        project: r.data,
+        sections: r.data.sections,
+      }))
+      : getLocalProjectDocumentPayload(projectId);
+    resp = await client.post(
+      `/api/projects/local/documents/${docType}/pdf`,
+      applyProjectDocumentOverrides(payload, overrides),
+      { responseType: 'blob' },
+    );
+  } else {
+    resp = hasAuthToken()
+      ? await client.get(`/api/projects/${projectId}/documents/${docType}/pdf`, { responseType: 'blob' })
+      : await client.post(`/api/projects/local/documents/${docType}/pdf`, getLocalProjectDocumentPayload(projectId), { responseType: 'blob' });
+  }
   const url = URL.createObjectURL(resp.data);
   const a = document.createElement('a');
   a.href = url;

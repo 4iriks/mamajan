@@ -16,6 +16,55 @@
 
 ## Выполнено в текущей итерации
 
+### Дополнение 2026-06-15: закрытие замечаний ревью по заказу стекла и распилу
+
+Статус: реализовано локально, подготовлено к коммиту.
+
+Файлы:
+
+- `Raluma/src/components/ProjectDocumentModal.tsx`
+- `Raluma/src/api/projects.ts`
+- `Raluma/backend/engine/pdf.py`
+- `Raluma/backend/templates/project_document.html`
+- `Raluma/backend/templates/section_sheet.html`
+- `Raluma/backend/tests/test_documents.py`
+
+Что исправлено:
+
+- В заказе стекла редактируемые поля `Заявка` и `Заказчик` теперь не являются декоративными: модалка собирает изменения из iframe перед скачиванием PDF.
+- Если эти поля изменены, PDF строится из payload с временно подставленными значениями, без скрытого изменения проекта в базе.
+- Для заказа стекла добавлен dirty-state: после правки видно, что изменения попадут в PDF; при закрытии без скачивания появляется подтверждение.
+- В HTML заказа стекла ячейки `Заявка`/`Заказчик` помечаются как измененные и отправляют событие в родительскую модалку.
+- В производственном листе сгруппированные части длинных профилей остались в одной ячейке, но каждый размер и количество внутри `display_cuts` снова получили свои `data-field`.
+- Ручные правки длин/количества для сгруппированных распилов снова собираются через существующий механизм `document_overrides` и попадают в PDF.
+
+Проверки:
+
+```powershell
+pytest -q Raluma/backend/tests/test_documents.py
+ruff check Raluma/backend/engine/pdf.py Raluma/backend/tests/test_documents.py
+pytest -q
+cd Raluma
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run build
+$env:SMOKE_APP_URL='http://127.0.0.1:3000'; $env:SMOKE_API_URL='http://127.0.0.1:8000'; npm.cmd run smoke:guest
+```
+
+Результат:
+
+- `test_documents`: `36 passed, 1 skipped`.
+- `ruff check` прошел.
+- Полный `pytest -q`: `214 passed, 1 skipped`.
+- `typecheck` прошел.
+- `lint` прошел без ошибок, остались 14 старых warnings.
+- `build` прошел, остался старый Vite warning про chunk больше 500 kB.
+- `smoke:guest` прошел на локальных backend/frontend.
+
+Ограничение проверки:
+
+- In-app Browser в текущем окружении дважды упал на внутренней ошибке `windows sandbox failed: spawn setup refresh`, поэтому визуальная браузерная проверка через Browser не выполнена. Вместо нее подняты локальные frontend/backend и прогнан существующий guest smoke; после проверки локальные процессы остановлены.
+
 ### Дополнение 2026-06-15: быстрые правки по скриншотам пользователя
 
 Статус: реализовано локально, подготовлено к коммиту и деплою.

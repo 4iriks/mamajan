@@ -467,8 +467,8 @@
           <span class="vals">
             {% if p.display_cuts is defined and p.display_cuts %}
               {% for cut in p.display_cuts %}
-                <span class="dim">{{ cut.length }}</span>
-                <span class="qty">{{ cut.qty }}</span>{% if not loop.last %}<br>{% endif %}
+                <span class="dim" {{ ce(cut.length_field, cut.length) }}>{{ ov(cut.length_field, cut.length) }}</span>
+                <span class="qty" {{ ce(cut.qty_field, cut.qty) }}>{{ ov(cut.qty_field, cut.qty) }}</span>{% if not loop.last %}<br>{% endif %}
               {% endfor %}
             {% else %}
             <span class="dim" {% if p.length_mm > 0 %}{{ ce(fk_l, p.length_mm|int) }}{% endif %}>{% if p.length_mm > 0 %}{{ ov(fk_l, p.length_mm|int) }}{% endif %}</span>

@@ -157,13 +157,22 @@ def display_profiles(profiles: list) -> list:
             rows.append(row)
 
         length = _format_length_for_display(getattr(profile, "length_mm", 0))
+        length_field = field_key or f"{base_field_key}_cut_{len(row.display_cuts) + 1}"
+        qty_field = f"{length_field}_qty"
         qty = int(getattr(profile, "qty", 0) or 0)
         for cut in row.display_cuts:
             if cut["length"] == length:
                 cut["qty"] += qty
                 break
         else:
-            row.display_cuts.append({"length": length, "qty": qty})
+            row.display_cuts.append(
+                {
+                    "length": length,
+                    "qty": qty,
+                    "length_field": length_field,
+                    "qty_field": qty_field,
+                }
+            )
 
     return rows
 

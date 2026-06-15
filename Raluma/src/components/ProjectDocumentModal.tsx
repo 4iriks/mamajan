@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Download, Loader2, X } from 'lucide-react';
 import {
   downloadProjectDocumentPdf,
   getLocalProjectDocumentPreviewHtml,
   getProjectDocumentPreviewUrl,
+  ProjectDocumentOverrides,
   ProjectDocumentType,
 } from '../api/projects';
 import { toast } from '../store/toastStore';
@@ -26,9 +27,11 @@ export default function ProjectDocumentModal({
   docType,
   title,
 }: Props) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [previewSrcDoc, setPreviewSrcDoc] = useState('');
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
 
   const token = localStorage.getItem('access_token') ?? '';
   const isGuest = !token;
@@ -53,20 +56,54 @@ export default function ProjectDocumentModal({
   useEffect(() => {
     if (!isOpen) {
       setPreviewSrcDoc('');
+      setIsDirty(false);
       return;
     }
     loadGuestPreview();
   }, [isOpen, loadGuestPreview]);
 
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'dirty' && docType === 'glass') setIsDirty(true);
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [docType]);
+
+  const collectChanges = useCallback((): ProjectDocumentOverrides => {
+    if (docType !== 'glass') return {};
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc) return {};
+
+    const changed: ProjectDocumentOverrides = {};
+    doc.querySelectorAll<HTMLElement>('[data-field]').forEach(el => {
+      const field = el.dataset.field as keyof ProjectDocumentOverrides | undefined;
+      if (field !== 'project_number' && field !== 'project_customer') return;
+      const original = el.dataset.original ?? '';
+      const current = el.textContent?.trim() ?? '';
+      if (current !== original) changed[field] = current;
+    });
+    return changed;
+  }, [docType]);
+
   const handleDownload = async () => {
     setIsDownloading(true);
     try {
-      await downloadProjectDocumentPdf(projectId, docType, `${title}_${projectNumber}.pdf`);
+      const changes = collectChanges();
+      await downloadProjectDocumentPdf(projectId, docType, `${title}_${projectNumber}.pdf`, changes);
+      setIsDirty(false);
     } catch {
       toast.error('Ошибка генерации PDF');
     } finally {
       setIsDownloading(false);
     }
+  };
+
+  const handleClose = () => {
+    if (isDirty && !window.confirm('Есть несохранённые правки в документе. Закрыть без скачивания?')) {
+      return;
+    }
+    onClose();
   };
 
   return (
@@ -75,7 +112,7 @@ export default function ProjectDocumentModal({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={onClose}
+            onClick={handleClose}
             className="absolute inset-0 bg-black/80 backdrop-blur-sm"
           />
           <motion.div
@@ -88,9 +125,12 @@ export default function ProjectDocumentModal({
             <div className="px-5 py-4 sm:px-8 sm:py-5 border-b border-tint/20 flex items-center justify-between flex-shrink-0">
               <div>
                 <h2 className="text-lg font-bold">{title}</h2>
-                <p className="text-xs text-fg/40 mt-0.5">{projectNumber}</p>
+                <p className="text-xs text-fg/40 mt-0.5">
+                  {projectNumber}
+                  {isDirty && <span className="ml-2 text-yellow-400">● правки попадут в PDF</span>}
+                </p>
               </div>
-              <button onClick={onClose} className="text-fg/20 hover:text-fg transition-colors ml-4">
+              <button onClick={handleClose} className="text-fg/20 hover:text-fg transition-colors ml-4">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -102,6 +142,7 @@ export default function ProjectDocumentModal({
                 </div>
               ) : (
                 <iframe
+                  ref={iframeRef}
                   src={previewUrl}
                   srcDoc={isGuest ? previewSrcDoc : undefined}
                   className="w-full h-full border-0 block"
