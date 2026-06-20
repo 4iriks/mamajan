@@ -471,11 +471,19 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const saveProjectCustomer = async (value: string = projectCustomerDraft) => {
     if (!project) return;
     const customer = value.trim();
-    if (!customer || customer === project.customer) return;
-    setProject(prev => prev ? { ...prev, customer } : prev);
-    setProjectCustomerDraft(customer);
-    setShowProjectCustomerDrop(false);
-    await saveStatus({ customer });
+    if (!customer || customer === project.customer) {
+      setShowProjectCustomerDrop(false);
+      return;
+    }
+    try {
+      const savedProject = await updateProject(project.id, { customer });
+      const savedCustomer = savedProject.customer || customer;
+      setProject(prev => prev ? { ...prev, customer: savedCustomer } : prev);
+      setProjectCustomerDraft(savedCustomer);
+      setShowProjectCustomerDrop(false);
+    } catch {
+      toast.error('Не удалось сохранить заказчика');
+    }
   };
 
   const addOrderItem = () => {

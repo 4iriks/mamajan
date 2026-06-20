@@ -15,6 +15,7 @@ import schemas
 router = APIRouter(prefix="/api/catalog", tags=["catalog"])
 
 CATALOG_UPDATED_AT = "2026-06-08"
+STRUCTURAL_OPTION_GROUPS = {"Профили", "Пороги", "Уплотнители"}
 
 
 def _seed_item_to_model(index: int, item) -> models.CatalogItem:
@@ -160,6 +161,7 @@ def list_hardware_options(db: Session = Depends(get_db)):
     items = (
         db.query(models.CatalogItem)
         .filter(models.CatalogItem.is_active == True)  # noqa: E712
+        .filter(~models.CatalogItem.group.in_(STRUCTURAL_OPTION_GROUPS))
         .order_by(models.CatalogItem.sku)
         .all()
     )

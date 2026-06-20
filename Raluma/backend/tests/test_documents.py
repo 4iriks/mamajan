@@ -14,6 +14,7 @@ from engine.pdf import (
     expand_glass_widths,
     get_profile_asset_path,
     profile_dimension,
+    section_extra_components,
 )
 from engine.project_documents import CalculatedSection, _build_glass_rows, _build_paint_pages
 
@@ -408,6 +409,32 @@ class TestLocalPreview:
         assert "ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ" in r.text
         assert "BOX-1" in r.text
         assert "RAL 9016" in r.text
+        assert "contenteditable=\"true\" data-field=\"ec_" not in r.text
+
+    def test_section_extra_components_prefer_section_over_legacy_override(self):
+        section = SimpleNamespace(
+            extra_components=json.dumps(
+                [{"sku": "BOX-NEW", "name": "Новый бокс", "qty": "2"}],
+                ensure_ascii=False,
+            )
+        )
+        overrides = {
+            "extra_components": [
+                {"art": "BOX-OLD", "name": "Старый бокс", "qty": "1"}
+            ]
+        }
+
+        rows = section_extra_components(section, overrides)
+
+        assert rows == [
+            {
+                "art": "BOX-NEW",
+                "name": "Новый бокс",
+                "size": "",
+                "qty": "2",
+                "color": "",
+            }
+        ]
 
     def test_local_calc_returns_glass_and_catalog_profiles(self, client):
         r = client.post(
@@ -876,6 +903,31 @@ class TestOverrides:
         overrides = json.loads(sec.get("document_overrides", "{}"))
         assert overrides["field_a"] == "111"
         assert overrides["field_b"] == "222"
+
+    def test_overrides_drop_legacy_extra_components(
+        self, client, admin_headers, project
+    ):
+        section = _create_slide_section(client, admin_headers, project["id"])
+        sid = section["id"]
+        pid = project["id"]
+
+        r = client.patch(
+            f"/api/projects/{pid}/sections/{sid}/overrides",
+            headers=admin_headers,
+            json={
+                "overrides": {
+                    "extra_components": [{"art": "OLD"}],
+                    "field_a": "111",
+                }
+            },
+        )
+
+        assert r.status_code == 200
+        s = client.get(f"/api/projects/{pid}/sections", headers=admin_headers).json()
+        sec = [x for x in s if x["id"] == sid][0]
+        overrides = json.loads(sec.get("document_overrides", "{}"))
+        assert "extra_components" not in overrides
+        assert overrides["field_a"] == "111"
 
     def test_clear_overrides(self, client, admin_headers, project):
         section = _create_slide_section(client, admin_headers, project["id"])

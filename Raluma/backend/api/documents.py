@@ -306,7 +306,13 @@ def save_overrides(
         existing = json.loads(section.document_overrides or "{}")
     except Exception:
         pass
-    existing.update(payload.overrides)
+    existing.pop("extra_components", None)
+    clean_overrides = {
+        key: value
+        for key, value in payload.overrides.items()
+        if key != "extra_components"
+    }
+    existing.update(clean_overrides)
     section.document_overrides = json.dumps(existing, ensure_ascii=False)
     db.commit()
     return {"ok": True}

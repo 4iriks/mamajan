@@ -615,7 +615,7 @@
 <!-- ══════ СТРАНИЦА 2: ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ ══════ -->
 {% set ec_rows = section_extra_components(section, overrides) %}
 {% set has_ec = ec_rows | length > 0 %}
-{% if not is_pdf or has_ec %}
+{% if has_ec %}
 <div class="page-break">
   <div class="bar" style="margin-bottom:0;">
     ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ - ПРОЕКТ №{{ project.number }}, {{ section.name }}
@@ -623,42 +623,27 @@
   <table class="ec-tbl" id="ec-table">
     <thead>
       <tr>
-        {% if not is_pdf %}<th style="width:5%;">&nbsp;</th>{% endif %}
-        <th style="width:{% if is_pdf %}15{% else %}13{% endif %}%;">артикул</th>
-        <th style="width:{% if is_pdf %}37{% else %}34{% endif %}%;">название</th>
-        <th style="width:{% if is_pdf %}18{% else %}17{% endif %}%;">размер</th>
-        <th style="width:{% if is_pdf %}12{% else %}11{% endif %}%;">кол-во</th>
-        <th style="width:{% if is_pdf %}18{% else %}17{% endif %}%;">цвет</th>
+        <th style="width:15%;">артикул</th>
+        <th style="width:37%;">название</th>
+        <th style="width:18%;">размер</th>
+        <th style="width:12%;">кол-во</th>
+        <th style="width:18%;">цвет</th>
       </tr>
     </thead>
     <tbody>
       {% for row in ec_rows %}
       <tr class="ec-row">
-        {% if not is_pdf %}<td style="text-align:center;"><button class="del-row-btn" title="Удалить">✕</button></td>{% endif %}
-        <td contenteditable="true" data-field="ec_{{ loop.index0 }}_art" data-original="{{ row.get('art','') }}">{{ row.get('art','') }}</td>
-        <td contenteditable="true" data-field="ec_{{ loop.index0 }}_name" data-original="{{ row.get('name','') }}">{{ row.get('name','') }}</td>
-        <td contenteditable="true" data-field="ec_{{ loop.index0 }}_size" data-original="{{ row.get('size','') }}">{{ row.get('size','') }}</td>
-        <td contenteditable="true" data-field="ec_{{ loop.index0 }}_qty" data-original="{{ row.get('qty','') }}">{{ row.get('qty','') }}</td>
-        <td contenteditable="true" data-field="ec_{{ loop.index0 }}_color" data-original="{{ row.get('color','') }}">{{ row.get('color','') }}</td>
+        <td>{{ row.get('art','') }}</td>
+        <td>{{ row.get('name','') }}</td>
+        <td>{{ row.get('size','') }}</td>
+        <td>{{ row.get('qty','') }}</td>
+        <td>{{ row.get('color','') }}</td>
       </tr>
       {% endfor %}
-      {% if not is_pdf and ec_rows|length == 0 %}
-      <tr class="ec-row">
-        <td style="text-align:center;"><button class="del-row-btn" title="Удалить">✕</button></td>
-        <td contenteditable="true" data-field="ec_0_art" data-original=""></td>
-        <td contenteditable="true" data-field="ec_0_name" data-original=""></td>
-        <td contenteditable="true" data-field="ec_0_size" data-original=""></td>
-        <td contenteditable="true" data-field="ec_0_qty" data-original=""></td>
-        <td contenteditable="true" data-field="ec_0_color" data-original=""></td>
-      </tr>
-      {% endif %}
     </tbody>
   </table>
-  {% if not is_pdf %}
-  <button class="add-row-btn" id="add-ec-row">+ добавить строку</button>
-  {% endif %}
 </div>
-{% endif %}{# not is_pdf or has_ec #}
+{% endif %}{# has_ec #}
 
 {% if not is_pdf %}
 <script>

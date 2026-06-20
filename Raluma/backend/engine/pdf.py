@@ -207,9 +207,9 @@ def _normalize_extra_component(row) -> dict | None:
 
 
 def section_extra_components(section, overrides: dict | None = None) -> list[dict]:
-    override_rows = _parse_json_list((overrides or {}).get("extra_components"))
     section_rows = _parse_json_list(getattr(section, "extra_components", None))
-    source = override_rows if override_rows else section_rows
+    override_rows = _parse_json_list((overrides or {}).get("extra_components"))
+    source = section_rows if section_rows else override_rows
     rows: list[dict] = []
     for row in source:
         normalized = _normalize_extra_component(row)

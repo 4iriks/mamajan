@@ -16,6 +16,54 @@
 
 ## Выполнено в текущей итерации
 
+### Дополнение 2026-06-20: фиксы после ревью по допкомплектующим, catalog options и заказчику
+
+Статус: реализовано локально, проверено тестами, подготовлено к коммиту и деплою.
+
+Файлы:
+
+- `Raluma/backend/api/catalog.py`
+- `Raluma/backend/api/documents.py`
+- `Raluma/backend/engine/pdf.py`
+- `Raluma/backend/templates/section_sheet.html`
+- `Raluma/backend/tests/test_catalog.py`
+- `Raluma/backend/tests/test_documents.py`
+- `Raluma/src/components/ProductionSheetModal.tsx`
+- `Raluma/src/components/ProjectEditor.tsx`
+
+Что исправлено:
+
+- У доп. комплектующих теперь один основной источник правды: `section.extra_components`.
+- Старый `document_overrides.extra_components` больше не перебивает данные секции.
+- Новый PATCH document overrides принудительно удаляет ключ `extra_components`, чтобы ПЛ больше не мог сохранять старую структуру в overrides.
+- В производственном листе доп. комплектующие теперь только отображаются. Редактировать их нужно в форме секции.
+- Из `ProductionSheetModal` удален сбор `extra_components` из iframe.
+- Публичный endpoint `/api/catalog/hardware/options` больше не отдает конструктивные группы `Профили`, `Пороги`, `Уплотнители`.
+- В options остаются фурнитурные и пользовательские группы: замки, ручки, защелки, крепеж, расходники, комплектующие и т.п.
+- Выбор заказчика на странице проекта больше не скрывается оптимистично до сохранения.
+- `project.customer` меняется локально только после успешного ответа `updateProject`; при ошибке поле остается видимым.
+
+Проверки:
+
+```powershell
+pytest Raluma/backend/tests/test_catalog.py Raluma/backend/tests/test_documents.py -q
+pytest -q
+ruff check Raluma/backend/api/catalog.py Raluma/backend/api/documents.py Raluma/backend/engine/pdf.py Raluma/backend/tests/test_catalog.py Raluma/backend/tests/test_documents.py
+cd Raluma
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run build
+```
+
+Результат:
+
+- Точечные backend-тесты: `51 passed, 1 skipped`.
+- Полный `pytest -q`: `222 passed, 1 skipped`.
+- `ruff check`: `All checks passed`.
+- `typecheck`: прошел.
+- `lint`: прошел без ошибок, остались 14 старых warnings.
+- `build`: прошел, остался старый Vite warning про chunk больше 500 kB.
+
 ### Дополнение 2026-06-15: заказчик проекта, заказ стекла, покраска, схемы и доп. комплектующие
 
 Статус: реализовано локально, проверено тестами, подготовлено к коммиту и деплою.

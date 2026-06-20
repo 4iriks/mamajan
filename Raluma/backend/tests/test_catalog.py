@@ -9,7 +9,10 @@ def test_hardware_catalog_options_are_public(client):
 
     assert r.status_code == 200
     data = r.json()
-    assert any(item["sku"] == "RS2323" for item in data)
+    skus = {item["sku"] for item in data}
+    assert "RS30301" in skus
+    assert "RS2323" not in skus
+    assert "RS1313" not in skus
     assert "purchasePrice" not in data[0]
 
 

@@ -67,31 +67,13 @@ export default function ProductionSheetModal({
     if (!doc) return {};
     const changed: Record<string, unknown> = {};
 
-    // Скалярные поля (всё кроме ec_)
+    // Скалярные поля. Доп. комплектующие редактируются только в форме секции.
     doc.querySelectorAll<HTMLElement>('[data-field]').forEach(el => {
       const field = el.dataset.field!;
-      if (field.startsWith('ec_')) return;
       const original = el.dataset.original ?? '';
       const current = el.textContent?.trim() ?? '';
       if (current !== original) changed[field] = current;
     });
-
-    // Доп. комплектующие — собираем строки таблицы
-    const ecRows = doc.querySelectorAll<HTMLElement>('#ec-table .ec-row');
-    const components: Array<Record<string, string>> = [];
-    ecRows.forEach((tr, idx) => {
-      const fields = ['art', 'name', 'size', 'qty', 'color'];
-      const row: Record<string, string> = {};
-      let hasData = false;
-      fields.forEach(f => {
-        const cell = tr.querySelector(`[data-field="ec_${idx}_${f}"]`) as HTMLElement | null;
-        const val = cell?.textContent?.trim() ?? '';
-        row[f] = val;
-        if (val) hasData = true;
-      });
-      if (hasData) components.push(row);
-    });
-    if (components.length > 0) changed['extra_components'] = components;
 
     return changed;
   }, []);
