@@ -13,10 +13,16 @@ from engine.pdf import (
     display_profiles,
     expand_glass_widths,
     get_profile_asset_path,
+    glass_mm,
     profile_dimension,
     section_extra_components,
 )
-from engine.project_documents import CalculatedSection, _build_glass_rows, _build_paint_pages
+from engine.project_documents import (
+    CalculatedSection,
+    _build_glass_rows,
+    _build_paint_pages,
+    _iter_slide_sections,
+)
 
 
 class TestProfileAssetSafety:
@@ -99,15 +105,25 @@ class TestProfileDisplayRows:
 
 
 class TestDiagramGlassWidths:
+    def test_glass_mm_rounds_up(self):
+        assert glass_mm(995.0) == 995
+        assert glass_mm(995.1) == 996
+        assert glass_mm(995.9) == 996
+
     def test_expands_edge_and_middle_glass_widths(self):
         calc = SimpleNamespace(
             glass=[
-                SimpleNamespace(position="Крайние", width_mm=520, qty=2),
-                SimpleNamespace(position="Промежуточные", width_mm=470, qty=2),
+                SimpleNamespace(position="Крайние", width_mm=520.1, qty=2),
+                SimpleNamespace(position="Промежуточные", width_mm=470.1, qty=2),
             ]
         )
 
-        assert expand_glass_widths(calc, 4, 2000) == [520, 470, 470, 520]
+        assert [glass_mm(width) for width in expand_glass_widths(calc, 4, 2000)] == [
+            521,
+            471,
+            471,
+            521,
+        ]
 
     def test_expands_asymmetric_glass_widths(self):
         calc = SimpleNamespace(
@@ -142,24 +158,26 @@ class TestDiagramGlassWidths:
         assert profile_dimension(calc, ["RS2333"], "section_height_mm", 10) == 16
 
 
-def _create_slide_section(client, admin_headers, project_id):
+def _create_slide_section(client, admin_headers, project_id, **overrides):
+    payload = {
+        "name": "Секция 1",
+        "system": "СЛАЙД",
+        "width": 2000,
+        "height": 2400,
+        "panels": 3,
+        "quantity": 1,
+        "rails": 3,
+        "threshold": "Стандартный анод",
+        "first_panel_inside": "Справа",
+        "inter_glass_profile": "Алюминиевый RS2061",
+        "profile_left_wall": True,
+        "profile_right_wall": True,
+    }
+    payload.update(overrides)
     r = client.post(
         f"/api/projects/{project_id}/sections",
         headers=admin_headers,
-        json={
-            "name": "Секция 1",
-            "system": "СЛАЙД",
-            "width": 2000,
-            "height": 2400,
-            "panels": 3,
-            "quantity": 1,
-            "rails": 3,
-            "threshold": "Стандартный анод",
-            "first_panel_inside": "Справа",
-            "inter_glass_profile": "Алюминиевый RS2061",
-            "profile_left_wall": True,
-            "profile_right_wall": True,
-        },
+        json=payload,
     )
     assert r.status_code == 201
     return r.json()
@@ -481,7 +499,13 @@ class TestProjectDocuments:
         assert "contenteditable" not in r.text
 
     def test_project_paint_preview_returns_html(self, client, admin_headers, project):
-        _create_slide_section(client, admin_headers, project["id"])
+        _create_slide_section(
+            client,
+            admin_headers,
+            project["id"],
+            threshold="Стандартный окраш",
+            painting_type="RAL стандарт",
+        )
         token = admin_headers["Authorization"].replace("Bearer ", "")
 
         r = client.get(
@@ -496,6 +520,27 @@ class TestProjectDocuments:
         assert 'class="meta paint-meta"' in r.text
         assert "paint-bosses-marker" in r.text
         assert "paint-marker-standard-threshold" in r.text
+
+    def test_project_paint_preview_skips_anod_threshold(
+        self, client, admin_headers, project
+    ):
+        _create_slide_section(
+            client,
+            admin_headers,
+            project["id"],
+            threshold="Стандартный анод",
+            painting_type="RAL стандарт",
+        )
+        token = admin_headers["Authorization"].replace("Bearer ", "")
+
+        r = client.get(
+            f"/api/projects/{project['id']}/documents/paint/preview",
+            params={"token": token},
+        )
+
+        assert r.status_code == 200
+        assert "RS1313" in r.text
+        assert "RS2323" not in r.text
 
     def test_local_project_paint_overlay_threshold_marks_bosses(self, client):
         r = client.post(
@@ -649,6 +694,43 @@ class TestProjectPaintOrder:
         assert rows["RS2021"]["allowance"] == 1500
         assert rows["RS2333"]["clean"] == 3000
 
+    def test_same_article_rows_are_grouped_for_template_rowspan(self):
+        section = SimpleNamespace()
+        calc = SimpleNamespace(
+            color_text="RAL 9016",
+            profiles=[
+                SimpleNamespace(
+                    article="RS2021",
+                    name="Стекольный профиль",
+                    length_mm=1445,
+                    qty=2,
+                    painted=True,
+                    image="RS2021.svg",
+                    paint_note="",
+                    paint_mode="Красится",
+                ),
+                SimpleNamespace(
+                    article="RS2021",
+                    name="Стекольный профиль",
+                    length_mm=2838,
+                    qty=1,
+                    painted=True,
+                    image="RS2021.svg",
+                    paint_note="",
+                    paint_mode="Красится",
+                ),
+            ],
+        )
+
+        pages = _build_paint_pages(
+            [CalculatedSection(order=1, section=section, calc=calc)]
+        )
+
+        group = pages[0]["groups"][0]
+        assert group["article"] == "RS2021"
+        assert [row["clean"] for row in group["rows"]] == [1450, 2850]
+        assert [row["qty"] for row in group["rows"]] == [2, 1]
+
     def test_threshold_marker_classes_are_article_specific(self):
         section = SimpleNamespace()
         calc = SimpleNamespace(
@@ -687,6 +769,52 @@ class TestProjectPaintOrder:
 
 
 class TestProjectGlassOrder:
+    def test_slide_sections_sort_by_visible_section_number(self):
+        def section(name: str, order: int):
+            return SimpleNamespace(
+                name=name,
+                order=order,
+                system="СЛАЙД",
+                width=2000,
+                height=2400,
+                panels=3,
+                quantity=1,
+                rails=3,
+                threshold="Стандартный анод",
+                painting_type="RAL стандарт",
+                ral_color="9016",
+                glass_type="10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
+                first_panel_inside="Справа",
+                unused_track="",
+                inter_glass_profile="Алюминиевый RS2061",
+                profile_left_wall=True,
+                profile_right_wall=True,
+                profile_left_lock_bar=False,
+                profile_right_lock_bar=False,
+                profile_left_p_bar=False,
+                profile_right_p_bar=False,
+                profile_left_handle_bar=False,
+                profile_right_handle_bar=False,
+                profile_left_bubble=False,
+                profile_right_bubble=False,
+                lock_left="Без",
+                lock_right="Без",
+                handle_left="Без",
+                handle_right="Без",
+                handle_offset_left=0,
+                handle_offset_right=0,
+                floor_latches_left=False,
+                floor_latches_right=False,
+                slide_rows=1,
+            )
+
+        rows = _iter_slide_sections(
+            [section("Секция 2", 1), section("Секция 1", 99)]
+        )
+
+        assert [row.section.name for row in rows] == ["Секция 1", "Секция 2"]
+        assert [row.order for row in rows] == [1, 2]
+
     def test_left_edge_knob_drawing_does_not_mark_whole_section(self):
         project = SimpleNamespace(number="P-001")
         section = SimpleNamespace(
@@ -741,11 +869,11 @@ class TestProjectGlassOrder:
         calc = SimpleNamespace(
             glass_type="10ММ",
             glass=[
-                SimpleNamespace(position="Левое", width_mm=1003, height_mm=2200, qty=1),
+                SimpleNamespace(position="Левое", width_mm=1003.1, height_mm=2200.1, qty=1),
                 SimpleNamespace(
-                    position="Промежуточные", width_mm=995, height_mm=2200, qty=1
+                    position="Промежуточные", width_mm=995.1, height_mm=2200.1, qty=1
                 ),
-                SimpleNamespace(position="Правое", width_mm=1003, height_mm=2200, qty=1),
+                SimpleNamespace(position="Правое", width_mm=1003.1, height_mm=2200.1, qty=1),
             ],
         )
 
@@ -755,7 +883,8 @@ class TestProjectGlassOrder:
 
         assert rows[0]["marking"] == "1,1"
         assert rows[0]["markings"] == ["1,1", "1,3"]
-        assert rows[0]["width"] == 1003
+        assert rows[0]["width"] == 1004
+        assert rows[0]["height"] == 2201
         assert rows[1]["marking"] == "1,2"
 
     def test_two_row_center_bracket_drawing_marks_only_central_glass(self):

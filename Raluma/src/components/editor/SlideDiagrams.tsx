@@ -6,7 +6,7 @@ import { Section } from './types';
 
 function expandGlassWidths(calc: SlideCalcPreview | null | undefined, panels: number, fallbackWidth: number) {
   if (!calc?.glass?.length || panels <= 0) {
-    return Array.from({ length: Math.max(panels, 1) }, () => Math.round(fallbackWidth / Math.max(panels, 1)));
+    return Array.from({ length: Math.max(panels, 1) }, () => Math.ceil(fallbackWidth / Math.max(panels, 1)));
   }
 
   const findWidth = (needle: string) => {
@@ -20,7 +20,7 @@ function expandGlassWidths(calc: SlideCalcPreview | null | undefined, panels: nu
   const center = findWidth('централь');
   const middle = findWidth('промеж') ?? edge ?? left ?? right ?? fallbackWidth / panels;
 
-  if (panels === 1) return [Math.round(middle)];
+  if (panels === 1) return [Math.ceil(middle)];
   if (center && panels >= 4) {
     const sideMiddleCount = Math.floor(Math.max(panels - 4, 0) / 2);
     const widths = [
@@ -31,7 +31,7 @@ function expandGlassWidths(calc: SlideCalcPreview | null | undefined, panels: nu
       ...Array.from({ length: sideMiddleCount }, () => middle),
       right ?? middle,
     ];
-    return widths.slice(0, panels).map(width => Math.round(width));
+    return widths.slice(0, panels).map(width => Math.ceil(width));
   }
 
   const widths = Array.from({ length: panels }, (_, index) => {
@@ -40,7 +40,7 @@ function expandGlassWidths(calc: SlideCalcPreview | null | undefined, panels: nu
     return middle;
   });
 
-  return widths.map(width => Math.round(width));
+  return widths.map(width => Math.ceil(width));
 }
 
 function buildPanelLayout(widthsMm: number[], startPx: number, totalPx: number) {

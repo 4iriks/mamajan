@@ -577,7 +577,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             { name: 'Спецификация', icon: FileText },
             { name: 'Накладная', icon: ClipboardList },
             { name: 'Заказ стекла', icon: WindowIcon, projectDoc: 'glass' as const },
-            { name: 'Заявка покр.', icon: Palette, projectDoc: 'paint' as const },
+            { name: 'Заявка на покраску', icon: Palette, projectDoc: 'paint' as const },
           ].map(doc => (
             <button
               key={doc.name}

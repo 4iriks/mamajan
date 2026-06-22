@@ -954,9 +954,22 @@ class TestLongProfileCuts:
 
 
 class TestPainting:
-    def test_ral_profiles_painted(self):
+    def test_ral_profiles_painted_and_anod_threshold_not_painted(self):
         r = calculate_slide(
             _make_section(painting_type="RAL стандарт", ral_color="9016")
+        )
+        threshold = _find_profile(r, "RS2323")[0]
+        top = _find_profile(r, "RS1313")[0]
+        assert threshold.painted is False
+        assert top.painted is True
+
+    def test_painted_threshold_goes_to_paint_order(self):
+        r = calculate_slide(
+            _make_section(
+                threshold="Стандартный окраш",
+                painting_type="RAL стандарт",
+                ral_color="9016",
+            )
         )
         threshold = _find_profile(r, "RS2323")[0]
         assert threshold.painted is True

@@ -11,8 +11,8 @@ def test_hardware_catalog_options_are_public(client):
     data = r.json()
     skus = {item["sku"] for item in data}
     assert "RS30301" in skus
-    assert "RS2323" not in skus
-    assert "RS1313" not in skus
+    assert "RS2323" in skus
+    assert "RS1313" in skus
     assert "purchasePrice" not in data[0]
 
 

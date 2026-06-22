@@ -156,6 +156,17 @@
       width: 64mm;
       margin-left: auto;
     }
+    .paint-table th,
+    .paint-table td {
+      padding: 0.8mm 1.1mm;
+    }
+    .paint-table .profile-img-wrap {
+      width: 30mm;
+      max-height: 16mm;
+    }
+    .paint-table .profile-img {
+      max-height: 16mm;
+    }
     {% if doc_type == 'glass' and not is_pdf %}
     [contenteditable] { outline: none; cursor: text; border-radius: 1px; transition: background 0.1s; }
     [contenteditable]:hover { background: #fffde7 !important; }
@@ -240,7 +251,7 @@
       <div class="accent-red center" style="margin-bottom:4mm;">
         В счете указать номер заявки и цвет профиля
       </div>
-      <table>
+      <table class="paint-table">
         <thead>
           <tr>
             <th style="width:24mm;">Артикул</th>
@@ -252,26 +263,31 @@
           </tr>
         </thead>
         <tbody>
-        {% for row in page.rows %}
+        {% for group in page.groups %}
+          {% set span = group.rows|length %}
+          {% for row in group.rows %}
           <tr>
-            <td class="center">{{ row.article }}</td>
-            <td>
-              {% if row.note %}<div class="paint-note">{{ row.note }}</div>{% endif %}
-              {% if row.image %}
-                {% set src = row.image | img_b64 %}
+            {% if loop.first %}
+            <td class="center" rowspan="{{ span }}">{{ group.article }}</td>
+            <td rowspan="{{ span }}">
+              {% if group.note %}<div class="paint-note">{{ group.note }}</div>{% endif %}
+              {% if group.image %}
+                {% set src = group.image | img_b64 %}
                 {% if src %}
-                <span class="profile-img-wrap{% if row.paint_marker %} paint-bosses-marker {{ row.paint_marker_class }}{% endif %}">
-                  <img src="{{ src }}" class="profile-img" alt="{{ row.article }}">
+                <span class="profile-img-wrap{% if group.paint_marker %} paint-bosses-marker {{ group.paint_marker_class }}{% endif %}">
+                  <img src="{{ src }}" class="profile-img" alt="{{ group.article }}">
                 </span>
                 {% endif %}
               {% endif %}
-              <div class="center small">{{ row.name }}</div>
+              <div class="center small">{{ group.name }}</div>
             </td>
+            {% endif %}
             <td class="center">{{ row.qty }}</td>
             <td class="center">{{ row.clean|int if row.clean == row.clean|int else row.clean }}</td>
             <td class="center">{{ row.allowance|int if row.allowance == row.allowance|int else row.allowance }}</td>
             <td class="center">{{ "%.1f"|format(row.total_m) }}</td>
           </tr>
+          {% endfor %}
         {% endfor %}
           <tr>
             <td colspan="2" class="right"><b>Итого</b></td>

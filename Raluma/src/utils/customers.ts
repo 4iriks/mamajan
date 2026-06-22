@@ -1,6 +1,22 @@
 import type { ProjectList } from '../api/projects';
 
-const BASE_CUSTOMERS = ['ООО ПР', 'ООО КИ', 'ООО СПК'];
+const BASE_CUSTOMERS = [
+  'ООО ПРОЗРАЧНЫЕ РЕШЕНИЯ',
+  'ООО КРОКНА ИНЖИНИРИНГ',
+  'ООО СТУДИЯ СПК',
+];
+
+const CUSTOMER_ALIASES: Record<string, string> = {
+  'ооо пр': 'ООО ПРОЗРАЧНЫЕ РЕШЕНИЯ',
+  'ооо ки': 'ООО КРОКНА ИНЖИНИРИНГ',
+  'ооо спк': 'ООО СТУДИЯ СПК',
+};
+
+function normalizeCustomer(value?: string | null) {
+  const clean = (value ?? '').trim();
+  if (!clean) return '';
+  return CUSTOMER_ALIASES[clean.toLowerCase()] || clean;
+}
 
 export function buildCustomerOptions(
   projects: Pick<ProjectList, 'customer'>[] = [],
@@ -10,7 +26,7 @@ export function buildCustomerOptions(
   const seen = new Map<string, string>();
 
   const add = (value?: string | null) => {
-    const clean = (value ?? '').trim();
+    const clean = normalizeCustomer(value);
     if (!clean) return;
     const key = clean.toLowerCase();
     if (!seen.has(key)) seen.set(key, clean);

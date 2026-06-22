@@ -7,6 +7,7 @@ import base64
 import json
 import os
 import re
+from math import ceil
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -110,7 +111,7 @@ def _format_length_for_display(value: float) -> str:
 
 
 def glass_mm(value: float) -> int:
-    return int(round(float(value or 0)))
+    return int(ceil(float(value or 0)))
 
 
 def _strip_split_note(note: str) -> str:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 from math import ceil
+import re
 from typing import Iterable
 
 from jinja2 import Environment, FileSystemLoader
@@ -46,11 +47,27 @@ def _section_order(section: object, fallback: int) -> int:
     return order or fallback
 
 
+def _section_name_number(section: object) -> int | None:
+    match = re.search(r"\d+", str(getattr(section, "name", "") or ""))
+    if not match:
+        return None
+    try:
+        return int(match.group(0))
+    except ValueError:
+        return None
+
+
+def _section_sort_key(section: object, fallback: int) -> tuple[int, int, int]:
+    order = _section_order(section, fallback)
+    name_number = _section_name_number(section)
+    return name_number if name_number is not None else order, order, fallback
+
+
 def _iter_slide_sections(sections: Iterable[object]) -> list[CalculatedSection]:
     rows: list[CalculatedSection] = []
     sorted_sections = sorted(
         list(sections),
-        key=lambda section: _section_order(section, 999999),
+        key=lambda section: _section_sort_key(section, 999999),
     )
     slide_sections = [
         section for section in sorted_sections if getattr(section, "system", None) == "СЛАЙД"
@@ -306,17 +323,48 @@ def _build_paint_pages(calculated: list[CalculatedSection]) -> list[dict]:
             rows_by_key.values(),
             key=lambda row: (row["article"], row["clean"]),
         )
+        groups = _group_paint_rows(rows)
         total_qty = sum(row["qty"] for row in rows)
         total_m = round(sum(row["total_m"] for row in rows), 1)
         pages.append(
             {
                 "color": color,
                 "rows": rows,
+                "groups": groups,
                 "total_qty": total_qty,
                 "total_m": total_m,
             }
         )
     return sorted(pages, key=lambda page: page["color"])
+
+
+def _group_paint_rows(rows: list[dict]) -> list[dict]:
+    groups: list[dict] = []
+    by_key: dict[tuple, dict] = {}
+    for row in rows:
+        key = (
+            row["article"],
+            row["name"],
+            row["image"] or "",
+            row["note"] or "",
+            bool(row["paint_marker"]),
+            row["paint_marker_class"] or "",
+        )
+        group = by_key.get(key)
+        if group is None:
+            group = {
+                "article": row["article"],
+                "name": row["name"],
+                "image": row["image"],
+                "note": row["note"],
+                "paint_marker": row["paint_marker"],
+                "paint_marker_class": row["paint_marker_class"],
+                "rows": [],
+            }
+            by_key[key] = group
+            groups.append(group)
+        group["rows"].append(row)
+    return groups
 
 
 def _paint_marker_class(article: str) -> str:
@@ -349,8 +397,8 @@ def _build_glass_rows(
         for glass_index, glass in enumerate(
             _expand_glass_for_order(item.section, item.calc), start=1
         ):
-            width = int(round(glass.width_mm))
-            height = int(round(glass.height_mm))
+            width = int(ceil(glass.width_mm))
+            height = int(ceil(glass.height_mm))
             note = glass.note
             key = (item.calc.glass_type, width, height, note)
             row = grouped.setdefault(

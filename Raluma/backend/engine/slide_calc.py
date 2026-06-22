@@ -103,6 +103,15 @@ def _is_painted(painting_type: str | None) -> bool:
     return "рал" in pt or "ral" in pt
 
 
+def _is_threshold_painted(threshold: str | None, painting_type: str | None) -> bool:
+    text = (threshold or "").lower()
+    if "анод" in text:
+        return False
+    if "окраш" in text:
+        return True
+    return _is_painted(painting_type)
+
+
 def _format_color_text(
     painting_type: str | None, ral_color: str | None, threshold: str | None
 ) -> str:
@@ -280,6 +289,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
 
     std = _is_standard_threshold(threshold)
     painted = _is_painted(painting_type)
+    threshold_painted = _is_threshold_painted(threshold, painting_type)
 
     result.color_text = _format_color_text(painting_type, ral_color, threshold)
 
@@ -428,7 +438,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         name=_threshold_profile_name(rails, std),
         length_mm=threshold_len,
         qty=Q,
-        painted=painted,
+        painted=threshold_painted,
         image=_threshold_profile_image(threshold_article),
         field_key="threshold_length",
         note="рассверлить дренажные отверстия",
@@ -917,6 +927,10 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     if total_rs112_count > 0:
         result.checklist.append("Вставить фетровое уплотнение 7×6 в RS112")
     result.checklist.append("Установить ролики")
+    if any(glass.qty > 0 and glass.width_mm > 500 for glass in result.glass):
+        result.checklist.append(
+            "Панели шире 500 мм: нужны 4-колесные ролики; временно считаются как RU005"
+        )
     if (
         lock3018 > 0
         or lock3019 > 0
@@ -957,6 +971,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
 
     std = _is_standard_threshold(threshold)
     painted = _is_painted(painting_type)
+    threshold_painted = _is_threshold_painted(threshold, painting_type)
 
     # ── Текстовые описания ────────────────────────────────────────────────────
 
@@ -1131,7 +1146,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
         name=_threshold_profile_name(rails, std),
         length_mm=threshold_len,
         qty=Q,
-        painted=painted,
+        painted=threshold_painted,
         image=_threshold_profile_image(threshold_article),
         field_key="threshold_length",
         note="рассверлить дренажные отверстия",
@@ -1591,6 +1606,10 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
         result.checklist.append("Вставить фетровое уплотнение 7×6 в RS112")
 
     result.checklist.append("Установить ролики")
+    if any(glass.qty > 0 and glass.width_mm > 500 for glass in result.glass):
+        result.checklist.append(
+            "Панели шире 500 мм: нужны 4-колесные ролики; временно считаются как RU005"
+        )
 
     if lock3018 > 0 or lock3019 > 0:
         result.checklist.append("Сделать фрезеровку под защелки")

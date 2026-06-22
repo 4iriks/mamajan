@@ -66,6 +66,11 @@
   .gp-tbl td:nth-child(2), .gp-tbl td:nth-child(3) { text-align: center; font-weight: 700; }
   .gp-img-box { width: 36mm; height: 15mm; display: flex; align-items: center; justify-content: center; }
   .gp-img { width: 35mm; height: 14mm; object-fit: contain; }
+  .gp-row { width: 100%; border: none; border-collapse: collapse; }
+  .gp-row td { border: none; padding: 0; vertical-align: top; }
+  .gp-text-cell { width: 42mm; padding-right: 2mm !important; }
+  .gp-size-cell { text-align: right; }
+  .gp-size-cell .gp-tbl { margin-left: auto; margin-top: 0; }
 
   /* ── Фурнитура ── */
   .hw-tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -495,19 +500,27 @@
           {% if gp.image %}{% set src = gp.image | img_b64 %}{% if src %}<div class="gp-img-box"><img src="{{ src }}" class="gp-img" alt="{{ gp.article }}"></div>{% endif %}{% endif %}
         </td>
         <td style="border:none; padding:0 0 0 1mm; vertical-align:top;">
-          <div class="prof-name">Стекольный профиль</div>
-          <div class="prof-line"><span class="art">{{ gp.article }}</span></div>
-          {% if gp.note %}<div class="prof-note">{{ gp.note }}</div>{% endif %}
-          <table class="gp-tbl">
-            {% for j, gpi in glass_profiles | enumerate %}
-            {% set gfk = "gp_" ~ j ~ "_len" %}
-            {% set gfkq = "gp_" ~ j ~ "_qty" %}
+          <table class="gp-row">
             <tr>
-              <td>{{ gpi.glass_positions or (calc.glass[j].position if j < calc.glass|length else '—') }}</td>
-              <td {{ ce(gfk, gpi.length_mm|int) }}>{{ ov(gfk, gpi.length_mm|int) }}</td>
-              <td {{ ce(gfkq, gpi.qty) }}>{{ ov(gfkq, gpi.qty) }}</td>
+              <td class="gp-text-cell">
+                <div class="prof-name">Стекольный профиль</div>
+                <div class="prof-line"><span class="art">{{ gp.article }}</span></div>
+                {% if gp.note %}<div class="prof-note">{{ gp.note }}</div>{% endif %}
+              </td>
+              <td class="gp-size-cell">
+                <table class="gp-tbl">
+                  {% for j, gpi in glass_profiles | enumerate %}
+                  {% set gfk = "gp_" ~ j ~ "_len" %}
+                  {% set gfkq = "gp_" ~ j ~ "_qty" %}
+                  <tr>
+                    <td>{{ gpi.glass_positions or (calc.glass[j].position if j < calc.glass|length else '—') }}</td>
+                    <td {{ ce(gfk, gpi.length_mm|int) }}>{{ ov(gfk, gpi.length_mm|int) }}</td>
+                    <td {{ ce(gfkq, gpi.qty) }}>{{ ov(gfkq, gpi.qty) }}</td>
+                  </tr>
+                  {% endfor %}
+                </table>
+              </td>
             </tr>
-            {% endfor %}
           </table>
         </td>
       </tr></table>
