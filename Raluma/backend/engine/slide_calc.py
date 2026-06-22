@@ -103,7 +103,22 @@ def _is_painted(painting_type: str | None) -> bool:
     return "рал" in pt or "ral" in pt
 
 
+def _normalize_threshold_for_painting(
+    threshold: str | None, painting_type: str | None
+) -> str:
+    value = threshold or ""
+    if _is_painted(painting_type):
+        return value
+    text = value.lower()
+    if "окраш" not in text:
+        return value
+    kind = "Накладной" if "накладной" in text else "Стандартный"
+    return f"{kind} анод"
+
+
 def _is_threshold_painted(threshold: str | None, painting_type: str | None) -> bool:
+    if not _is_painted(painting_type):
+        return False
     text = (threshold or "").lower()
     if "анод" in text:
         return False
@@ -285,6 +300,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     rails = int(_get(section, "rails", 3) or 3)
     threshold = _get(section, "threshold", "") or ""
     painting_type = _get(section, "painting_type", "") or ""
+    threshold = _normalize_threshold_for_painting(threshold, painting_type)
     ral_color = _get(section, "ral_color", "") or ""
 
     std = _is_standard_threshold(threshold)
@@ -967,6 +983,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     rails = int(section.rails or 3)
     threshold = section.threshold or ""
     painting_type = section.painting_type or ""
+    threshold = _normalize_threshold_for_painting(threshold, painting_type)
     ral_color = section.ral_color or ""
 
     std = _is_standard_threshold(threshold)

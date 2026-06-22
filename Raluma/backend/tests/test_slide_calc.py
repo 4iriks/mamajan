@@ -271,7 +271,12 @@ class TestThresholdArticles:
 
     def test_two_rows_threshold_text_uses_profile_name(self):
         r = calculate_slide(
-            _make_section(slide_rows=2, panels=4, threshold="Накладной окраш")
+            _make_section(
+                slide_rows=2,
+                panels=4,
+                threshold="Накладной окраш",
+                painting_type="RAL стандарт",
+            )
         )
         assert _find_profile(r, "RS23231")
         assert r.threshold_text == "Порог 3-рельсовый накладной окраш"
@@ -973,6 +978,19 @@ class TestPainting:
         )
         threshold = _find_profile(r, "RS2323")[0]
         assert threshold.painted is True
+
+    def test_anod_section_forces_painted_threshold_to_anod(self):
+        r = calculate_slide(
+            _make_section(
+                threshold="Накладной окраш",
+                painting_type="Анодированный",
+                ral_color="9016",
+            )
+        )
+        overlay_threshold = _find_profile(r, "RS23231")[0]
+        assert overlay_threshold.painted is False
+        assert r.threshold_text == "Порог 3-рельсовый накладной анод"
+        assert r.color_text == "Анодированный"
 
     def test_anod_profiles_not_painted(self):
         r = calculate_slide(_make_section(painting_type="Анодированный"))

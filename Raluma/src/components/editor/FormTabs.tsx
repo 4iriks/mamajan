@@ -5,8 +5,13 @@ import { Checkbox, ToggleGroup, RadioList, ProfileCheckbox, SectionDivider } fro
 
 export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
   const setPaintingType = (type: Section['paintingType']) => {
+    const threshold = s.threshold || '';
+    const thresholdKind = threshold.includes('Накладной') ? 'Накладной' : 'Стандартный';
     update({
       paintingType: type,
+      ...(type === 'Анодированный' && threshold.toLowerCase().includes('окраш')
+        ? { threshold: `${thresholdKind} анод` }
+        : {}),
       ...(type.includes('RAL') && !s.ralColor ? { ralColor: '9016 МАТОВЫЙ' } : {}),
     });
   };
@@ -88,9 +93,14 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
   const is2row = (s.slideRows ?? 1) === 2;
   const rails = s.rails ?? 3;
   const thresholdKind = (s.threshold || '').includes('Накладной') ? 'Накладной' : 'Стандартный';
-  const thresholdOptions = ['Стандартный анод', 'Накладной анод', 'Стандартный окраш', 'Накладной окраш'];
+  const thresholdOptions = s.paintingType === 'Анодированный'
+    ? ['Стандартный анод', 'Накладной анод']
+    : ['Стандартный анод', 'Накладной анод', 'Стандартный окраш', 'Накладной окраш'];
+  const normalizedAnodThreshold = `${thresholdKind} анод`;
   const thresholdValue = thresholdOptions.includes(s.threshold || '')
     ? s.threshold || thresholdOptions[0]
+    : s.paintingType === 'Анодированный'
+      ? normalizedAnodThreshold
     : `${thresholdKind} ${(s.threshold || '').toLowerCase().includes('анод') ? 'анод' : 'окраш'}`;
 
   // Панели: 1 ряд — 2..rails, 2 ряда — чётные от 4 до rails*2
