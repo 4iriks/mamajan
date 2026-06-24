@@ -85,18 +85,19 @@
   .hw-qty  { float: right; font-size: 10.5pt; font-weight: 900; }
   .hw-note { font-size: 7pt; font-style: italic; color: #555; margin-top: 0.1mm; font-weight: 400; }
 
-  /* ── Чеклист ── */
+  /* ── Чеклист: расчет остается в backend, вывод первой страницы отключен ── */
   .chk-cell { font-size: 7.5pt; line-height: 1.2; vertical-align: middle !important; }
   .chk-box { display: inline-block; width: 2.5mm; height: 2.5mm; border: 1px solid #000; vertical-align: middle; margin-right: 0.5mm; }
 
   /* ── Комментарии ── */
   .comments { border: 1px solid #000; border-top: none; padding: 0.8mm 1mm; min-height: 5mm; font-size: 7.5pt; white-space: pre-wrap; word-wrap: break-word; }
 
-  /* ── Страница 2: Доп. комплектующие ── */
+  /* ── Доп. комплектующие ── */
   .page-break { page-break-before: always; }
   {% if not is_pdf %}
   .page-break { border-top: 3px dashed #999; margin-top: 5mm; padding-top: 3mm; }
   {% endif %}
+  .ec-section { margin-top: 1mm; }
   .ec-tbl { width: 100%; border-collapse: collapse; }
   .ec-tbl th { background: #e0e0e0; border: 1px solid #999; padding: 0.5mm 1.5mm; font-size: 9pt; text-align: center; font-weight: 700; }
   .ec-tbl td { border: 1px solid #bbb; padding: 0.5mm 1.5mm; font-size: 9.5pt; min-height: 4mm; }
@@ -529,7 +530,7 @@
   {% endif %}
 </table>
 
-<!-- ══════ ФУРНИТУРА + ЧЕК-ЛИСТ ══════ -->
+<!-- ══════ ФУРНИТУРА ══════ -->
 {% set all_items = [] %}
 {% for h in calc.hardware %}
   {% set _ = all_items.append({'type':'hw','name':h.name,'article':h.article,'value':h.value,'unit':h.unit,'image':h.image,'idx':loop.index,'sub_items':h.sub_items}) %}
@@ -537,24 +538,25 @@
 {% for s in calc.screws %}
   {% set _ = all_items.append({'type':'screw','name':s.name,'article':s.article,'value':s.qty,'unit':'шт','image':s.image,'idx':loop.index,'sub_items':none,'note':s.note}) %}
 {% endfor %}
-{% set half = ((all_items|length) + 1) // 2 %}
-{% set col_left = all_items[:half] %}
-{% set col_right = all_items[half:] %}
-{% set max_rows = [col_left|length, col_right|length, calc.checklist|length] | max %}
+{% set col_size = ((all_items|length) + 2) // 3 %}
+{% set col_left = all_items[:col_size] %}
+{% set col_mid = all_items[col_size:col_size * 2] %}
+{% set col_right = all_items[col_size * 2:] %}
+{% set max_rows = [col_left|length, col_mid|length, col_right|length] | max %}
 
 <table class="hw-tbl">
   <tr class="bar-row">
-    <td style="width:42%;"><b>ФУРНИТУРА</b><span style="float:right;">Кол, шт</span></td>
-    <td style="width:36%;"><span style="float:right;">Кол, шт</span></td>
-    <td style="width:22%;"><b>ЧЕК-ЛИСТ</b></td>
+    <td style="width:34%;"><b>ФУРНИТУРА</b><span style="float:right;">Кол, шт</span></td>
+    <td style="width:33%;"><span style="float:right;">Кол, шт</span></td>
+    <td style="width:33%;"><span style="float:right;">Кол, шт</span></td>
   </tr>
   {% for r in range(max_rows) %}
   {% set item_l = col_left[r] if r < col_left|length else none %}
+  {% set item_m = col_mid[r] if r < col_mid|length else none %}
   {% set item_r = col_right[r] if r < col_right|length else none %}
-  {% set chk = calc.checklist[r] if r < calc.checklist|length else none %}
   <tr>
     {# ── Левая ячейка ── #}
-    <td style="width:42%;">
+    <td style="width:34%;">
       {% if item_l %}
       <table class="hw-inner"><tr>
         {% if item_l.image %}{% set src = item_l.image | img_b64 %}{% if src %}<td class="hw-img-cell"><img src="{{ src }}" class="hw-img"></td>{% endif %}{% endif %}
@@ -582,8 +584,37 @@
       {% endif %}
     </td>
 
+    {# ── Средняя ячейка ── #}
+    <td style="width:33%;">
+      {% if item_m %}
+      <table class="hw-inner"><tr>
+        {% if item_m.image %}{% set src = item_m.image | img_b64 %}{% if src %}<td class="hw-img-cell"><img src="{{ src }}" class="hw-img"></td>{% endif %}{% endif %}
+        <td>
+          <div class="hw-name">{{ item_m.name }}</div>
+          {% if item_m.sub_items %}
+            <table style="width:100%; border:none; border-collapse:collapse;">
+            {% for si in item_m.sub_items %}
+              <tr>
+                <td style="border:none; padding:0 1mm; font-size:8.5pt;">{{ si.label }}</td>
+                <td style="border:none; padding:0 1mm; font-weight:900; font-size:10pt; text-align:center;">{{ si.article }}</td>
+                <td style="border:none; padding:0 1mm; font-weight:900; font-size:11pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</td>
+              </tr>
+            {% endfor %}
+            </table>
+          {% else %}
+            {% set fk_m = ("hw_" ~ item_m.idx ~ "_val") if item_m.type == 'hw' else ("screw_" ~ item_m.idx) %}
+            {% set fv_m = item_m.value %}
+            <span class="hw-qty" {{ ce(fk_m, fv_m) }}>{{ ov(fk_m, fv_m) }}</span>
+            {% if item_m.type != 'screw' %}<div class="hw-art">{{ item_m.article }}</div>{% endif %}
+            {% if item_m.note %}<div class="hw-note">{{ item_m.note }}</div>{% endif %}
+          {% endif %}
+        </td>
+      </tr></table>
+      {% endif %}
+    </td>
+
     {# ── Правая ячейка ── #}
-    <td style="width:36%;">
+    <td style="width:33%;">
       {% if item_r %}
       <table class="hw-inner"><tr>
         {% if item_r.image %}{% set src = item_r.image | img_b64 %}{% if src %}<td class="hw-img-cell"><img src="{{ src }}" class="hw-img"></td>{% endif %}{% endif %}
@@ -610,11 +641,6 @@
       </tr></table>
       {% endif %}
     </td>
-
-    {# ── Чеклист ── #}
-    <td class="chk-cell" style="width:22%;">
-      {% if chk %}<span class="chk-box"></span>{{ chk }}{% endif %}
-    </td>
   </tr>
   {% endfor %}
 </table>
@@ -625,11 +651,11 @@
   <tr><td class="comments" {{ ce('section_comments', section.comments or '') }}>{{ ov('section_comments', section.comments or '') }}{% if section.extra_parts %}<br>Доп. комплектующие: {{ section.extra_parts }}{% endif %}&nbsp;</td></tr>
 </table>
 
-<!-- ══════ СТРАНИЦА 2: ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ ══════ -->
+<!-- ══════ ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ ══════ -->
 {% set ec_rows = section_extra_components(section, overrides) %}
 {% set has_ec = ec_rows | length > 0 %}
 {% if has_ec %}
-<div class="page-break">
+<div class="ec-section">
   <div class="bar" style="margin-bottom:0;">
     ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ - ПРОЕКТ №{{ project.number }}, {{ section.name }}
   </div>

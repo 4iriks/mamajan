@@ -428,6 +428,71 @@ class TestLocalPreview:
         assert "BOX-1" in r.text
         assert "RAL 9016" in r.text
         assert "contenteditable=\"true\" data-field=\"ec_" not in r.text
+        assert '<div class="ec-section">' in r.text
+        ec_index = r.text.index("ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ")
+        assert 'class="page-break"' not in r.text[:ec_index]
+
+    def test_local_preview_slide_sheet_uses_three_hardware_columns_without_checklist(
+        self, client
+    ):
+        r = client.post(
+            "/api/projects/local/sections/preview",
+            json={
+                "project": {"number": "LOCAL-HW", "customer": "Тест"},
+                "section": {
+                    "name": "Секция 1",
+                    "system": "СЛАЙД",
+                    "width": 3000,
+                    "height": 3000,
+                    "panels": 3,
+                    "quantity": 1,
+                    "rails": 3,
+                    "threshold": "Стандартный анод",
+                    "inter_glass_profile": "Алюминиевый RS2061",
+                    "profile_left_wall": True,
+                    "profile_right_wall": True,
+                    "profile_left_lock_bar": True,
+                    "profile_right_handle_bar": True,
+                },
+            },
+        )
+
+        assert r.status_code == 200
+        assert "ФУРНИТУРА" in r.text
+        assert "Саморез" in r.text
+        assert "ЧЕК-ЛИСТ" not in r.text
+        assert "Вставить фетровое уплотнение" not in r.text
+        assert r.text.count('style="width:33%;"') >= 2
+
+    def test_local_preview_two_row_sheet_uses_three_hardware_columns_without_checklist(
+        self, client
+    ):
+        r = client.post(
+            "/api/projects/local/sections/preview",
+            json={
+                "project": {"number": "LOCAL-HW2", "customer": "Тест"},
+                "section": {
+                    "name": "Секция 1",
+                    "system": "СЛАЙД",
+                    "width": 4000,
+                    "height": 3000,
+                    "panels": 6,
+                    "quantity": 1,
+                    "rails": 3,
+                    "slide_rows": 2,
+                    "threshold": "Стандартный анод",
+                    "inter_glass_profile": "Алюминиевый RS2061",
+                    "profile_left_wall": True,
+                    "profile_right_wall": True,
+                },
+            },
+        )
+
+        assert r.status_code == 200
+        assert "SLIDE-стандарт 2 ряда" in r.text
+        assert "ФУРНИТУРА" in r.text
+        assert "ЧЕК-ЛИСТ" not in r.text
+        assert "Установить ролики" not in r.text
 
     def test_section_extra_components_prefer_section_over_legacy_override(self):
         section = SimpleNamespace(
