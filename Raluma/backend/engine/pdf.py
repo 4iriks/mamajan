@@ -87,6 +87,55 @@ def expand_glass_widths(calc, panels: int, fallback_width: float) -> list[float]
     return [round(width, 1) for width in widths]
 
 
+def expand_glass_profile_lengths(
+    calc, panels: int, fallback_width: float
+) -> list[float]:
+    safe_panels = max(int(panels or 0), 1)
+    fallback_panel = float(fallback_width or 0) / safe_panels
+    glass_rows = getattr(calc, "glass", None) or []
+    if not glass_rows:
+        return [round(fallback_panel, 1) for _ in range(safe_panels)]
+
+    def find_length(needle: str) -> float | None:
+        for glass in glass_rows:
+            qty = float(getattr(glass, "qty", 0) or 0)
+            position = str(getattr(glass, "position", "") or "").lower()
+            if qty > 0 and needle in position:
+                length = float(getattr(glass, "glass_profile_length", 0) or 0)
+                if length > 0:
+                    return length
+        return None
+
+    edge = find_length("крайн")
+    left = find_length("лев")
+    right = find_length("прав")
+    center = find_length("централь")
+    middle = find_length("промеж") or edge or left or right or fallback_panel
+
+    if safe_panels == 1:
+        return [round(middle, 1)]
+    if center and safe_panels >= 4:
+        side_middle_count = max(safe_panels - 4, 0) // 2
+        lengths = [left or middle]
+        lengths.extend([middle] * side_middle_count)
+        lengths.extend([center, center])
+        lengths.extend([middle] * side_middle_count)
+        lengths.append(right or middle)
+        if len(lengths) < safe_panels:
+            lengths.extend([middle] * (safe_panels - len(lengths)))
+        return [round(length, 1) for length in lengths[:safe_panels]]
+
+    lengths = []
+    for index in range(safe_panels):
+        if index == 0:
+            lengths.append(left or edge or middle)
+        elif index == safe_panels - 1:
+            lengths.append(right or edge or middle)
+        else:
+            lengths.append(middle)
+    return [round(length, 1) for length in lengths]
+
+
 def profile_dimension(
     calc,
     articles: list[str],
@@ -237,6 +286,7 @@ def _get_env() -> Environment:
     env.filters["enumerate"] = enumerate
     env.filters["glass_mm"] = glass_mm
     env.globals["glass_widths"] = expand_glass_widths
+    env.globals["glass_profile_lengths"] = expand_glass_profile_lengths
     env.globals["profile_dimension"] = profile_dimension
     env.globals["display_profiles"] = display_profiles
     env.globals["section_extra_components"] = section_extra_components

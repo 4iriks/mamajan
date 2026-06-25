@@ -11,6 +11,7 @@ import pytest
 from engine.pdf import (
     _img_b64,
     display_profiles,
+    expand_glass_profile_lengths,
     expand_glass_widths,
     get_profile_asset_path,
     glass_mm,
@@ -48,6 +49,34 @@ class TestProfileAssetSafety:
 
 
 class TestProfileDisplayRows:
+    def test_expand_glass_profile_lengths_matches_physical_panels(self):
+        calc = SimpleNamespace(
+            glass=[
+                SimpleNamespace(
+                    position="Левое",
+                    qty=1,
+                    glass_profile_length=980,
+                ),
+                SimpleNamespace(
+                    position="Промежуточные",
+                    qty=2,
+                    glass_profile_length=972,
+                ),
+                SimpleNamespace(
+                    position="Правое",
+                    qty=1,
+                    glass_profile_length=981,
+                ),
+            ]
+        )
+
+        assert expand_glass_profile_lengths(calc, panels=4, fallback_width=4000) == [
+            980,
+            972,
+            972,
+            981,
+        ]
+
     def test_split_profile_parts_are_grouped_for_sheet_display(self):
         rows = display_profiles(
             [
@@ -467,6 +496,9 @@ class TestLocalPreview:
         assert "ПРОЕКТ № LOCAL-HW — Секция 1" in r.text
         assert "Нарезка профиля по ТЗ" in r.text
         assert "Примечания и особые отметки при производстве или проверке ОТК" in r.text
+        assert r.text.count('style="display:block; width:80%; margin:0 auto;"') >= 2
+        assert 'data-field="check_note_1"' in r.text
+        assert 'data-field="check_note_14"' not in r.text
         assert "КОММЕНТАРИИ К СЕКЦИИ" not in r.text
         assert "Комментарий для производства" in r.text
         assert r.text.count('style="width:33%;"') >= 2

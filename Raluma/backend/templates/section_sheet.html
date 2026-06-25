@@ -108,8 +108,8 @@
   .del-row-btn:hover { color: #f00; }
 
   /* ── Страница производственного чек-листа ── */
-  .check-page { page-break-before: always; padding-top: 5mm; }
-  .check-title { text-align: center; font-size: 16pt; font-weight: 900; margin-bottom: 8mm; }
+  .check-page { page-break-before: always; padding-top: 2mm; }
+  .check-title { text-align: center; font-size: 16pt; font-weight: 900; margin-bottom: 3mm; }
   .check-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .check-table th { border: 1px solid #000; padding: 2mm 1mm; text-align: center; font-size: 11pt; font-weight: 400; vertical-align: middle; }
   .check-table td { border: 1px solid #000; padding: 1.2mm 1mm; font-size: 9.5pt; line-height: 1.15; vertical-align: middle; }
@@ -125,12 +125,13 @@
   .responsibles-title { margin-top: 4mm; border: 1px solid #000; background: #eee; text-align: center; font-weight: 900; font-size: 10pt; padding: 0.5mm 1mm; }
   .responsibles-table { width: 100%; border-collapse: collapse; }
   .responsibles-table td { border: none; padding: 1mm 1.5mm; font-size: 10.5pt; vertical-align: top; }
-  .resp-item { display: grid; grid-template-columns: 8mm 31mm 3mm 1fr; align-items: center; gap: 0; margin-bottom: 1mm; }
-  .resp-item .resp-name { border: 1px solid #000; padding: 0.5mm 1mm; }
+  .resp-item { display: grid; grid-template-columns: 8mm 31mm 3mm 1fr; align-items: center; gap: 0; margin-bottom: 1.5mm; }
+  .resp-item .resp-name { padding: 0.5mm 1mm; }
   .resp-item .resp-line { border-bottom: 1px solid #000; height: 6mm; }
+  .check-footer { display: grid; grid-template-columns: 1fr 52mm; gap: 8mm; align-items: end; margin-top: 3mm; }
   .photo-date { margin-top: 3mm; font-size: 10.5pt; }
   .photo-date .line { display: inline-block; width: 50mm; border-bottom: 1px solid #000; height: 4mm; vertical-align: baseline; }
-  .sign-box { margin-top: 7mm; text-align: center; font-size: 10pt; }
+  .sign-box { text-align: center; font-size: 10pt; }
   .sign-line { border-bottom: 1px solid #000; height: 9mm; margin-top: 3mm; }
   .sign-caption { font-size: 7.5pt; margin-top: 1mm; }
 
@@ -173,6 +174,7 @@
       {% set riW = rfW - 2 * rpt %}
       {% set riH = rfH - 2 * rpt %}
       {% set room_panel_widths = glass_widths(calc, section.panels, section.width) %}
+      {% set room_glass_profile_lengths = glass_profile_lengths(calc, section.panels, section.width) %}
       {% set room_total_width = room_panel_widths | sum %}
       {% set is2row = (section.slide_rows or 1) == 2 %}
       {% set room_first_right = (not is2row) and (section.first_panel_inside or 'Справа') == 'Справа' %}
@@ -192,7 +194,7 @@
       {% set lockLX = rfX + 3 %}
       {% set lockRX = rfX + rfW - 3 %}
       <svg viewBox="0 0 {{ rw }} {{ rh }}"
-           xmlns="http://www.w3.org/2000/svg" style="display:block; width:100%;">
+           xmlns="http://www.w3.org/2000/svg" style="display:block; width:80%; margin:0 auto;">
         {# Frame #}
         <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rfW }}" height="{{ rfH }}" fill="none" stroke="#000" stroke-width="1.2"/>
         <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rfW }}" height="{{ rpt }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
@@ -203,6 +205,7 @@
         {% set room_ns = namespace(x=riX) %}
         {% for i in range(section.panels) %}
         {% set panel_w_mm = room_panel_widths[i] if i < room_panel_widths|length else section.width / section.panels %}
+        {% set panel_profile_mm = room_glass_profile_lengths[i] if i < room_glass_profile_lengths|length else panel_w_mm %}
         {% set rpW = riW * panel_w_mm / room_total_width if room_total_width else riW / section.panels %}
         {% set gpx = room_ns.x %}
         {% set gcx = gpx + rpW / 2 %}
@@ -221,7 +224,7 @@
         {% endif %}
         {# Panel number #}
         <text x="{{ gcx }}" y="{{ gcy - 4 }}" text-anchor="middle" font-size="7" font-family="Arial" font-weight="bold" fill="#555">{{ pnum }}</text>
-        <text x="{{ gcx }}" y="{{ riY + riH - 2 }}" text-anchor="middle" font-size="9" font-family="Arial" font-weight="bold" fill="#777">{{ panel_w_mm|glass_mm }}</text>
+        <text x="{{ gcx }}" y="{{ riY + riH - 2 }}" text-anchor="middle" font-size="9" font-family="Arial" font-weight="bold" fill="#777">{{ panel_w_mm|glass_mm }} ({{ panel_profile_mm|glass_mm }})</text>
         {# Arrow (non-deaf panels) #}
         {% if not panelDeaf %}
         {% set alen = [10, rpW * 0.35] | min %}
@@ -317,7 +320,7 @@
       {% set inter_glass_article = 'RS1006' if 'rs1006' in inter_glass_text else ('RS1004' if 'rs1004' in inter_glass_text else 'RS2061') %}
       {% set inter_glass_px = [5, profile_dimension(calc, [inter_glass_article], 'section_width_mm', 20) * rail_w / (section.width or rail_w)] | max %}
       <svg viewBox="0 0 {{ sw }} {{ sh }}"
-           xmlns="http://www.w3.org/2000/svg" style="display:block; width:100%;">
+           xmlns="http://www.w3.org/2000/svg" style="display:block; width:80%; margin:0 auto;">
 
         {# Метки #}
         <text x="{{ left_w + rail_w / 2 }}" y="9" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#666">УЛИЦА</text>
@@ -722,13 +725,7 @@
   {'num':'6', 'action':'Сборка фурнитуры по ТЗ', 'note':''},
   {'num':'6', 'action':'Сборка доп. фурнитуры по накладной', 'note':''},
   {'num':'7', 'action':'Обклейка всех профилей пленкой "Ралюма"', 'note':''},
-  {'num':'7', 'action':'Упаковка панелей в пузырьковую пленку и картон', 'note':''},
-  {'num':'', 'action':'', 'note':''},
-  {'num':'', 'action':'', 'note':''},
-  {'num':'', 'action':'', 'note':''},
-  {'num':'', 'action':'', 'note':''},
-  {'num':'', 'action':'', 'note':''},
-  {'num':'', 'action':'', 'note':''}
+  {'num':'7', 'action':'Упаковка панелей в пузырьковую пленку и картон', 'note':''}
 ] %}
 <div class="check-page">
   <div class="check-title">ПРОЕКТ № {{ project.number }} — {{ section.name }}</div>
@@ -749,7 +746,8 @@
         <td class="check-num">{{ row.num }}</td>
         <td class="check-mark"><span class="check-box"></span></td>
         <td class="check-action"><span class="check-dash">-</span>{{ row.action }}</td>
-        <td class="check-note">{{ row.note }}</td>
+        {% set note_key = 'check_note_' ~ loop.index0 %}
+        <td class="check-note" {{ ce(note_key, row.note) }}>{{ ov(note_key, row.note) }}</td>
         <td class="check-otk"><span class="check-dash">-</span><span class="check-box"></span></td>
       </tr>
       {% endfor %}
@@ -762,31 +760,33 @@
   <div class="responsibles-title">Ответственные за заказ на производстве</div>
   <table class="responsibles-table">
     <tr>
-      <td style="width:52%;">
+      <td style="width:58%;">
         <div class="resp-item"><span>1</span><span class="resp-name">Нарезка</span><span>-</span><span class="resp-line"></span></div>
         <div class="resp-item"><span>2</span><span class="resp-name">Поклейка</span><span>-</span><span class="resp-line"></span></div>
         <div class="resp-item"><span>3</span><span class="resp-name">Упаковка</span><span>-</span><span class="resp-line"></span></div>
         <div class="resp-item"><span>4</span><span class="resp-name">Сборка</span><span>-</span><span class="resp-line"></span></div>
       </td>
-      <td style="width:30%;">
+      <td style="width:42%;">
         <div class="resp-item"><span>5</span><span class="resp-name">Поклейка</span><span>-</span><span class="resp-line"></span></div>
         <div class="resp-item"><span>6</span><span class="resp-name">Комплектация</span><span>-</span><span class="resp-line"></span></div>
         <div class="resp-item"><span>7</span><span class="resp-name">Упаковка</span><span>-</span><span class="resp-line"></span></div>
         <div class="resp-item"><span>8</span><span class="resp-name">&nbsp;</span><span>-</span><span class="resp-line"></span></div>
       </td>
-      <td style="width:18%;">
-        <div class="sign-box">
-          <div>Ответственный</div>
-          <div class="sign-line"></div>
-          <div class="sign-caption">подпись</div>
-          <div class="sign-line"></div>
-          <div class="sign-caption">расшифровка</div>
-        </div>
-      </td>
     </tr>
   </table>
-  <div class="photo-date">Дата фото профиля и панелей&nbsp;&nbsp;"____"&nbsp;&nbsp;______________&nbsp;&nbsp;202___ г.</div>
-  <div class="photo-date">Дата фото фурнитуры&nbsp;&nbsp;"____"&nbsp;&nbsp;______________&nbsp;&nbsp;202___ г.</div>
+  <div class="check-footer">
+    <div>
+      <div class="photo-date">Дата фото профиля и панелей&nbsp;&nbsp;"____"&nbsp;&nbsp;______________&nbsp;&nbsp;202___ г.</div>
+      <div class="photo-date">Дата фото фурнитуры&nbsp;&nbsp;"____"&nbsp;&nbsp;______________&nbsp;&nbsp;202___ г.</div>
+    </div>
+    <div class="sign-box">
+      <div>Ответственный</div>
+      <div class="sign-line"></div>
+      <div class="sign-caption">подпись</div>
+      <div class="sign-line"></div>
+      <div class="sign-caption">расшифровка</div>
+    </div>
+  </div>
 </div>
 
 {% if not is_pdf %}
