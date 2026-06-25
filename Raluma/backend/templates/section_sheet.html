@@ -13,6 +13,10 @@
     background: #fff;
     width: 206mm;
   }
+  {% if not is_pdf %}
+  html { background: #f3f4f6; }
+  body { margin: 0 auto; }
+  {% endif %}
   table { border-collapse: collapse; width: 100%; }
   td, th { vertical-align: top; padding: 0.35mm 0.7mm; }
   .cf::after { content: ''; display: block; clear: both; }
@@ -109,6 +113,13 @@
 
   /* ── Страница производственного чек-листа ── */
   .check-page { page-break-before: always; padding-top: 2mm; }
+  {% if not is_pdf %}
+  .check-page {
+    border-top: 4px dashed rgba(120, 120, 120, 0.45);
+    margin-top: 6mm;
+    padding-top: 5mm;
+  }
+  {% endif %}
   .check-title { text-align: center; font-size: 16pt; font-weight: 900; margin-bottom: 3mm; }
   .check-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .check-table th { border: 1px solid #000; padding: 2mm 1mm; text-align: center; font-size: 11pt; font-weight: 400; vertical-align: middle; }
