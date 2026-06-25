@@ -65,6 +65,27 @@ function findProfileDimension(
   return typeof value === 'number' && value > 0 ? value : fallback;
 }
 
+type SideAssemblyVariant = 'lock-handle' | 'p-handle' | 'p-bubble';
+
+function sideAssemblyBaseWidth(variant: SideAssemblyVariant | null) {
+  if (variant === 'lock-handle') return 100;
+  if (variant === 'p-handle') return 82;
+  if (variant === 'p-bubble') return 56;
+  return 0;
+}
+
+function sideAssemblyVariant(
+  lockBar: boolean,
+  pBar: boolean,
+  handleBar: boolean,
+  bubble: boolean,
+): SideAssemblyVariant | null {
+  if (lockBar && handleBar) return 'lock-handle';
+  if (pBar && handleBar) return 'p-handle';
+  if (pBar && bubble) return 'p-bubble';
+  return null;
+}
+
 export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: SlideCalcPreview | null }) {
   const {
     panels, rails = 3, firstPanelInside = 'Справа', unusedTrack,
@@ -76,8 +97,8 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
   const rowH   = 34;
   const topPad = 28;
   const botPad = 42;
-  const leftW  = 58;
-  const rightW = 58;
+  const leftW  = 118;
+  const rightW = 118;
   const railAreaW = 380;
   const svgW = leftW + railAreaW + rightW;
   const svgH = topPad + railCount * rowH + botPad;
@@ -110,11 +131,6 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
 
   const scaleBaseMm = Math.max(sectionWidth || panelWidthsMm.reduce((sum, width) => sum + width, 0), 1);
   const mmToPx = (mm: number, minPx = 0) => Math.max(minPx, (mm / scaleBaseMm) * railAreaW);
-  const wallProfileMm = findProfileDimension(calc, rails === 5 ? ['RS2335'] : ['RS2333'], 'section_height_mm', 16);
-  const wallProfilePx = mmToPx(wallProfileMm, 5);
-  const sideTopY = topPad - 4;
-  const sideBottomY = topPad + railCount * rowH + 4;
-  const sideHeight = sideBottomY - sideTopY;
   const interGlassText = (section.interGlassProfile ?? '').toLowerCase();
   const hasInterGlassProfile = Boolean(interGlassText) && !interGlassText.includes('без');
   const interGlassArticle = interGlassText.includes('rs1006')
@@ -123,6 +139,24 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
       ? 'RS1004'
       : 'RS2061';
   const interGlassPx = mmToPx(findProfileDimension(calc, [interGlassArticle], 'section_width_mm', 20), 6);
+  const leftSideVariant = sideAssemblyVariant(
+    section.profileLeftLockBar,
+    section.profileLeftPBar,
+    section.profileLeftHandleBar,
+    section.profileLeftBubble,
+  );
+  const rightSideVariant = sideAssemblyVariant(
+    section.profileRightLockBar,
+    section.profileRightPBar,
+    section.profileRightHandleBar,
+    section.profileRightBubble,
+  );
+  const sideAssemblyScale = 0.9;
+  const sideAssemblyOverlap = 16;
+  const leftAssemblyVisualWidth = sideAssemblyBaseWidth(leftSideVariant) * sideAssemblyScale;
+  const rightAssemblyVisualWidth = sideAssemblyBaseWidth(rightSideVariant) * sideAssemblyScale;
+  const schemeLeftX = leftSideVariant ? leftW - leftAssemblyVisualWidth + sideAssemblyOverlap - 4 : leftW;
+  const schemeRightX = rightSideVariant ? leftW + railAreaW + rightAssemblyVisualWidth - sideAssemblyOverlap + 4 : leftW + railAreaW;
 
   const renderInterGlassProfile = (x: number, y: number, index: number, dir: number) => {
     const h = 20;
@@ -156,6 +190,71 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
     );
   };
 
+  const renderSideAssembly = (
+    side: 'left' | 'right',
+    variant: SideAssemblyVariant | null,
+    _hasWall: boolean,
+    railIndex: number,
+  ) => {
+    if (!variant) return null;
+
+    const cy = topPad + railIndex * rowH + rowH / 2;
+    const visualWidth = sideAssemblyBaseWidth(variant) * sideAssemblyScale;
+    const x = side === 'left'
+      ? leftW - visualWidth + sideAssemblyOverlap
+      : leftW + railAreaW + visualWidth - sideAssemblyOverlap;
+    const transform = side === 'right'
+      ? `translate(${x} ${cy}) scale(-${sideAssemblyScale} ${sideAssemblyScale})`
+      : `translate(${x} ${cy}) scale(${sideAssemblyScale})`;
+    const stroke = 'var(--theme-accent)';
+    const profileFill = 'var(--theme-page)';
+
+    const renderHandleProfile = (offsetX: number) => (
+      <g>
+        <line x1={offsetX + 12} y1={-22} x2={offsetX + 12} y2={22} stroke={stroke} strokeWidth="2" strokeOpacity="0.72" />
+        <line x1={offsetX + 5} y1={-22} x2={offsetX + 19} y2={-22} stroke={stroke} strokeWidth="2" strokeOpacity="0.72" strokeLinecap="round" />
+        <line x1={offsetX + 5} y1={22} x2={offsetX + 19} y2={22} stroke={stroke} strokeWidth="2" strokeOpacity="0.72" strokeLinecap="round" />
+        <line x1={offsetX + 2} y1={-4} x2={offsetX + 34} y2={-4} stroke={stroke} strokeWidth="1.8" strokeOpacity="0.56" />
+        <line x1={offsetX + 2} y1={4} x2={offsetX + 34} y2={4} stroke={stroke} strokeWidth="1.8" strokeOpacity="0.56" />
+      </g>
+    );
+
+    if (variant === 'lock-handle') {
+      return (
+        <g key={`${side}-side-assembly`} transform={transform} data-side-assembly={variant}>
+          <rect x={1} y={-12} width={32} height={24} fill={profileFill} fillOpacity="0.68" stroke={stroke} strokeWidth="1.7" strokeOpacity="0.74" />
+          <line x1={3} y1={-8} x2={8} y2={-8} stroke={stroke} strokeWidth="1" strokeOpacity="0.38" />
+          <line x1={3} y1={8} x2={8} y2={8} stroke={stroke} strokeWidth="1" strokeOpacity="0.38" />
+          <path d="M 33 -10 H 55 V -4 H 43 V 4 H 55 V 10 H 33 Z" fill={profileFill} fillOpacity="0.72" stroke={stroke} strokeWidth="1.7" strokeOpacity="0.74" strokeLinejoin="round" />
+          <path d="M 42 -7 C 35 -3 35 3 42 7" fill="none" stroke={stroke} strokeWidth="1.45" strokeOpacity="0.58" strokeLinecap="round" />
+          <path d="M 53 -5 H 69 M 53 5 H 69 M 61 -5 V 5" fill="none" stroke={stroke} strokeWidth="1.35" strokeOpacity="0.62" strokeLinecap="round" />
+          <path d="M 69 -5 H 84 V -1 H 76 V 1 H 84 V 5 H 69" fill="none" stroke={stroke} strokeWidth="1.45" strokeOpacity="0.74" strokeLinejoin="round" />
+          {renderHandleProfile(66)}
+        </g>
+      );
+    }
+
+    if (variant === 'p-handle') {
+      return (
+        <g key={`${side}-side-assembly`} transform={transform} data-side-assembly={variant}>
+          <path d="M 2 -13 H 34 V -7 H 13 V 7 H 34 V 13 H 2 Z" fill={profileFill} fillOpacity="0.72" stroke={stroke} strokeWidth="1.7" strokeOpacity="0.74" strokeLinejoin="round" />
+          <path d="M 8 -8 C 17 -4 17 4 8 8" fill="none" stroke={stroke} strokeWidth="1.35" strokeOpacity="0.58" strokeLinecap="round" />
+          <path d="M 33 -5 H 50 M 33 5 H 50 M 42 -5 V 5" fill="none" stroke={stroke} strokeWidth="1.35" strokeOpacity="0.62" strokeLinecap="round" />
+          {renderHandleProfile(47)}
+        </g>
+      );
+    }
+
+    return (
+      <g key={`${side}-side-assembly`} transform={transform} data-side-assembly={variant}>
+        <path d="M 2 -13 H 34 V -8 H 12 V 8 H 34 V 13 H 2 Z" fill={profileFill} fillOpacity="0.72" stroke={stroke} strokeWidth="1.7" strokeOpacity="0.74" strokeLinejoin="round" />
+        <path d="M 16 -8 C 4 -5 4 5 16 8" fill="none" stroke={stroke} strokeWidth="1.7" strokeOpacity="0.62" strokeLinecap="round" />
+        <line x1={18} y1={-7} x2={18} y2={7} stroke={stroke} strokeWidth="1.1" strokeOpacity="0.4" />
+        <path d="M 31 -5 H 54 M 31 5 H 54" fill="none" stroke={stroke} strokeWidth="1.35" strokeOpacity="0.62" strokeLinecap="round" />
+      </g>
+    );
+  };
+
   return (
     <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} className="w-full drop-shadow-[0_0_15px_rgba(79,209,197,0.08)]" style={{ maxWidth: svgW }}>
 
@@ -164,45 +263,12 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
       <text x={leftW + railAreaW / 2} y={topPad + railCount * rowH + 14} textAnchor="middle" fontSize="8" fill="var(--theme-accent)" fillOpacity="0.45" fontWeight="bold" letterSpacing="1.5">ПОМЕЩЕНИЕ</text>
 
       {/* Boundary lines (top + bottom of opening) */}
-      <line x1={leftW} y1={topPad - 2} x2={leftW + railAreaW} y2={topPad - 2} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.5" />
-      <line x1={leftW} y1={topPad + railCount * rowH + 2} x2={leftW + railAreaW} y2={topPad + railCount * rowH + 2} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.5" />
+      <line x1={schemeLeftX} y1={topPad - 2} x2={schemeRightX} y2={topPad - 2} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.5" />
+      <line x1={schemeLeftX} y1={topPad + railCount * rowH + 2} x2={schemeRightX} y2={topPad + railCount * rowH + 2} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.5" />
 
       {/* Vertical boundary lines */}
-      <line x1={leftW} y1={topPad - 4} x2={leftW} y2={topPad + railCount * rowH + 4} stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.5" />
-      <line x1={leftW + railAreaW} y1={topPad - 4} x2={leftW + railAreaW} y2={topPad + railCount * rowH + 4} stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.5" />
-
-      {section.profileLeftWall && (
-        <g>
-          <rect
-            x={leftW}
-            y={sideTopY}
-            width={wallProfilePx}
-            height={sideHeight}
-            fill="var(--theme-accent)"
-            fillOpacity="0.12"
-            stroke="var(--theme-accent)"
-            strokeWidth="0.9"
-            strokeOpacity="0.5"
-          />
-          <text x={leftW + wallProfilePx / 2} y={sideTopY + 12} textAnchor="middle" fontSize="7" fill="var(--theme-accent)" fillOpacity="0.65" fontWeight="bold">16</text>
-        </g>
-      )}
-      {section.profileRightWall && (
-        <g>
-          <rect
-            x={leftW + railAreaW - wallProfilePx}
-            y={sideTopY}
-            width={wallProfilePx}
-            height={sideHeight}
-            fill="var(--theme-accent)"
-            fillOpacity="0.12"
-            stroke="var(--theme-accent)"
-            strokeWidth="0.9"
-            strokeOpacity="0.5"
-          />
-          <text x={leftW + railAreaW - wallProfilePx / 2} y={sideTopY + 12} textAnchor="middle" fontSize="7" fill="var(--theme-accent)" fillOpacity="0.65" fontWeight="bold">16</text>
-        </g>
-      )}
+      <line x1={schemeLeftX} y1={topPad - 4} x2={schemeLeftX} y2={topPad + railCount * rowH + 4} stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.5" />
+      <line x1={schemeRightX} y1={topPad - 4} x2={schemeRightX} y2={topPad + railCount * rowH + 4} stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.5" />
 
       {/* Rails */}
       {Array.from({ length: railCount }, (_, ri) => {
@@ -210,7 +276,7 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
         const isUnused = unusedRailSet.has(ri);
         return (
           <line key={ri}
-            x1={leftW} y1={cy} x2={leftW + railAreaW} y2={cy}
+            x1={schemeLeftX} y1={cy} x2={schemeRightX} y2={cy}
             stroke={isUnused ? 'var(--theme-tint)' : 'var(--theme-accent)'}
             strokeWidth={isUnused ? 1 : 1.5}
             strokeOpacity={isUnused ? 0.22 : 0.55}
@@ -251,6 +317,9 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
         const dir = is2row ? (pi < panels / 2 ? 1 : -1) : (firstPanelInside === 'Справа' ? 1 : -1);
         return renderInterGlassProfile(layout.x + layout.width, cy, pi, dir);
       })}
+
+      {renderSideAssembly('left', leftSideVariant, section.profileLeftWall, panelRailMap[0] ?? 0)}
+      {renderSideAssembly('right', rightSideVariant, section.profileRightWall, panelRailMap[panels - 1] ?? railCount - 1)}
 
       {/* Direction arrow */}
       {(() => {

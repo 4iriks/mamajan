@@ -24,15 +24,15 @@ const section: Section = {
   floorLatchesLeft: false,
   floorLatchesRight: false,
   profileLeftWall: true,
-  profileLeftLockBar: false,
+  profileLeftLockBar: true,
   profileLeftPBar: false,
   profileLeftHandleBar: true,
   profileLeftBubble: false,
   profileRightWall: true,
-  profileRightLockBar: true,
-  profileRightPBar: false,
+  profileRightLockBar: false,
+  profileRightPBar: true,
   profileRightHandleBar: false,
-  profileRightBubble: false,
+  profileRightBubble: true,
   handleLeft: 'Без',
   handleRight: 'Без',
   lockLeft: 'Без',
@@ -66,7 +66,9 @@ assert(renderedWidths.some(width => width === 175), 'room view must keep 2000x24
 assert(!renderedWidths.some(width => width === 400), 'room view must not use the old fixed 400px frame width');
 assert.match(roomMarkup, />53</, 'room view must render top profile size from catalog metadata');
 assert.match(roomMarkup, />23</, 'room view must render threshold size from catalog metadata');
-assert.match(schemeMarkup, />16</, 'top scheme must show wall profile thickness');
+assert.doesNotMatch(schemeMarkup, />16</, 'top scheme must not render a separate wall profile marker');
+assert.match(schemeMarkup, /data-side-assembly="lock-handle"/, 'top scheme must render the left side assembly');
+assert.match(schemeMarkup, /data-side-assembly="p-bubble"/, 'top scheme must render the right side assembly');
 assert.doesNotMatch(schemeMarkup, /RS112|RS2081/, 'top scheme must not render old side profile stack');
 assert.match(schemeMarkup, /stroke-linecap="round"/, 'top scheme must render the mirrored inter-glass profile path');
 

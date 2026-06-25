@@ -223,8 +223,8 @@ class TestPreview:
         assert r.status_code == 200
         assert "text/html" in r.headers["content-type"]
         assert "contenteditable" in r.text
-        assert 'data-profile="RS2333-left"' in r.text
-        assert 'data-profile="RS2333-right"' in r.text
+        assert 'data-profile-image="RS2333-left"' not in r.text
+        assert 'data-profile-image="RS2333-right"' not in r.text
 
     def test_preview_no_token(self, client, project, admin_headers):
         section = _create_slide_section(client, admin_headers, project["id"])
@@ -353,6 +353,8 @@ class TestLocalPreview:
                     "profile_right_wall": True,
                     "profile_left_lock_bar": True,
                     "profile_left_handle_bar": True,
+                    "profile_right_p_bar": True,
+                    "profile_right_bubble": True,
                 },
             },
         )
@@ -368,8 +370,10 @@ class TestLocalPreview:
         assert 'data-profile="left-side-stack"' not in r.text
         assert 'data-profile-image="RS2081-left"' not in r.text
         assert 'data-profile-image="RS112-left"' not in r.text
-        assert 'data-profile="RS2333-left" data-profile-image="RS2333-left"' in r.text
-        assert 'data-profile="RS2333-right" data-profile-image="RS2333-right"' in r.text
+        assert 'data-profile-image="RS2333-left"' not in r.text
+        assert 'data-profile-image="RS2333-right"' not in r.text
+        assert 'data-side-assembly="lock-handle"' in r.text
+        assert 'data-side-assembly="p-bubble"' in r.text
 
     def test_local_preview_inter_glass_mirrors_for_first_panel_right(self, client):
         r = client.post(

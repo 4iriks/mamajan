@@ -309,8 +309,8 @@
       {% set row_h = 18 %}
       {% set top_pad = 14 %}
       {% set bot_pad = 26 %}
-      {% set left_w = 50 %}
-      {% set right_w = 50 %}
+      {% set left_w = 70 %}
+      {% set right_w = 70 %}
       {% set rail_w = 300 %}
       {% set sw = left_w + rail_w + right_w %}
       {% set sh = top_pad + rails * row_h + bot_pad %}
@@ -318,13 +318,16 @@
       {% set first_right = (not is2row) and (section.first_panel_inside or 'Справа') == 'Справа' %}
       {% set top_panel_widths = glass_widths(calc, P, section.width) %}
       {% set top_total_width = top_panel_widths | sum %}
-      {% set wall_article = 'RS2335' if rails == 5 else 'RS2333' %}
-      {% set wall_profile_mm = profile_dimension(calc, [wall_article], 'section_height_mm', 16) %}
-      {% set wall_px = [3, wall_profile_mm * rail_w / (section.width or rail_w)] | max %}
-      {% set wall_img_src = (wall_article ~ '.png') | img_b64 %}
-      {% set wall_img_w = 18 %}
-      {% set wall_img_y = top_pad - 6 %}
-      {% set wall_img_h = rails * row_h + 12 %}
+      {% set side_scale = 0.55 %}
+      {% set side_overlap = 9 %}
+      {% set left_side_variant = 'lock-handle' if section.profile_left_lock_bar and section.profile_left_handle_bar else ('p-handle' if section.profile_left_p_bar and section.profile_left_handle_bar else ('p-bubble' if section.profile_left_p_bar and section.profile_left_bubble else '')) %}
+      {% set right_side_variant = 'lock-handle' if section.profile_right_lock_bar and section.profile_right_handle_bar else ('p-handle' if section.profile_right_p_bar and section.profile_right_handle_bar else ('p-bubble' if section.profile_right_p_bar and section.profile_right_bubble else '')) %}
+      {% set left_side_base_w = 100 if left_side_variant == 'lock-handle' else (82 if left_side_variant == 'p-handle' else (56 if left_side_variant == 'p-bubble' else 0)) %}
+      {% set right_side_base_w = 100 if right_side_variant == 'lock-handle' else (82 if right_side_variant == 'p-handle' else (56 if right_side_variant == 'p-bubble' else 0)) %}
+      {% set left_side_visual_w = left_side_base_w * side_scale %}
+      {% set right_side_visual_w = right_side_base_w * side_scale %}
+      {% set scheme_left_x = left_w - left_side_visual_w + side_overlap - 2 if left_side_variant else left_w %}
+      {% set scheme_right_x = left_w + rail_w + right_side_visual_w - side_overlap + 2 if right_side_variant else left_w + rail_w %}
       {% set inter_glass_text = (section.inter_glass_profile or '')|lower %}
       {% set has_inter_glass = inter_glass_text and ('без' not in inter_glass_text) %}
       {% set inter_glass_article = 'RS1006' if 'rs1006' in inter_glass_text else ('RS1004' if 'rs1004' in inter_glass_text else 'RS2061') %}
@@ -337,41 +340,17 @@
         <text x="{{ left_w + rail_w / 2 }}" y="{{ top_pad + rails * row_h + 10 }}" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#666">ПОМЕЩЕНИЕ</text>
 
         {# Горизонтальные границы (верх / низ) #}
-        <line x1="{{ left_w }}" y1="{{ top_pad - 2 }}" x2="{{ left_w + rail_w }}" y2="{{ top_pad - 2 }}" stroke="#000" stroke-width="1"/>
-        <line x1="{{ left_w }}" y1="{{ top_pad + rails * row_h + 2 }}" x2="{{ left_w + rail_w }}" y2="{{ top_pad + rails * row_h + 2 }}" stroke="#000" stroke-width="1"/>
+        <line x1="{{ scheme_left_x }}" y1="{{ top_pad - 2 }}" x2="{{ scheme_right_x }}" y2="{{ top_pad - 2 }}" stroke="#000" stroke-width="1"/>
+        <line x1="{{ scheme_left_x }}" y1="{{ top_pad + rails * row_h + 2 }}" x2="{{ scheme_right_x }}" y2="{{ top_pad + rails * row_h + 2 }}" stroke="#000" stroke-width="1"/>
 
         {# Вертикальные ограничители #}
-        <line x1="{{ left_w }}" y1="{{ top_pad - 4 }}" x2="{{ left_w }}" y2="{{ top_pad + rails * row_h + 4 }}" stroke="#000" stroke-width="1.5"/>
-        <line x1="{{ left_w + rail_w }}" y1="{{ top_pad - 4 }}" x2="{{ left_w + rail_w }}" y2="{{ top_pad + rails * row_h + 4 }}" stroke="#000" stroke-width="1.5"/>
-
-        {# Пристеночный профиль #}
-        {% if section.profile_left_wall %}
-        {% set left_wall_x = left_w - wall_img_w %}
-        {% if wall_img_src %}
-        <g data-profile="{{ wall_article }}-left" data-profile-image="{{ wall_article }}-left" transform="translate({{ left_wall_x }} {{ wall_img_y + wall_img_h }}) rotate(-90)">
-          <image href="{{ wall_img_src }}" x="0" y="0" width="{{ wall_img_h }}" height="{{ wall_img_w }}" preserveAspectRatio="none"/>
-        </g>
-        {% else %}
-        <rect data-profile="{{ wall_article }}-left" x="{{ left_wall_x }}" y="{{ wall_img_y }}" width="{{ wall_img_w }}" height="{{ wall_img_h }}" fill="#e8e8e8" stroke="#666" stroke-width="0.3"/>
-        {% endif %}
-        <text x="{{ left_wall_x + wall_img_w / 2 }}" y="{{ top_pad + 6 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#666">{{ wall_profile_mm|round|int }}</text>
-        {% endif %}
-        {% if section.profile_right_wall %}
-        {% set right_wall_x = left_w + rail_w %}
-        {% if wall_img_src %}
-        <g data-profile="{{ wall_article }}-right" data-profile-image="{{ wall_article }}-right" transform="translate({{ right_wall_x + wall_img_w }} {{ wall_img_y }}) rotate(90)">
-          <image href="{{ wall_img_src }}" x="0" y="0" width="{{ wall_img_h }}" height="{{ wall_img_w }}" preserveAspectRatio="none"/>
-        </g>
-        {% else %}
-        <rect data-profile="{{ wall_article }}-right" x="{{ right_wall_x }}" y="{{ wall_img_y }}" width="{{ wall_img_w }}" height="{{ wall_img_h }}" fill="#e8e8e8" stroke="#666" stroke-width="0.3"/>
-        {% endif %}
-        <text x="{{ right_wall_x + wall_img_w / 2 }}" y="{{ top_pad + 6 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#666">{{ wall_profile_mm|round|int }}</text>
-        {% endif %}
+        <line x1="{{ scheme_left_x }}" y1="{{ top_pad - 4 }}" x2="{{ scheme_left_x }}" y2="{{ top_pad + rails * row_h + 4 }}" stroke="#000" stroke-width="1.5"/>
+        <line x1="{{ scheme_right_x }}" y1="{{ top_pad - 4 }}" x2="{{ scheme_right_x }}" y2="{{ top_pad + rails * row_h + 4 }}" stroke="#000" stroke-width="1.5"/>
 
         {# Рельсы #}
         {% for ri in range(rails) %}
         {% set ry = top_pad + ri * row_h + row_h / 2 %}
-        <line x1="{{ left_w }}" y1="{{ ry }}" x2="{{ left_w + rail_w }}" y2="{{ ry }}" stroke="#999" stroke-width="0.5"/>
+        <line x1="{{ scheme_left_x }}" y1="{{ ry }}" x2="{{ scheme_right_x }}" y2="{{ ry }}" stroke="#999" stroke-width="0.5"/>
         {% endfor %}
 
         {# Панели стекла #}
@@ -405,6 +384,77 @@
         {% endif %}
         {% set top_ns.x = top_ns.x + panel_w %}
         {% endfor %}
+
+        {% if left_side_variant %}
+        {% set left_side_rail = calc.panel_rails[0] if calc.panel_rails|length > 0 else 0 %}
+        {% set left_side_cy = top_pad + left_side_rail * row_h + row_h / 2 %}
+        {% set left_side_x = left_w - left_side_visual_w + side_overlap %}
+        <g transform="translate({{ left_side_x }} {{ left_side_cy }}) scale({{ side_scale }})" data-side-assembly="{{ left_side_variant }}">
+          {% if left_side_variant == 'lock-handle' %}
+          <rect x="1" y="-12" width="32" height="24" fill="#fff" fill-opacity="0.92" stroke="#333" stroke-width="1.7"/>
+          <line x1="3" y1="-8" x2="8" y2="-8" stroke="#333" stroke-width="1" stroke-opacity="0.5"/>
+          <line x1="3" y1="8" x2="8" y2="8" stroke="#333" stroke-width="1" stroke-opacity="0.5"/>
+          <path d="M 33 -10 H 55 V -4 H 43 V 4 H 55 V 10 H 33 Z" fill="#fff" fill-opacity="0.92" stroke="#333" stroke-width="1.7" stroke-linejoin="round"/>
+          <path d="M 42 -7 C 35 -3 35 3 42 7" fill="none" stroke="#333" stroke-width="1.45" stroke-linecap="round"/>
+          <path d="M 53 -5 H 69 M 53 5 H 69 M 61 -5 V 5" fill="none" stroke="#333" stroke-width="1.35" stroke-linecap="round"/>
+          <path d="M 69 -5 H 84 V -1 H 76 V 1 H 84 V 5 H 69" fill="none" stroke="#333" stroke-width="1.45" stroke-linejoin="round"/>
+          <line x1="78" y1="-22" x2="78" y2="22" stroke="#333" stroke-width="2" stroke-opacity="0.85"/>
+          <line x1="71" y1="-22" x2="85" y2="-22" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-opacity="0.85"/>
+          <line x1="71" y1="22" x2="85" y2="22" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-opacity="0.85"/>
+          <line x1="68" y1="-4" x2="100" y2="-4" stroke="#333" stroke-width="1.8" stroke-opacity="0.7"/>
+          <line x1="68" y1="4" x2="100" y2="4" stroke="#333" stroke-width="1.8" stroke-opacity="0.7"/>
+          {% elif left_side_variant == 'p-handle' %}
+          <path d="M 2 -13 H 34 V -7 H 13 V 7 H 34 V 13 H 2 Z" fill="#fff" fill-opacity="0.92" stroke="#333" stroke-width="1.7" stroke-linejoin="round"/>
+          <path d="M 8 -8 C 17 -4 17 4 8 8" fill="none" stroke="#333" stroke-width="1.35" stroke-linecap="round"/>
+          <path d="M 33 -5 H 50 M 33 5 H 50 M 42 -5 V 5" fill="none" stroke="#333" stroke-width="1.35" stroke-linecap="round"/>
+          <line x1="59" y1="-22" x2="59" y2="22" stroke="#333" stroke-width="2" stroke-opacity="0.85"/>
+          <line x1="52" y1="-22" x2="66" y2="-22" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-opacity="0.85"/>
+          <line x1="52" y1="22" x2="66" y2="22" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-opacity="0.85"/>
+          <line x1="49" y1="-4" x2="81" y2="-4" stroke="#333" stroke-width="1.8" stroke-opacity="0.7"/>
+          <line x1="49" y1="4" x2="81" y2="4" stroke="#333" stroke-width="1.8" stroke-opacity="0.7"/>
+          {% else %}
+          <path d="M 2 -13 H 34 V -8 H 12 V 8 H 34 V 13 H 2 Z" fill="#fff" fill-opacity="0.92" stroke="#333" stroke-width="1.7" stroke-linejoin="round"/>
+          <path d="M 16 -8 C 4 -5 4 5 16 8" fill="none" stroke="#333" stroke-width="1.7" stroke-linecap="round"/>
+          <line x1="18" y1="-7" x2="18" y2="7" stroke="#333" stroke-width="1.1" stroke-opacity="0.6"/>
+          <path d="M 31 -5 H 54 M 31 5 H 54" fill="none" stroke="#333" stroke-width="1.35" stroke-linecap="round"/>
+          {% endif %}
+        </g>
+        {% endif %}
+        {% if right_side_variant %}
+        {% set right_side_rail = calc.panel_rails[P - 1] if calc.panel_rails|length >= P else rails - 1 %}
+        {% set right_side_cy = top_pad + right_side_rail * row_h + row_h / 2 %}
+        {% set right_side_x = left_w + rail_w + right_side_visual_w - side_overlap %}
+        <g transform="translate({{ right_side_x }} {{ right_side_cy }}) scale(-{{ side_scale }} {{ side_scale }})" data-side-assembly="{{ right_side_variant }}">
+          {% if right_side_variant == 'lock-handle' %}
+          <rect x="1" y="-12" width="32" height="24" fill="#fff" fill-opacity="0.92" stroke="#333" stroke-width="1.7"/>
+          <line x1="3" y1="-8" x2="8" y2="-8" stroke="#333" stroke-width="1" stroke-opacity="0.5"/>
+          <line x1="3" y1="8" x2="8" y2="8" stroke="#333" stroke-width="1" stroke-opacity="0.5"/>
+          <path d="M 33 -10 H 55 V -4 H 43 V 4 H 55 V 10 H 33 Z" fill="#fff" fill-opacity="0.92" stroke="#333" stroke-width="1.7" stroke-linejoin="round"/>
+          <path d="M 42 -7 C 35 -3 35 3 42 7" fill="none" stroke="#333" stroke-width="1.45" stroke-linecap="round"/>
+          <path d="M 53 -5 H 69 M 53 5 H 69 M 61 -5 V 5" fill="none" stroke="#333" stroke-width="1.35" stroke-linecap="round"/>
+          <path d="M 69 -5 H 84 V -1 H 76 V 1 H 84 V 5 H 69" fill="none" stroke="#333" stroke-width="1.45" stroke-linejoin="round"/>
+          <line x1="78" y1="-22" x2="78" y2="22" stroke="#333" stroke-width="2" stroke-opacity="0.85"/>
+          <line x1="71" y1="-22" x2="85" y2="-22" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-opacity="0.85"/>
+          <line x1="71" y1="22" x2="85" y2="22" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-opacity="0.85"/>
+          <line x1="68" y1="-4" x2="100" y2="-4" stroke="#333" stroke-width="1.8" stroke-opacity="0.7"/>
+          <line x1="68" y1="4" x2="100" y2="4" stroke="#333" stroke-width="1.8" stroke-opacity="0.7"/>
+          {% elif right_side_variant == 'p-handle' %}
+          <path d="M 2 -13 H 34 V -7 H 13 V 7 H 34 V 13 H 2 Z" fill="#fff" fill-opacity="0.92" stroke="#333" stroke-width="1.7" stroke-linejoin="round"/>
+          <path d="M 8 -8 C 17 -4 17 4 8 8" fill="none" stroke="#333" stroke-width="1.35" stroke-linecap="round"/>
+          <path d="M 33 -5 H 50 M 33 5 H 50 M 42 -5 V 5" fill="none" stroke="#333" stroke-width="1.35" stroke-linecap="round"/>
+          <line x1="59" y1="-22" x2="59" y2="22" stroke="#333" stroke-width="2" stroke-opacity="0.85"/>
+          <line x1="52" y1="-22" x2="66" y2="-22" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-opacity="0.85"/>
+          <line x1="52" y1="22" x2="66" y2="22" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-opacity="0.85"/>
+          <line x1="49" y1="-4" x2="81" y2="-4" stroke="#333" stroke-width="1.8" stroke-opacity="0.7"/>
+          <line x1="49" y1="4" x2="81" y2="4" stroke="#333" stroke-width="1.8" stroke-opacity="0.7"/>
+          {% else %}
+          <path d="M 2 -13 H 34 V -8 H 12 V 8 H 34 V 13 H 2 Z" fill="#fff" fill-opacity="0.92" stroke="#333" stroke-width="1.7" stroke-linejoin="round"/>
+          <path d="M 16 -8 C 4 -5 4 5 16 8" fill="none" stroke="#333" stroke-width="1.7" stroke-linecap="round"/>
+          <line x1="18" y1="-7" x2="18" y2="7" stroke="#333" stroke-width="1.1" stroke-opacity="0.6"/>
+          <path d="M 31 -5 H 54 M 31 5 H 54" fill="none" stroke="#333" stroke-width="1.35" stroke-linecap="round"/>
+          {% endif %}
+        </g>
+        {% endif %}
 
         {# Без боковых профилей — только вертикальные ограничители выше #}
 
