@@ -125,14 +125,14 @@
   .responsibles-title { margin-top: 4mm; border: 1px solid #000; background: #eee; text-align: center; font-weight: 900; font-size: 10pt; padding: 0.5mm 1mm; }
   .responsibles-table { width: 100%; border-collapse: collapse; }
   .responsibles-table td { border: none; padding: 1mm 1.5mm; font-size: 10.5pt; vertical-align: top; }
-  .resp-item { display: grid; grid-template-columns: 8mm 31mm 3mm 1fr; align-items: center; gap: 0; margin-bottom: 1.5mm; }
+  .resp-item { display: grid; grid-template-columns: 5mm 28mm 3mm 1fr; align-items: center; gap: 0; margin-bottom: 1.5mm; }
   .resp-item .resp-name { padding: 0.5mm 1mm; }
   .resp-item .resp-line { border-bottom: 1px solid #000; height: 6mm; }
-  .check-footer { display: grid; grid-template-columns: 1fr 52mm; gap: 8mm; align-items: end; margin-top: 3mm; }
+  .check-footer { display: grid; grid-template-columns: 1fr 62mm; gap: 12mm; align-items: end; margin-top: 3mm; }
   .photo-date { margin-top: 3mm; font-size: 10.5pt; }
   .photo-date .line { display: inline-block; width: 50mm; border-bottom: 1px solid #000; height: 4mm; vertical-align: baseline; }
-  .sign-box { text-align: center; font-size: 10pt; }
-  .sign-line { border-bottom: 1px solid #000; height: 9mm; margin-top: 3mm; }
+  .sign-box { justify-self: end; width: 56mm; margin-top: 5mm; text-align: center; font-size: 10pt; }
+  .sign-line { border-bottom: 1px solid #000; height: 10mm; margin-top: 5mm; }
   .sign-caption { font-size: 7.5pt; margin-top: 1mm; }
 
   {% if not is_pdf %}
@@ -770,7 +770,6 @@
         <div class="resp-item"><span>5</span><span class="resp-name">Поклейка</span><span>-</span><span class="resp-line"></span></div>
         <div class="resp-item"><span>6</span><span class="resp-name">Комплектация</span><span>-</span><span class="resp-line"></span></div>
         <div class="resp-item"><span>7</span><span class="resp-name">Упаковка</span><span>-</span><span class="resp-line"></span></div>
-        <div class="resp-item"><span>8</span><span class="resp-name">&nbsp;</span><span>-</span><span class="resp-line"></span></div>
       </td>
     </tr>
   </table>
