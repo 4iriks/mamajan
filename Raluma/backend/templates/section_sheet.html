@@ -320,8 +320,6 @@
       {% set top_total_width = top_panel_widths | sum %}
       {% set wall_article = 'RS2335' if rails == 5 else 'RS2333' %}
       {% set wall_profile_mm = profile_dimension(calc, [wall_article], 'section_height_mm', 16) %}
-      {% set wall_px = [3, wall_profile_mm * rail_w / (section.width or rail_w)] | max %}
-      {% set wall_img_src = (wall_article ~ '.png') | img_b64 %}
       {% set wall_img_w = 18 %}
       {% set wall_img_y = top_pad - 6 %}
       {% set wall_img_h = rails * row_h + 12 %}
@@ -347,24 +345,36 @@
         {# Пристеночный профиль #}
         {% if section.profile_left_wall %}
         {% set left_wall_x = left_w - wall_img_w %}
-        {% if wall_img_src %}
-        <g data-profile="{{ wall_article }}-left" data-profile-image="{{ wall_article }}-left" transform="translate({{ left_wall_x }} {{ wall_img_y + wall_img_h }}) rotate(-90)">
-          <image href="{{ wall_img_src }}" x="0" y="0" width="{{ wall_img_h }}" height="{{ wall_img_w }}" preserveAspectRatio="none"/>
+        <g data-profile="{{ wall_article }}-left" data-profile-image="{{ wall_article }}-left">
+          <rect x="{{ left_wall_x }}" y="{{ wall_img_y }}" width="{{ wall_img_w }}" height="{{ wall_img_h }}" fill="#f7fbfc" stroke="#222" stroke-width="0.7"/>
+          <line x1="{{ left_wall_x + wall_img_w * 0.25 }}" y1="{{ wall_img_y + 1 }}" x2="{{ left_wall_x + wall_img_w * 0.25 }}" y2="{{ wall_img_y + wall_img_h - 1 }}" stroke="#777" stroke-width="0.45"/>
+          <line x1="{{ left_wall_x + wall_img_w * 0.76 }}" y1="{{ wall_img_y + 1 }}" x2="{{ left_wall_x + wall_img_w * 0.76 }}" y2="{{ wall_img_y + wall_img_h - 1 }}" stroke="#b7b7b7" stroke-width="0.35"/>
+          {% for ri in range(1, rails) %}
+          {% set wy = wall_img_y + ri * wall_img_h / rails %}
+          <line x1="{{ left_wall_x + 0.6 }}" y1="{{ wy }}" x2="{{ left_wall_x + wall_img_w - 0.6 }}" y2="{{ wy }}" stroke="#9d9d9d" stroke-width="0.35"/>
+          {% endfor %}
+          {% for ri in range(rails) %}
+          {% set cy = wall_img_y + (ri + 0.5) * wall_img_h / rails %}
+          <path d="M {{ left_wall_x + wall_img_w * 0.28 }} {{ cy - 4 }} H {{ left_wall_x + wall_img_w * 0.70 }} V {{ cy - 1.2 }} H {{ left_wall_x + wall_img_w * 0.52 }} V {{ cy + 1.2 }} H {{ left_wall_x + wall_img_w * 0.70 }} V {{ cy + 4 }} H {{ left_wall_x + wall_img_w * 0.28 }}" fill="none" stroke="#777" stroke-width="0.45"/>
+          {% endfor %}
         </g>
-        {% else %}
-        <rect data-profile="{{ wall_article }}-left" x="{{ left_wall_x }}" y="{{ wall_img_y }}" width="{{ wall_img_w }}" height="{{ wall_img_h }}" fill="#e8e8e8" stroke="#666" stroke-width="0.3"/>
-        {% endif %}
         <text x="{{ left_wall_x + wall_img_w / 2 }}" y="{{ top_pad + 6 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#666">{{ wall_profile_mm|round|int }}</text>
         {% endif %}
         {% if section.profile_right_wall %}
         {% set right_wall_x = left_w + rail_w %}
-        {% if wall_img_src %}
-        <g data-profile="{{ wall_article }}-right" data-profile-image="{{ wall_article }}-right" transform="translate({{ right_wall_x + wall_img_w }} {{ wall_img_y }}) rotate(90)">
-          <image href="{{ wall_img_src }}" x="0" y="0" width="{{ wall_img_h }}" height="{{ wall_img_w }}" preserveAspectRatio="none"/>
+        <g data-profile="{{ wall_article }}-right" data-profile-image="{{ wall_article }}-right">
+          <rect x="{{ right_wall_x }}" y="{{ wall_img_y }}" width="{{ wall_img_w }}" height="{{ wall_img_h }}" fill="#f7fbfc" stroke="#222" stroke-width="0.7"/>
+          <line x1="{{ right_wall_x + wall_img_w * 0.75 }}" y1="{{ wall_img_y + 1 }}" x2="{{ right_wall_x + wall_img_w * 0.75 }}" y2="{{ wall_img_y + wall_img_h - 1 }}" stroke="#777" stroke-width="0.45"/>
+          <line x1="{{ right_wall_x + wall_img_w * 0.24 }}" y1="{{ wall_img_y + 1 }}" x2="{{ right_wall_x + wall_img_w * 0.24 }}" y2="{{ wall_img_y + wall_img_h - 1 }}" stroke="#b7b7b7" stroke-width="0.35"/>
+          {% for ri in range(1, rails) %}
+          {% set wy = wall_img_y + ri * wall_img_h / rails %}
+          <line x1="{{ right_wall_x + 0.6 }}" y1="{{ wy }}" x2="{{ right_wall_x + wall_img_w - 0.6 }}" y2="{{ wy }}" stroke="#9d9d9d" stroke-width="0.35"/>
+          {% endfor %}
+          {% for ri in range(rails) %}
+          {% set cy = wall_img_y + (ri + 0.5) * wall_img_h / rails %}
+          <path d="M {{ right_wall_x + wall_img_w * 0.72 }} {{ cy - 4 }} H {{ right_wall_x + wall_img_w * 0.30 }} V {{ cy - 1.2 }} H {{ right_wall_x + wall_img_w * 0.48 }} V {{ cy + 1.2 }} H {{ right_wall_x + wall_img_w * 0.30 }} V {{ cy + 4 }} H {{ right_wall_x + wall_img_w * 0.72 }}" fill="none" stroke="#777" stroke-width="0.45"/>
+          {% endfor %}
         </g>
-        {% else %}
-        <rect data-profile="{{ wall_article }}-right" x="{{ right_wall_x }}" y="{{ wall_img_y }}" width="{{ wall_img_w }}" height="{{ wall_img_h }}" fill="#e8e8e8" stroke="#666" stroke-width="0.3"/>
-        {% endif %}
         <text x="{{ right_wall_x + wall_img_w / 2 }}" y="{{ top_pad + 6 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#666">{{ wall_profile_mm|round|int }}</text>
         {% endif %}
 
