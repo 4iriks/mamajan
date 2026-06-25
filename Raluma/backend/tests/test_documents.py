@@ -453,6 +453,7 @@ class TestLocalPreview:
                     "profile_right_wall": True,
                     "profile_left_lock_bar": True,
                     "profile_right_handle_bar": True,
+                    "comments": "Комментарий для производства",
                 },
             },
         )
@@ -460,8 +461,14 @@ class TestLocalPreview:
         assert r.status_code == 200
         assert "ФУРНИТУРА" in r.text
         assert "Саморез" in r.text
-        assert "ЧЕК-ЛИСТ" not in r.text
+        assert "<b>ЧЕК-ЛИСТ</b>" not in r.text
         assert "Вставить фетровое уплотнение" not in r.text
+        assert '<div class="check-page">' in r.text
+        assert "ПРОЕКТ № LOCAL-HW — Секция 1" in r.text
+        assert "Нарезка профиля по ТЗ" in r.text
+        assert "Примечания и особые отметки при производстве или проверке ОТК" in r.text
+        assert "КОММЕНТАРИИ К СЕКЦИИ" not in r.text
+        assert "Комментарий для производства" in r.text
         assert r.text.count('style="width:33%;"') >= 2
 
     def test_local_preview_two_row_sheet_uses_three_hardware_columns_without_checklist(
@@ -491,8 +498,11 @@ class TestLocalPreview:
         assert r.status_code == 200
         assert "SLIDE-стандарт 2 ряда" in r.text
         assert "ФУРНИТУРА" in r.text
-        assert "ЧЕК-ЛИСТ" not in r.text
+        assert "<b>ЧЕК-ЛИСТ</b>" not in r.text
         assert "Установить ролики" not in r.text
+        assert '<div class="check-page">' in r.text
+        assert "ПРОЕКТ № LOCAL-HW2 — Секция 1" in r.text
+        assert "Фрезеровка профиля-замка под защелку" in r.text
 
     def test_section_extra_components_prefer_section_over_legacy_override(self):
         section = SimpleNamespace(
