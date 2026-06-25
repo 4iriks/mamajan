@@ -165,8 +165,14 @@ async function fillBySelector(cdp, selector, value) {
 }
 
 async function navigate(cdp, url) {
+  const origin = new URL(url).origin;
   await cdp.command('Page.navigate', { url });
-  await waitForExpression(cdp, 'document.readyState === "complete"', `page load ${url}`, 15000);
+  await waitForExpression(
+    cdp,
+    `location.href.startsWith(${JSON.stringify(origin)}) && document.readyState === "complete"`,
+    `page load ${url}`,
+    15000,
+  );
 }
 
 async function cleanupProject(cdp, projectNumber) {
