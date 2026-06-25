@@ -322,7 +322,7 @@
       {% set wall_article = 'RS2335' if rails == 5 else 'RS2333' %}
       {% set wall_profile_mm = profile_dimension(calc, [wall_article], 'section_height_mm', 16) %}
       {% set wall_px = [3, wall_profile_mm * rail_w / (section.width or rail_w)] | max %}
-      {% set wall_img_src = (wall_article ~ '.jpg') | img_b64 %}
+      {% set wall_img_src = (wall_article ~ '.png') | img_b64 %}
       {% set wall_img_w = 18 %}
       {% set wall_img_y = top_pad - 6 %}
       {% set wall_img_h = rails * row_h + 12 %}

@@ -24,7 +24,7 @@ def test_hardware_catalog_returns_calculation_seed(client, admin_headers):
     assert len(data) >= 10
 
     by_sku = {item["sku"]: item for item in data}
-    assert by_sku["RS112"]["imageFile"] == "RS112.jpg"
+    assert by_sku["RS112"]["imageFile"] == "RS112.png"
     assert by_sku["RS112"]["sectionWidthMm"] == 52
     assert by_sku["RS112"]["colorVariants"] == [
         "Анод",
@@ -99,21 +99,18 @@ def test_hardware_catalog_create_duplicate_and_archive(client, admin_headers):
 
 
 def test_profile_asset_returns_existing_image(client):
-    r = client.get("/api/catalog/profile-assets/RS112.jpg")
+    r = client.get("/api/catalog/profile-assets/RS112.png")
 
     assert r.status_code == 200
-    assert r.headers["content-type"] == "image/jpeg"
+    assert r.headers["content-type"] == "image/png"
     assert len(r.content) > 0
 
 
-def test_profile_asset_returns_existing_svg(client):
-    r = client.get("/api/catalog/profile-assets/RS23231.svg")
+def test_profile_asset_returns_existing_threshold_png(client):
+    r = client.get("/api/catalog/profile-assets/RS23231.png")
 
     assert r.status_code == 200
-    assert r.headers["content-type"] in (
-        "image/svg+xml",
-        "image/svg+xml; charset=utf-8",
-    )
+    assert r.headers["content-type"] == "image/png"
     assert len(r.content) > 0
 
 

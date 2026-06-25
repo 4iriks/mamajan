@@ -11,6 +11,40 @@ from engine.profile_catalog import apply_profile_catalog
 
 
 MAX_PROFILE_LENGTH_MM = 5950
+PNG_PROFILE_IMAGES = {
+    "RS1002",
+    "RS1006",
+    "RS105",
+    "RS106",
+    "RS107",
+    "RS107L",
+    "RS107R",
+    "RS1082",
+    "RS1083",
+    "RS112",
+    "RS122",
+    "RS1313",
+    "RS1315",
+    "RS2021",
+    "RS205",
+    "RS206",
+    "RS2061",
+    "RS2081",
+    "RS2323",
+    "RS2325",
+    "RS23231",
+    "RS23251",
+    "RS2333",
+    "RS2335",
+    "RS3014",
+    "RS3017",
+    "RS3018",
+    "RS3020",
+    "RS30301",
+    "RSD1",
+    "RSD2",
+    "RU005",
+}
 
 
 @dataclass
@@ -157,11 +191,11 @@ def _threshold_display_name(
 
 
 def _threshold_profile_image(article: str) -> str:
-    if article in ("RS23231", "RS23251"):
-        return f"{article}.svg"
-    if article == "RS2325":
-        return "RS1325.jpg"
-    return f"{article}.jpg"
+    return f"{article}.png"
+
+
+def _profile_image(article: str) -> str:
+    return f"{article}.png" if article in PNG_PROFILE_IMAGES else f"{article}.jpg"
 
 
 def _is_no_inter_glass_profile(value: str | None) -> bool:
@@ -278,7 +312,7 @@ def _aggregate_glass_profiles(
                 length_mm=length,
                 qty=group.qty,
                 painted=painted,
-                image="RS2021.jpg",
+                image="RS2021.png",
                 field_key=f"glass_profile_{length}",
                 note="прикрутить ролики и заглушки",
                 glass_positions=", ".join(group.positions),
@@ -483,7 +517,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 length_mm=round(H, 1),
                 qty=Q * wall_count,
                 painted=painted,
-                image=f"{wall_article}.jpg",
+                image=_profile_image(wall_article),
                 field_key="wall_profile_length",
                 note="рассверлить крепежные отверстия",
             )
@@ -498,7 +532,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 length_mm=round(inter_glass_len, 1),
                 qty=(P - 1) * Q,
                 painted=(painted and ig_article == "RS2061"),
-                image=f"{ig_article}.jpg",
+                image=_profile_image(ig_article),
                 field_key="inter_glass_length",
                 note="вставить фетровое уплотнение"
                 if ig_article in ("RS2061", "RS1006")
@@ -515,7 +549,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 length_mm=round(lock_bar_len, 1),
                 qty=lb_count * Q,
                 painted=painted,
-                image="RS2081.jpg",
+                image="RS2081.png",
                 field_key="lock_bar_length",
                 note="рассверлить крепежные отверстия, фрезеровать паз в нижней части, врезать защёлку",
             )
@@ -531,7 +565,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 length_mm=round(handle_bar_len, 1),
                 qty=total_rs112_count * Q,
                 painted=painted,
-                image="RS112.jpg",
+                image="RS112.png",
                 field_key="handle_bar_length",
                 note="вставить фетровое уплотнение",
             )
@@ -546,7 +580,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 length_mm=round(p_bar_len, 1),
                 qty=pb_count * Q,
                 painted=painted,
-                image="RS1082.jpg",
+                image="RS1082.png",
                 field_key="p_bar_length",
                 note="",
             )
@@ -561,7 +595,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 length_mm=round(glass_H - 17, 1),
                 qty=bub_count * Q,
                 painted=False,
-                image="RS1002.jpg",
+                image="RS1002.png",
                 field_key="bubble_length",
                 note="",
             )
@@ -575,7 +609,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 length_mm=round(handle_bar_len + 17, 1),
                 qty=Q,
                 painted=painted,
-                image="RS1083.jpg",
+                image="RS1083.png",
                 field_key="center_double_t_length",
                 note="для центральных ручек-профилей RS112",
             )
@@ -607,7 +641,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 length_mm=0,
                 qty=latch_count * Q,
                 painted=False,
-                image="RS205.jpg",
+                image="RS205.png",
                 field_key="floor_latches_qty",
                 note="",
             )
@@ -656,7 +690,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
             name="Щёточный уплотнитель, м",
             value=0,
             unit="м",
-            image="RU007.jpg",
+            image="RU004_RU006.png",
             field_key="brush",
             sub_items=[
                 HardwareSubItem("7×6мм", "RU008", ru008_m, "ru008"),
@@ -668,10 +702,10 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     damper_qty = max(P - 2, 0) * 2 * Q
     if damper_qty > 0:
         result.hardware.append(
-            HardwareItem("RSD1", "Демпфер", damper_qty, "шт", "RSD1.jpg", "rsd1")
+            HardwareItem("RSD1", "Демпфер", damper_qty, "шт", "RSD1.png", "rsd1")
         )
         result.hardware.append(
-            HardwareItem("RSD2", "Компенсатор", damper_qty, "шт", "RSD2.jpg", "rsd2")
+            HardwareItem("RSD2", "Компенсатор", damper_qty, "шт", "RSD2.png", "rsd2")
         )
 
     if total_rs112_count > 0:
@@ -705,7 +739,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 f"Замок-защёлка 1-стор ({' и '.join(lock3018_sides)})",
                 lock3018 * Q,
                 "шт",
-                "RS3018.jpg",
+                "RS3018.png",
                 "rs3018",
             )
         )
@@ -725,12 +759,12 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     if rs122_qty > 0:
         result.hardware.append(
             HardwareItem(
-                "RS122", "Ответная планка замка", rs122_qty, "шт", "RS122.jpg", "rs122"
+                "RS122", "Ответная планка замка", rs122_qty, "шт", "RS122.png", "rs122"
             )
         )
         result.hardware.append(
             HardwareItem(
-                "RS3020", "Проставка замка", rs122_qty, "шт", "RS3020.jpg", "rs3020"
+                "RS3020", "Проставка замка", rs122_qty, "шт", "RS3020.png", "rs3020"
             )
         )
 
@@ -741,20 +775,20 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     ):
         result.hardware.append(
             HardwareItem(
-                "RS206", "Накидная защёлка на 2 створки", Q, "шт", "RS206.jpg", "rs206"
+                "RS206", "Накидная защёлка на 2 створки", Q, "шт", "RS206.png", "rs206"
             )
         )
 
     if "стекло-стекло" in center_lock.lower() or "RS30301" in center_lock:
         result.hardware.append(
             HardwareItem(
-                "RS30301", "Замок стекло-стекло", Q, "шт", "RS30301.jpg", "rs30301"
+                "RS30301", "Замок стекло-стекло", Q, "шт", "RS30301.png", "rs30301"
             )
         )
 
     ru005_qty = P * 2 * Q
     result.hardware.append(
-        HardwareItem("RU005", "Ролик", ru005_qty, "шт", "RU005.jpg", "ru005")
+        HardwareItem("RU005", "Ролик", ru005_qty, "шт", "RU005.png", "ru005")
     )
 
     rs3017_qty = 0
@@ -776,14 +810,14 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 "Стеклянная ручка",
                 rs3017_qty * Q,
                 "шт",
-                "RS3017.jpg",
+                "RS3017.png",
                 "rs3017",
             )
         )
     if rs3014_qty > 0:
         result.hardware.append(
             HardwareItem(
-                "RS3014", "Ручка-кноб", rs3014_qty * Q, "шт", "RS3014.jpg", "rs3014"
+                "RS3014", "Ручка-кноб", rs3014_qty * Q, "шт", "RS3014.png", "rs3014"
             )
         )
 
@@ -796,7 +830,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                     "Заглушка межстекольного (лев)",
                     plug_qty_per_side,
                     "шт",
-                    "RS107L.jpg",
+                    "RS107L.png",
                     "rs107l",
                 )
             )
@@ -806,7 +840,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                     "Заглушка межстекольного (прав)",
                     plug_qty_per_side,
                     "шт",
-                    "RS107R.jpg",
+                    "RS107R.png",
                     "rs107r",
                 )
             )
@@ -829,7 +863,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 "Заглушка стекольного (внутр)",
                 rs105_qty,
                 "шт",
-                "RS105.jpg",
+                "RS105.png",
                 "rs105",
             )
         )
@@ -840,7 +874,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 "Заглушка стекольного (крайн)",
                 rs106_qty,
                 "шт",
-                "RS106.jpg",
+                "RS106.png",
                 "rs106",
             )
         )
@@ -849,7 +883,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     if rs107_qty > 0:
         result.hardware.append(
             HardwareItem(
-                "RS107", "Заглушка запорная", rs107_qty, "шт", "RS107.jpg", "rs107"
+                "RS107", "Заглушка запорная", rs107_qty, "шт", "RS107.png", "rs107"
             )
         )
 
@@ -1195,7 +1229,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
                 length_mm=round(H, 1),
                 qty=wall_qty,
                 painted=painted,
-                image=f"{wall_article}.jpg",
+                image=_profile_image(wall_article),
                 field_key="wall_profile_length",
                 note="рассверлить крепежные отверстия",
             )
@@ -1214,7 +1248,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
                 length_mm=round(inter_glass_len, 1),
                 qty=(P - 1) * Q,
                 painted=(painted and ig_article == "RS2061"),
-                image=f"{ig_article}.jpg",
+                image=_profile_image(ig_article),
                 field_key="inter_glass_length",
                 note=ig_note,
             )
@@ -1230,7 +1264,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
                 length_mm=round(lock_bar_len, 1),
                 qty=lb_count * Q,
                 painted=painted,
-                image="RS2081.jpg",
+                image="RS2081.png",
                 field_key="lock_bar_length",
                 note="рассверлить крепежные отверстия, фрезеровать паз в нижней части, врезать защёлку",
             )
@@ -1246,7 +1280,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
                 length_mm=round(handle_bar_len, 1),
                 qty=hb_count * Q,
                 painted=painted,
-                image="RS112.jpg",
+                image="RS112.png",
                 field_key="handle_bar_length",
                 note="вставить фетровое уплотнение",
             )
@@ -1262,7 +1296,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
                 length_mm=round(p_bar_len, 1),
                 qty=pb_count * Q,
                 painted=painted,
-                image="RS1082.jpg",
+                image="RS1082.png",
                 field_key="p_bar_length",
                 note="",
             )
@@ -1279,7 +1313,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
                 length_mm=round(bub_len, 1),
                 qty=bub_count * Q,
                 painted=False,
-                image="RS1002.jpg",
+                image="RS1002.png",
                 field_key="bubble_length",
                 note="",
             )
@@ -1297,7 +1331,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
                 length_mm=0,
                 qty=latch_count * Q,
                 painted=False,
-                image="RS205.jpg",
+                image="RS205.png",
                 field_key="floor_latches_qty",
                 note="",
             )
@@ -1347,7 +1381,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
             name="Щёточный уплотнитель, м",
             value=0,
             unit="м",
-            image="RU007.jpg",
+            image="RU004_RU006.png",
             field_key="brush",
             sub_items=[
                 HardwareSubItem("7×6мм", "RU008", ru008_m, "ru008"),
@@ -1360,10 +1394,10 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     damper_qty = (P - 1) * 2 * Q if P > 1 else 0
     if damper_qty > 0:
         result.hardware.append(
-            HardwareItem("RSD1", "Демпфер", damper_qty, "шт", "RSD1.jpg", "rsd1")
+            HardwareItem("RSD1", "Демпфер", damper_qty, "шт", "RSD1.png", "rsd1")
         )
         result.hardware.append(
-            HardwareItem("RSD2", "Компенсатор", damper_qty, "шт", "RSD2.jpg", "rsd2")
+            HardwareItem("RSD2", "Компенсатор", damper_qty, "шт", "RSD2.png", "rsd2")
         )
 
     # RS1121 накладка на ручку-профиль
@@ -1403,7 +1437,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
                 f"Замок-защёлка 1-стор ({side_text})",
                 lock3018 * Q,
                 "шт",
-                "RS3018.jpg",
+                "RS3018.png",
                 "rs3018",
             )
         )
@@ -1425,19 +1459,19 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     if rs122_qty > 0:
         result.hardware.append(
             HardwareItem(
-                "RS122", "Ответная планка замка", rs122_qty, "шт", "RS122.jpg", "rs122"
+                "RS122", "Ответная планка замка", rs122_qty, "шт", "RS122.png", "rs122"
             )
         )
         result.hardware.append(
             HardwareItem(
-                "RS3020", "Проставка замка", rs3020_qty, "шт", "RS3020.jpg", "rs3020"
+                "RS3020", "Проставка замка", rs3020_qty, "шт", "RS3020.png", "rs3020"
             )
         )
 
     # RU005 ролики
     ru005_qty = P * 2 * Q
     result.hardware.append(
-        HardwareItem("RU005", "Ролик", ru005_qty, "шт", "RU005.jpg", "ru005")
+        HardwareItem("RU005", "Ролик", ru005_qty, "шт", "RU005.png", "ru005")
     )
 
     # Стеклянные ручки RS3017 и кнобы RS3014
@@ -1456,14 +1490,14 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
                 "Стеклянная ручка",
                 rs3017_qty * Q,
                 "шт",
-                "RS3017.jpg",
+                "RS3017.png",
                 "rs3017",
             )
         )
     if rs3014_qty > 0:
         result.hardware.append(
             HardwareItem(
-                "RS3014", "Ручка-кноб", rs3014_qty * Q, "шт", "RS3014.jpg", "rs3014"
+                "RS3014", "Ручка-кноб", rs3014_qty * Q, "шт", "RS3014.png", "rs3014"
             )
         )
 
@@ -1478,7 +1512,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
                     "Заглушка межстекольного (лев)",
                     inter_glass_cnt,
                     "шт",
-                    "RS107L.jpg",
+                    "RS107L.png",
                     "rs107l",
                 )
             )
@@ -1490,7 +1524,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
                     "Заглушка межстекольного (прав)",
                     inter_glass_cnt,
                     "шт",
-                    "RS107R.jpg",
+                    "RS107R.png",
                     "rs107r",
                 )
             )
@@ -1508,7 +1542,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
                 "Заглушка стекольного (внутр)",
                 rs105_qty,
                 "шт",
-                "RS105.jpg",
+                "RS105.png",
                 "rs105",
             )
         )
@@ -1519,7 +1553,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
                 "Заглушка стекольного (крайн)",
                 rs106_qty,
                 "шт",
-                "RS106.jpg",
+                "RS106.png",
                 "rs106",
             )
         )
@@ -1529,7 +1563,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     if rs107_qty > 0:
         result.hardware.append(
             HardwareItem(
-                "RS107", "Заглушка запорная", rs107_qty, "шт", "RS107.jpg", "rs107"
+                "RS107", "Заглушка запорная", rs107_qty, "шт", "RS107.png", "rs107"
             )
         )
 

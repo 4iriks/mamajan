@@ -56,7 +56,7 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     "RS2323": ProfileCatalogItem(
         "RS2323",
         "Порог 3-рельсовый",
-        "RS2323.jpg",
+        "RS2323.png",
         76,
         23,
         "Частично",
@@ -69,7 +69,7 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     "RS2325": ProfileCatalogItem(
         "RS2325",
         "Порог 5-рельсовый",
-        "RS1325.jpg",
+        "RS2325.png",
         122,
         23,
         "Частично",
@@ -82,7 +82,7 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     "RS23231": ProfileCatalogItem(
         "RS23231",
         "Порог 3-рельсовый накладной",
-        "RS23231.svg",
+        "RS23231.png",
         76,
         11,
         "Частично",
@@ -95,7 +95,7 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     "RS23251": ProfileCatalogItem(
         "RS23251",
         "Порог 5-рельсовый накладной",
-        "RS23251.svg",
+        "RS23251.png",
         122,
         11,
         "Частично",
@@ -108,7 +108,7 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     "RS2333": ProfileCatalogItem(
         "RS2333",
         "Пристеночный профиль 3-рельсовый",
-        "RS2333.jpg",
+        "RS2333.png",
         76,
         16,
         "Красится",
@@ -120,7 +120,7 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     "RS2335": ProfileCatalogItem(
         "RS2335",
         "Пристеночный профиль 5-рельсовый",
-        "RS2335.jpg",
+        "RS2335.png",
         122,
         16,
         "Красится",
@@ -132,7 +132,7 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     "RS2081": ProfileCatalogItem(
         "RS2081",
         "Боковой П-образный профиль-замок",
-        "RS2081.jpg",
+        "RS2081.png",
         57,
         25,
         "Красится",
@@ -145,7 +145,7 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     "RS1082": ProfileCatalogItem(
         "RS1082",
         "Боковой П-профиль",
-        "RS1082.jpg",
+        "RS1082.png",
         25,
         25,
         "Красится",
@@ -156,7 +156,7 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     "RS112": ProfileCatalogItem(
         "RS112",
         "Профиль-ручка",
-        "RS112.jpg",
+        "RS112.png",
         52,
         40,
         "Красится",
@@ -167,7 +167,7 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     "RS2061": ProfileCatalogItem(
         "RS2061",
         "Межстекольный профиль",
-        "RS2061.jpg",
+        "RS2061.png",
         20,
         12,
         "Красится",
@@ -178,7 +178,7 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     "RS2021": ProfileCatalogItem(
         "RS2021",
         "Стекольный профиль",
-        "RS2021.svg",
+        "RS2021.png",
         75,
         18,
         "Красится",
@@ -189,7 +189,7 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     "RS1002": ProfileCatalogItem(
         "RS1002",
         "Пузырьковый уплотнитель",
-        "RS1002.jpg",
+        "RS1002.png",
         0,
         0,
         "Не красится",
@@ -205,7 +205,7 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     "RS205": ProfileCatalogItem(
         "RS205",
         "Защёлка в пол",
-        "RS205.jpg",
+        "RS205.png",
         0,
         0,
         "Не красится",
@@ -222,7 +222,7 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     "RS1083": ProfileCatalogItem(
         "RS1083",
         "Двутавр 30×20×30",
-        "",
+        "RS1083.png",
         30,
         20,
         "Красится",
@@ -267,7 +267,7 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     "RS206": ProfileCatalogItem(
         "RS206",
         "Накидная защёлка на 2 створки",
-        "",
+        "RS206.png",
         0,
         0,
         "Не красится",
@@ -284,7 +284,7 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     "RS30301": ProfileCatalogItem(
         "RS30301",
         "Замок стекло-стекло",
-        "",
+        "RS30301.png",
         0,
         0,
         "Не красится",
@@ -301,7 +301,7 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     "RS3014": ProfileCatalogItem(
         "RS3014",
         "Ручка-кноб",
-        "RS3014.jpg",
+        "RS3014.png",
         0,
         0,
         "Не красится",
@@ -318,7 +318,7 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
     "RS3017": ProfileCatalogItem(
         "RS3017",
         "Стеклянная ручка",
-        "RS3017.jpg",
+        "RS3017.png",
         0,
         0,
         "Не красится",

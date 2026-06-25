@@ -796,7 +796,7 @@ class TestGlassProfile:
         r = calculate_slide(_make_section())
         rs2021 = _find_profile(r, "RS2021")
         assert len(rs2021) >= 1
-        assert all(item.image == "RS2021.svg" for item in rs2021)
+        assert all(item.image == "RS2021.png" for item in rs2021)
 
     def test_rs2021_handle_bar_adds_16(self):
         """Ручка-профиль слева → левое стекло RS2021 +16."""
@@ -1032,13 +1032,13 @@ class TestPainting:
     def test_catalog_overrides_profile_image(self):
         r = calculate_slide(_make_section(rails=5))
         threshold = _find_profile(r, "RS2325")[0]
-        assert threshold.image == "RS1325.jpg"
+        assert threshold.image == "RS2325.png"
 
     def test_overlay_threshold_has_own_name_image_and_drain_note(self):
         r = calculate_slide(_make_section(threshold="Накладной окраш"))
         threshold = _find_profile(r, "RS23231")[0]
         assert threshold.name == "Порог 3-рельсовый накладной"
-        assert threshold.image == "RS23231.svg"
+        assert threshold.image == "RS23231.png"
         assert threshold.note == "рассверлить дренажные отверстия"
 
     def test_standard_threshold_has_drain_note(self):

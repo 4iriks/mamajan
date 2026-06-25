@@ -28,14 +28,14 @@ from engine.project_documents import (
 
 class TestProfileAssetSafety:
     def test_img_b64_accepts_known_profile_image(self):
-        assert get_profile_asset_path("RS112.jpg") is not None
-        assert _img_b64("RS112.jpg").startswith("data:image/jpeg;base64,")
+        assert get_profile_asset_path("RS112.png") is not None
+        assert _img_b64("RS112.png").startswith("data:image/png;base64,")
 
-    def test_img_b64_accepts_known_svg_profile_image(self):
-        assert get_profile_asset_path("RS23231.svg") is not None
-        assert _img_b64("RS23231.svg").startswith("data:image/svg+xml;base64,")
-        assert get_profile_asset_path("RS2021.svg") is not None
-        assert _img_b64("RS2021.svg").startswith("data:image/svg+xml;base64,")
+    def test_img_b64_accepts_known_png_profile_images(self):
+        assert get_profile_asset_path("RS23231.png") is not None
+        assert _img_b64("RS23231.png").startswith("data:image/png;base64,")
+        assert get_profile_asset_path("RS2021.png") is not None
+        assert _img_b64("RS2021.png").startswith("data:image/png;base64,")
 
     def test_img_b64_rejects_path_traversal(self):
         assert get_profile_asset_path("../models.py") is None
@@ -86,7 +86,7 @@ class TestProfileDisplayRows:
                     length_mm=2975,
                     qty=2,
                     painted=True,
-                    image="RS2323.jpg",
+                    image="RS2323.png",
                     field_key="threshold_length_part_1",
                     note="часть 1/2; рассверлить",
                     section_width_mm=76,
@@ -102,7 +102,7 @@ class TestProfileDisplayRows:
                     length_mm=2976,
                     qty=2,
                     painted=True,
-                    image="RS2323.jpg",
+                    image="RS2323.png",
                     field_key="threshold_length_part_2",
                     note="часть 2/2; рассверлить",
                     section_width_mm=76,
@@ -363,7 +363,7 @@ class TestLocalPreview:
         assert "Не используется внутренняя полоса" in r.text
         assert "Порог 3-рельсовый накладной окраш" in r.text
         assert ">Накладной окраш<" not in r.text
-        assert "RS23231.svg" not in r.text  # картинка встраивается data-uri
+        assert "RS23231.png" not in r.text  # картинка встраивается data-uri
         assert "Межстекольный профиль" not in r.text
         assert 'data-profile="left-side-stack"' not in r.text
         assert 'data-profile-image="RS2081-left"' not in r.text
@@ -775,7 +775,7 @@ class TestProjectPaintOrder:
                     length_mm=1445.2,
                     qty=2,
                     painted=True,
-                    image="RS2021.svg",
+                    image="RS2021.png",
                     paint_note="",
                     paint_mode="Красится",
                 ),
@@ -785,7 +785,7 @@ class TestProjectPaintOrder:
                     length_mm=3000,
                     qty=1,
                     painted=True,
-                    image="RS2333.jpg",
+                    image="RS2333.png",
                     paint_note="",
                     paint_mode="Красится",
                 ),
@@ -812,7 +812,7 @@ class TestProjectPaintOrder:
                     length_mm=1445,
                     qty=2,
                     painted=True,
-                    image="RS2021.svg",
+                    image="RS2021.png",
                     paint_note="",
                     paint_mode="Красится",
                 ),
@@ -822,7 +822,7 @@ class TestProjectPaintOrder:
                     length_mm=2838,
                     qty=1,
                     painted=True,
-                    image="RS2021.svg",
+                    image="RS2021.png",
                     paint_note="",
                     paint_mode="Красится",
                 ),
@@ -849,7 +849,7 @@ class TestProjectPaintOrder:
                     length_mm=2968,
                     qty=1,
                     painted=True,
-                    image="RS2323.jpg",
+                    image="RS2323.png",
                     paint_note="НЕ КРАСИТЬ!!!",
                     paint_mode="Частично",
                 ),
@@ -859,7 +859,7 @@ class TestProjectPaintOrder:
                     length_mm=2968,
                     qty=1,
                     painted=True,
-                    image="RS23231.svg",
+                    image="RS23231.png",
                     paint_note="НЕ КРАСИТЬ!!!",
                     paint_mode="Частично",
                 ),
