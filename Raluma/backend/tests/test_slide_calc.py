@@ -1253,6 +1253,19 @@ class TestSlideTwoRows:
         assert ru010.qty == 2
         assert not _find_hardware(r, "RS3110")
 
+    def test_center_rs3110_has_no_missing_image(self):
+        r = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                panels=4,
+                center_handle="Р‘РµР· СЂСѓС‡РєРё",
+                center_lock="Р‘РµР·",
+                first_panel_inside=None,
+            )
+        )
+        rs3110 = _find_hardware(r, "RS3110")[0]
+        assert rs3110.image is None
+
     def test_center_locks_are_separate_hardware(self):
         glass_lock = calculate_slide(
             _make_section(

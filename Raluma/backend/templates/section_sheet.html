@@ -130,7 +130,6 @@
   .check-note { width: 83mm; }
   .check-otk { width: 13mm; text-align: center; }
   .check-box { display: inline-block; width: 4mm; height: 4mm; border: 1px solid #000; vertical-align: middle; }
-  .check-dash { display: inline-block; margin: 0 1mm; }
   .special-notes-title { margin-top: 5mm; border: 1px solid #000; background: #eee; text-align: center; font-weight: 900; font-size: 11pt; padding: 0.5mm 1mm; }
   .special-notes-box { border: 1px solid #000; border-top: none; min-height: 43mm; padding: 2mm; font-size: 11pt; line-height: 1.3; white-space: pre-wrap; }
   .responsibles-title { margin-top: 4mm; border: 1px solid #000; background: #eee; text-align: center; font-weight: 900; font-size: 10pt; padding: 0.5mm 1mm; }
@@ -756,10 +755,10 @@
       <tr>
         <td class="check-num">{{ row.num }}</td>
         <td class="check-mark"><span class="check-box"></span></td>
-        <td class="check-action"><span class="check-dash">-</span>{{ row.action }}</td>
+        <td class="check-action">{{ row.action }}</td>
         {% set note_key = 'check_note_' ~ loop.index0 %}
         <td class="check-note" {{ ce(note_key, row.note) }}>{{ ov(note_key, row.note) }}</td>
-        <td class="check-otk"><span class="check-dash">-</span><span class="check-box"></span></td>
+        <td class="check-otk"><span class="check-box"></span></td>
       </tr>
       {% endfor %}
     </tbody>

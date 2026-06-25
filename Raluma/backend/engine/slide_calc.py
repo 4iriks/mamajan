@@ -894,7 +894,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 "h-уплотнитель центрального стыка",
                 Q,
                 "шт",
-                "RS3110.jpg",
+                None,
                 "rs3110",
             )
         )
