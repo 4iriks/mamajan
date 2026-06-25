@@ -318,6 +318,12 @@
       {% set first_right = (not is2row) and (section.first_panel_inside or 'Справа') == 'Справа' %}
       {% set top_panel_widths = glass_widths(calc, P, section.width) %}
       {% set top_total_width = top_panel_widths | sum %}
+      {% set wall_article = 'RS2335' if rails == 5 else 'RS2333' %}
+      {% set wall_profile_mm = profile_dimension(calc, [wall_article], 'section_height_mm', 16) %}
+      {% set wall_img_src = (wall_article ~ '.png') | img_b64 %}
+      {% set wall_img_w = 18 %}
+      {% set wall_img_y = top_pad - 6 %}
+      {% set wall_img_h = rails * row_h + 12 %}
       {% set side_scale = 0.55 %}
       {% set side_overlap = 9 %}
       {% set left_side_variant = 'lock-handle' if section.profile_left_lock_bar and section.profile_left_handle_bar else ('p-handle' if section.profile_left_p_bar and section.profile_left_handle_bar else ('p-bubble' if section.profile_left_p_bar and section.profile_left_bubble else '')) %}
@@ -346,6 +352,29 @@
         {# Вертикальные ограничители #}
         <line x1="{{ scheme_left_x }}" y1="{{ top_pad - 4 }}" x2="{{ scheme_left_x }}" y2="{{ top_pad + rails * row_h + 4 }}" stroke="#000" stroke-width="1.5"/>
         <line x1="{{ scheme_right_x }}" y1="{{ top_pad - 4 }}" x2="{{ scheme_right_x }}" y2="{{ top_pad + rails * row_h + 4 }}" stroke="#000" stroke-width="1.5"/>
+
+        {% if section.profile_left_wall %}
+        {% set left_wall_x = scheme_left_x - wall_img_w %}
+        {% if wall_img_src %}
+        <g data-profile="{{ wall_article }}-left" data-profile-image="{{ wall_article }}-left" transform="translate({{ left_wall_x }} {{ wall_img_y + wall_img_h }}) rotate(-90)">
+          <image href="{{ wall_img_src }}" x="0" y="0" width="{{ wall_img_h }}" height="{{ wall_img_w }}" preserveAspectRatio="none"/>
+        </g>
+        {% else %}
+        <rect data-profile="{{ wall_article }}-left" x="{{ left_wall_x }}" y="{{ wall_img_y }}" width="{{ wall_img_w }}" height="{{ wall_img_h }}" fill="#e8e8e8" stroke="#666" stroke-width="0.3"/>
+        {% endif %}
+        <text x="{{ left_wall_x + wall_img_w / 2 }}" y="{{ top_pad + 6 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#666">{{ wall_profile_mm|round|int }}</text>
+        {% endif %}
+        {% if section.profile_right_wall %}
+        {% set right_wall_x = scheme_right_x %}
+        {% if wall_img_src %}
+        <g data-profile="{{ wall_article }}-right" data-profile-image="{{ wall_article }}-right" transform="translate({{ right_wall_x + wall_img_w }} {{ wall_img_y }}) rotate(90)">
+          <image href="{{ wall_img_src }}" x="0" y="0" width="{{ wall_img_h }}" height="{{ wall_img_w }}" preserveAspectRatio="none"/>
+        </g>
+        {% else %}
+        <rect data-profile="{{ wall_article }}-right" x="{{ right_wall_x }}" y="{{ wall_img_y }}" width="{{ wall_img_w }}" height="{{ wall_img_h }}" fill="#e8e8e8" stroke="#666" stroke-width="0.3"/>
+        {% endif %}
+        <text x="{{ right_wall_x + wall_img_w / 2 }}" y="{{ top_pad + 6 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#666">{{ wall_profile_mm|round|int }}</text>
+        {% endif %}
 
         {# Рельсы #}
         {% for ri in range(rails) %}
