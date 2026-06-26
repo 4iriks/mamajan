@@ -135,8 +135,8 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
   const hasInterGlassProfile = Boolean(interGlassText) && !interGlassText.includes('без');
   const interGlassArticle = interGlassText.includes('rs1006')
     ? 'RS1006'
-    : interGlassText.includes('rs1004')
-      ? 'RS1004'
+    : interGlassText.includes('rs3061') || interGlassText.includes('rs1004') || interGlassText.includes('зацеп')
+      ? 'RS3061'
       : 'RS2061';
   const interGlassPx = mmToPx(findProfileDimension(calc, [interGlassArticle], 'section_width_mm', 20), 6);
   const leftSideVariant = sideAssemblyVariant(

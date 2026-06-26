@@ -349,7 +349,7 @@
       {% set scheme_right_x = left_w + rail_w + right_side_visual_w - side_overlap + 2 if right_side_variant else left_w + rail_w %}
       {% set inter_glass_text = (section.inter_glass_profile or '')|lower %}
       {% set has_inter_glass = inter_glass_text and ('без' not in inter_glass_text) %}
-      {% set inter_glass_article = 'RS1006' if 'rs1006' in inter_glass_text else ('RS1004' if 'rs1004' in inter_glass_text else 'RS2061') %}
+      {% set inter_glass_article = 'RS1006' if 'rs1006' in inter_glass_text else ('RS3061' if 'rs3061' in inter_glass_text or 'rs1004' in inter_glass_text or 'зацеп' in inter_glass_text else 'RS2061') %}
       {% set inter_glass_px = [5, profile_dimension(calc, [inter_glass_article], 'section_width_mm', 20) * rail_w / (section.width or rail_w)] | max %}
       <svg viewBox="0 0 {{ sw }} {{ sh }}"
            xmlns="http://www.w3.org/2000/svg" style="display:block; width:80%; margin:0 auto;">
@@ -600,7 +600,7 @@
       <div class="cf">
         {% if p.image %}
         {% set src = p.image | img_b64 %}
-        {% set mirror_profile_image = (p.article in ['RS2061', 'RS1006', 'RS1004']) and (section.slide_rows or 1) != 2 and (section.first_panel_inside or 'Справа') == 'Справа' %}
+        {% set mirror_profile_image = (p.article in ['RS2061', 'RS1006', 'RS3061']) and (section.slide_rows or 1) != 2 and (section.first_panel_inside or 'Справа') == 'Справа' %}
         {% if src %}<img src="{{ src }}" class="prof-img{% if p.article in pl_focus_image_articles %} pl-art-{{ p.article|lower }} pl-focus-img{% endif %}{% if mirror_profile_image %} mirror-x{% endif %}" alt="{{ p.article }}">{% endif %}
         {% endif %}
         <div class="prof-name{% if p.article in ['RS2323', 'RS2333'] %} pl-title-shift{% endif %}">{{ p.name }}</div>

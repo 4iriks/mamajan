@@ -40,6 +40,8 @@ PNG_PROFILE_IMAGES = {
     "RS3017",
     "RS3018",
     "RS3020",
+    "RS30201",
+    "RS3061",
     "RS30301",
     "RSD1",
     "RSD2",
@@ -209,11 +211,37 @@ def _inter_glass_article(value: str | None) -> str:
     text = (value or "").lower()
     if "rs1006" in text:
         return "RS1006"
-    if "rs1004" in text:
-        return "RS1004"
+    if "rs3061" in text or "rs1004" in text or "зацеп" in text:
+        return "RS3061"
     if "rs2061" in text:
         return "RS2061"
     return ""
+
+
+def _inter_glass_overlap_mm(article: str) -> float:
+    if article == "RS3061":
+        return 11.5
+    if article in ("RS2061", "RS1006"):
+        return 9.5
+    return 0
+
+
+def _inter_glass_profile_name(article: str) -> str:
+    if article == "RS3061":
+        return "Профиль с зацепом"
+    return "Межстекольный профиль (штапик)"
+
+
+def _side_profile_offset_mm(lock_bar: bool, p_bar: bool) -> float:
+    if lock_bar:
+        return 60
+    if p_bar:
+        return 28
+    return 0
+
+
+def _p_bar_bubble_gap_mm(p_bar: bool, bubble: bool) -> float:
+    return 2 if p_bar and bubble else 0
 
 
 def calculate_slide(section) -> SlideCalcResult:
@@ -379,19 +407,8 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     ppl = 16 if wall_l else 0
     ppr = 16 if wall_r else 0
 
-    if handle_bar_l and lock_bar_l:
-        rpl = 59.5
-    elif handle_bar_l and p_bar_l:
-        rpl = 27
-    else:
-        rpl = 0
-
-    if handle_bar_r and lock_bar_r:
-        rpr = 59.5
-    elif handle_bar_r and p_bar_r:
-        rpr = 27
-    else:
-        rpr = 0
+    rpl = _side_profile_offset_mm(lock_bar_l, p_bar_l)
+    rpr = _side_profile_offset_mm(lock_bar_r, p_bar_r)
 
     pzl = 5 if bubble_l else 0
     pzr = 5 if bubble_r else 0
@@ -399,6 +416,8 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     krrr = 8 if handle_bar_r else 0
     krlp = 16 if (p_bar_l and bubble_l) else 0
     krrp = 16 if (p_bar_r and bubble_r) else 0
+    pl = _p_bar_bubble_gap_mm(p_bar_l, bubble_l)
+    pr = _p_bar_bubble_gap_mm(p_bar_r, bubble_r)
 
     a = int(_get(section, "handle_offset_left", 0) or 0)
     b = int(_get(section, "handle_offset_right", 0) or 0)
@@ -437,8 +456,10 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         glass_H = H - 94
 
     inter_glass_type = _get(section, "inter_glass_profile", None) or "Без"
+    ig_article = _inter_glass_article(inter_glass_type)
+    inter_glass_overlap = _inter_glass_overlap_mm(ig_article)
 
-    middle_W = (
+    edge_base_W = (
         W
         - 3
         - ppr
@@ -456,11 +477,33 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         - a
         - b
         - center_offset * 2
-        + 9.5 * (P - 2)
+        + inter_glass_overlap * (P - 2)
     ) / P
-    left_W = middle_W + a + krlr + krlp
-    right_W = middle_W + b + krrr + krrp
-    center_W = middle_W + center_offset + centr2
+    middle_W = (
+        W
+        - 3
+        - ppr
+        - ppl
+        - rpr
+        - rpl
+        - pzl
+        - pzr
+        - krlr
+        - krlp
+        - krrr
+        - krrp
+        - pl
+        - pr
+        - centr1
+        - centr2
+        - a
+        - b
+        - center_offset * 2
+        + inter_glass_overlap * (P - 2)
+    ) / P
+    left_W = edge_base_W + a + krlr + krlp
+    right_W = edge_base_W + b + krrr + krrp
+    center_W = edge_base_W + center_offset + centr2
 
     result.glass.append(GlassItem("Левое", round(left_W, 1), round(glass_H, 1), Q))
     middle_qty = max(P - 4, 0) * Q
@@ -523,12 +566,11 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
             )
         )
 
-    ig_article = _inter_glass_article(inter_glass_type)
     if ig_article and P > 1:
         result.profiles.append(
             ProfileItem(
                 article=ig_article,
-                name="Межстекольный профиль (штапик)",
+                name=_inter_glass_profile_name(ig_article),
                 length_mm=round(inter_glass_len, 1),
                 qty=(P - 1) * Q,
                 painted=(painted and ig_article == "RS2061"),
@@ -721,16 +763,16 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         )
 
     lock3018 = 0
-    lock3019 = 0
+    lock3020 = 0
     lock3018_sides: list[str] = []
-    lock3019_sides: list[str] = []
+    lock3020_sides: list[str] = []
     for lock, side_name in [(lock_l, "слева"), (lock_r, "справа")]:
         if "1стор" in lock or "1-сторон" in lock.lower():
             lock3018 += 1
             lock3018_sides.append(side_name)
         elif "2стор" in lock or "2-сторон" in lock.lower() or "ключ" in lock.lower():
-            lock3019 += 1
-            lock3019_sides.append(side_name)
+            lock3020 += 1
+            lock3020_sides.append(side_name)
 
     if lock3018 > 0:
         result.hardware.append(
@@ -743,28 +785,23 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 "rs3018",
             )
         )
-    if lock3019 > 0:
+    if lock3020 > 0:
         result.hardware.append(
             HardwareItem(
-                "RS3019",
-                f"Замок-защёлка 2-стор с ключом ({' и '.join(lock3019_sides)})",
-                lock3019 * Q,
+                "RS3020",
+                f"Замок двухсторонний с ключом ({' и '.join(lock3020_sides)})",
+                lock3020 * Q,
                 "шт",
-                "RS3019.jpg",
-                "rs3019",
+                "RS3020.png",
+                "rs3020_lock",
             )
         )
 
-    rs122_qty = (lock3018 + lock3019) * Q
+    rs122_qty = (lock3018 + lock3020) * Q
     if rs122_qty > 0:
         result.hardware.append(
             HardwareItem(
                 "RS122", "Ответная планка замка", rs122_qty, "шт", "RS122.png", "rs122"
-            )
-        )
-        result.hardware.append(
-            HardwareItem(
-                "RS3020", "Проставка замка", rs122_qty, "шт", "RS3020.png", "rs3020"
             )
         )
 
@@ -793,15 +830,20 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
 
     rs3017_qty = 0
     rs3014_qty = 0
+    rs30201_qty = 0
     for handle in [handle_l, handle_r]:
         if "стеклян" in handle.lower() or "RS3017" in handle:
             rs3017_qty += 1
         elif "кноб" in handle.lower() or "RS3014" in handle:
             rs3014_qty += 1
+        elif "скоба" in handle.lower() or "RS30201" in handle:
+            rs30201_qty += 1
     if "стеклян" in center_handle.lower() or "RS3017" in center_handle:
         rs3017_qty += 2
     elif "кноб" in center_handle.lower() or "RS3014" in center_handle:
         rs3014_qty += 2
+    elif "скоба" in center_handle.lower() or "RS30201" in center_handle:
+        rs30201_qty += 2
 
     if rs3017_qty > 0:
         result.hardware.append(
@@ -818,6 +860,17 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         result.hardware.append(
             HardwareItem(
                 "RS3014", "Ручка-кноб", rs3014_qty * Q, "шт", "RS3014.png", "rs3014"
+            )
+        )
+    if rs30201_qty > 0:
+        result.hardware.append(
+            HardwareItem(
+                "RS30201",
+                "Ручка-скоба 600мм",
+                rs30201_qty * Q,
+                "шт",
+                "RS30201.png",
+                "rs30201",
             )
         )
 
@@ -983,7 +1036,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         )
     if (
         lock3018 > 0
-        or lock3019 > 0
+        or lock3020 > 0
         or "RS206" in center_lock
         or "RS30301" in center_lock
     ):
@@ -1063,19 +1116,8 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     ppl = 16 if wall_l else 0
     ppr = 16 if wall_r else 0
 
-    if handle_bar_l and lock_bar_l:
-        rpl = 59.5
-    elif handle_bar_l and p_bar_l:
-        rpl = 27
-    else:
-        rpl = 0
-
-    if handle_bar_r and lock_bar_r:
-        rpr = 59.5
-    elif handle_bar_r and p_bar_r:
-        rpr = 27
-    else:
-        rpr = 0
+    rpl = _side_profile_offset_mm(lock_bar_l, p_bar_l)
+    rpr = _side_profile_offset_mm(lock_bar_r, p_bar_r)
 
     pzl = 5 if bubble_l else 0
     pzr = 5 if bubble_r else 0
@@ -1083,6 +1125,8 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     krrr = 8 if handle_bar_r else 0
     krlp = 16 if (p_bar_l and bubble_l) else 0
     krrp = 16 if (p_bar_r and bubble_r) else 0
+    pl = _p_bar_bubble_gap_mm(p_bar_l, bubble_l)
+    pr = _p_bar_bubble_gap_mm(p_bar_r, bubble_r)
 
     a = int(section.handle_offset_left or 0)
     b = int(section.handle_offset_right or 0)
@@ -1126,6 +1170,8 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     # ── Расчёт стёкол ─────────────────────────────────────────────────────────
 
     inter_glass_type = section.inter_glass_profile or "Без"
+    ig_article = _inter_glass_article(inter_glass_type)
+    inter_glass_overlap = _inter_glass_overlap_mm(ig_article)
 
     if P == 1:
         # Особый случай: одна глухая панель
@@ -1134,7 +1180,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
             GlassItem("Промежуточное", round(middle_W, 1), round(glass_H, 1), Q)
         )
     else:
-        middle_W = (
+        edge_base_W = (
             W
             - ppr
             - ppl
@@ -1148,10 +1194,28 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
             - krrp
             - a
             - b
-            + 9.5 * (P - 1)
+            + inter_glass_overlap * (P - 1)
         ) / P
-        left_W = middle_W + a + krlr + krlp
-        right_W = middle_W + b + krrr + krrp
+        middle_W = (
+            W
+            - ppr
+            - ppl
+            - rpr
+            - rpl
+            - pzl
+            - pzr
+            - krlr
+            - krlp
+            - krrr
+            - krrp
+            - pl
+            - pr
+            - a
+            - b
+            + inter_glass_overlap * (P - 1)
+        ) / P
+        left_W = edge_base_W + a + krlr + krlp
+        right_W = edge_base_W + b + krrr + krrp
 
         if round(left_W, 1) == round(right_W, 1):
             result.glass.append(
@@ -1236,7 +1300,6 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
         )
 
     # Межстекольный
-    ig_article = _inter_glass_article(inter_glass_type)
     if ig_article and P > 1:
         ig_note = (
             "вставить фетровое уплотнение" if ig_article in ("RS2061", "RS1006") else ""
@@ -1244,7 +1307,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
         result.profiles.append(
             ProfileItem(
                 article=ig_article,
-                name="Межстекольный профиль (штапик)",
+                name=_inter_glass_profile_name(ig_article),
                 length_mm=round(inter_glass_len, 1),
                 qty=(P - 1) * Q,
                 painted=(painted and ig_article == "RS2061"),
@@ -1415,16 +1478,16 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
 
     # RS3018 защёлка 1-сторонняя
     lock3018 = 0
-    lock3019 = 0
+    lock3020 = 0
     lock3018_sides: list[str] = []
-    lock3019_sides: list[str] = []
+    lock3020_sides: list[str] = []
     for lk, side_name in [(lock_l, "слева"), (lock_r, "справа")]:
         if "1стор" in lk or "1-сторон" in lk.lower():
             lock3018 += 1
             lock3018_sides.append(side_name)
         elif "2стор" in lk or "2-сторон" in lk.lower() or "ключ" in lk.lower():
-            lock3019 += 1
-            lock3019_sides.append(side_name)
+            lock3020 += 1
+            lock3020_sides.append(side_name)
 
     def _side_comment(sides: list[str]) -> str:
         return " и ".join(sides) if sides else ""
@@ -1441,30 +1504,24 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
                 "rs3018",
             )
         )
-    if lock3019 > 0:
-        side_text = _side_comment(lock3019_sides)
+    if lock3020 > 0:
+        side_text = _side_comment(lock3020_sides)
         result.hardware.append(
             HardwareItem(
-                "RS3019",
-                f"Замок-защёлка 2-стор с ключом ({side_text})",
-                lock3019 * Q,
+                "RS3020",
+                f"Замок двухсторонний с ключом ({side_text})",
+                lock3020 * Q,
                 "шт",
-                "RS3019.jpg",
-                "rs3019",
+                "RS3020.png",
+                "rs3020_lock",
             )
         )
 
-    rs122_qty = (lock3018 + lock3019) * Q
-    rs3020_qty = rs122_qty
+    rs122_qty = (lock3018 + lock3020) * Q
     if rs122_qty > 0:
         result.hardware.append(
             HardwareItem(
                 "RS122", "Ответная планка замка", rs122_qty, "шт", "RS122.png", "rs122"
-            )
-        )
-        result.hardware.append(
-            HardwareItem(
-                "RS3020", "Проставка замка", rs3020_qty, "шт", "RS3020.png", "rs3020"
             )
         )
 
@@ -1477,11 +1534,14 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     # Стеклянные ручки RS3017 и кнобы RS3014
     rs3017_qty = 0
     rs3014_qty = 0
+    rs30201_qty = 0
     for h in [handle_l, handle_r]:
         if "стеклян" in h.lower() or "RS3017" in h:
             rs3017_qty += 1
         elif "кноб" in h.lower() or "RS3014" in h:
             rs3014_qty += 1
+        elif "скоба" in h.lower() or "RS30201" in h:
+            rs30201_qty += 1
 
     if rs3017_qty > 0:
         result.hardware.append(
@@ -1498,6 +1558,17 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
         result.hardware.append(
             HardwareItem(
                 "RS3014", "Ручка-кноб", rs3014_qty * Q, "шт", "RS3014.png", "rs3014"
+            )
+        )
+    if rs30201_qty > 0:
+        result.hardware.append(
+            HardwareItem(
+                "RS30201",
+                "Ручка-скоба 600мм",
+                rs30201_qty * Q,
+                "шт",
+                "RS30201.png",
+                "rs30201",
             )
         )
 
@@ -1662,7 +1733,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
             "Панели шире 500 мм: нужны 4-колесные ролики; временно считаются как RU005"
         )
 
-    if lock3018 > 0 or lock3019 > 0:
+    if lock3018 > 0 or lock3020 > 0:
         result.checklist.append("Сделать фрезеровку под защелки")
 
     if lb_count > 0:

@@ -161,32 +161,28 @@ class TestProfileVariables:
         expected = round((2000 + 9.5 * 2) / 3, 1)
         assert mid.width_mm == expected
 
-    def test_rpl_handle_bar_and_lock_bar(self):
-        """Ручка-профиль + замок → rpl = 59.5."""
+    def test_rpl_lock_bar(self):
+        """Профиль-замок RS2081 слева → rpl = 60."""
         s = _make_section(
-            profile_left_handle_bar=True,
             profile_left_lock_bar=True,
         )
         r = calculate_slide(s)
-        left = _find_glass(r, "Левое")[0]
-        mid = _find_glass(r, "Промежуточные")[0]
-        # rpl=59.5, krlr=8, left_W = mid_W + 0 + 8 + 0
-        assert left.width_mm > mid.width_mm
+        edge = _find_glass(r, "Крайние")[0]
+        expected = round((2000 - 16 - 16 - 60 + 9.5 * 2) / 3, 1)
+        assert edge.width_mm == expected
 
-    def test_rpl_handle_bar_and_p_bar(self):
-        """Ручка-профиль + П-профиль → rpl = 27."""
+    def test_rpl_p_bar(self):
+        """П-профиль RS1082 слева → rpl = 28."""
         s = _make_section(
-            profile_left_handle_bar=True,
             profile_left_p_bar=True,
         )
         r = calculate_slide(s)
-        left = _find_glass(r, "Левое")[0]
-        mid = _find_glass(r, "Промежуточные")[0]
-        # krlr=8, left_W = mid_W + 0 + 8 + 0
-        assert left.width_mm == round(mid.width_mm + 8, 1)
+        edge = _find_glass(r, "Крайние")[0]
+        expected = round((2000 - 16 - 16 - 28 + 9.5 * 2) / 3, 1)
+        assert edge.width_mm == expected
 
     def test_krlp_p_bar_and_bubble(self):
-        """П-профиль + пузырьковый → krlp = 16."""
+        """П-профиль + пузырьковый: крайнее не уменьшается на pl, промежуточное уменьшается."""
         s = _make_section(
             profile_left_p_bar=True,
             profile_left_bubble=True,
@@ -194,8 +190,10 @@ class TestProfileVariables:
         r = calculate_slide(s)
         left = _find_glass(r, "Левое")[0]
         mid = _find_glass(r, "Промежуточные")[0]
-        # krlp=16, left_W = mid_W + 0 + 0 + 16
-        assert left.width_mm == round(mid.width_mm + 16, 1)
+        edge_base = round((2000 - 16 - 16 - 28 - 5 - 16 + 9.5 * 2) / 3, 1)
+        expected_mid = round((2000 - 16 - 16 - 28 - 5 - 16 - 2 + 9.5 * 2) / 3, 1)
+        assert left.width_mm == round(edge_base + 16, 1)
+        assert mid.width_mm == expected_mid
 
     def test_handle_offset_left(self):
         """Отступ a влияет на middle_W и left_W."""
@@ -351,7 +349,7 @@ class TestInterGlass:
         r = calculate_slide(_make_section(inter_glass_profile="Без"))
         assert not _find_profile(r, "RS2061")
         assert not _find_profile(r, "RS1006")
-        assert not _find_profile(r, "RS1004")
+        assert not _find_profile(r, "RS3061")
 
     def test_no_inter_glass_frontend_label(self):
         r = calculate_slide(
@@ -359,7 +357,7 @@ class TestInterGlass:
         )
         assert not _find_profile(r, "RS2061")
         assert not _find_profile(r, "RS1006")
-        assert not _find_profile(r, "RS1004")
+        assert not _find_profile(r, "RS3061")
         assert not _find_hardware(r, "RS107L")
         assert not _find_hardware(r, "RS107R")
         brush = [h for h in r.hardware if h.field_key == "brush"][0]
@@ -370,9 +368,22 @@ class TestInterGlass:
         r = calculate_slide(_make_section(inter_glass_profile="Прозрачный RS1006"))
         assert _find_profile(r, "RS1006")
 
-    def test_rs1004(self):
+    def test_rs3061(self):
+        r = calculate_slide(_make_section(inter_glass_profile="Профиль с зацепом RS3061"))
+        assert _find_profile(r, "RS3061")
+
+    def test_rs3061_uses_115_overlap(self):
+        r = calculate_slide(_make_section(inter_glass_profile="Профиль с зацепом RS3061"))
+        edge = _find_glass(r, "Крайние")[0]
+        mid = _find_glass(r, "Промежуточные")[0]
+        expected = round((2000 - 16 - 16 + 11.5 * 2) / 3, 1)
+        assert edge.width_mm == expected
+        assert mid.width_mm == expected
+
+    def test_legacy_rs1004_maps_to_rs3061(self):
         r = calculate_slide(_make_section(inter_glass_profile="h-профиль RS1004"))
-        assert _find_profile(r, "RS1004")
+        assert _find_profile(r, "RS3061")
+        assert not _find_profile(r, "RS1004")
 
     def test_not_painted_rs1006(self):
         """RS1006 не красится даже при RAL."""
@@ -483,26 +494,28 @@ class TestHardware:
         assert len(rs3018) == 1
         assert rs3018[0].value == 1
 
-    def test_lock_rs3019(self):
-        """2-сторонняя защёлка × Q."""
-        r = calculate_slide(_make_section(lock_right="ЗАМОК-ЗАЩЁЛКА 2стор с ключом"))
-        rs3019 = _find_hardware(r, "RS3019")
-        assert len(rs3019) == 1
-        assert rs3019[0].value == 1
+    def test_lock_rs3020(self):
+        """2-сторонний замок × Q."""
+        r = calculate_slide(
+            _make_section(lock_right="ЗАМОК двухсторонний с ключом RS3020")
+        )
+        rs3020 = _find_hardware(r, "RS3020")
+        assert len(rs3020) == 1
+        assert rs3020[0].value == 1
 
     def test_rs122_rs3020(self):
-        """RS122 = RS3020 = (lock3018 + lock3019) * Q."""
+        """RS122 считается на все замки, RS3020 — только двухсторонний замок."""
         r = calculate_slide(
             _make_section(
-                lock_left="ЗАМОК-ЗАЩЁЛКА 1стор",
-                lock_right="ЗАМОК-ЗАЩЁЛКА 2стор с ключом",
+                lock_left="ЗАМОК-ЗАЩЕЛКА 1стор RS3018",
+                lock_right="ЗАМОК двухсторонний с ключом RS3020",
                 quantity=2,
             )
         )
         rs122 = _find_hardware(r, "RS122")
         rs3020 = _find_hardware(r, "RS3020")
         assert rs122[0].value == 2 * 2  # (1+1)*2
-        assert rs3020[0].value == rs122[0].value
+        assert rs3020[0].value == 1 * 2
 
     def test_no_locks_no_rs122(self):
         r = calculate_slide(_make_section())
@@ -520,6 +533,18 @@ class TestHardware:
         rs3017 = _find_hardware(r, "RS3017")
         assert len(rs3017) == 1
         assert rs3017[0].value == 1
+
+    def test_rs30201_brace_handle(self):
+        r = calculate_slide(_make_section(handle_left="Ручка-скоба 600мм RS30201"))
+        rs30201 = _find_hardware(r, "RS30201")
+        assert len(rs30201) == 1
+        assert rs30201[0].value == 1
+
+    def test_legacy_brace_handle_maps_to_rs30201(self):
+        r = calculate_slide(_make_section(handle_left="Ручка-скоба"))
+        rs30201 = _find_hardware(r, "RS30201")
+        assert len(rs30201) == 1
+        assert rs30201[0].value == 1
 
     def test_rs3014_knob(self):
         r = calculate_slide(_make_section(handle_right="Ручка-кноб RS3014"))
@@ -556,9 +581,10 @@ class TestInterGlassPlugs:
         assert not _find_hardware(r, "RS107L")
         assert not _find_hardware(r, "RS107R")
 
-    def test_rs1004_no_plugs(self):
-        """h-профиль RS1004 — нет заглушек межстекольного."""
+    def test_rs3061_no_plugs(self):
+        """Профиль с зацепом RS3061 — нет заглушек межстекольного."""
         r = calculate_slide(_make_section(inter_glass_profile="h-профиль RS1004"))
+        assert _find_profile(r, "RS3061")
         assert not _find_hardware(r, "RS107L")
         assert not _find_hardware(r, "RS107R")
 
@@ -770,7 +796,7 @@ class TestScrews:
         r = calculate_slide(
             _make_section(
                 lock_left="ЗАМОК-ЗАЩЁЛКА 1стор",
-                lock_right="ЗАМОК-ЗАЩЁЛКА 2стор с ключом",
+                lock_right="ЗАМОК двухсторонний с ключом RS3020",
             )
         )
         rs122_val = _find_hardware(r, "RS122")[0].value
@@ -1065,9 +1091,9 @@ class TestChecklist:
         r = calculate_slide(_make_section(inter_glass_profile="Алюминиевый RS2061"))
         assert any("фетровое" in c and "RS2061" in c for c in r.checklist)
 
-    def test_no_felt_for_rs1004(self):
+    def test_no_felt_for_rs3061(self):
         r = calculate_slide(_make_section(inter_glass_profile="h-профиль RS1004"))
-        assert not any("RS1004" in c for c in r.checklist)
+        assert not any("RS3061" in c for c in r.checklist)
 
     def test_felt_for_handle_bar(self):
         r = calculate_slide(_make_section(profile_left_handle_bar=True))
@@ -1219,6 +1245,24 @@ class TestSlideTwoRows:
         assert center.width_mm == expected
         assert center.qty == 2
         assert right.width_mm == expected
+
+    def test_two_rows_rs3061_uses_115_overlap(self):
+        r = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                rails=3,
+                panels=4,
+                unused_track="Внешний",
+                inter_glass_profile="Профиль с зацепом RS3061",
+                first_panel_inside=None,
+            )
+        )
+        left = _find_glass(r, "Левое")[0]
+        center = _find_glass(r, "Центральные")[0]
+        expected = round((2000 - 3 - 16 - 16 + 11.5 * 2) / 4, 1)
+        assert left.width_mm == expected
+        assert center.width_mm == expected
+        assert _find_profile(r, "RS3061")
 
     def test_5rail_8panels_has_middle_glass(self):
         r = calculate_slide(

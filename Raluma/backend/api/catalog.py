@@ -43,10 +43,18 @@ def _seed_item_to_model(index: int, item) -> models.CatalogItem:
 
 
 def _ensure_catalog_seed(db: Session) -> None:
-    if db.query(models.CatalogItem).count() > 0:
-        return
+    has_existing_items = db.query(models.CatalogItem).count() > 0
     for index, item in enumerate(PROFILE_CATALOG.values(), start=101):
-        db.add(_seed_item_to_model(index, item))
+        if (
+            db.query(models.CatalogItem)
+            .filter(models.CatalogItem.sku == item.article)
+            .first()
+        ):
+            continue
+        model = _seed_item_to_model(index, item)
+        if has_existing_items:
+            model.id = None
+        db.add(model)
     db.commit()
 
 

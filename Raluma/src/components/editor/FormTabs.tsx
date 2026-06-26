@@ -90,6 +90,7 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
 // ── Tab: СЛАЙД — Система + Профили + Фурнитура ────────────────────────────────
 
 export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
+  const isBraceHandle = (value?: string) => (value || '').includes('Ручка-скоба');
   const is2row = (s.slideRows ?? 1) === 2;
   const rails = s.rails ?? 3;
   const thresholdKind = (s.threshold || '').includes('Накладной') ? 'Накладной' : 'Стандартный';
@@ -130,7 +131,7 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
   const centerHasHandle = !centerIsDeaf;
   const showCenterLock = centerHasHandle && !centerIsRS112;
   const showCenterFloorLatches = centerHasHandle;
-  const showCenterOffset = ch === 'Стеклянная ручка RS3017' || ch === 'Ручка-скоба';
+  const showCenterOffset = ch === 'Стеклянная ручка RS3017' || isBraceHandle(ch);
 
   return (
     <div className="space-y-4">
@@ -195,7 +196,7 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
               <option value="">— Без межстекольного профиля —</option>
               <option>Алюминиевый RS2061</option>
               <option>Прозрачный с фетром RS1006</option>
-              <option>h-профиль RS1004</option>
+              <option>Профиль с зацепом RS3061</option>
             </select>
           </div>
         </div>
@@ -219,7 +220,7 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
             <div className="mt-2 space-y-1">
               <label className={LBL}>Замок слева</label>
               <RadioList value={s.lockLeft} noneLabel="Без замка"
-                options={['ЗАМОК-ЗАЩЕЛКА 1стор', 'ЗАМОК-ЗАЩЕЛКА 2стор с ключом']}
+                options={['ЗАМОК-ЗАЩЕЛКА 1стор RS3018', 'ЗАМОК двухсторонний с ключом RS3020']}
                 onChange={v => update({ lockLeft: v })} />
             </div>
           )}
@@ -232,7 +233,7 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
             <div className="mt-2 space-y-1">
               <label className={LBL}>Ручка слева</label>
               <RadioList value={s.handleLeft} noneLabel="Без ручки (глухая)"
-                options={['Без ручки (подвижная)', 'Ручка-кноб RS3014', 'Стеклянная ручка RS3017', 'Ручка-скоба']}
+                options={['Без ручки (подвижная)', 'Ручка-кноб RS3014', 'Стеклянная ручка RS3017', 'Ручка-скоба 600мм RS30201']}
                 onChange={v => update({ handleLeft: v })} />
             </div>
           )}
@@ -252,7 +253,7 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
             <div className="mt-2 space-y-1">
               <label className={LBL}>Замок справа</label>
               <RadioList value={s.lockRight} noneLabel="Без замка"
-                options={['ЗАМОК-ЗАЩЕЛКА 1стор', 'ЗАМОК-ЗАЩЕЛКА 2стор с ключом']}
+                options={['ЗАМОК-ЗАЩЕЛКА 1стор RS3018', 'ЗАМОК двухсторонний с ключом RS3020']}
                 onChange={v => update({ lockRight: v })} />
             </div>
           )}
@@ -265,7 +266,7 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
             <div className="mt-2 space-y-1">
               <label className={LBL}>Ручка справа</label>
               <RadioList value={s.handleRight} noneLabel="Без ручки (глухая)"
-                options={['Без ручки (подвижная)', 'Ручка-кноб RS3014', 'Стеклянная ручка RS3017', 'Ручка-скоба']}
+                options={['Без ручки (подвижная)', 'Ручка-кноб RS3014', 'Стеклянная ручка RS3017', 'Ручка-скоба 600мм RS30201']}
                 onChange={v => update({ handleRight: v })} />
             </div>
           )}
@@ -280,9 +281,9 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
         </div>
       </div>
 
-      {(s.handleLeft === 'Стеклянная ручка RS3017' || s.handleLeft === 'Ручка-скоба' || s.handleRight === 'Стеклянная ручка RS3017' || s.handleRight === 'Ручка-скоба') && (
+      {(s.handleLeft === 'Стеклянная ручка RS3017' || isBraceHandle(s.handleLeft) || s.handleRight === 'Стеклянная ручка RS3017' || isBraceHandle(s.handleRight)) && (
         <div className="grid grid-cols-2 gap-3">
-          {(s.handleLeft === 'Стеклянная ручка RS3017' || s.handleLeft === 'Ручка-скоба') ? (
+          {(s.handleLeft === 'Стеклянная ручка RS3017' || isBraceHandle(s.handleLeft)) ? (
             <div className="space-y-2">
               <label className={LBL}>Отступ A (левое), мм</label>
               <input
@@ -290,11 +291,11 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
                 value={s.handleOffsetLeft ?? ''}
                 onChange={e => update({ handleOffsetLeft: parseFloat(e.target.value) || undefined })}
                 className={INP}
-                placeholder={s.handleLeft === 'Ручка-скоба' ? '100' : '0'}
+                placeholder={isBraceHandle(s.handleLeft) ? '100' : '0'}
               />
             </div>
           ) : <div />}
-          {(s.handleRight === 'Стеклянная ручка RS3017' || s.handleRight === 'Ручка-скоба') ? (
+          {(s.handleRight === 'Стеклянная ручка RS3017' || isBraceHandle(s.handleRight)) ? (
             <div className="space-y-2">
               <label className={LBL}>Отступ B (правое), мм</label>
               <input
@@ -302,7 +303,7 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
                 value={s.handleOffsetRight ?? ''}
                 onChange={e => update({ handleOffsetRight: parseFloat(e.target.value) || undefined })}
                 className={INP}
-                placeholder={s.handleRight === 'Ручка-скоба' ? '100' : '0'}
+                placeholder={isBraceHandle(s.handleRight) ? '100' : '0'}
               />
             </div>
           ) : <div />}
@@ -318,7 +319,7 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
               <label className={LBL}>Ручки на центральных панелях</label>
               <RadioList value={s.centerHandle} noneLabel="Без ручки (глухие)"
                 options={[
-                  'Ручка-скоба',
+                  'Ручка-скоба 600мм RS30201',
                   'Ручка-кноб RS3014',
                   'Стеклянная ручка RS3017',
                   'Ручки-профиль RS112 (2шт)',
@@ -344,7 +345,7 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
                   value={s.centerHandleOffset ?? ''}
                   onChange={e => update({ centerHandleOffset: parseFloat(e.target.value) || undefined })}
                   className={INP}
-                  placeholder={ch === 'Ручка-скоба' ? '100' : '0'}
+                  placeholder={isBraceHandle(ch) ? '100' : '0'}
                 />
               </div>
             )}

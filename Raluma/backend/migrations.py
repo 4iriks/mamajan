@@ -129,10 +129,14 @@ _DATA_MIGRATIONS = [
         "WHERE system IS NULL"
     ),
     # Переименование замков (ТЗ6)
-    "UPDATE sections SET lock_left = 'ЗАМОК-ЗАЩЕЛКА 1стор' WHERE lock_left = '1-сторонний RS3018'",
-    "UPDATE sections SET lock_left = 'ЗАМОК-ЗАЩЕЛКА 2стор с ключом' WHERE lock_left = '2-сторонний с ключом RS3019'",
-    "UPDATE sections SET lock_right = 'ЗАМОК-ЗАЩЕЛКА 1стор' WHERE lock_right = '1-сторонний RS3018'",
-    "UPDATE sections SET lock_right = 'ЗАМОК-ЗАЩЕЛКА 2стор с ключом' WHERE lock_right = '2-сторонний с ключом RS3019'",
+    "UPDATE sections SET lock_left = 'ЗАМОК-ЗАЩЕЛКА 1стор RS3018' WHERE lock_left IN ('1-сторонний RS3018', 'ЗАМОК-ЗАЩЕЛКА 1стор')",
+    "UPDATE sections SET lock_left = 'ЗАМОК двухсторонний с ключом RS3020' WHERE lock_left IN ('2-сторонний с ключом RS3019', 'ЗАМОК-ЗАЩЕЛКА 2стор с ключом')",
+    "UPDATE sections SET lock_right = 'ЗАМОК-ЗАЩЕЛКА 1стор RS3018' WHERE lock_right IN ('1-сторонний RS3018', 'ЗАМОК-ЗАЩЕЛКА 1стор')",
+    "UPDATE sections SET lock_right = 'ЗАМОК двухсторонний с ключом RS3020' WHERE lock_right IN ('2-сторонний с ключом RS3019', 'ЗАМОК-ЗАЩЕЛКА 2стор с ключом')",
+    "UPDATE sections SET handle_left = 'Ручка-скоба 600мм RS30201' WHERE handle_left = 'Ручка-скоба'",
+    "UPDATE sections SET handle_right = 'Ручка-скоба 600мм RS30201' WHERE handle_right = 'Ручка-скоба'",
+    "UPDATE sections SET center_handle = 'Ручка-скоба 600мм RS30201' WHERE center_handle = 'Ручка-скоба'",
+    "UPDATE sections SET inter_glass_profile = 'Профиль с зацепом RS3061' WHERE inter_glass_profile = 'h-профиль RS1004'",
     "UPDATE catalog_items SET paint_mode = 'Частично', note = 'В заявке на покраску отмечать область, которую не красить' WHERE sku IN ('RS2323', 'RS2325')",
     "UPDATE catalog_items SET paint_mode = 'Частично', note = 'Накладной порог, верхние бобышки не красить' WHERE sku IN ('RS23231', 'RS23251')",
     "UPDATE catalog_items SET image_file = 'RS1313.png' WHERE sku = 'RS1313'",
@@ -155,6 +159,10 @@ _DATA_MIGRATIONS = [
     "UPDATE catalog_items SET image_file = 'RS30301.png' WHERE sku = 'RS30301'",
     "UPDATE catalog_items SET image_file = 'RS3014.png' WHERE sku = 'RS3014'",
     "UPDATE catalog_items SET image_file = 'RS3017.png' WHERE sku = 'RS3017'",
+    "INSERT OR IGNORE INTO catalog_items (sku, name, \"group\", system, unit, purchase_price, markup_percent, weight, waste_percent, section_width_mm, section_height_mm, image_file, paint_mode, color_variants, supplier, is_active, note, created_at, updated_at) VALUES ('RS3061', 'Профиль с зацепом', 'Профили', 'СЛАЙД', 'м.п.', 0, 35, 0, 4, 18.8, 18.8, 'RS3061.png', 'Не красится', '[\"Без цвета\"]', 'Raluma', 1, 'Заменяет старый h-профиль RS1004, перехлест между стеклами 11,5 мм', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+    "INSERT OR IGNORE INTO catalog_items (sku, name, \"group\", system, unit, purchase_price, markup_percent, weight, waste_percent, section_width_mm, section_height_mm, image_file, paint_mode, color_variants, supplier, is_active, note, created_at, updated_at) VALUES ('RS30201', 'Ручка-скоба 600мм', 'Ручки', 'СЛАЙД', 'шт', 0, 40, 0, 0, 0, 0, 'RS30201.png', 'Не красится', '[\"Без цвета\"]', 'Фурнитура СПБ', 1, 'Боковые и центральные панели СЛАЙД', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+    "UPDATE catalog_items SET image_file = 'RS3061.png', name = 'Профиль с зацепом' WHERE sku = 'RS3061'",
+    "UPDATE catalog_items SET image_file = 'RS30201.png', name = 'Ручка-скоба 600мм' WHERE sku = 'RS30201'",
 ]
 
 
