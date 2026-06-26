@@ -61,6 +61,8 @@
   .prof-img.pl-art-rs2333 { margin-left: 1.2mm; margin-right: 3mm; transform: translateX(1.2mm) scale(1.24); }
   .prof-img.pl-art-rs1313,
   .prof-img.pl-art-rs112 { margin-right: 3mm; transform: scale(1.48); }
+  .prof-img.pl-art-rs2061 { margin-right: 3mm; transform: scale(1.55); }
+  .prof-img.pl-art-rs2061.mirror-x { transform: scaleX(-1) scale(1.55); }
   .mirror-x { transform: scaleX(-1); }
   .prof-name { font-size: 8pt; font-weight: 700; }
   .prof-name.pl-title-shift { padding-left: 1mm; }
@@ -75,8 +77,8 @@
   .gp-tbl { width: auto; margin-top: 0.5mm; }
   .gp-tbl td { border: 1px solid #bbb; padding: 0.25mm 1.4mm; font-size: 9.2pt; }
   .gp-tbl td:nth-child(2), .gp-tbl td:nth-child(3) { text-align: center; font-weight: 700; }
-  .gp-img-box { width: 36mm; height: 15mm; display: flex; align-items: center; justify-content: center; }
-  .gp-img { width: 35mm; height: 14mm; object-fit: contain; }
+  .gp-img-box { width: 25mm; height: 10mm; display: flex; align-items: center; justify-content: center; }
+  .gp-img { width: 24mm; height: 9.5mm; object-fit: contain; }
   .gp-row { width: 100%; border: none; border-collapse: collapse; }
   .gp-row td { border: none; padding: 0; vertical-align: top; }
   .gp-text-cell { width: 42mm; padding-right: 2mm !important; }
@@ -567,7 +569,7 @@
 <!-- ══════ НАРЕЗКА ПРОФИЛЕЙ (3 колонки) ══════ -->
 {% set reg_profiles = [] %}
 {% set glass_profiles = [] %}
-{% set pl_focus_image_articles = ['RS2323', 'RS23231', 'RS2325', 'RS23251', 'RS1313', 'RS1315', 'RS2333', 'RS2335', 'RS2081', 'RS112', 'RS1082', 'RS1002'] %}
+{% set pl_focus_image_articles = ['RS2323', 'RS23231', 'RS2325', 'RS23251', 'RS1313', 'RS1315', 'RS2333', 'RS2335', 'RS2081', 'RS112', 'RS1082', 'RS1002', 'RS2061'] %}
 {% for p in calc.profiles %}
   {% if p.article == 'RS2021' %}
     {% set _ = glass_profiles.append(p) %}

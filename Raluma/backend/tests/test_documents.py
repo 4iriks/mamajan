@@ -399,7 +399,7 @@ class TestLocalPreview:
         assert 'data-profile="inter-glass" data-panel="2" data-dir="1"' in r.text
         assert 'data-profile="inter-glass" data-panel="1" data-dir="1"' in r.text
         assert 'data-profile="inter-glass" data-panel="3"' not in r.text
-        assert 'class="prof-img mirror-x" alt="RS2061"' in r.text
+        assert 'class="prof-img pl-art-rs2061 pl-focus-img mirror-x" alt="RS2061"' in r.text
 
     def test_local_preview_rs2021_skips_zero_intermediate_label(self, client):
         r = client.post(
