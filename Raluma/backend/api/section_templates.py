@@ -9,6 +9,7 @@ import models
 import schemas
 from auth import require_admin
 from database import get_db
+from engine.legacy_values import normalize_section_data_values
 
 
 router = APIRouter(prefix="/api/section-templates", tags=["section-templates"])
@@ -72,9 +73,10 @@ def _normalize_template_system(system: str, template_data: dict[str, Any]) -> st
 
 
 def _sanitize_template_data(template_system: str, data: dict[str, Any]) -> dict[str, Any]:
+    normalized_data = normalize_section_data_values(data or {})
     source = {
         key: value
-        for key, value in (data or {}).items()
+        for key, value in normalized_data.items()
         if key not in TEMPLATE_OMIT_FIELDS
     }
     source["system"] = _section_system(template_system)
@@ -106,6 +108,7 @@ def _template_to_dict(template: models.SectionTemplate) -> dict[str, Any]:
         template_data = json.loads(template.template_data or "{}")
     except json.JSONDecodeError:
         template_data = {}
+    template_data = normalize_section_data_values(template_data)
     system = _normalize_template_system(template.system, template_data)
 
     return {
@@ -135,6 +138,7 @@ def _count_templates(
             existing_data = json.loads(template.template_data or "{}")
         except json.JSONDecodeError:
             existing_data = {}
+        existing_data = normalize_section_data_values(existing_data)
         if _normalize_template_system(template.system, existing_data) == system:
             count += 1
     return count
@@ -212,6 +216,7 @@ def update_section_template(
         existing_data = json.loads(template.template_data or "{}")
     except json.JSONDecodeError:
         existing_data = {}
+    existing_data = normalize_section_data_values(existing_data)
     next_system = _ensure_system(
         data.system or _normalize_template_system(template.system, existing_data),
         data.template_data or existing_data,

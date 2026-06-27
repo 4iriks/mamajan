@@ -1,6 +1,6 @@
 # CODEX1: отчет исполнителя и актуальный backlog
 
-Дата обновления: 2026-06-22.
+Дата обновления: 2026-06-27.
 
 Роли:
 
@@ -16,9 +16,63 @@
 
 ## Выполнено в текущей итерации
 
-### Дополнение 2026-06-26: новые формулы стекол, RS3061, RS3020 и RS30201
+### Дополнение 2026-06-27: нормализация старых значений в шаблонах секций
 
 Статус: реализовано локально, проверено тестами, готовится к коммиту и деплою.
+
+Причина:
+
+- После замены `RS1004 -> RS3061`, `RS3019 -> RS3020` и `Ручка-скоба -> RS30201` миграция обновляла обычные `sections`, но не JSON внутри `section_templates.template_data`.
+- Если старый шаблон применить к секции, UI мог получить старое значение и не подсветить выбранный radio/select, потому что сравнение вариантов строгое.
+
+Файлы:
+
+- `Raluma/backend/engine/legacy_values.py`
+- `Raluma/backend/api/section_templates.py`
+- `Raluma/backend/migrations.py`
+- `Raluma/backend/tests/test_section_templates.py`
+- `Raluma/src/components/editor/converters.ts`
+- `Raluma/src/components/editor/FormTabs.tsx`
+
+Что сделано:
+
+- Добавлен общий backend-helper нормализации старых строк секции.
+- API шаблонов нормализует старые значения при создании, обновлении, подсчете лимитов и чтении.
+- Миграция теперь физически обновляет `section_templates.template_data` в базе.
+- Миграция дополнительно обновляет старые `lock`/`handle` у секций `КОМПЛЕКТАЦИЯ`.
+- Frontend-конвертер нормализует старые значения при загрузке секции/применении шаблона, чтобы localStorage или старые ответы не ломали выделение вариантов.
+- Во вкладке `КОМПЛЕКТАЦИЯ` старые варианты заменены:
+  - `RS3019 С ключом` -> `ЗАМОК двухсторонний с ключом RS3020`;
+  - `Ручка-скоба` -> `Ручка-скоба 600мм RS30201`.
+
+Проверки:
+
+```powershell
+pytest Raluma/backend/tests/test_section_templates.py -q
+pytest Raluma/backend/tests/test_slide_calc.py -q
+pytest -q
+ruff check Raluma/backend
+cd Raluma
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run build
+npm.cmd run smoke:diagrams
+```
+
+Результат:
+
+- Шаблоны секций: `7 passed`.
+- Slide calc: `143 passed`.
+- Полный backend pytest: `239 passed, 1 skipped`.
+- `ruff check Raluma/backend`: `All checks passed`.
+- `typecheck`: прошел.
+- `lint`: прошел без ошибок, остались 14 старых warnings.
+- `build`: прошел, остался старый Vite warning про chunk больше 500 kB.
+- `smoke:diagrams`: прошел.
+
+### Дополнение 2026-06-26: новые формулы стекол, RS3061, RS3020 и RS30201
+
+Статус: реализовано, закоммичено, задеплоено на VPS.
 
 Файлы:
 

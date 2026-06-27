@@ -34,6 +34,44 @@ function stringifyExtraComponents(rows?: ExtraComponent[]): string {
   return JSON.stringify(normalized);
 }
 
+function normalizeLegacyValue(field: string, value?: string): string | undefined {
+  if (!value) return value;
+  const replacements: Record<string, Record<string, string>> = {
+    interGlassProfile: {
+      'h-профиль RS1004': 'Профиль с зацепом RS3061',
+    },
+    lockLeft: {
+      '1-сторонний RS3018': 'ЗАМОК-ЗАЩЕЛКА 1стор RS3018',
+      'ЗАМОК-ЗАЩЕЛКА 1стор': 'ЗАМОК-ЗАЩЕЛКА 1стор RS3018',
+      '2-сторонний с ключом RS3019': 'ЗАМОК двухсторонний с ключом RS3020',
+      'ЗАМОК-ЗАЩЕЛКА 2стор с ключом': 'ЗАМОК двухсторонний с ключом RS3020',
+    },
+    lockRight: {
+      '1-сторонний RS3018': 'ЗАМОК-ЗАЩЕЛКА 1стор RS3018',
+      'ЗАМОК-ЗАЩЕЛКА 1стор': 'ЗАМОК-ЗАЩЕЛКА 1стор RS3018',
+      '2-сторонний с ключом RS3019': 'ЗАМОК двухсторонний с ключом RS3020',
+      'ЗАМОК-ЗАЩЕЛКА 2стор с ключом': 'ЗАМОК двухсторонний с ключом RS3020',
+    },
+    lock: {
+      'RS3019 С ключом': 'ЗАМОК двухсторонний с ключом RS3020',
+      'ЗАМОК-ЗАЩЕЛКА 2стор с ключом': 'ЗАМОК двухсторонний с ключом RS3020',
+    },
+    handleLeft: {
+      'Ручка-скоба': 'Ручка-скоба 600мм RS30201',
+    },
+    handleRight: {
+      'Ручка-скоба': 'Ручка-скоба 600мм RS30201',
+    },
+    centerHandle: {
+      'Ручка-скоба': 'Ручка-скоба 600мм RS30201',
+    },
+    handle: {
+      'Ручка-скоба': 'Ручка-скоба 600мм RS30201',
+    },
+  };
+  return replacements[field]?.[value] ?? value;
+}
+
 export function apiToLocal(s: SectionOut): Section {
   // Backwards compat: migrate legacy 'ДВЕРЬ' value
   const rawSystem = s.system === 'ДВЕРЬ' ? 'КОМПЛЕКТАЦИЯ' : s.system;
@@ -55,11 +93,11 @@ export function apiToLocal(s: SectionOut): Section {
     threshold: s.threshold,
     firstPanelInside: s.first_panel_inside,
     unusedTrack: s.unused_track,
-    interGlassProfile: s.inter_glass_profile,
+    interGlassProfile: normalizeLegacyValue('interGlassProfile', s.inter_glass_profile),
     profileLeft: s.profile_left,
     profileRight: s.profile_right,
-    lock: s.lock,
-    handle: s.handle,
+    lock: normalizeLegacyValue('lock', s.lock),
+    handle: normalizeLegacyValue('handle', s.handle),
     floorLatchesLeft: s.floor_latches_left,
     floorLatchesRight: s.floor_latches_right,
     handleOffset: s.handle_offset,
@@ -75,17 +113,17 @@ export function apiToLocal(s: SectionOut): Section {
     profileRightPBar: s.profile_right_p_bar ?? false,
     profileRightHandleBar: s.profile_right_handle_bar ?? false,
     profileRightBubble: s.profile_right_bubble ?? false,
-    lockLeft: s.lock_left,
-    lockRight: s.lock_right,
+    lockLeft: normalizeLegacyValue('lockLeft', s.lock_left),
+    lockRight: normalizeLegacyValue('lockRight', s.lock_right),
     slideRows: s.slide_rows ?? 1,
-    centerHandle: s.center_handle,
+    centerHandle: normalizeLegacyValue('centerHandle', s.center_handle),
     centerLock: s.center_lock,
     centerHandleOffset: s.center_handle_offset,
     centerFloorLatchesLeft: s.center_floor_latches_left ?? false,
     centerFloorLatchesRight: s.center_floor_latches_right ?? false,
     bookSubtype: s.book_subtype,
-    handleLeft: s.handle_left,
-    handleRight: s.handle_right,
+    handleLeft: normalizeLegacyValue('handleLeft', s.handle_left),
+    handleRight: normalizeLegacyValue('handleRight', s.handle_right),
     doors: s.doors,
     doorSide: s.door_side,
     doorType: s.door_type,

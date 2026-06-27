@@ -1,4 +1,9 @@
+import json
 import uuid
+from datetime import datetime
+
+import models
+from database import SessionLocal
 
 
 def _cleanup_templates(client, admin_headers):
@@ -230,3 +235,73 @@ def test_section_templates_rename_update_and_delete(client, admin_headers):
     )
     assert deleted.status_code == 204
     assert client.get("/api/section-templates").json() == []
+
+
+def test_section_template_legacy_slide_values_are_normalized(client, admin_headers):
+    _cleanup_templates(client, admin_headers)
+    payload = _slide_template_payload("Старый слайд")
+    payload["template_data"].update(
+        {
+            "inter_glass_profile": "h-профиль RS1004",
+            "lock_left": "ЗАМОК-ЗАЩЕЛКА 2стор с ключом",
+            "lock_right": "1-сторонний RS3018",
+            "handle_left": "Ручка-скоба",
+            "handle_right": "Ручка-скоба",
+            "center_handle": "Ручка-скоба",
+        }
+    )
+
+    created = client.post(
+        "/api/section-templates",
+        headers=admin_headers,
+        json=payload,
+    )
+
+    assert created.status_code == 201
+    data = created.json()["template_data"]
+    assert data["inter_glass_profile"] == "Профиль с зацепом RS3061"
+    assert data["lock_left"] == "ЗАМОК двухсторонний с ключом RS3020"
+    assert data["lock_right"] == "ЗАМОК-ЗАЩЕЛКА 1стор RS3018"
+    assert data["handle_left"] == "Ручка-скоба 600мм RS30201"
+    assert data["handle_right"] == "Ручка-скоба 600мм RS30201"
+    assert data["center_handle"] == "Ручка-скоба 600мм RS30201"
+
+    _cleanup_templates(client, admin_headers)
+
+
+def test_section_template_existing_legacy_json_is_normalized_on_read(
+    client, admin_headers
+):
+    _cleanup_templates(client, admin_headers)
+    db = SessionLocal()
+    try:
+        template = models.SectionTemplate(
+            name="Старая комплектация",
+            system="КОМПЛЕКТАЦИЯ",
+            template_data=json.dumps(
+                {
+                    "system": "КОМПЛЕКТАЦИЯ",
+                    "width": 1000,
+                    "height": 2000,
+                    "panels": 1,
+                    "lock": "RS3019 С ключом",
+                    "handle": "Ручка-скоба",
+                },
+                ensure_ascii=False,
+            ),
+            sort_order=1,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+        db.add(template)
+        db.commit()
+    finally:
+        db.close()
+
+    listed = client.get("/api/section-templates", params={"system": "КОМПЛЕКТАЦИЯ"})
+    assert listed.status_code == 200
+    data = listed.json()[0]["template_data"]
+    assert data["lock"] == "ЗАМОК двухсторонний с ключом RS3020"
+    assert data["handle"] == "Ручка-скоба 600мм RS30201"
+
+    _cleanup_templates(client, admin_headers)

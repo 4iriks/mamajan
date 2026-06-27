@@ -570,13 +570,13 @@ export function DoorSystemTab({ s, update }: { s: Section; update: (u: Partial<S
         <div className="space-y-2">
           <label className={LBL}>Замок</label>
           <RadioList value={s.lock} noneLabel="Без замка"
-            options={['RS3018 Защёлка', 'RS3019 С ключом', 'Магнитный']}
+            options={['RS3018 Защёлка', 'ЗАМОК двухсторонний с ключом RS3020', 'Магнитный']}
             onChange={v => update({ lock: v })} />
         </div>
         <div className="space-y-2">
           <label className={LBL}>Ручка</label>
           <RadioList value={s.handle} noneLabel="Без ручки"
-            options={['RS3014 Ручка-кноб', 'RS3017 Стеклянная ручка', 'Ручка-скоба', 'Ручка-раковина']}
+            options={['RS3014 Ручка-кноб', 'RS3017 Стеклянная ручка', 'Ручка-скоба 600мм RS30201', 'Ручка-раковина']}
             onChange={v => update({ handle: v })} />
         </div>
       </div>

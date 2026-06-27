@@ -7,8 +7,11 @@ SQLite не поддерживает IF NOT EXISTS для ALTER TABLE,
 Вызывается из main.py при старте приложения.
 """
 
+import json
+
 from sqlalchemy import text
 from database import engine
+from engine.legacy_values import normalize_section_data_values
 
 
 # ── Новые таблицы ─────────────────────────────────────────────────────────────
@@ -136,6 +139,8 @@ _DATA_MIGRATIONS = [
     "UPDATE sections SET handle_left = 'Ручка-скоба 600мм RS30201' WHERE handle_left = 'Ручка-скоба'",
     "UPDATE sections SET handle_right = 'Ручка-скоба 600мм RS30201' WHERE handle_right = 'Ручка-скоба'",
     "UPDATE sections SET center_handle = 'Ручка-скоба 600мм RS30201' WHERE center_handle = 'Ручка-скоба'",
+    "UPDATE sections SET lock = 'ЗАМОК двухсторонний с ключом RS3020' WHERE lock IN ('RS3019 С ключом', 'ЗАМОК-ЗАЩЕЛКА 2стор с ключом')",
+    "UPDATE sections SET handle = 'Ручка-скоба 600мм RS30201' WHERE handle = 'Ручка-скоба'",
     "UPDATE sections SET inter_glass_profile = 'Профиль с зацепом RS3061' WHERE inter_glass_profile = 'h-профиль RS1004'",
     "UPDATE catalog_items SET paint_mode = 'Частично', note = 'В заявке на покраску отмечать область, которую не красить' WHERE sku IN ('RS2323', 'RS2325')",
     "UPDATE catalog_items SET paint_mode = 'Частично', note = 'Накладной порог, верхние бобышки не красить' WHERE sku IN ('RS23231', 'RS23251')",
@@ -166,6 +171,38 @@ _DATA_MIGRATIONS = [
 ]
 
 
+def _normalize_section_templates(conn):
+    """Обновить legacy-значения внутри JSON шаблонов секций."""
+    try:
+        templates = conn.execute(
+            text("SELECT id, template_data FROM section_templates")
+        ).fetchall()
+    except Exception:
+        return
+
+    for template_id, raw_data in templates:
+        try:
+            data = json.loads(raw_data or "{}")
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(data, dict):
+            continue
+        normalized = normalize_section_data_values(data)
+        if normalized == data:
+            continue
+        conn.execute(
+            text(
+                "UPDATE section_templates "
+                "SET template_data = :template_data "
+                "WHERE id = :template_id"
+            ),
+            {
+                "template_data": json.dumps(normalized, ensure_ascii=False),
+                "template_id": template_id,
+            },
+        )
+
+
 def run_migrations():
     """Выполнить все миграции. Безопасно вызывать при каждом старте."""
     with engine.connect() as conn:
@@ -191,3 +228,9 @@ def run_migrations():
                 conn.commit()
             except Exception:
                 pass
+
+        try:
+            _normalize_section_templates(conn)
+            conn.commit()
+        except Exception:
+            pass
