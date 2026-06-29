@@ -36,6 +36,7 @@ export interface ProjectList {
   paint_ship_date?: string;
   paint_received_date?: string;
   order_items?: string;
+  paint_manual_rows?: string;
   created_at: string;
   updated_at: string;
   created_by: number;
@@ -333,6 +334,7 @@ export const importLocalProjectsToServer = async () => {
       paint_ship_date: project.paint_ship_date,
       paint_received_date: project.paint_received_date,
       order_items: project.order_items,
+      paint_manual_rows: project.paint_manual_rows,
     });
 
     for (const section of project.sections.sort((a, b) => a.order - b.order)) {

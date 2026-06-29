@@ -37,7 +37,7 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
         setCatalog(
           rows
             .filter(row => row.isActive)
-            .sort((a, b) => `${a.sku} ${a.name}`.localeCompare(`${b.sku} ${b.name}`, 'ru')),
+            .sort((a, b) => `${a.name} ${a.sku}`.localeCompare(`${b.name} ${b.sku}`, 'ru')),
         );
       })
       .catch(() => {
@@ -100,7 +100,7 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
                 <option value="">— Выберите из каталога —</option>
                 {catalog.map(item => (
                   <option key={item.id} value={item.sku}>
-                    {item.name}
+                    {item.name} {item.sku}
                   </option>
                 ))}
               </select>

@@ -271,7 +271,11 @@
             <td class="center" rowspan="{{ span }}">{{ group.article }}</td>
             <td rowspan="{{ span }}">
               {% if group.note %}<div class="paint-note">{{ group.note }}</div>{% endif %}
-              {% if group.image %}
+              {% if group.image_data %}
+                <span class="profile-img-wrap">
+                  <img src="{{ group.image_data }}" class="profile-img" alt="{{ group.article }}">
+                </span>
+              {% elif group.image %}
                 {% set src = group.image | img_b64 %}
                 {% if src %}
                 <span class="profile-img-wrap{% if group.paint_marker %} paint-bosses-marker {{ group.paint_marker_class }}{% endif %}">

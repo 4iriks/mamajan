@@ -255,7 +255,7 @@ class TestThresholdArticles:
     def test_3_overlay(self):
         r = calculate_slide(_make_section(rails=3, threshold="Накладной анод"))
         assert _find_profile(r, "RS23231")
-        assert r.threshold_text == "Порог 3-рельсовый накладной анод"
+        assert r.threshold_text == "Порог накладной 3-рельсовый анод"
 
     def test_5_standard(self):
         r = calculate_slide(_make_section(rails=5, threshold="Стандартный анод"))
@@ -265,7 +265,7 @@ class TestThresholdArticles:
     def test_5_overlay(self):
         r = calculate_slide(_make_section(rails=5, threshold="Накладной анод"))
         assert _find_profile(r, "RS23251")
-        assert r.threshold_text == "Порог 5-рельсовый накладной анод"
+        assert r.threshold_text == "Порог накладной 5-рельсовый анод"
 
     def test_two_rows_threshold_text_uses_profile_name(self):
         r = calculate_slide(
@@ -277,7 +277,7 @@ class TestThresholdArticles:
             )
         )
         assert _find_profile(r, "RS23231")
-        assert r.threshold_text == "Порог 3-рельсовый накладной окраш"
+        assert r.threshold_text == "Порог накладной 3-рельсовый окраш"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -522,11 +522,19 @@ class TestHardware:
         assert not _find_hardware(r, "RS122")
         assert not _find_hardware(r, "RS3020")
 
-    def test_rollers_ru005(self):
-        """RU005 = P * 2 * Q."""
+    def test_rollers_ru005_for_wide_panels(self):
+        """RU005 = 4-колесные ролики для панелей шире 500 мм."""
         r = calculate_slide(_make_section(panels=3, quantity=2))
         ru005 = _find_hardware(r, "RU005")
         assert ru005[0].value == 3 * 2 * 2  # 12
+        assert not _find_hardware(r, "RU003")
+
+    def test_rollers_ru003_for_narrow_panels(self):
+        """RU003 = 2-колесные ролики для панелей до 500 мм."""
+        r = calculate_slide(_make_section(width=1400, panels=3, quantity=2))
+        ru003 = _find_hardware(r, "RU003")
+        assert ru003[0].value == 3 * 2 * 2
+        assert not _find_hardware(r, "RU005")
 
     def test_rs3017_glass_handle(self):
         r = calculate_slide(_make_section(handle_left="Стеклянная ручка RS3017"))
@@ -663,8 +671,8 @@ class TestGlassProfilePlugs:
 
 
 class TestScrews:
-    def test_screw_4819(self):
-        """4,8×19 = (RS105 + RS106) * 2."""
+    def test_screw_4825(self):
+        """4,8×25 = (RS105 + RS106) * 2."""
         r = calculate_slide(
             _make_section(
                 panels=3,
@@ -674,7 +682,7 @@ class TestScrews:
         )
         rs105_val = _find_hardware(r, "RS105")[0].value
         rs106_val = _find_hardware(r, "RS106")[0].value
-        screw = _find_screw(r, "4,8×19")[0]
+        screw = _find_screw(r, "4,8×25")[0]
         assert screw.qty == (rs105_val + rs106_val) * 2
 
     def test_screw_3913m_no_lock_bar(self):
@@ -1015,7 +1023,7 @@ class TestPainting:
         )
         overlay_threshold = _find_profile(r, "RS23231")[0]
         assert overlay_threshold.painted is False
-        assert r.threshold_text == "Порог 3-рельсовый накладной анод"
+        assert r.threshold_text == "Порог накладной 3-рельсовый анод"
         assert r.color_text == "Анодированный"
 
     def test_anod_profiles_not_painted(self):
@@ -1063,7 +1071,7 @@ class TestPainting:
     def test_overlay_threshold_has_own_name_image_and_drain_note(self):
         r = calculate_slide(_make_section(threshold="Накладной окраш"))
         threshold = _find_profile(r, "RS23231")[0]
-        assert threshold.name == "Порог 3-рельсовый накладной"
+        assert threshold.name == "Порог накладной 3-рельсовый"
         assert threshold.image == "RS23231.png"
         assert threshold.note == "рассверлить дренажные отверстия"
 
@@ -1296,6 +1304,41 @@ class TestSlideTwoRows:
         assert rs1083.length_mm == 2255
         assert ru010.qty == 2
         assert not _find_hardware(r, "RS3110")
+
+    def test_center_rs112_splits_glass_profile_lengths(self):
+        r = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                rails=3,
+                panels=4,
+                center_handle="Ручки-профиль RS112 (2шт)",
+                center_lock="Без",
+                first_panel_inside=None,
+            )
+        )
+        center_left = _find_glass(r, "Центральное левое")[0]
+        center_right = _find_glass(r, "Центральное правое")[0]
+        assert center_left.glass_profile_length == round(center_left.width_mm + 19, 1)
+        assert center_right.glass_profile_length == round(center_right.width_mm + 16, 1)
+        assert r.panel_glass[1].glass_profile_length == center_left.glass_profile_length
+        assert r.panel_glass[2].glass_profile_length == center_right.glass_profile_length
+
+    def test_two_rows_central_sashes_use_rs108(self):
+        r = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                panels=4,
+                center_handle="Без ручки (глухие)",
+                center_lock="Без",
+                first_panel_inside=None,
+            )
+        )
+        rs108 = _find_hardware(r, "RS108")[0]
+        screw = _find_screw(r, "4,8×25")[0]
+        assert rs108.value == 2
+        assert not _find_hardware(r, "RS105")
+        assert not _find_hardware(r, "RS106")
+        assert screw.qty == rs108.value * 2
 
     def test_center_rs3110_has_no_missing_image(self):
         r = calculate_slide(

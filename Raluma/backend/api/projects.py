@@ -115,6 +115,7 @@ def copy_project(
         paint_received_date=source.paint_received_date,
         current_stage=source.current_stage,
         order_items=source.order_items,
+        paint_manual_rows=source.paint_manual_rows,
         created_by=current_user.id,
     )
     db.add(new_project)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
+import json
 from math import ceil
 import re
 from typing import Iterable
@@ -221,6 +222,8 @@ def _expand_2row_glass(section: object, calc: object) -> list[PhysicalGlassItem]
 
     left = rows.get("Левое")
     middle = rows.get("Промежуточные")
+    center_left = rows.get("Центральное левое")
+    center_right = rows.get("Центральное правое")
     center = rows.get("Центральные")
     right = rows.get("Правое")
     middle_count = max(panels - 4, 0)
@@ -233,11 +236,18 @@ def _expand_2row_glass(section: object, calc: object) -> list[PhysicalGlassItem]
         if middle is not None:
             for _ in range(left_middle_count):
                 result.append(_physical_glass(middle, ""))
-        if center is not None:
-            for role in ("center_left", "center_right"):
-                result.append(
-                    _physical_glass(center, _glass_note_for_role(section, role))
-                )
+        if center_left is not None:
+            result.append(
+                _physical_glass(center_left, _glass_note_for_role(section, "center_left"))
+            )
+        elif center is not None:
+            result.append(_physical_glass(center, _glass_note_for_role(section, "center_left")))
+        if center_right is not None:
+            result.append(
+                _physical_glass(center_right, _glass_note_for_role(section, "center_right"))
+            )
+        elif center is not None:
+            result.append(_physical_glass(center, _glass_note_for_role(section, "center_right")))
         if middle is not None:
             for _ in range(right_middle_count):
                 result.append(_physical_glass(middle, ""))
@@ -281,7 +291,59 @@ def _build_commercial_rows(calculated: list[CalculatedSection]) -> list[dict]:
     return rows
 
 
-def _build_paint_pages(calculated: list[CalculatedSection]) -> list[dict]:
+def _safe_float(value: object, default: float = 0.0) -> float:
+    try:
+        if value in (None, ""):
+            return default
+        return float(str(value).replace(",", "."))
+    except (TypeError, ValueError):
+        return default
+
+
+def _parse_paint_manual_rows(raw_rows: object) -> list[dict]:
+    if isinstance(raw_rows, list):
+        rows = raw_rows
+    else:
+        try:
+            rows = json.loads(raw_rows or "[]")
+        except (TypeError, json.JSONDecodeError):
+            rows = []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _manual_paint_row(raw: dict) -> tuple[str, dict] | None:
+    article = str(raw.get("article") or raw.get("sku") or "").strip()
+    name = str(raw.get("name") or "").strip()
+    if not article and not name:
+        return None
+    color = str(raw.get("color") or "Без цвета").strip() or "Без цвета"
+    qty = max(0, int(_safe_float(raw.get("qty") or raw.get("quantity"), 0)))
+    clean = _safe_float(raw.get("clean") or raw.get("cleanSize"), 0)
+    allowance = _safe_float(raw.get("allowance") or raw.get("allowanceSize"), 0)
+    if allowance <= 0 and clean > 0:
+        allowance = clean + 50
+    total_m = _safe_float(raw.get("totalM") or raw.get("total_m"), 0)
+    if total_m <= 0 and qty > 0 and allowance > 0:
+        total_m = round(qty * allowance / 1000, 1)
+    row = {
+        "article": article,
+        "name": name,
+        "image": str(raw.get("imageFile") or raw.get("image") or "").strip(),
+        "image_data": str(raw.get("imageData") or raw.get("image_data") or "").strip(),
+        "paint_marker": False,
+        "paint_marker_class": "",
+        "qty": qty,
+        "clean": clean,
+        "allowance": allowance,
+        "total_m": total_m,
+        "note": str(raw.get("note") or "").strip(),
+    }
+    return color, row
+
+
+def _build_paint_pages(
+    calculated: list[CalculatedSection], manual_rows: object | None = None
+) -> list[dict]:
     grouped: dict[str, dict[tuple, dict]] = defaultdict(dict)
 
     for item in calculated:
@@ -297,6 +359,7 @@ def _build_paint_pages(calculated: list[CalculatedSection]) -> list[dict]:
                 profile.name,
                 clean,
                 profile.image or "",
+                "",
                 note,
             )
             row = grouped[color].setdefault(
@@ -305,6 +368,7 @@ def _build_paint_pages(calculated: list[CalculatedSection]) -> list[dict]:
                     "article": profile.article,
                     "name": profile.name,
                     "image": profile.image,
+                    "image_data": "",
                     "paint_marker": profile.paint_mode == "Частично",
                     "paint_marker_class": _paint_marker_class(profile.article),
                     "qty": 0,
@@ -316,6 +380,22 @@ def _build_paint_pages(calculated: list[CalculatedSection]) -> list[dict]:
             )
             row["qty"] += int(profile.qty)
             row["total_m"] = round(row["qty"] * allowance / 1000, 1)
+
+    for manual_index, raw in enumerate(_parse_paint_manual_rows(manual_rows), start=1):
+        parsed = _manual_paint_row(raw)
+        if parsed is None:
+            continue
+        color, row = parsed
+        key = (
+            f"manual-{manual_index}",
+            row["article"],
+            row["name"],
+            row["clean"],
+            row["image"],
+            row["image_data"],
+            row["note"],
+        )
+        grouped[color][key] = row
 
     pages = []
     for color, rows_by_key in grouped.items():
@@ -346,6 +426,7 @@ def _group_paint_rows(rows: list[dict]) -> list[dict]:
             row["article"],
             row["name"],
             row["image"] or "",
+            row.get("image_data") or "",
             row["note"] or "",
             bool(row["paint_marker"]),
             row["paint_marker_class"] or "",
@@ -356,6 +437,7 @@ def _group_paint_rows(rows: list[dict]) -> list[dict]:
                 "article": row["article"],
                 "name": row["name"],
                 "image": row["image"],
+                "image_data": row.get("image_data") or "",
                 "note": row["note"],
                 "paint_marker": row["paint_marker"],
                 "paint_marker_class": row["paint_marker_class"],
@@ -440,7 +522,7 @@ def build_project_document_context(
 
     calculated = _iter_slide_sections(sections)
     commercial_rows = _build_commercial_rows(calculated)
-    paint_pages = _build_paint_pages(calculated)
+    paint_pages = _build_paint_pages(calculated, getattr(project, "paint_manual_rows", None))
     glass_rows = _build_glass_rows(project, calculated)
 
     return {

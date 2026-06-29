@@ -1,6 +1,6 @@
 import client from './client';
 
-export type HardwareGroup = 'Профили' | 'Ручки' | 'Замки' | 'Защёлки' | 'Уплотнители' | 'Крепёж' | 'Расходники';
+export type HardwareGroup = 'Профили' | 'Фурнитура' | 'Ручки' | 'Замки' | 'Защёлки' | 'Уплотнители' | 'Крепёж' | 'Расходники';
 export type CatalogUnit = 'шт' | 'м.п.' | 'компл.' | 'кг';
 export type PaintMode = 'Красится' | 'Не красится' | 'Частично';
 
@@ -30,6 +30,7 @@ export interface HardwareCatalogOption {
   id: number;
   sku: string;
   name: string;
+  imageFile?: string;
   isActive: boolean;
 }
 

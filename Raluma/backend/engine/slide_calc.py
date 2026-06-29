@@ -16,6 +16,7 @@ PNG_PROFILE_IMAGES = {
     "RS1006",
     "RS105",
     "RS106",
+    "RS108",
     "RS107",
     "RS107L",
     "RS107R",
@@ -45,6 +46,7 @@ PNG_PROFILE_IMAGES = {
     "RS30301",
     "RSD1",
     "RSD2",
+    "RU003",
     "RU005",
 }
 
@@ -74,6 +76,15 @@ class GlassItem:
     height_mm: float
     qty: int
     glass_profile_length: float = 0  # длина RS2021 для этого стекла
+
+
+@dataclass
+class PanelGlassItem:
+    panel: int
+    position: str
+    width_mm: float
+    height_mm: float
+    glass_profile_length: float
 
 
 @dataclass
@@ -122,6 +133,7 @@ class SlideCalcResult:
     threshold_text: str = ""
     system_text: str = ""
     panel_rails: list[int] = field(default_factory=list)  # panel i → rail index
+    panel_glass: list[PanelGlassItem] = field(default_factory=list)
 
 
 def _is_standard_threshold(threshold: str | None) -> bool:
@@ -177,7 +189,7 @@ def _format_color_text(
 
 def _threshold_profile_name(rails: int, standard_threshold: bool) -> str:
     base = f"Порог {rails}-рельсовый"
-    return base if standard_threshold else f"{base} накладной"
+    return base if standard_threshold else f"Порог накладной {rails}-рельсовый"
 
 
 def _threshold_display_name(
@@ -229,6 +241,8 @@ def _inter_glass_overlap_mm(article: str) -> float:
 def _inter_glass_profile_name(article: str) -> str:
     if article == "RS3061":
         return "Профиль с зацепом"
+    if article == "RS1006":
+        return "Прозрачный профиль"
     return "Межстекольный профиль (штапик)"
 
 
@@ -315,6 +329,82 @@ def _append_profile_with_splits(
 
 def _rs2081_screws_per_side(height_mm: float) -> int:
     return ceil(max(height_mm - 200, 0) / 300)
+
+
+def _expand_panel_glass(
+    result: SlideCalcResult, panels: int, fallback_width: float, fallback_height: float
+) -> list[PanelGlassItem]:
+    safe_panels = max(int(panels or 0), 1)
+    fallback_panel = float(fallback_width or 0) / safe_panels
+    rows = [glass for glass in result.glass if glass.qty > 0]
+    if not rows:
+        return [
+            PanelGlassItem(i + 1, "", round(fallback_panel, 1), fallback_height, round(fallback_panel, 1))
+            for i in range(safe_panels)
+        ]
+
+    def find(predicate) -> GlassItem | None:
+        for glass in rows:
+            if predicate((glass.position or "").lower()):
+                return glass
+        return None
+
+    def item(panel: int, glass: GlassItem | None, position: str) -> PanelGlassItem:
+        width = float(getattr(glass, "width_mm", 0) or fallback_panel)
+        height = float(getattr(glass, "height_mm", 0) or fallback_height)
+        profile = float(getattr(glass, "glass_profile_length", 0) or width)
+        return PanelGlassItem(panel, position, round(width, 1), round(height, 1), round(profile, 1))
+
+    edge = find(lambda p: "крайн" in p)
+    left = find(lambda p: p.startswith("лев"))
+    right = find(lambda p: p.startswith("прав"))
+    center_left = find(lambda p: "централь" in p and "лев" in p)
+    center_right = find(lambda p: "централь" in p and "прав" in p)
+    center = find(lambda p: "централь" in p and "лев" not in p and "прав" not in p)
+    middle = find(lambda p: "промеж" in p) or edge or left or right
+
+    if safe_panels == 1:
+        return [item(1, middle, getattr(middle, "position", "Панель"))]
+
+    expanded: list[PanelGlassItem] = []
+    if safe_panels >= 4 and (center or center_left or center_right):
+        side_middle_count = max(safe_panels - 4, 0) // 2
+        ordered_rows: list[tuple[GlassItem | None, str]] = [(left or edge or middle, "Левое")]
+        ordered_rows.extend([(middle, "Промежуточные")] * side_middle_count)
+        ordered_rows.append((center_left or center, "Центральное левое"))
+        ordered_rows.append((center_right or center, "Центральное правое"))
+        ordered_rows.extend([(middle, "Промежуточные")] * side_middle_count)
+        ordered_rows.append((right or edge or middle, "Правое"))
+        while len(ordered_rows) < safe_panels:
+            ordered_rows.append((middle, "Промежуточные"))
+        for index, (glass, position) in enumerate(ordered_rows[:safe_panels], start=1):
+            expanded.append(item(index, glass, position))
+        return expanded
+
+    for index in range(safe_panels):
+        if index == 0:
+            expanded.append(item(index + 1, left or edge or middle, "Левое"))
+        elif index == safe_panels - 1:
+            expanded.append(item(index + 1, right or edge or middle, "Правое"))
+        else:
+            expanded.append(item(index + 1, middle, "Промежуточные"))
+    return expanded
+
+
+def _append_rollers_by_panel_width(result: SlideCalcResult, panels: list[PanelGlassItem], quantity: int) -> tuple[int, int]:
+    two_wheel_panels = sum(1 for panel in panels if panel.width_mm <= 500)
+    four_wheel_panels = sum(1 for panel in panels if panel.width_mm > 500)
+    ru003_qty = two_wheel_panels * 2 * quantity
+    ru005_qty = four_wheel_panels * 2 * quantity
+    if ru003_qty > 0:
+        result.hardware.append(
+            HardwareItem("RU003", "Ролик 2-колесный", ru003_qty, "шт", "RU003.png", "ru003")
+        )
+    if ru005_qty > 0:
+        result.hardware.append(
+            HardwareItem("RU005", "Ролик 4-колесный", ru005_qty, "шт", "RU005.png", "ru005")
+        )
+    return ru003_qty, ru005_qty
 
 
 def _aggregate_glass_profiles(
@@ -513,9 +603,17 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 "Промежуточные", round(middle_W, 1), round(glass_H, 1), middle_qty
             )
         )
-    result.glass.append(
-        GlassItem("Центральные", round(center_W, 1), round(glass_H, 1), 2 * Q)
-    )
+    if center_is_rs112:
+        result.glass.append(
+            GlassItem("Центральное левое", round(center_W, 1), round(glass_H, 1), Q)
+        )
+        result.glass.append(
+            GlassItem("Центральное правое", round(center_W, 1), round(glass_H, 1), Q)
+        )
+    else:
+        result.glass.append(
+            GlassItem("Центральные", round(center_W, 1), round(glass_H, 1), 2 * Q)
+        )
     result.glass.append(GlassItem("Правое", round(right_W, 1), round(glass_H, 1), Q))
 
     threshold_articles = {
@@ -701,6 +799,10 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 base_len += 16
             if bubble_r and not right_is_deaf:
                 base_len -= 3
+        elif glass.position == "Центральное левое":
+            base_len += 19
+        elif glass.position == "Центральное правое":
+            base_len += 16
         elif glass.position == "Центральные":
             if center_is_rs112:
                 base_len += 16
@@ -711,6 +813,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 base_len -= 3
         glass.glass_profile_length = round(base_len, 1)
 
+    result.panel_glass = _expand_panel_glass(result, P, W, glass_H)
     _aggregate_glass_profiles(result, painted=painted)
 
     handle_bar_len_m = handle_bar_len / 1000
@@ -823,10 +926,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
             )
         )
 
-    ru005_qty = P * 2 * Q
-    result.hardware.append(
-        HardwareItem("RU005", "Ролик", ru005_qty, "шт", "RU005.png", "ru005")
-    )
+    ru003_qty, ru005_qty = _append_rollers_by_panel_width(result, result.panel_glass, Q)
 
     rs3017_qty = 0
     rs3014_qty = 0
@@ -899,14 +999,13 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
             )
 
     middle_panels = max(P - 4, 0)
-    rs105_qty = (middle_panels + 1) * 2 * Q
+    rs108_qty = 2 * Q
+    rs105_qty = max(0, middle_panels * 2 * Q)
 
     if total_rs112_count > 0:
-        rs106_qty = total_rs112_count * Q
+        rs106_qty = side_rs112_count * Q
     else:
         non_deaf = (0 if left_is_deaf else 1) + (0 if right_is_deaf else 1)
-        if not center_is_deaf:
-            non_deaf += 2
         rs106_qty = non_deaf * Q
 
     if rs105_qty > 0:
@@ -931,8 +1030,19 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 "rs106",
             )
         )
+    if rs108_qty > 0:
+        result.hardware.append(
+            HardwareItem(
+                "RS108",
+                "Заглушка стекольного центральная",
+                rs108_qty,
+                "шт",
+                "RS108.png",
+                "rs108",
+            )
+        )
 
-    rs107_qty = rs105_qty + rs106_qty
+    rs107_qty = rs105_qty + rs106_qty + rs108_qty
     if rs107_qty > 0:
         result.hardware.append(
             HardwareItem(
@@ -954,15 +1064,15 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
 
     result.screws.append(
         ScrewItem(
-            "Саморез 4,8×19 A2 (DIN7982)",
-            "4,8×19 A2",
-            (rs105_qty + rs106_qty) * 2,
+            "Саморез 4,8×25 A2 (DIN7982)",
+            "4,8×25 A2",
+            (rs105_qty + rs106_qty + rs108_qty) * 2,
             "DIN7982.png",
-            note="Прикрутить заглушки RS105, RS106",
+            note="Прикрутить заглушки RS105, RS106, RS108",
         )
     )
 
-    screw3913m = ru005_qty * 2 + _rs2081_screws_per_side(H) * lb_count * Q
+    screw3913m = (ru003_qty + ru005_qty) * 2 + _rs2081_screws_per_side(H) * lb_count * Q
     result.screws.append(
         ScrewItem(
             "Саморез 3,9×13 A2 (DIN7504M)",
@@ -1030,9 +1140,13 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     if total_rs112_count > 0:
         result.checklist.append("Вставить фетровое уплотнение 7×6 в RS112")
     result.checklist.append("Установить ролики")
-    if any(glass.qty > 0 and glass.width_mm > 500 for glass in result.glass):
+    if any(panel.width_mm > 500 for panel in result.panel_glass):
         result.checklist.append(
-            "Панели шире 500 мм: нужны 4-колесные ролики; временно считаются как RU005"
+            "Панели шире 500 мм: установить 4-колесные ролики RU005"
+        )
+    if any(panel.width_mm < 350 for panel in result.panel_glass):
+        result.checklist.append(
+            "Ширина панели меньше 350 мм. Уменьшите количество панелей"
         )
     if (
         lock3018 > 0
@@ -1423,6 +1537,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
                 base_len -= 3
         g.glass_profile_length = round(base_len, 1)
 
+    result.panel_glass = _expand_panel_glass(result, P, W, glass_H)
     _aggregate_glass_profiles(result, painted=painted)
 
     # ── Фурнитура ─────────────────────────────────────────────────────────────
@@ -1525,11 +1640,8 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
             )
         )
 
-    # RU005 ролики
-    ru005_qty = P * 2 * Q
-    result.hardware.append(
-        HardwareItem("RU005", "Ролик", ru005_qty, "шт", "RU005.png", "ru005")
-    )
+    # Ролики: 2-колесные до 500 мм, 4-колесные для широких панелей.
+    ru003_qty, ru005_qty = _append_rollers_by_panel_width(result, result.panel_glass, Q)
 
     # Стеклянные ручки RS3017 и кнобы RS3014
     rs3017_qty = 0
@@ -1640,20 +1752,20 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
 
     # ── Саморезы ─────────────────────────────────────────────────────────────
 
-    # 4,8×19 A2
-    screw4819 = (rs105_qty + rs106_qty) * 2
+    # 4,8×25 A2
+    screw4825 = (rs105_qty + rs106_qty) * 2
     result.screws.append(
         ScrewItem(
-            "Саморез 4,8×19 A2 (DIN7982)",
-            "4,8×19 A2",
-            screw4819,
+            "Саморез 4,8×25 A2 (DIN7982)",
+            "4,8×25 A2",
+            screw4825,
             "DIN7982.png",
             note="Прикрутить заглушки RS105, RS106",
         )
     )
 
     # 3,9×13 A2 (DIN7504M) — для роликов + профиля-замка RS2081
-    screw3913m = ru005_qty * 2 + _rs2081_screws_per_side(H) * lb_count * Q
+    screw3913m = (ru003_qty + ru005_qty) * 2 + _rs2081_screws_per_side(H) * lb_count * Q
     result.screws.append(
         ScrewItem(
             "Саморез 3,9×13 A2 (DIN7504M)",
@@ -1728,9 +1840,13 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
         result.checklist.append("Вставить фетровое уплотнение 7×6 в RS112")
 
     result.checklist.append("Установить ролики")
-    if any(glass.qty > 0 and glass.width_mm > 500 for glass in result.glass):
+    if any(panel.width_mm > 500 for panel in result.panel_glass):
         result.checklist.append(
-            "Панели шире 500 мм: нужны 4-колесные ролики; временно считаются как RU005"
+            "Панели шире 500 мм: установить 4-колесные ролики RU005"
+        )
+    if any(panel.width_mm < 350 for panel in result.panel_glass):
+        result.checklist.append(
+            "Ширина панели меньше 350 мм. Уменьшите количество панелей"
         )
 
     if lock3018 > 0 or lock3020 > 0:

@@ -22,7 +22,7 @@ import models
 import schemas
 from auth import get_current_user, decode_token
 from engine.slide_calc import calculate_slide
-from engine.pdf import render_preview, render_pdf_html, generate_pdf
+from engine.pdf import append_pdf_drawings, render_preview, render_pdf_html, generate_pdf
 from engine.project_documents import DOC_TITLES, render_project_document_html
 
 router = APIRouter(prefix="/api/projects", tags=["documents"])
@@ -101,6 +101,7 @@ def _build_local_document_objects(payload: LocalDocumentPayload):
         id=project_data.get("id") or 0,
         number=project_data.get("number") or "Локальный проект",
         customer=project_data.get("customer") or "",
+        paint_manual_rows=project_data.get("paint_manual_rows") or "[]",
     )
     section = SimpleNamespace(**section_values)
     return project, section
@@ -134,6 +135,23 @@ def _validate_project_doc_type(doc_type: str) -> str:
     if doc_type not in DOC_TITLES:
         raise HTTPException(status_code=404, detail="Документ не найден")
     return doc_type
+
+
+def _drawing_files_for_sections(sections) -> list[str]:
+    files: list[str] = []
+    for section in sections:
+        values = [
+            getattr(section, "handle", ""),
+            getattr(section, "handle_left", ""),
+            getattr(section, "handle_right", ""),
+            getattr(section, "center_handle", ""),
+        ]
+        text = " ".join(str(value or "").lower() for value in values)
+        if ("rs3014" in text or "кноб" in text) and "knob.pdf" not in files:
+            files.append("knob.pdf")
+        if ("rs30201" in text or "скоба" in text) and "brace600.pdf" not in files:
+            files.append("brace600.pdf")
+    return files
 
 
 @router.post("/local/sections/preview", response_class=HTMLResponse)
@@ -176,6 +194,7 @@ def download_local_pdf(payload: LocalDocumentPayload):
     calc = calculate_slide(section)
     html = render_pdf_html(project, section, calc)
     pdf_bytes = generate_pdf(html)
+    pdf_bytes = append_pdf_drawings(pdf_bytes, _drawing_files_for_sections([section]))
     filename = f"ПЛ_{project.number}_{section.name}.pdf"
     from urllib.parse import quote
 
@@ -196,6 +215,8 @@ def download_local_project_document_pdf(
     project, sections = _build_local_project_document_objects(payload)
     html = render_project_document_html(project, sections, doc_type, is_pdf=True)
     pdf_bytes = generate_pdf(html)
+    if doc_type == "glass":
+        pdf_bytes = append_pdf_drawings(pdf_bytes, _drawing_files_for_sections(sections))
     filename = f"{DOC_TITLES[doc_type]}_{project.number}.pdf"
     from urllib.parse import quote
 
@@ -232,6 +253,8 @@ def download_project_document_pdf(
     project = _get_project_or_404(project_id, db, current_user)
     html = render_project_document_html(project, project.sections, doc_type, is_pdf=True)
     pdf_bytes = generate_pdf(html)
+    if doc_type == "glass":
+        pdf_bytes = append_pdf_drawings(pdf_bytes, _drawing_files_for_sections(project.sections))
     filename = f"{DOC_TITLES[doc_type]}_{project.number}.pdf"
     from urllib.parse import quote
 
@@ -276,6 +299,7 @@ def download_pdf(
     calc = calculate_slide(section)
     html = render_pdf_html(project, section, calc)
     pdf_bytes = generate_pdf(html)
+    pdf_bytes = append_pdf_drawings(pdf_bytes, _drawing_files_for_sections([section]))
     filename = f"ПЛ_{project.number}_сек{section.order}.pdf"
     from urllib.parse import quote
 

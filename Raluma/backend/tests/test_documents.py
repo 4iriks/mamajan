@@ -1,4 +1,4 @@
-"""
+﻿"""
 Тесты API производственных документов (preview, overrides).
 PDF-генерацию проверяем только если установлен WeasyPrint.
 """
@@ -363,7 +363,7 @@ class TestLocalPreview:
         assert "RAL 9016 МАТОВЫЙ" in r.text
         assert "НЕСТАНДАРТ" not in r.text
         assert "Не используется внутренняя полоса" in r.text
-        assert "Порог 3-рельсовый накладной окраш" in r.text
+        assert "Порог накладной 3-рельсовый окраш" in r.text
         assert ">Накладной окраш<" not in r.text
         assert "RS23231.png" not in r.text  # картинка встраивается data-uri
         assert "Межстекольный профиль" not in r.text
@@ -842,6 +842,33 @@ class TestProjectPaintOrder:
         assert [row["clean"] for row in group["rows"]] == [1450, 2850]
         assert [row["qty"] for row in group["rows"]] == [2, 1]
 
+    def test_manual_paint_rows_are_added_to_color_page(self):
+        section = SimpleNamespace()
+        calc = SimpleNamespace(color_text="RAL 9016", profiles=[])
+        pages = _build_paint_pages(
+            [CalculatedSection(order=1, section=section, calc=calc)],
+            [
+                {
+                    "color": "RAL 7016",
+                    "article": "MAN-1",
+                    "name": "Ручная деталь",
+                    "imageData": "data:image/png;base64,abc",
+                    "qty": "2",
+                    "clean": "1445",
+                    "allowance": "1500",
+                    "note": "срочно",
+                }
+            ],
+        )
+
+        page = pages[0]
+        row = page["rows"][0]
+        group = page["groups"][0]
+        assert page["color"] == "RAL 7016"
+        assert row["article"] == "MAN-1"
+        assert row["total_m"] == 3.0
+        assert group["image_data"] == "data:image/png;base64,abc"
+
     def test_threshold_marker_classes_are_article_specific(self):
         section = SimpleNamespace()
         calc = SimpleNamespace(
@@ -859,7 +886,7 @@ class TestProjectPaintOrder:
                 ),
                 SimpleNamespace(
                     article="RS23231",
-                    name="Порог 3-рельсовый накладной",
+                    name="Порог накладной 3-рельсовый",
                     length_mm=2968,
                     qty=1,
                     painted=True,

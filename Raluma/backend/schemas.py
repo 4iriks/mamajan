@@ -255,6 +255,7 @@ class ProjectBase(BaseModel):
     paint_ship_date: Optional[str] = None
     paint_received_date: Optional[str] = None
     order_items: Optional[str] = None
+    paint_manual_rows: Optional[str] = None
 
 
 class ProjectCreate(ProjectBase):
@@ -278,6 +279,7 @@ class ProjectUpdate(BaseModel):
     paint_ship_date: Optional[str] = None
     paint_received_date: Optional[str] = None
     order_items: Optional[str] = None
+    paint_manual_rows: Optional[str] = None
 
 
 class ProjectOut(ProjectBase):

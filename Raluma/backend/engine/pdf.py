@@ -4,6 +4,7 @@ Jinja2 → HTML → WeasyPrint → bytes
 """
 
 import base64
+import io
 import json
 import os
 import re
@@ -17,6 +18,8 @@ BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATES_DIR = os.path.join(BACKEND_DIR, "templates")
 ASSETS_DIR = os.path.join(BACKEND_DIR, "assets", "profiles")
 ASSETS_PATH = Path(ASSETS_DIR).resolve()
+DRAWINGS_DIR = os.path.join(BACKEND_DIR, "assets", "drawings")
+DRAWINGS_PATH = Path(DRAWINGS_DIR).resolve()
 IMAGE_MIME_TYPES = {
     "jpg": "image/jpeg",
     "jpeg": "image/jpeg",
@@ -40,8 +43,56 @@ def get_profile_asset_path(filename: str | None) -> Path | None:
     return path
 
 
+def get_drawing_asset_path(filename: str | None) -> Path | None:
+    """Return a safe drawing PDF path inside assets/drawings, or None."""
+    if not filename:
+        return None
+    if "/" in filename or "\\" in filename:
+        return None
+    if filename.rsplit(".", 1)[-1].lower() != "pdf":
+        return None
+    path = (DRAWINGS_PATH / filename).resolve()
+    if path.parent != DRAWINGS_PATH or not path.is_file():
+        return None
+    return path
+
+
+def append_pdf_drawings(pdf_bytes: bytes, drawing_files: list[str]) -> bytes:
+    files = []
+    for filename in drawing_files:
+        path = get_drawing_asset_path(filename)
+        if path and path not in files:
+            files.append(path)
+    if not files:
+        return pdf_bytes
+
+    try:
+        from pypdf import PdfReader, PdfWriter
+    except Exception:
+        return pdf_bytes
+
+    writer = PdfWriter()
+    source = PdfReader(io.BytesIO(pdf_bytes))
+    for page in source.pages:
+        writer.add_page(page)
+    for path in files:
+        reader = PdfReader(str(path))
+        for page in reader.pages:
+            writer.add_page(page)
+    out = io.BytesIO()
+    writer.write(out)
+    return out.getvalue()
+
+
 def expand_glass_widths(calc, panels: int, fallback_width: float) -> list[float]:
     safe_panels = max(int(panels or 0), 1)
+    panel_rows = getattr(calc, "panel_glass", None) or []
+    if len(panel_rows) >= safe_panels:
+        return [
+            round(float(getattr(panel, "width_mm", 0) or 0), 1)
+            for panel in panel_rows[:safe_panels]
+        ]
+
     fallback_panel = float(fallback_width or 0) / safe_panels
     glass_rows = getattr(calc, "glass", None) or []
     if not glass_rows:
@@ -91,6 +142,13 @@ def expand_glass_profile_lengths(
     calc, panels: int, fallback_width: float
 ) -> list[float]:
     safe_panels = max(int(panels or 0), 1)
+    panel_rows = getattr(calc, "panel_glass", None) or []
+    if len(panel_rows) >= safe_panels:
+        return [
+            round(float(getattr(panel, "glass_profile_length", 0) or 0), 1)
+            for panel in panel_rows[:safe_panels]
+        ]
+
     fallback_panel = float(fallback_width or 0) / safe_panels
     glass_rows = getattr(calc, "glass", None) or []
     if not glass_rows:

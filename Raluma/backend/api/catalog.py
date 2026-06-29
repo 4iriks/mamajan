@@ -99,6 +99,7 @@ def _item_to_option(item: models.CatalogItem) -> dict:
         "id": item.id,
         "sku": item.sku,
         "name": item.name,
+        "imageFile": item.image_file or "",
         "isActive": bool(item.is_active),
     }
 

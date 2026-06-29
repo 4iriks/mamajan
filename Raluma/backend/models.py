@@ -70,6 +70,7 @@ class Project(Base):
     order_items = Column(
         String, nullable=True
     )  # JSON: [{id,name,invoice,paidDate,deliveredDate}]
+    paint_manual_rows = Column(String, nullable=True)  # JSON: ручные строки заявки на покраску
 
     owner = relationship("User", back_populates="projects")
     sections = relationship(
