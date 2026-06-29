@@ -173,7 +173,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
                   {maxGlassWidth !== null && maxGlassWidth > 500 && (
                     <div className="mt-3 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-100 flex gap-2">
                       <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                      <span>Для панелей шире 500 мм нужны 4-колесные ролики. Пока считаются временно как RU005: 2 шт на панель.</span>
+                      <span>Для панелей шире 500 мм ставятся 4-колесные ролики RU005: 2 шт на панель.</span>
                     </div>
                   )}
                 </div>

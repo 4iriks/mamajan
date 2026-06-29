@@ -16,6 +16,44 @@
 
 ## Выполнено в текущей итерации
 
+### Дополнение 2026-06-29: фиксы после ревью гостевой заявки на покраску
+
+Статус: реализовано локально, проверено, готовится к коммиту и деплою.
+
+Файлы:
+
+- `Raluma/backend/api/documents.py`
+- `Raluma/backend/tests/test_documents.py`
+- `Raluma/src/components/editor/SectionFormWrapper.tsx`
+
+Что исправлено:
+
+- В гостевом project-level preview/PDF заявки на покраску теперь передается `paint_manual_rows`.
+- Ручные строки, сохраненные в localStorage гостевого проекта, больше не теряются при генерации заявки на покраску.
+- Добавлен тест на `/api/projects/local/documents/paint/preview`: ручная строка гостя должна попадать в HTML.
+- Уточнен текст предупреждения по роликам: `RU005` теперь указан как штатный 4-колесный ролик, без старой фразы про временный расчет.
+
+Проверки:
+
+```powershell
+pytest -q Raluma/backend/tests/test_documents.py
+pytest -q
+ruff check Raluma/backend/api/documents.py Raluma/backend/tests/test_documents.py
+cd Raluma
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run build
+```
+
+Результат:
+
+- `test_documents`: `51 passed, 1 skipped`.
+- Полный backend pytest: `244 passed, 1 skipped`.
+- `ruff check`: `All checks passed`.
+- `typecheck`: прошел.
+- `lint`: прошел без ошибок, остались 14 старых frontend warnings.
+- `build`: прошел, остался старый Vite warning про chunk больше 500 kB.
+
 ### Дополнение 2026-06-29: расчет стекольных профилей, ролики, RS108, чертежи и редактор заявки на покраску
 
 Статус: реализовано локально, проверено тестами, готовится к коммиту и деплою.

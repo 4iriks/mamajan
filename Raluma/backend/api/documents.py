@@ -113,6 +113,7 @@ def _build_local_project_document_objects(payload: LocalProjectDocumentPayload):
         id=project_data.get("id") or 0,
         number=project_data.get("number") or "Локальный проект",
         customer=project_data.get("customer") or "",
+        paint_manual_rows=project_data.get("paint_manual_rows") or "[]",
     )
     sections = []
     for section_data in payload.sections or []:

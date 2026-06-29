@@ -681,6 +681,50 @@ class TestProjectDocuments:
         assert "НЕ КРАСИТЬ!!!" in r.text
         assert "paint-marker-overlay-threshold" in r.text
 
+    def test_local_project_paint_preview_includes_manual_rows(self, client):
+        r = client.post(
+            "/api/projects/local/documents/paint/preview",
+            json={
+                "project": {
+                    "number": "LOCAL-PAINT",
+                    "customer": "Гость",
+                    "paint_manual_rows": json.dumps(
+                        [
+                            {
+                                "color": "RAL 7016",
+                                "article": "MAN-GUEST",
+                                "name": "Ручная гостевая деталь",
+                                "qty": "2",
+                                "clean": "1450",
+                                "allowance": "1500",
+                                "totalM": "3.0",
+                            }
+                        ],
+                        ensure_ascii=False,
+                    ),
+                },
+                "sections": [
+                    {
+                        "name": "Секция 1",
+                        "system": "СЛАЙД",
+                        "width": 2000,
+                        "height": 2400,
+                        "panels": 3,
+                        "quantity": 1,
+                        "rails": 3,
+                        "threshold": "Стандартный анод",
+                        "painting_type": "Анодированный",
+                        "first_panel_inside": "Справа",
+                    }
+                ],
+            },
+        )
+
+        assert r.status_code == 200
+        assert "MAN-GUEST" in r.text
+        assert "Ручная гостевая деталь" in r.text
+        assert "RAL 7016" in r.text
+
     def test_project_glass_preview_returns_html(self, client, admin_headers, project):
         _create_slide_section(client, admin_headers, project["id"])
         token = admin_headers["Authorization"].replace("Bearer ", "")
