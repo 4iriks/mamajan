@@ -246,10 +246,10 @@ def _inter_glass_profile_name(article: str) -> str:
     return "Межстекольный профиль (штапик)"
 
 
-def _side_profile_offset_mm(lock_bar: bool, p_bar: bool) -> float:
+def _side_profile_offset_mm(lock_bar: bool, p_bar: bool, bubble: bool = False) -> float:
     if lock_bar:
         return 60
-    if p_bar:
+    if p_bar and not bubble:
         return 28
     return 0
 
@@ -497,15 +497,15 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     ppl = 16 if wall_l else 0
     ppr = 16 if wall_r else 0
 
-    rpl = _side_profile_offset_mm(lock_bar_l, p_bar_l)
-    rpr = _side_profile_offset_mm(lock_bar_r, p_bar_r)
+    rpl = _side_profile_offset_mm(lock_bar_l, p_bar_l, bubble_l)
+    rpr = _side_profile_offset_mm(lock_bar_r, p_bar_r, bubble_r)
 
     pzl = 5 if bubble_l else 0
     pzr = 5 if bubble_r else 0
     krlr = 8 if handle_bar_l else 0
     krrr = 8 if handle_bar_r else 0
-    krlp = 16 if (p_bar_l and bubble_l) else 0
-    krrp = 16 if (p_bar_r and bubble_r) else 0
+    krlp = 0
+    krrp = 0
     pl = _p_bar_bubble_gap_mm(p_bar_l, bubble_l)
     pr = _p_bar_bubble_gap_mm(p_bar_r, bubble_r)
 
@@ -562,6 +562,8 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         - krlp
         - krrr
         - krrp
+        - pl
+        - pr
         - centr1
         - centr2
         - a
@@ -1230,15 +1232,15 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     ppl = 16 if wall_l else 0
     ppr = 16 if wall_r else 0
 
-    rpl = _side_profile_offset_mm(lock_bar_l, p_bar_l)
-    rpr = _side_profile_offset_mm(lock_bar_r, p_bar_r)
+    rpl = _side_profile_offset_mm(lock_bar_l, p_bar_l, bubble_l)
+    rpr = _side_profile_offset_mm(lock_bar_r, p_bar_r, bubble_r)
 
     pzl = 5 if bubble_l else 0
     pzr = 5 if bubble_r else 0
     krlr = 8 if handle_bar_l else 0
     krrr = 8 if handle_bar_r else 0
-    krlp = 16 if (p_bar_l and bubble_l) else 0
-    krrp = 16 if (p_bar_r and bubble_r) else 0
+    krlp = 0
+    krrp = 0
     pl = _p_bar_bubble_gap_mm(p_bar_l, bubble_l)
     pr = _p_bar_bubble_gap_mm(p_bar_r, bubble_r)
 
@@ -1306,6 +1308,8 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
             - krlp
             - krrr
             - krrp
+            - pl
+            - pr
             - a
             - b
             + inter_glass_overlap * (P - 1)
