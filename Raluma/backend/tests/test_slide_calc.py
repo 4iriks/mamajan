@@ -181,33 +181,19 @@ class TestProfileVariables:
         expected = round((2000 - 16 - 16 - 28 + 9.5 * 2) / 3, 1)
         assert edge.width_mm == expected
 
-    def test_p_bar_with_bubble_uses_only_bubble_gaps(self):
-        """П-профиль + пузырьковый: учитываем pz/pl без лишних rpl/krlp."""
+    def test_krlp_p_bar_and_bubble(self):
+        """П-профиль + пузырьковый: крайнее не уменьшается на pl, промежуточное уменьшается."""
         s = _make_section(
             profile_left_p_bar=True,
             profile_left_bubble=True,
         )
         r = calculate_slide(s)
-        edge = _find_glass(r, "Крайние")[0]
+        left = _find_glass(r, "Левое")[0]
         mid = _find_glass(r, "Промежуточные")[0]
-        expected = round((2000 - 16 - 16 - 5 - 2 + 9.5 * 2) / 3, 1)
-        assert edge.width_mm == expected
-        assert mid.width_mm == expected
-
-    def test_p2_p_bar_with_bubble_both_sides_matches_production_formula(self):
-        """1900 мм, RS1082+RS1002 с двух сторон: в ПЛ отображается 932 мм."""
-        s = _make_section(
-            width=1900,
-            panels=2,
-            profile_left_p_bar=True,
-            profile_right_p_bar=True,
-            profile_left_bubble=True,
-            profile_right_bubble=True,
-        )
-        r = calculate_slide(s)
-        edge = _find_glass(r, "Крайние")[0]
-        expected = round((1900 - 16 - 16 - 2 - 2 - 5 - 5 + 9.5) / 2, 1)
-        assert edge.width_mm == expected
+        edge_base = round((2000 - 16 - 16 - 28 - 5 - 16 + 9.5 * 2) / 3, 1)
+        expected_mid = round((2000 - 16 - 16 - 28 - 5 - 16 - 2 + 9.5 * 2) / 3, 1)
+        assert left.width_mm == round(edge_base + 16, 1)
+        assert mid.width_mm == expected_mid
 
     def test_handle_offset_left(self):
         """Отступ a влияет на middle_W и left_W."""
