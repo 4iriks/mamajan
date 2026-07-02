@@ -429,6 +429,8 @@ class TestLocalPreview:
         assert 'class="gp-pos"' in r.text
         assert 'class="gp-len"' in r.text
         assert 'class="gp-qty"' in r.text
+        assert "text-overflow" not in r.text
+        assert "</span> шт</td>" in r.text
         assert "Промежуточные" not in r.text
 
     def test_local_preview_extra_components_from_section(self, client):
