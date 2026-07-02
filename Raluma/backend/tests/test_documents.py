@@ -511,6 +511,7 @@ class TestLocalPreview:
         assert r.text.count('style="display:block; width:80%; margin:0 auto;"') >= 2
         assert 'data-field="check_note_1"' in r.text
         assert 'data-field="check_note_14"' not in r.text
+        assert "font-size: 12.5pt; font-weight: 700;" in r.text
         assert "КОММЕНТАРИИ К СЕКЦИИ" not in r.text
         assert "Комментарий для производства" in r.text
         assert r.text.count('style="width:33%;"') >= 2
@@ -635,6 +636,8 @@ class TestProjectDocuments:
         assert "RS1313" in r.text
         assert 'class="doc-head"' in r.text
         assert 'class="meta paint-meta"' in r.text
+        assert 'class="paint-meta-value"' in r.text
+        assert 'class="paint-meta-value paint-color-value"' in r.text
         assert "paint-bosses-marker" in r.text
         assert "paint-marker-standard-threshold" in r.text
 

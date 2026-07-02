@@ -156,6 +156,28 @@
       width: 64mm;
       margin-left: auto;
     }
+    .doc-head .paint-meta {
+      width: 68mm;
+      table-layout: fixed;
+      font-size: 8.5pt;
+    }
+    .doc-head .paint-meta td {
+      padding: 0.8mm 1.2mm;
+      line-height: 1.1;
+      vertical-align: middle;
+    }
+    .doc-head .paint-meta td:first-child {
+      width: 19mm;
+      white-space: nowrap;
+    }
+    .paint-meta-value {
+      white-space: nowrap;
+      font-size: 8.5pt;
+    }
+    .paint-color-value {
+      color: #f00;
+      font-weight: 900;
+    }
     .paint-table th,
     .paint-table td {
       padding: 0.8mm 1.1mm;
@@ -241,9 +263,9 @@
           </td>
           <td class="head-meta">
             <table class="meta paint-meta">
-              <tr><td><b>Заявка №</b></td><td>{{ project.number }}</td></tr>
+              <tr><td><b>Заявка №</b></td><td class="paint-meta-value">{{ project.number }}</td></tr>
               <tr><td><b>Заказчик</b></td><td>{{ project.customer }}</td></tr>
-              <tr><td><b>Цвет</b></td><td>{{ page.color }}</td></tr>
+              <tr><td><b>Цвет</b></td><td class="paint-meta-value paint-color-value">{{ page.color }}</td></tr>
             </table>
           </td>
         </tr>
