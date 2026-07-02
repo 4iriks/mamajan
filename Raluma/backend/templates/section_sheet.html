@@ -74,9 +74,11 @@
   .prof-note { font-size: 7pt; font-style: italic; color: #555; margin-top: 0.1mm; font-weight: 400; }
 
   /* ── Стекольный профиль подтаблица ── */
-  .gp-tbl { width: auto; margin-top: 0.5mm; }
+  .gp-tbl { width: 47mm; margin-top: 0.5mm; table-layout: fixed; }
   .gp-tbl td { border: 1px solid #bbb; padding: 0.25mm 1.4mm; font-size: 9.2pt; }
-  .gp-tbl td:nth-child(2), .gp-tbl td:nth-child(3) { text-align: center; font-weight: 700; }
+  .gp-tbl .gp-pos { width: 23mm; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gp-tbl .gp-len { width: 15mm; text-align: right; padding-right: 2mm; font-weight: 700; }
+  .gp-tbl .gp-qty { width: 9mm; text-align: center; font-weight: 700; }
   .gp-img-box { width: 25mm; height: 10mm; display: flex; align-items: center; justify-content: center; }
   .gp-img { width: 24mm; height: 9.5mm; object-fit: contain; }
   .gp-row { width: 100%; border: none; border-collapse: collapse; }
@@ -649,9 +651,9 @@
                   {% set gfk = "gp_" ~ j ~ "_len" %}
                   {% set gfkq = "gp_" ~ j ~ "_qty" %}
                   <tr>
-                    <td>{{ gpi.glass_positions or (calc.glass[j].position if j < calc.glass|length else '—') }}</td>
-                    <td {{ ce(gfk, gpi.length_mm|int) }}>{{ ov(gfk, gpi.length_mm|int) }}</td>
-                    <td {{ ce(gfkq, gpi.qty) }}>{{ ov(gfkq, gpi.qty) }}</td>
+                    <td class="gp-pos">{{ gpi.glass_positions or (calc.glass[j].position if j < calc.glass|length else '—') }}</td>
+                    <td class="gp-len" {{ ce(gfk, gpi.length_mm|int) }}>{{ ov(gfk, gpi.length_mm|int) }}</td>
+                    <td class="gp-qty" {{ ce(gfkq, gpi.qty) }}>{{ ov(gfkq, gpi.qty) }}</td>
                   </tr>
                   {% endfor %}
                 </table>

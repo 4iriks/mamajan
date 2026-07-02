@@ -1,4 +1,4 @@
-﻿"""
+"""
 Тесты API производственных документов (preview, overrides).
 PDF-генерацию проверяем только если установлен WeasyPrint.
 """
@@ -399,7 +399,10 @@ class TestLocalPreview:
         assert 'data-profile="inter-glass" data-panel="2" data-dir="1"' in r.text
         assert 'data-profile="inter-glass" data-panel="1" data-dir="1"' in r.text
         assert 'data-profile="inter-glass" data-panel="3"' not in r.text
-        assert 'class="prof-img pl-art-rs2061 pl-focus-img mirror-x" alt="RS2061"' in r.text
+        assert (
+            'class="prof-img pl-art-rs2061 pl-focus-img mirror-x" alt="RS2061"'
+            in r.text
+        )
 
     def test_local_preview_rs2021_skips_zero_intermediate_label(self, client):
         r = client.post(
@@ -423,6 +426,9 @@ class TestLocalPreview:
         assert r.status_code == 200
         assert "Стекольный профиль" in r.text
         assert "Крайние" in r.text
+        assert 'class="gp-pos"' in r.text
+        assert 'class="gp-len"' in r.text
+        assert 'class="gp-qty"' in r.text
         assert "Промежуточные" not in r.text
 
     def test_local_preview_extra_components_from_section(self, client):
@@ -460,7 +466,7 @@ class TestLocalPreview:
         assert "ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ" in r.text
         assert "BOX-1" in r.text
         assert "RAL 9016" in r.text
-        assert "contenteditable=\"true\" data-field=\"ec_" not in r.text
+        assert 'contenteditable="true" data-field="ec_' not in r.text
         assert '<div class="ec-section">' in r.text
         ec_index = r.text.index("ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ")
         assert 'class="page-break"' not in r.text[:ec_index]
@@ -548,9 +554,7 @@ class TestLocalPreview:
             )
         )
         overrides = {
-            "extra_components": [
-                {"art": "BOX-OLD", "name": "Старый бокс", "qty": "1"}
-            ]
+            "extra_components": [{"art": "BOX-OLD", "name": "Старый бокс", "qty": "1"}]
         }
 
         rows = section_extra_components(section, overrides)
@@ -990,9 +994,7 @@ class TestProjectGlassOrder:
                 slide_rows=1,
             )
 
-        rows = _iter_slide_sections(
-            [section("Секция 2", 1), section("Секция 1", 99)]
-        )
+        rows = _iter_slide_sections([section("Секция 2", 1), section("Секция 1", 99)])
 
         assert [row.section.name for row in rows] == ["Секция 1", "Секция 2"]
         assert [row.order for row in rows] == [1, 2]
@@ -1051,11 +1053,15 @@ class TestProjectGlassOrder:
         calc = SimpleNamespace(
             glass_type="10ММ",
             glass=[
-                SimpleNamespace(position="Левое", width_mm=1003.1, height_mm=2200.1, qty=1),
+                SimpleNamespace(
+                    position="Левое", width_mm=1003.1, height_mm=2200.1, qty=1
+                ),
                 SimpleNamespace(
                     position="Промежуточные", width_mm=995.1, height_mm=2200.1, qty=1
                 ),
-                SimpleNamespace(position="Правое", width_mm=1003.1, height_mm=2200.1, qty=1),
+                SimpleNamespace(
+                    position="Правое", width_mm=1003.1, height_mm=2200.1, qty=1
+                ),
             ],
         )
 
