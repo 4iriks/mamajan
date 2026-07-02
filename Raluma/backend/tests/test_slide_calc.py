@@ -3,6 +3,7 @@
 Покрывает: переменные профилей, формулы стёкол, профили, фурнитуру, саморезы.
 """
 
+from math import ceil
 from types import SimpleNamespace
 from engine.slide_calc import calculate_slide, SlideCalcResult
 
@@ -68,6 +69,19 @@ def _find_screw(result: SlideCalcResult, name_part: str):
 
 def _find_glass(result: SlideCalcResult, position: str):
     return [g for g in result.glass if g.position == position]
+
+
+def _ceil_panel_widths(result: SlideCalcResult):
+    return [ceil(panel.width_mm) for panel in result.panel_glass]
+
+
+def _ceil_panel_profile_lengths(result: SlideCalcResult):
+    return [ceil(panel.glass_profile_length) for panel in result.panel_glass]
+
+
+def _assert_mm_close(actual: list[int], expected: list[int], tolerance: int = 1):
+    assert len(actual) == len(expected)
+    assert all(abs(a - e) <= tolerance for a, e in zip(actual, expected, strict=True))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -182,17 +196,17 @@ class TestProfileVariables:
         assert edge.width_mm == expected
 
     def test_krlp_p_bar_and_bubble(self):
-        """П-профиль + пузырьковый: крайнее не уменьшается на pl, промежуточное уменьшается."""
+        """П-профиль + пузырьковый учитывает только pl/pz, без вычета полного RS1082."""
         s = _make_section(
             profile_left_p_bar=True,
             profile_left_bubble=True,
         )
         r = calculate_slide(s)
-        left = _find_glass(r, "Левое")[0]
+        left = r.panel_glass[0]
         mid = _find_glass(r, "Промежуточные")[0]
-        edge_base = round((2000 - 16 - 16 - 28 - 5 - 16 + 9.5 * 2) / 3, 1)
-        expected_mid = round((2000 - 16 - 16 - 28 - 5 - 16 - 2 + 9.5 * 2) / 3, 1)
-        assert left.width_mm == round(edge_base + 16, 1)
+        edge_base = round((2000 - 16 - 16 - 5 - 2 + 9.5 * 2) / 3, 1)
+        expected_mid = edge_base
+        assert left.width_mm == edge_base
         assert mid.width_mm == expected_mid
 
     def test_handle_offset_left(self):
@@ -237,8 +251,7 @@ class TestTwoPanels:
     def test_p2_no_middle_glass(self):
         s = _make_section(panels=2)
         r = calculate_slide(s)
-        mid = _find_glass(r, "Промежуточные")[0]
-        assert mid.qty == 0  # (2-2)*1 = 0
+        assert not _find_glass(r, "Промежуточные")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -369,11 +382,15 @@ class TestInterGlass:
         assert _find_profile(r, "RS1006")
 
     def test_rs3061(self):
-        r = calculate_slide(_make_section(inter_glass_profile="Профиль с зацепом RS3061"))
+        r = calculate_slide(
+            _make_section(inter_glass_profile="Профиль с зацепом RS3061")
+        )
         assert _find_profile(r, "RS3061")
 
     def test_rs3061_uses_115_overlap(self):
-        r = calculate_slide(_make_section(inter_glass_profile="Профиль с зацепом RS3061"))
+        r = calculate_slide(
+            _make_section(inter_glass_profile="Профиль с зацепом RS3061")
+        )
         edge = _find_glass(r, "Крайние")[0]
         mid = _find_glass(r, "Промежуточные")[0]
         expected = round((2000 - 16 - 16 + 11.5 * 2) / 3, 1)
@@ -503,8 +520,8 @@ class TestHardware:
         assert len(rs3020) == 1
         assert rs3020[0].value == 1
 
-    def test_rs122_rs3020(self):
-        """RS122 считается на все замки, RS3020 — только двухсторонний замок."""
+    def test_rs122_only_for_rs3018(self):
+        """RS122 ставится только к односторонней защелке RS3018, не к RS3020."""
         r = calculate_slide(
             _make_section(
                 lock_left="ЗАМОК-ЗАЩЕЛКА 1стор RS3018",
@@ -514,8 +531,15 @@ class TestHardware:
         )
         rs122 = _find_hardware(r, "RS122")
         rs3020 = _find_hardware(r, "RS3020")
-        assert rs122[0].value == 2 * 2  # (1+1)*2
+        assert rs122[0].value == 1 * 2
         assert rs3020[0].value == 1 * 2
+
+    def test_rs3020_without_rs3018_has_no_rs122(self):
+        r = calculate_slide(
+            _make_section(lock_right="ЗАМОК двухсторонний с ключом RS3020")
+        )
+        assert _find_hardware(r, "RS3020")
+        assert not _find_hardware(r, "RS122")
 
     def test_no_locks_no_rs122(self):
         r = calculate_slide(_make_section())
@@ -729,7 +753,7 @@ class TestScrews:
         )
         ru005 = _find_hardware(r, "RU005")[0].value  # 6
         screw = _find_screw(r, "DIN7504M")[0]
-        assert screw.qty == ru005 * 2 + 2 * 10 * 1  # ceil((3000-200)/300)=10
+        assert screw.qty == ru005 * 2 + 2 * 9 * 1
 
     def test_screw_3913m_lock_bar_respects_quantity(self):
         """DIN7504M для RS2081 умножается на количество одинаковых секций."""
@@ -743,6 +767,22 @@ class TestScrews:
         ru005 = _find_hardware(r, "RU005")[0].value  # 12
         screw = _find_screw(r, "DIN7504M")[0]
         assert screw.qty == ru005 * 2 + 8 * 1 * 2  # 24 + 16 = 40
+
+    def test_screw_3913m_customer_2720_two_rs2081(self):
+        """Эталон заказчика: 8 на ролики + 16 на две стороны RS2081 = 24."""
+        r = calculate_slide(
+            _make_section(
+                width=1900,
+                height=2720,
+                panels=2,
+                profile_left_lock_bar=True,
+                profile_right_lock_bar=True,
+            )
+        )
+        ru005 = _find_hardware(r, "RU005")[0].value
+        screw = _find_screw(r, "DIN7504M")[0]
+        assert ru005 == 4
+        assert screw.qty == 24
 
     def test_screw_4838_standard_3rails(self):
         screw = _find_screw(calculate_slide(_make_section(rails=3)), "4,8×38")[0]
@@ -847,8 +887,8 @@ class TestGlassProfile:
                 handle_left="Стеклянная ручка RS3017",
             )
         )
-        edge = _find_glass(r, "Крайние")[0]
-        assert edge.glass_profile_length == round(edge.width_mm - 3, 1)
+        left_panel = r.panel_glass[0]
+        assert left_panel.glass_profile_length == round(left_panel.width_mm - 3, 1)
 
     def test_rs2021_bubble_deaf_no_subtract(self):
         """Пузырьковый на глухой → RS2021 НЕ вычитает 3."""
@@ -894,6 +934,202 @@ class TestGlassProfile:
         assert rs2021
         assert all(item.qty > 0 for item in rs2021)
         assert all("Промежуточ" not in item.glass_positions for item in rs2021)
+
+    def test_customer_two_panel_pbar_bubble_glass_width(self):
+        """DOCX 01.07: 1082 + 1002 с двух сторон → стекло 932 мм."""
+        r = calculate_slide(
+            _make_section(
+                width=1900,
+                height=2720,
+                panels=2,
+                profile_left_p_bar=True,
+                profile_right_p_bar=True,
+                profile_left_bubble=True,
+                profile_right_bubble=True,
+                handle_left="Ручка-кноб RS3014",
+                handle_right="Без",
+                lock_left="Без",
+                lock_right="Без",
+            )
+        )
+        assert [ceil(panel.width_mm) for panel in r.panel_glass] == [932, 932]
+
+    def test_customer_two_panel_pbar_bubble_rs2021_physical_lengths(self):
+        """Одинаковые крайние стекла могут иметь разный RS2021: 929 и 932."""
+        r = calculate_slide(
+            _make_section(
+                width=1900,
+                height=2720,
+                panels=2,
+                profile_left_p_bar=True,
+                profile_right_p_bar=True,
+                profile_left_bubble=True,
+                profile_right_bubble=True,
+                handle_left="Ручка-кноб RS3014",
+                handle_right="Без",
+                lock_left="Без",
+                lock_right="Без",
+            )
+        )
+        assert [ceil(panel.glass_profile_length) for panel in r.panel_glass] == [
+            929,
+            932,
+        ]
+        rs2021 = sorted(
+            ceil(profile.length_mm) for profile in _find_profile(r, "RS2021")
+        )
+        assert rs2021 == [929, 932]
+
+    def test_customer_two_panel_handle_bar_rs2021_matches_scheme_rounding(self):
+        """Схема и таблица RS2021 должны давать одну цифру: 879 (895)."""
+        r = calculate_slide(
+            _make_section(
+                width=1900,
+                height=2720,
+                panels=2,
+                profile_left_lock_bar=True,
+                profile_right_lock_bar=True,
+                profile_left_handle_bar=True,
+                profile_right_handle_bar=True,
+                handle_left="Без",
+                handle_right="Без",
+                lock_left="ЗАМОК-ЗАЩЕЛКА 1стор RS3018",
+                lock_right="ЗАМОК двухсторонний с ключом RS3020",
+            )
+        )
+        assert [ceil(panel.width_mm) for panel in r.panel_glass] == [879, 879]
+        assert [ceil(panel.glass_profile_length) for panel in r.panel_glass] == [
+            895,
+            895,
+        ]
+        assert sorted(
+            ceil(profile.length_mm) for profile in _find_profile(r, "RS2021")
+        ) == [895]
+
+
+class TestCustomerSections0107:
+    """Регрессии по сверке с ПЛ заказчика от 01.07.
+
+    Значения из старых ПЛ сравниваем с допуском 1 мм: согласовано, что такие
+    расхождения допустимы и не должны ломать текущую физическую модель панелей.
+    """
+
+    def test_section_7_physical_panels_and_rs2021(self):
+        r = calculate_slide(
+            _make_section(
+                width=2295,
+                height=1810,
+                panels=3,
+                profile_left_lock_bar=True,
+                profile_left_p_bar=True,
+                profile_left_bubble=True,
+                profile_right_handle_bar=True,
+                handle_offset_left=16,
+                handle_left="Без",
+                lock_left="Без",
+                handle_right="Без",
+                lock_right="Без",
+            )
+        )
+        _assert_mm_close(_ceil_panel_widths(r), [746, 730, 738])
+        _assert_mm_close(_ceil_panel_profile_lengths(r), [746, 727, 754])
+
+    def test_section_8_physical_panels_and_rs2021(self):
+        r = calculate_slide(
+            _make_section(
+                width=2682,
+                height=2915,
+                panels=3,
+                profile_left_p_bar=True,
+                profile_left_bubble=True,
+                profile_right_p_bar=True,
+                profile_right_handle_bar=True,
+                handle_offset_left=16,
+                handle_left="Без",
+                lock_left="Без",
+                handle_right="Без",
+                lock_right="Без",
+            )
+        )
+        assert _ceil_panel_widths(r) == [886, 870, 878]
+        assert _ceil_panel_profile_lengths(r) == [886, 867, 894]
+
+    def test_section_9_physical_panels_and_rs2021(self):
+        r = calculate_slide(
+            _make_section(
+                width=2613,
+                height=2546,
+                panels=3,
+                profile_left_p_bar=True,
+                profile_right_p_bar=True,
+                profile_left_bubble=True,
+                profile_right_bubble=True,
+                handle_offset_left=16,
+                handle_offset_right=16,
+                handle_left="Без ручки (подвижная)",
+                lock_left="Без",
+                handle_right="Без ручки (подвижная)",
+                lock_right="Без",
+            )
+        )
+        _assert_mm_close(_ceil_panel_widths(r), [867, 851, 867])
+        _assert_mm_close(_ceil_panel_profile_lengths(r), [864, 848, 864])
+
+    def test_section_10_physical_panels_and_rs2021(self):
+        r = calculate_slide(
+            _make_section(
+                width=2206,
+                height=2880,
+                panels=3,
+                profile_left_p_bar=True,
+                profile_right_p_bar=True,
+                profile_left_handle_bar=True,
+                profile_right_handle_bar=True,
+                handle_left="Без",
+                lock_left="Без",
+                handle_right="Без",
+                lock_right="Без",
+            )
+        )
+        _assert_mm_close(_ceil_panel_widths(r), [716, 708, 716])
+        _assert_mm_close(_ceil_panel_profile_lengths(r), [732, 705, 732])
+
+    def test_section_11_rs3020_does_not_create_rs122(self):
+        r = calculate_slide(
+            _make_section(
+                width=2560,
+                height=2045,
+                panels=3,
+                profile_left_lock_bar=True,
+                profile_left_handle_bar=True,
+                profile_right_p_bar=True,
+                profile_right_handle_bar=True,
+                handle_left="Без",
+                lock_left="ЗАМОК двухсторонний с ключом RS3020",
+                handle_right="Без",
+                lock_right="Без",
+            )
+        )
+        assert _ceil_panel_widths(r) == [823, 815, 823]
+        assert _ceil_panel_profile_lengths(r) == [839, 812, 839]
+        assert _find_hardware(r, "RS3020")
+        assert not _find_hardware(r, "RS122")
+
+    def test_rs2081_screws_include_rollers_and_lock_bar_fastening(self):
+        r = calculate_slide(
+            _make_section(
+                width=2295,
+                height=1810,
+                panels=3,
+                profile_left_lock_bar=True,
+                handle_left="Без",
+                lock_left="Без",
+            )
+        )
+        rollers = sum(item.value for item in _find_hardware(r, "RU005"))
+        screw = _find_screw(r, "DIN7504M")[0]
+        assert rollers == 6
+        assert screw.qty == rollers * 2 + 8
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1321,7 +1557,9 @@ class TestSlideTwoRows:
         assert center_left.glass_profile_length == round(center_left.width_mm + 19, 1)
         assert center_right.glass_profile_length == round(center_right.width_mm + 16, 1)
         assert r.panel_glass[1].glass_profile_length == center_left.glass_profile_length
-        assert r.panel_glass[2].glass_profile_length == center_right.glass_profile_length
+        assert (
+            r.panel_glass[2].glass_profile_length == center_right.glass_profile_length
+        )
 
     def test_two_rows_central_sashes_use_rs108(self):
         r = calculate_slide(
