@@ -640,6 +640,8 @@ class TestProjectDocuments:
         assert 'class="paint-meta-value paint-color-value"' in r.text
         assert "paint-bosses-marker" in r.text
         assert "paint-marker-standard-threshold" in r.text
+        assert "top: 1.8mm;" in r.text
+        assert "width: 80%;" in r.text
 
     def test_project_paint_preview_skips_anod_threshold(
         self, client, admin_headers, project
@@ -689,6 +691,8 @@ class TestProjectDocuments:
         assert "RS23231" in r.text
         assert "НЕ КРАСИТЬ!!!" in r.text
         assert "paint-marker-overlay-threshold" in r.text
+        assert "top: 2.0mm;" in r.text
+        assert "width: 84%;" in r.text
 
     def test_local_project_paint_preview_includes_manual_rows(self, client):
         r = client.post(
