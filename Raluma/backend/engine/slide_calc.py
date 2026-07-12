@@ -265,10 +265,12 @@ def _side_glass_profile_length(
     width_mm: float, *, handle_bar: bool, bubble: bool, is_deaf: bool
 ) -> float:
     length = float(width_mm or 0)
+    if is_deaf:
+        return round(length, 1)
     if handle_bar:
-        length += 16
-    if bubble and not is_deaf:
-        length -= 3
+        return round(length + 16, 1)
+    if bubble:
+        return round(length - 3, 1)
     return round(length, 1)
 
 
@@ -910,15 +912,19 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     for glass in result.glass:
         base_len = glass.width_mm
         if glass.position == "Левое":
-            if handle_bar_l:
-                base_len += 16
-            if bubble_l and not left_is_deaf:
-                base_len -= 3
+            base_len = _side_glass_profile_length(
+                glass.width_mm,
+                handle_bar=handle_bar_l,
+                bubble=bubble_l,
+                is_deaf=left_is_deaf,
+            )
         elif glass.position == "Правое":
-            if handle_bar_r:
-                base_len += 16
-            if bubble_r and not right_is_deaf:
-                base_len -= 3
+            base_len = _side_glass_profile_length(
+                glass.width_mm,
+                handle_bar=handle_bar_r,
+                bubble=bubble_r,
+                is_deaf=right_is_deaf,
+            )
         elif glass.position == "Центральное левое":
             base_len += 19
         elif glass.position == "Центральное правое":

@@ -903,7 +903,7 @@ class TestGlassProfile:
         assert edge.glass_profile_length == edge.width_mm
 
     def test_rs2021_handle_bar_and_bubble(self):
-        """Ручка-профиль + пузырьковый (подвижная) → +16 -3 = +13."""
+        """Ручка-профиль RS112 важнее пузырькового: RS2021 = стекло + 16."""
         r = calculate_slide(
             _make_section(
                 profile_left_handle_bar=True,
@@ -912,7 +912,7 @@ class TestGlassProfile:
             )
         )
         left_glass = _find_glass(r, "Левое")[0]
-        assert left_glass.glass_profile_length == round(left_glass.width_mm + 16 - 3, 1)
+        assert left_glass.glass_profile_length == round(left_glass.width_mm + 16, 1)
 
     def test_rs2021_middle_with_inter_glass(self):
         """Промежуточные с межстекольным → RS2021 -3."""
@@ -1013,6 +1013,55 @@ class TestCustomerSections0107:
     Значения из старых ПЛ сравниваем с допуском 1 мм: согласовано, что такие
     расхождения допустимы и не должны ломать текущую физическую модель панелей.
     """
+
+    def test_section_4_rs2021_uses_left_physical_rs112(self):
+        r = calculate_slide(
+            _make_section(
+                width=1900,
+                height=2720,
+                panels=2,
+                inter_glass_profile="Алюминиевый RS2061",
+                profile_left_lock_bar=True,
+                profile_left_handle_bar=True,
+                profile_right_p_bar=True,
+                profile_right_bubble=True,
+                handle_left="Без",
+                lock_left="Без",
+                handle_right="Без",
+                lock_right="Без",
+            )
+        )
+
+        assert _ceil_panel_widths(r) == [910, 902]
+        assert _ceil_panel_profile_lengths(r) == [926, 902]
+        assert sorted(
+            ceil(profile.length_mm) for profile in _find_profile(r, "RS2021")
+        ) == [902, 926]
+
+    def test_section_5_rs2021_does_not_follow_visual_order(self):
+        r = calculate_slide(
+            _make_section(
+                width=1900,
+                height=2720,
+                panels=2,
+                first_panel_inside="Слева",
+                inter_glass_profile="Алюминиевый RS2061",
+                profile_left_handle_bar=True,
+                profile_left_p_bar=True,
+                profile_left_bubble=True,
+                profile_right_p_bar=True,
+                handle_left="Без",
+                lock_left="Без",
+                handle_right="Без",
+                lock_right="Без",
+            )
+        )
+
+        assert _ceil_panel_widths(r) == [926, 918]
+        assert _ceil_panel_profile_lengths(r) == [942, 918]
+        assert sorted(
+            ceil(profile.length_mm) for profile in _find_profile(r, "RS2021")
+        ) == [918, 942]
 
     def test_section_7_physical_panels_and_rs2021(self):
         r = calculate_slide(
