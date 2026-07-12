@@ -514,7 +514,45 @@ class TestLocalPreview:
         assert "font-size: 12.5pt; font-weight: 700;" in r.text
         assert "КОММЕНТАРИИ К СЕКЦИИ" not in r.text
         assert "Комментарий для производства" in r.text
+        assert 'class="params-notes"' in r.text
+        assert r.text.count("Комментарий для производства") >= 2
         assert r.text.count('style="width:33%;"') >= 2
+
+    def test_local_preview_section_4_room_scheme_keeps_physical_glass_order(
+        self, client
+    ):
+        r = client.post(
+            "/api/projects/local/sections/preview",
+            json={
+                "project": {"number": "LOCAL-S4", "customer": "Тест"},
+                "section": {
+                    "name": "Секция 4",
+                    "system": "СЛАЙД",
+                    "width": 1900,
+                    "height": 2720,
+                    "panels": 2,
+                    "quantity": 1,
+                    "rails": 3,
+                    "threshold": "Стандартный анод",
+                    "inter_glass_profile": "Алюминиевый RS2061",
+                    "profile_left_wall": True,
+                    "profile_right_wall": True,
+                    "profile_left_lock_bar": True,
+                    "profile_left_handle_bar": True,
+                    "profile_right_p_bar": True,
+                    "profile_right_bubble": True,
+                    "handle_left": "Без",
+                    "lock_left": "Без",
+                    "handle_right": "Без",
+                    "lock_right": "Без",
+                },
+            },
+        )
+
+        assert r.status_code == 200
+        assert "910 (926)" in r.text
+        assert "902 (902)" in r.text
+        assert r.text.index("910 (926)") < r.text.index("902 (902)")
 
     def test_local_preview_two_row_sheet_uses_three_hardware_columns_without_checklist(
         self, client

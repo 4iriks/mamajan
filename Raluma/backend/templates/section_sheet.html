@@ -40,6 +40,12 @@
   .params { border: 1px solid #000; border-top: none; }
   .params td { font-size: 8pt; line-height: 1.35; padding: 0.4mm 1.5mm; }
   .params .val { font-weight: 700; }
+  .params-side { border: none; table-layout: fixed; height: 100%; }
+  .params-side td { border: none; padding: 0; vertical-align: top; }
+  .params-side .params-metrics { width: 50%; border-right: 1px solid #000; padding-right: 2mm; }
+  .params-side .params-notes { padding-left: 2mm; }
+  .params-notes-title { font-size: 7pt; font-weight: 900; text-transform: uppercase; line-height: 1.15; margin-bottom: 0.8mm; }
+  .params-notes-text { font-size: 7pt; font-weight: 700; line-height: 1.18; white-space: pre-wrap; }
 
   /* ── Таблица стёкол ── */
   .glass-tbl { width: 100%; margin-top: 0.3mm; }
@@ -557,12 +563,22 @@
         {% endfor %}
       </table>
     </td>
-    <td style="width:50%;">
-      <table style="border:none;">
-        <tr><td style="border:none; padding:0.2mm 0; text-align:right;"><b>ШИРИНА СЕКЦИИ, мм</b></td><td style="border:none; padding:0.2mm 0; width:15mm; text-align:right;" class="val">{{ section.width }}</td></tr>
-        <tr><td style="border:none; padding:0.2mm 0; text-align:right;"><b>ВЫСОТА СЕКЦИИ, мм</b></td><td style="border:none; padding:0.2mm 0; width:15mm; text-align:right;" class="val">{{ section.height }}</td></tr>
-        <tr><td style="border:none; padding:0.2mm 0; text-align:right;"><b>КОЛИЧЕСТВО ПАНЕЛЕЙ, шт</b></td><td style="border:none; padding:0.2mm 0; width:15mm; text-align:right;" class="val">{{ section.panels }}</td></tr>
-        <tr><td style="border:none; padding:0.2mm 0; text-align:right;"><b>КОЛИЧЕСТВО СЕКЦИЙ, шт</b></td><td style="border:none; padding:0.2mm 0; width:15mm; text-align:right;" class="val">{{ section.quantity }}</td></tr>
+    <td style="width:50%; padding:0.4mm 1.5mm;">
+      <table class="params-side">
+        <tr>
+          <td class="params-metrics">
+            <table style="border:none;">
+              <tr><td style="border:none; padding:0.2mm 0; text-align:right;"><b>ШИРИНА СЕКЦИИ, мм</b></td><td style="border:none; padding:0.2mm 0; width:15mm; text-align:right;" class="val">{{ section.width }}</td></tr>
+              <tr><td style="border:none; padding:0.2mm 0; text-align:right;"><b>ВЫСОТА СЕКЦИИ, мм</b></td><td style="border:none; padding:0.2mm 0; width:15mm; text-align:right;" class="val">{{ section.height }}</td></tr>
+              <tr><td style="border:none; padding:0.2mm 0; text-align:right;"><b>КОЛИЧЕСТВО ПАНЕЛЕЙ, шт</b></td><td style="border:none; padding:0.2mm 0; width:15mm; text-align:right;" class="val">{{ section.panels }}</td></tr>
+              <tr><td style="border:none; padding:0.2mm 0; text-align:right;"><b>КОЛИЧЕСТВО СЕКЦИЙ, шт</b></td><td style="border:none; padding:0.2mm 0; width:15mm; text-align:right;" class="val">{{ section.quantity }}</td></tr>
+            </table>
+          </td>
+          <td class="params-notes">
+            <div class="params-notes-title">Примечания и особые отметки</div>
+            <div class="params-notes-text">{{ ov('section_comments', section.comments or '') }}{% if section.extra_parts %}<br>Доп. комплектующие: {{ section.extra_parts }}{% endif %}&nbsp;</div>
+          </td>
+        </tr>
       </table>
     </td>
   </tr>
