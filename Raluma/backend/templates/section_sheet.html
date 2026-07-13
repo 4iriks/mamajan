@@ -132,6 +132,22 @@
   .del-row-btn { cursor: pointer; color: #c00; font-size: 10pt; border: none; background: none; padding: 0 1mm; }
   .del-row-btn:hover { color: #f00; }
 
+  /* Первая страница: компактная верстка с запасом под 10 доп. позиций. */
+  .production-page .hdr td { padding: 0.35mm 1.2mm; font-size: 9pt; }
+  .production-page .scheme-label { font-size: 7pt; margin: 0.1mm 0; }
+  .production-page .params td { font-size: 7.4pt; line-height: 1.2; padding: 0.25mm 1.2mm; }
+  .production-page .glass-tbl th { padding: 0.1mm 0.6mm; font-size: 6.6pt; }
+  .production-page .glass-tbl td { padding: 0.1mm 0.6mm; font-size: 7.4pt; }
+  .production-page .prof-tbl td { padding: 0.2mm 0.65mm; }
+  .production-page .prof-tbl .bar-row td,
+  .production-page .hw-tbl .bar-row td { padding: 0.1mm 0.8mm; font-size: 7.5pt; }
+  .production-page .gp-tbl { margin-top: 0.2mm; }
+  .production-page .gp-tbl td { padding: 0.12mm 1mm; font-size: 8.4pt; }
+  .production-page .hw-tbl td { padding: 0.1mm 0.55mm; }
+  .production-page .ec-section { margin-top: 0.4mm; }
+  .production-page .ec-tbl th { padding: 0.18mm 0.8mm; font-size: 7.4pt; line-height: 1.05; }
+  .production-page .ec-tbl td { padding: 0.12mm 0.8mm; height: 3.2mm; min-height: 0; font-size: 8pt; line-height: 1.05; }
+
   /* ── Страница производственного чек-листа ── */
   .check-page { page-break-before: always; padding-top: 2mm; }
   {% if not is_pdf %}
@@ -179,6 +195,8 @@
 {% macro ce(field, val) %}{% if not is_pdf %}contenteditable="true" data-field="{{ field }}" data-original="{{ val }}"{% endif %}{% endmacro %}
 {% macro ov(field, val) %}{{ overrides.get(field, val) }}{% endmacro %}
 
+<div class="production-page">
+
 <!-- ══════ ШАПКА ══════ -->
 <table class="hdr">
   <tr>
@@ -225,7 +243,7 @@
       {% set lockLX = rfX + 3 %}
       {% set lockRX = rfX + rfW - 3 %}
       <svg viewBox="0 0 {{ rw }} {{ rh }}"
-           xmlns="http://www.w3.org/2000/svg" style="display:block; width:80%; margin:0 auto;">
+           xmlns="http://www.w3.org/2000/svg" style="display:block; width:72%; margin:0 auto;">
         {# Frame #}
         <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rfW }}" height="{{ rfH }}" fill="none" stroke="#000" stroke-width="1.2"/>
         <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rfW }}" height="{{ rpt }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
@@ -360,7 +378,7 @@
       {% set inter_glass_article = 'RS1006' if 'rs1006' in inter_glass_text else ('RS3061' if 'rs3061' in inter_glass_text or 'rs1004' in inter_glass_text or 'зацеп' in inter_glass_text else 'RS2061') %}
       {% set inter_glass_px = [5, profile_dimension(calc, [inter_glass_article], 'section_width_mm', 20) * rail_w / (section.width or rail_w)] | max %}
       <svg viewBox="0 0 {{ sw }} {{ sh }}"
-           xmlns="http://www.w3.org/2000/svg" style="display:block; width:80%; margin:0 auto;">
+           xmlns="http://www.w3.org/2000/svg" style="display:block; width:72%; margin:0 auto;">
 
         {# Метки #}
         <text x="{{ left_w + rail_w / 2 }}" y="9" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#666">УЛИЦА</text>
@@ -830,6 +848,8 @@
   </table>
 </div>
 {% endif %}{# has_ec #}
+
+</div><!-- production-page-end -->
 
 <!-- ══════ СТРАНИЦА 2: ПРОИЗВОДСТВЕННЫЙ ЧЕК-ЛИСТ ══════ -->
 {% set check_rows = [

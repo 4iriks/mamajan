@@ -3,10 +3,12 @@
 PDF-генерацию проверяем только если установлен WeasyPrint.
 """
 
+import io
 import json
 from types import SimpleNamespace
 
 import pytest
+from pypdf import PdfReader
 
 from engine.pdf import (
     _img_b64,
@@ -473,6 +475,55 @@ class TestLocalPreview:
         ec_index = r.text.index("ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ")
         assert 'class="page-break"' not in r.text[:ec_index]
 
+    def test_local_pdf_keeps_ten_extra_components_on_first_page(self, client):
+        pytest.importorskip("weasyprint")
+
+        extra_components = [
+            {
+                "sku": f"EXTRA-{index:02d}",
+                "name": f"Дополнительная деталь {index}",
+                "color": "RAL 9016",
+                "size": "1200",
+                "qty": "1",
+            }
+            for index in range(1, 11)
+        ]
+        r = client.post(
+            "/api/projects/local/sections/pdf",
+            json={
+                "project": {"number": "LOCAL-EC-10", "customer": "Тест"},
+                "section": {
+                    "name": "Секция 1",
+                    "system": "СЛАЙД",
+                    "width": 3000,
+                    "height": 3000,
+                    "panels": 3,
+                    "quantity": 1,
+                    "rails": 3,
+                    "threshold": "Стандартный анод",
+                    "first_panel_inside": "Справа",
+                    "inter_glass_profile": "Алюминиевый RS2061",
+                    "profile_left_wall": True,
+                    "profile_right_wall": True,
+                    "profile_left_lock_bar": True,
+                    "profile_right_handle_bar": True,
+                    "lock_left": "ЗАМОК-ЗАЩЕЛКА 1стор RS3018",
+                    "extra_components": json.dumps(
+                        extra_components, ensure_ascii=False
+                    ),
+                },
+            },
+        )
+
+        assert r.status_code == 200
+        pages = PdfReader(io.BytesIO(r.content)).pages
+        assert len(pages) == 2
+        first_page_text = pages[0].extract_text()
+        assert "EXTRA-01" in first_page_text
+        assert "EXTRA-10" in first_page_text
+        assert "ПРОИЗВОДСТВЕННЫЙ ЧЕК-ЛИСТ" not in first_page_text
+        assert "ПРОИЗВОДСТВЕННЫЙ ЧЕК-ЛИСТ" in pages[1].extract_text()
+
     def test_local_preview_slide_sheet_uses_three_hardware_columns_without_checklist(
         self, client
     ):
@@ -508,7 +559,10 @@ class TestLocalPreview:
         assert "ПРОЕКТ № LOCAL-HW — Секция 1" in r.text
         assert "Нарезка профиля по ТЗ" in r.text
         assert "Примечания и особые отметки при производстве или проверке ОТК" in r.text
-        assert r.text.count('style="display:block; width:80%; margin:0 auto;"') >= 2
+        assert r.text.count('style="display:block; width:72%; margin:0 auto;"') >= 2
+        production_end = r.text.index("</div><!-- production-page-end -->")
+        checklist_start = r.text.index('<div class="check-page">')
+        assert production_end < checklist_start
         assert 'data-field="check_note_1"' in r.text
         assert 'data-field="check_note_14"' not in r.text
         assert "font-size: 12.5pt; font-weight: 700;" in r.text
