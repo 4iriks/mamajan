@@ -360,7 +360,9 @@
       {% set wall_article = 'RS2335' if rails == 5 else 'RS2333' %}
       {% set wall_profile_mm = profile_dimension(calc, [wall_article], 'section_height_mm', 16) %}
       {% set wall_img_src = (wall_article ~ '.png') | img_b64 %}
-      {% set wall_img_w = 24 %}
+      {% set wall_img_w = 30 %}
+      {# PNG files have transparent vertical padding which becomes a horizontal gap after rotation. #}
+      {% set wall_attach_overlap = 11 if rails == 5 else 8 %}
       {% set wall_img_y = top_pad - 6 %}
       {% set wall_img_h = rails * row_h + 12 %}
       {% set side_scale = 0.55 %}
@@ -393,7 +395,7 @@
         <line x1="{{ scheme_right_x }}" y1="{{ top_pad - 4 }}" x2="{{ scheme_right_x }}" y2="{{ top_pad + rails * row_h + 4 }}" stroke="#000" stroke-width="1.5"/>
 
         {% if section.profile_left_wall %}
-        {% set left_wall_x = scheme_left_x - wall_img_w %}
+        {% set left_wall_x = scheme_left_x - wall_img_w + wall_attach_overlap %}
         {% if wall_img_src %}
         <g data-profile="{{ wall_article }}-left" data-profile-image="{{ wall_article }}-left" transform="translate({{ left_wall_x }} {{ wall_img_y + wall_img_h }}) rotate(-90)">
           <image href="{{ wall_img_src }}" x="0" y="0" width="{{ wall_img_h }}" height="{{ wall_img_w }}" preserveAspectRatio="none"/>
@@ -404,7 +406,7 @@
         <text x="{{ left_wall_x + wall_img_w / 2 }}" y="{{ top_pad + 6 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#666">{{ wall_profile_mm|round|int }}</text>
         {% endif %}
         {% if section.profile_right_wall %}
-        {% set right_wall_x = scheme_right_x %}
+        {% set right_wall_x = scheme_right_x - wall_attach_overlap %}
         {% if wall_img_src %}
         <g data-profile="{{ wall_article }}-right" data-profile-image="{{ wall_article }}-right" transform="translate({{ right_wall_x + wall_img_w }} {{ wall_img_y }}) rotate(90)">
           <image href="{{ wall_img_src }}" x="0" y="0" width="{{ wall_img_h }}" height="{{ wall_img_w }}" preserveAspectRatio="none"/>
@@ -739,7 +741,8 @@
               <tr>
                 <td style="border:none; padding:0 1mm; font-size:8.5pt;">{{ si.label }}</td>
                 <td style="border:none; padding:0 1mm; font-weight:900; font-size:10pt; text-align:center;">{{ si.article }}</td>
-                <td style="border:none; padding:0 1mm; font-weight:900; font-size:11pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</td>
+                {% set si_value_l = ov(si.field_key, si.value) %}
+                <td style="border:none; padding:0 1mm; font-weight:900; font-size:11pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ (si_value_l|float|round(0, 'ceil')|int) if si.article in ['RU008', 'RU007'] else si_value_l }}</td>
               </tr>
             {% endfor %}
             </table>
@@ -768,7 +771,8 @@
               <tr>
                 <td style="border:none; padding:0 1mm; font-size:8.5pt;">{{ si.label }}</td>
                 <td style="border:none; padding:0 1mm; font-weight:900; font-size:10pt; text-align:center;">{{ si.article }}</td>
-                <td style="border:none; padding:0 1mm; font-weight:900; font-size:11pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</td>
+                {% set si_value_m = ov(si.field_key, si.value) %}
+                <td style="border:none; padding:0 1mm; font-weight:900; font-size:11pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ (si_value_m|float|round(0, 'ceil')|int) if si.article in ['RU008', 'RU007'] else si_value_m }}</td>
               </tr>
             {% endfor %}
             </table>
@@ -797,7 +801,8 @@
               <tr>
                 <td style="border:none; padding:0 1mm; font-size:8.5pt;">{{ si.label }}</td>
                 <td style="border:none; padding:0 1mm; font-weight:900; font-size:10pt; text-align:center;">{{ si.article }}</td>
-                <td style="border:none; padding:0 1mm; font-weight:900; font-size:11pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ ov(si.field_key, si.value) }}</td>
+                {% set si_value_r = ov(si.field_key, si.value) %}
+                <td style="border:none; padding:0 1mm; font-weight:900; font-size:11pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ (si_value_r|float|round(0, 'ceil')|int) if si.article in ['RU008', 'RU007'] else si_value_r }}</td>
               </tr>
             {% endfor %}
             </table>

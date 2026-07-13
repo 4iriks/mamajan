@@ -5,6 +5,7 @@ PDF-генерацию проверяем только если установл
 
 import io
 import json
+import re
 from types import SimpleNamespace
 
 import pytest
@@ -227,7 +228,29 @@ class TestPreview:
         assert "contenteditable" in r.text
         assert 'data-profile-image="RS2333-left"' in r.text
         assert 'data-profile-image="RS2333-right"' in r.text
-        assert 'width="66" height="24"' in r.text
+        assert 'width="66" height="30"' in r.text
+        assert 'data-profile-image="RS2333-left" transform="translate(48 ' in r.text
+        assert 'data-profile-image="RS2333-right" transform="translate(392 ' in r.text
+        assert re.search(r"RU008</td>\s*<td[^>]*>12</td>", r.text)
+        assert re.search(r"RU007</td>\s*<td[^>]*>5</td>", r.text)
+
+    def test_five_rail_wall_profiles_touch_top_view(self, client, admin_headers, project):
+        section = _create_slide_section(
+            client,
+            admin_headers,
+            project["id"],
+            rails=5,
+            panels=4,
+        )
+        token = admin_headers["Authorization"].replace("Bearer ", "")
+        r = client.get(
+            f"/api/projects/{project['id']}/sections/{section['id']}/preview",
+            params={"token": token},
+        )
+        assert r.status_code == 200
+        assert 'width="102" height="30"' in r.text
+        assert 'data-profile-image="RS2335-left" transform="translate(51 ' in r.text
+        assert 'data-profile-image="RS2335-right" transform="translate(389 ' in r.text
 
     def test_preview_no_token(self, client, project, admin_headers):
         section = _create_slide_section(client, admin_headers, project["id"])
