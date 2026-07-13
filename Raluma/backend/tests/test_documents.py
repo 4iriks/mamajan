@@ -227,6 +227,7 @@ class TestPreview:
         assert "contenteditable" in r.text
         assert 'data-profile-image="RS2333-left"' in r.text
         assert 'data-profile-image="RS2333-right"' in r.text
+        assert 'width="66" height="24"' in r.text
 
     def test_preview_no_token(self, client, project, admin_headers):
         section = _create_slide_section(client, admin_headers, project["id"])
