@@ -521,8 +521,10 @@ class TestLocalPreview:
         first_page_text = pages[0].extract_text()
         assert "EXTRA-01" in first_page_text
         assert "EXTRA-10" in first_page_text
-        assert "ПРОИЗВОДСТВЕННЫЙ ЧЕК-ЛИСТ" not in first_page_text
-        assert "ПРОИЗВОДСТВЕННЫЙ ЧЕК-ЛИСТ" in pages[1].extract_text()
+        second_page_text = pages[1].extract_text()
+        assert "EXTRA-10" not in second_page_text
+        assert "Нарезка профиля по ТЗ" in second_page_text
+        assert "Ответственные за заказ на производстве" in second_page_text
 
     def test_local_preview_slide_sheet_uses_three_hardware_columns_without_checklist(
         self, client
