@@ -534,6 +534,7 @@ class TestLocalPreview:
                     "quantity": 1,
                     "rails": 3,
                     "threshold": "Стандартный анод",
+                    "first_panel_inside": "Слева",
                     "inter_glass_profile": "Алюминиевый RS2061",
                     "profile_left_wall": True,
                     "profile_right_wall": True,
@@ -542,7 +543,7 @@ class TestLocalPreview:
                     "profile_right_p_bar": True,
                     "profile_right_bubble": True,
                     "handle_left": "Без",
-                    "lock_left": "Без",
+                    "lock_left": "ЗАМОК-ЗАЩЕЛКА 1стор RS3018",
                     "handle_right": "Без",
                     "lock_right": "Без",
                 },
@@ -550,9 +551,9 @@ class TestLocalPreview:
         )
 
         assert r.status_code == 200
-        assert "910 (926)" in r.text
-        assert "902 (902)" in r.text
-        assert r.text.index("910 (926)") < r.text.index("902 (902)")
+        assert "902 (918)" in r.text
+        assert "910 (910)" in r.text
+        assert r.text.index("902 (918)") < r.text.index("910 (910)")
 
     def test_local_preview_two_row_sheet_uses_three_hardware_columns_without_checklist(
         self, client

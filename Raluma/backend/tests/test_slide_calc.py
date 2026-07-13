@@ -196,7 +196,7 @@ class TestProfileVariables:
         assert edge.width_mm == expected
 
     def test_krlp_p_bar_and_bubble(self):
-        """П-профиль + пузырьковый учитывает только pl/pz, без вычета полного RS1082."""
+        """П-профиль + пузырьковый: pl/pz входят в базу, krlp возвращает 16 мм краю."""
         s = _make_section(
             profile_left_p_bar=True,
             profile_left_bubble=True,
@@ -204,9 +204,9 @@ class TestProfileVariables:
         r = calculate_slide(s)
         left = r.panel_glass[0]
         mid = _find_glass(r, "Промежуточные")[0]
-        edge_base = round((2000 - 16 - 16 - 5 - 2 + 9.5 * 2) / 3, 1)
+        edge_base = round((2000 - 16 - 16 - 5 - 16 - 2 + 9.5 * 2) / 3, 1)
         expected_mid = edge_base
-        assert left.width_mm == edge_base
+        assert left.width_mm == round(edge_base + 16, 1)
         assert mid.width_mm == expected_mid
 
     def test_handle_offset_left(self):
@@ -1020,23 +1020,22 @@ class TestCustomerSections0107:
                 width=1900,
                 height=2720,
                 panels=2,
+                first_panel_inside="Слева",
                 inter_glass_profile="Алюминиевый RS2061",
                 profile_left_lock_bar=True,
                 profile_left_handle_bar=True,
                 profile_right_p_bar=True,
                 profile_right_bubble=True,
                 handle_left="Без",
-                lock_left="Без",
+                lock_left="ЗАМОК-ЗАЩЕЛКА 1стор RS3018",
                 handle_right="Без",
                 lock_right="Без",
             )
         )
 
-        assert _ceil_panel_widths(r) == [910, 902]
-        assert _ceil_panel_profile_lengths(r) == [926, 902]
-        assert sorted(
-            ceil(profile.length_mm) for profile in _find_profile(r, "RS2021")
-        ) == [902, 926]
+        _assert_mm_close(_ceil_panel_widths(r), [901, 909])
+        _assert_mm_close(_ceil_panel_profile_lengths(r), [917, 909])
+        assert r.panel_glass[0].width_mm < r.panel_glass[-1].width_mm
 
     def test_section_5_rs2021_does_not_follow_visual_order(self):
         r = calculate_slide(
@@ -1048,8 +1047,8 @@ class TestCustomerSections0107:
                 inter_glass_profile="Алюминиевый RS2061",
                 profile_left_handle_bar=True,
                 profile_left_p_bar=True,
-                profile_left_bubble=True,
                 profile_right_p_bar=True,
+                profile_right_bubble=True,
                 handle_left="Без",
                 lock_left="Без",
                 handle_right="Без",
@@ -1057,11 +1056,11 @@ class TestCustomerSections0107:
             )
         )
 
-        assert _ceil_panel_widths(r) == [926, 918]
-        assert _ceil_panel_profile_lengths(r) == [942, 918]
+        assert _ceil_panel_widths(r) == [918, 926]
+        assert _ceil_panel_profile_lengths(r) == [934, 926]
         assert sorted(
             ceil(profile.length_mm) for profile in _find_profile(r, "RS2021")
-        ) == [918, 942]
+        ) == [926, 934]
 
     def test_section_7_physical_panels_and_rs2021(self):
         r = calculate_slide(
@@ -1069,15 +1068,14 @@ class TestCustomerSections0107:
                 width=2295,
                 height=1810,
                 panels=3,
-                profile_left_lock_bar=True,
                 profile_left_p_bar=True,
                 profile_left_bubble=True,
+                profile_right_lock_bar=True,
                 profile_right_handle_bar=True,
-                handle_offset_left=16,
                 handle_left="Без",
                 lock_left="Без",
                 handle_right="Без",
-                lock_right="Без",
+                lock_right="ЗАМОК-ЗАЩЕЛКА 1стор RS3018",
             )
         )
         _assert_mm_close(_ceil_panel_widths(r), [746, 730, 738])
@@ -1093,7 +1091,6 @@ class TestCustomerSections0107:
                 profile_left_bubble=True,
                 profile_right_p_bar=True,
                 profile_right_handle_bar=True,
-                handle_offset_left=16,
                 handle_left="Без",
                 lock_left="Без",
                 handle_right="Без",
@@ -1113,8 +1110,6 @@ class TestCustomerSections0107:
                 profile_right_p_bar=True,
                 profile_left_bubble=True,
                 profile_right_bubble=True,
-                handle_offset_left=16,
-                handle_offset_right=16,
                 handle_left="Без ручки (подвижная)",
                 lock_left="Без",
                 handle_right="Без ручки (подвижная)",

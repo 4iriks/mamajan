@@ -624,8 +624,10 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     pzr = 5 if bubble_r else 0
     krlr = 8 if handle_bar_l else 0
     krrr = 8 if handle_bar_r else 0
-    krlp = 0
-    krrp = 0
+    # П-профиль с пузырьковым уплотнителем образует крайний нахлест 16 мм.
+    # Он влияет на конкретное крайнее стекло и не заменяет зазор pl/pr = 2 мм.
+    krlp = 16 if (p_bar_l and bubble_l) else 0
+    krrp = 16 if (p_bar_r and bubble_r) else 0
     pl = _p_bar_bubble_gap_mm(p_bar_l, bubble_l)
     pr = _p_bar_bubble_gap_mm(p_bar_r, bubble_r)
 
@@ -1365,8 +1367,10 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     pzr = 5 if bubble_r else 0
     krlr = 8 if handle_bar_l else 0
     krrr = 8 if handle_bar_r else 0
-    krlp = 0
-    krrp = 0
+    # П-профиль с пузырьковым уплотнителем образует крайний нахлест 16 мм.
+    # Он влияет на конкретное крайнее стекло и не заменяет зазор pl/pr = 2 мм.
+    krlp = 16 if (p_bar_l and bubble_l) else 0
+    krrp = 16 if (p_bar_r and bubble_r) else 0
     pl = _p_bar_bubble_gap_mm(p_bar_l, bubble_l)
     pr = _p_bar_bubble_gap_mm(p_bar_r, bubble_r)
 
