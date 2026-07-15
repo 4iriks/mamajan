@@ -1674,6 +1674,8 @@ class TestSlideTwoRows:
             _make_section(
                 slide_rows=2,
                 panels=4,
+                handle_left="Без ручки (глухая)",
+                handle_right="Без ручки (глухая)",
                 center_handle="Без ручки (глухие)",
                 center_lock="Без",
                 first_panel_inside=None,
@@ -1751,6 +1753,35 @@ class TestSlideTwoRows:
                 first_panel_inside=None,
             )
         )
+        assert _find_hardware(r, "RS105")[0].value == 8
+        assert _find_hardware(r, "RS106")[0].value == 2
+        assert _find_hardware(r, "RS108")[0].value == 2
+        assert _find_hardware(r, "RS107")[0].value == 10
+        assert _find_screw(r, "4,8×25")[0].qty == 24
+
+    def test_two_rows_section_13_treats_empty_outer_handles_as_moving_panels(self):
+        r = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                rails=3,
+                panels=6,
+                unused_track="Внешний",
+                handle_left=None,
+                handle_right=None,
+                lock_left=None,
+                lock_right=None,
+                center_handle="Ручка-кноб RS3014",
+                center_lock=None,
+                profile_left_handle_bar=False,
+                profile_right_handle_bar=False,
+                profile_left_p_bar=True,
+                profile_right_p_bar=True,
+                profile_left_bubble=True,
+                profile_right_bubble=True,
+                first_panel_inside=None,
+            )
+        )
+
         assert _find_hardware(r, "RS105")[0].value == 8
         assert _find_hardware(r, "RS106")[0].value == 2
         assert _find_hardware(r, "RS108")[0].value == 2

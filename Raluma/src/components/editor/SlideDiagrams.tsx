@@ -140,6 +140,7 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
 
   const scaleBaseMm = Math.max(sectionWidth || panelWidthsMm.reduce((sum, width) => sum + width, 0), 1);
   const mmToPx = (mm: number, minPx = 0) => Math.max(minPx, (mm / scaleBaseMm) * railAreaW);
+  const centerGapPx = is2row ? Math.max(1, mmToPx(3)) : 0;
   const interGlassText = (section.interGlassProfile ?? '').toLowerCase();
   const hasInterGlassProfile = Boolean(interGlassText) && !interGlassText.includes('без');
   const interGlassArticle = interGlassText.includes('rs1006')
@@ -302,13 +303,20 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
         const px = layout.x;
         const panelW = layout.width;
         const panelNum = is2row ? pi + 1 : (firstPanelInside === 'Справа' ? panels - pi : pi + 1);
-        const rx = px + (pi === 0 ? 5 : -6);
-        const rRight = px + panelW + (pi === panels - 1 ? -5 : 6);
-        const rw = rRight - rx;
+        const centerLeftIndex = panels / 2 - 1;
+        const centerRightIndex = panels / 2;
+        let rx = px + (pi === 0 ? 5 : -6);
+        let rRight = px + panelW + (pi === panels - 1 ? -5 : 6);
+        if (is2row && pi === centerLeftIndex) {
+          rRight = px + panelW - centerGapPx / 2;
+        } else if (is2row && pi === centerRightIndex) {
+          rx = px + centerGapPx / 2;
+        }
+        const rw = Math.max(1, rRight - rx);
         const cx = px + panelW / 2;
         return (
           <g key={pi}>
-            <rect x={rx} y={cy - 9} width={rw} height={18} rx="2"
+            <rect data-scheme-panel={pi + 1} x={rx} y={cy - 9} width={rw} height={18} rx="2"
               fill="var(--theme-accent)" fillOpacity="0.13" stroke="var(--theme-accent)" strokeWidth="1.4" strokeOpacity="0.75" />
             {layout.widthMm ? (
               <text x={cx} y={cy + 5} textAnchor="middle" fontSize="8" fill="var(--theme-accent)" fillOpacity="0.9" fontWeight="bold">{layout.widthMm} · №{panelNum}</text>

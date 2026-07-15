@@ -61,7 +61,7 @@ class TestProfileDisplayRows:
         assert brush_meters(14.11) == "14,2 м"
         assert brush_meters("3,31") == "3,4 м"
 
-    def test_display_hardware_groups_lock_without_shifting_following_indexes(self):
+    def test_display_hardware_keeps_lock_and_strike_in_separate_rows(self):
         hardware = [
             SimpleNamespace(
                 article="BEFORE",
@@ -103,9 +103,9 @@ class TestProfileDisplayRows:
 
         rows = display_hardware(hardware)
 
-        assert [row.article for row in rows] == ["BEFORE", "", "AFTER"]
-        assert [row.source_index for row in rows] == [1, 2, 4]
-        assert [item.article for item in rows[1].sub_items] == ["RS3020", "RS123"]
+        assert [row.article for row in rows] == ["BEFORE", "RS3020", "RS123", "AFTER"]
+        assert [row.source_index for row in rows] == [1, 2, 3, 4]
+        assert all(row.sub_items is None for row in rows)
 
     def test_expand_glass_profile_lengths_matches_physical_panels(self):
         calc = SimpleNamespace(
@@ -707,7 +707,9 @@ class TestLocalPreview:
         assert r.text.count("Комментарий для производства") >= 2
         assert r.text.count('style="width:33%;"') >= 2
 
-    def test_local_preview_groups_rs3020_and_rs123_in_one_hardware_cell(self, client):
+    def test_local_preview_renders_rs3020_and_rs123_in_separate_hardware_cells(
+        self, client
+    ):
         r = client.post(
             "/api/projects/local/sections/preview",
             json={
@@ -730,11 +732,36 @@ class TestLocalPreview:
         )
 
         assert r.status_code == 200
-        assert r.text.count('data-hardware-group="RS3020-RS123"') == 1
-        assert r.text.count('data-hardware-subitem="RS3020"') == 1
-        assert r.text.count('data-hardware-subitem="RS123"') == 1
-        assert 'alt="RS3020"' in r.text
-        assert 'alt="RS123"' in r.text
+        assert 'data-hardware-group="RS3020-RS123"' not in r.text
+        assert 'data-hardware-subitem="RS3020"' not in r.text
+        assert 'data-hardware-subitem="RS123"' not in r.text
+        assert '<div class="hw-art">RS3020</div>' in r.text
+        assert '<div class="hw-art">RS123</div>' in r.text
+
+    def test_local_preview_hides_rs3110_length_but_keeps_piece_quantity(self, client):
+        r = client.post(
+            "/api/projects/local/sections/preview",
+            json={
+                "project": {"number": "LOCAL-RS3110", "customer": "Тест"},
+                "section": {
+                    "name": "Секция 1",
+                    "system": "СЛАЙД",
+                    "width": 2000,
+                    "height": 2400,
+                    "panels": 4,
+                    "quantity": 1,
+                    "rails": 3,
+                    "slide_rows": 2,
+                    "threshold": "Стандартный анод",
+                    "inter_glass_profile": "Алюминиевый RS2061",
+                    "center_handle": "Без ручки (глухие)",
+                },
+            },
+        )
+
+        assert r.status_code == 200
+        assert 'data-profile-article="RS3110"' in r.text
+        assert 'data-profile-article="RS3110" data-length-visible="false"' in r.text
 
     def test_local_preview_section_4_room_scheme_keeps_physical_glass_order(
         self, client

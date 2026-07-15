@@ -634,7 +634,7 @@
   <tr>
     {% for col in range(cols) %}
     {% set i = row * cols + col %}
-    <td style="width:33.33%">
+    <td style="width:33.33%"{% if i < total %} data-profile-article="{{ all_profiles[i].article }}" data-length-visible="{{ 'false' if all_profiles[i].article == 'RS3110' else 'true' }}"{% endif %}>
       {% if i < total %}
       {% set p = all_profiles[i] %}
       {% set fk_l = "p_" ~ i ~ "_len" %}
@@ -654,7 +654,7 @@
                 <span class="qty" {{ ce(cut.qty_field, cut.qty) }}>{{ ov(cut.qty_field, cut.qty) }}</span>{% if not loop.last %}<br>{% endif %}
               {% endfor %}
             {% else %}
-            <span class="dim" {% if p.length_mm > 0 %}{{ ce(fk_l, p.length_mm|int) }}{% endif %}>{% if p.length_mm > 0 %}{{ ov(fk_l, p.length_mm|int) }}{% endif %}</span>
+            <span class="dim" {% if p.article != 'RS3110' and p.length_mm > 0 %}{{ ce(fk_l, p.length_mm|int) }}{% endif %}>{% if p.article != 'RS3110' and p.length_mm > 0 %}{{ ov(fk_l, p.length_mm|int) }}{% endif %}</span>
             <span class="qty" {{ ce(fk_q, p.qty) }}>{{ ov(fk_q, p.qty) }}</span>
             {% endif %}
           </span>

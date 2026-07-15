@@ -112,4 +112,15 @@ assert.match(schemeMarkupTwoRows, /data-dir="-1"/, '2-row top scheme must mirror
 assert.equal((schemeMarkupTwoRows.match(/data-profile="inter-glass"/g) ?? []).length, 2, '2-row top scheme must not draw an inter-glass profile in the central joint');
 assert.match(schemeMarkupTwoRows, />сдвиг</, '2-row top scheme must render bidirectional shift label');
 
+function schemePanelRect(markup: string, panel: number) {
+  const match = markup.match(new RegExp(`data-scheme-panel="${panel}" x="([^"]+)" y="[^"]+" width="([^"]+)"`));
+  assert.ok(match, `top scheme must expose geometry for panel ${panel}`);
+  return { x: Number(match[1]), width: Number(match[2]) };
+}
+
+const centerLeft = schemePanelRect(schemeMarkupTwoRows, 2);
+const centerRight = schemePanelRect(schemeMarkupTwoRows, 3);
+const centerGap = centerRight.x - (centerLeft.x + centerLeft.width);
+assert.ok(centerGap > 0 && centerGap <= 2, '2-row central panels must have a visible scaled 3 mm gap without overlap');
+
 console.log('slide diagram smoke passed');

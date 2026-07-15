@@ -368,6 +368,17 @@ def _is_deaf_panel(handle: str | None, lock: str | None, has_handle_bar: bool) -
     )
 
 
+def _is_two_row_outer_panel_deaf(
+    handle: str | None,
+    lock: str | None,
+    has_handle_bar: bool,
+) -> bool:
+    """Only an explicit fixed-panel value makes a 2-row outer panel fixed."""
+    if handle is None:
+        return False
+    return _is_deaf_panel(handle, lock, has_handle_bar)
+
+
 def _split_profile_lengths(length_mm: float) -> list[float]:
     normalized_length = max(0, int(ceil(length_mm)))
     if normalized_length <= MAX_PROFILE_LENGTH_MM:
@@ -657,13 +668,17 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     a = int(_get(section, "handle_offset_left", 0) or 0)
     b = int(_get(section, "handle_offset_right", 0) or 0)
 
-    handle_l = _get(section, "handle_left", None) or "Без"
-    handle_r = _get(section, "handle_right", None) or "Без"
+    handle_l_raw = _get(section, "handle_left", None)
+    handle_r_raw = _get(section, "handle_right", None)
+    handle_l = handle_l_raw or "Без"
+    handle_r = handle_r_raw or "Без"
     lock_l = _get(section, "lock_left", None) or "Без"
     lock_r = _get(section, "lock_right", None) or "Без"
 
-    left_is_deaf = _is_deaf_panel(handle_l, lock_l, handle_bar_l)
-    right_is_deaf = _is_deaf_panel(handle_r, lock_r, handle_bar_r)
+    left_is_deaf = _is_two_row_outer_panel_deaf(handle_l_raw, lock_l, handle_bar_l)
+    right_is_deaf = _is_two_row_outer_panel_deaf(
+        handle_r_raw, lock_r, handle_bar_r
+    )
 
     center_handle = _get(section, "center_handle", None) or "Без ручки (глухие)"
     center_lock = _get(section, "center_lock", None) or "Без"

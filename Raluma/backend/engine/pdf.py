@@ -300,53 +300,11 @@ def display_profiles(profiles: list) -> list:
 
 
 def display_hardware(hardware: list) -> list:
-    """Group related hardware only for the production-sheet presentation."""
-    lock = next(
-        (item for item in hardware if getattr(item, "article", "") == "RS3020"),
-        None,
-    )
-    strike = next(
-        (item for item in hardware if getattr(item, "article", "") == "RS123"),
-        None,
-    )
-    has_lock_group = lock is not None and strike is not None
+    """Attach stable source indexes used by editable production-sheet fields."""
     rows = []
 
     for source_index, item in enumerate(hardware, start=1):
         article = getattr(item, "article", "")
-        if has_lock_group and article == "RS123":
-            continue
-        if has_lock_group and article == "RS3020":
-            rows.append(
-                SimpleNamespace(
-                    article="",
-                    name=getattr(item, "name", "Замок двухсторонний с ключом"),
-                    value=0,
-                    unit="шт",
-                    image=None,
-                    field_key="rs3020_rs123_group",
-                    display_group="RS3020-RS123",
-                    source_index=source_index,
-                    sub_items=[
-                        SimpleNamespace(
-                            label="Замок",
-                            article="RS3020",
-                            value=getattr(item, "value", 0),
-                            field_key=getattr(item, "field_key", "") or "rs3020_lock",
-                            image=getattr(item, "image", None),
-                        ),
-                        SimpleNamespace(
-                            label="Ответная планка",
-                            article="RS123",
-                            value=getattr(strike, "value", 0),
-                            field_key=getattr(strike, "field_key", "") or "rs123",
-                            image=getattr(strike, "image", None),
-                        ),
-                    ],
-                )
-            )
-            continue
-
         rows.append(
             SimpleNamespace(
                 article=article,

@@ -232,8 +232,10 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
           {showHandleLeft && (
             <div className="mt-2 space-y-1">
               <label className={LBL}>Ручка слева</label>
-              <RadioList value={s.handleLeft} noneLabel="Без ручки (глухая)"
-                options={['Без ручки (подвижная)', 'Ручка-кноб RS3014', 'Стеклянная ручка RS3017', 'Ручка-скоба 600мм RS30201']}
+              <RadioList value={is2row ? (s.handleLeft ?? 'Без ручки (подвижная)') : s.handleLeft} noneLabel={is2row ? undefined : 'Без ручки (глухая)'}
+                options={is2row
+                  ? ['Без ручки (глухая)', 'Без ручки (подвижная)', 'Ручка-кноб RS3014', 'Стеклянная ручка RS3017', 'Ручка-скоба 600мм RS30201']
+                  : ['Без ручки (подвижная)', 'Ручка-кноб RS3014', 'Стеклянная ручка RS3017', 'Ручка-скоба 600мм RS30201']}
                 onChange={v => update({ handleLeft: v })} />
             </div>
           )}
@@ -265,8 +267,10 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
           {showHandleRight && (
             <div className="mt-2 space-y-1">
               <label className={LBL}>Ручка справа</label>
-              <RadioList value={s.handleRight} noneLabel="Без ручки (глухая)"
-                options={['Без ручки (подвижная)', 'Ручка-кноб RS3014', 'Стеклянная ручка RS3017', 'Ручка-скоба 600мм RS30201']}
+              <RadioList value={is2row ? (s.handleRight ?? 'Без ручки (подвижная)') : s.handleRight} noneLabel={is2row ? undefined : 'Без ручки (глухая)'}
+                options={is2row
+                  ? ['Без ручки (глухая)', 'Без ручки (подвижная)', 'Ручка-кноб RS3014', 'Стеклянная ручка RS3017', 'Ручка-скоба 600мм RS30201']
+                  : ['Без ручки (подвижная)', 'Ручка-кноб RS3014', 'Стеклянная ручка RS3017', 'Ручка-скоба 600мм RS30201']}
                 onChange={v => update({ handleRight: v })} />
             </div>
           )}
