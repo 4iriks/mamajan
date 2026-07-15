@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Накладная {{ project.number }}</title>
+  <style>
+    @page { size: A4 portrait; margin: 11mm 10mm 12mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      background: #e9e9e9;
+      color: #111;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9.5pt;
+    }
+    .page {
+      width: 190mm;
+      min-height: 277mm;
+      margin: 0 auto 10mm;
+      padding: 9mm 8mm;
+      background: #fff;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    th, td {
+      border: 1px solid #111;
+      padding: 1.4mm 1.7mm;
+      vertical-align: top;
+    }
+    th {
+      background: #efefef;
+      font-weight: 700;
+      text-align: center;
+      vertical-align: middle;
+    }
+    .document-head { margin-bottom: 3mm; }
+    .document-head td { border: 0; padding: 0; vertical-align: bottom; }
+    .executor { width: 52%; font-weight: 700; }
+    .document-title {
+      text-align: right;
+      font-size: 13pt;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .document-date { margin-left: 2mm; font-size: 9.5pt; font-weight: 400; }
+    .details { margin-bottom: 3mm; }
+    .details td:first-child {
+      width: 43mm;
+      white-space: nowrap;
+      font-weight: 700;
+    }
+    .main-table { table-layout: fixed; }
+    .main-table > thead { display: table-header-group; }
+    .main-table > tbody > tr { break-inside: avoid; page-break-inside: avoid; }
+    .item-number { width: 10mm; text-align: center; vertical-align: middle; font-weight: 700; }
+    .quantity { width: 24mm; text-align: center; vertical-align: middle; font-weight: 700; }
+    .places { width: 27mm; text-align: center; vertical-align: middle; font-weight: 700; }
+    .row-title { font-weight: 700; line-height: 1.25; }
+    .row-meta { margin-top: 0.7mm; font-size: 8.8pt; line-height: 1.25; }
+    .dimensions { margin-top: 1.2mm; }
+    .dimension-line { display: flex; gap: 2mm; align-items: baseline; line-height: 1.35; }
+    .dimension-size { min-width: 37mm; }
+    .dimension-threshold { font-size: 8.2pt; }
+    .glass-table { margin-top: 1.6mm; table-layout: fixed; font-size: 7.7pt; }
+    .glass-table th, .glass-table td { padding: 0.8mm 1mm; }
+    .glass-table th { line-height: 1.15; overflow-wrap: anywhere; }
+    .glass-note { margin-top: 0.4mm; font-size: 7.2pt; font-style: italic; }
+    .center { text-align: center; }
+    .nowrap { white-space: nowrap; }
+    .group-row + .group-row td:not(.item-number) { border-top-color: #777; }
+    .totals td { font-weight: 700; vertical-align: middle; }
+    .names-total { margin-top: 2.5mm; font-weight: 700; }
+    .acceptance { margin-top: 4mm; line-height: 1.4; }
+    .acceptance-line {
+      display: inline-block;
+      width: 33mm;
+      border-bottom: 1px solid #111;
+      transform: translateY(-0.7mm);
+    }
+    .signatures {
+      margin-top: 7mm;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      column-gap: 20mm;
+      row-gap: 5mm;
+    }
+    .signature-row { display: flex; align-items: end; gap: 2mm; }
+    .signature-role { white-space: nowrap; }
+    .signature-rule { flex: 1; height: 5mm; border-bottom: 1px solid #111; }
+    .signature-caption { margin-top: 0.5mm; text-align: right; font-size: 7pt; color: #555; }
+    {% if not is_pdf %}
+    [contenteditable] {
+      min-height: 7mm;
+      outline: none;
+      cursor: text;
+      background: #fff9c4;
+      box-shadow: inset 0 0 0 1px #e6c94f;
+    }
+    [contenteditable]:focus { background: #fff3a0; box-shadow: inset 0 0 0 2px #d1a900; }
+    [contenteditable].changed { background: #ffe69a; }
+    {% endif %}
+    @media print {
+      body { background: #fff; }
+      .page { width: auto; min-height: 0; margin: 0; padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <table class="document-head">
+      <tr>
+        <td class="executor">Исполнитель: ООО «ПРОЗРАЧНЫЕ РЕШЕНИЯ»</td>
+        <td class="document-title">Накладная № {{ project.number|e }}<span class="document-date">от {{ delivery.dateText|e }}</span></td>
+      </tr>
+    </table>
+
+    <table class="details">
+      <tr><td>Заказчик</td><td>{{ project.customer|e }}</td></tr>
+      <tr><td>Примечание</td><td>{{ delivery.note|e }}</td></tr>
+      <tr><td>Контактное лицо</td><td>{{ delivery.contact|e }}</td></tr>
+      <tr><td>Доставка, разгрузка и монтаж</td><td>{{ delivery.delivery|e }}</td></tr>
+    </table>
+
+    <table class="main-table">
+      <thead>
+        <tr>
+          <th class="item-number">№</th>
+          <th>Наименование</th>
+          <th class="quantity">Кол-во изд., шт.</th>
+          <th class="places">Кол-во мест</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if delivery_item1_rows %}
+          {% for row in delivery_item1_rows %}
+          <tr class="group-row">
+            {% if loop.first %}<td class="item-number" rowspan="{{ delivery_item1_rows|length }}">1.</td>{% endif %}
+            <td>
+              <div class="row-title">{{ row.name|e }}</div>
+              {% if row.kind == 'construction' %}
+                <div class="row-meta">
+                  Комплект профилей, {{ row.color|e }}{% if row.threshold and row.threshold != 'Пороги согласно ТЗ' %}, {{ row.threshold|e }}{% endif %}, размеры согласно ТЗ, размеры конструкции:
+                </div>
+                {% if row.threshold == 'Пороги согласно ТЗ' %}<div class="row-meta">Пороги указаны отдельно для каждого размера.</div>{% endif %}
+                <div class="dimensions">
+                  {% for dimension in row.dimensions %}
+                  <div class="dimension-line">
+                    <span class="dimension-size">{{ dimension.size|e }}</span>
+                    <span>{{ dimension.qty }} шт.</span>
+                    {% if row.threshold == 'Пороги согласно ТЗ' and dimension.threshold %}<span class="dimension-threshold">— {{ dimension.threshold|e }}</span>{% endif %}
+                  </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="row-meta">Цвет конструкции: {{ row.color|e }}</div>
+                <table class="glass-table">
+                  <colgroup>
+                    <col style="width:29%">
+                    <col style="width:35%">
+                    <col style="width:13%">
+                    <col style="width:13%">
+                    <col style="width:10%">
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th rowspan="2">Маркировка</th>
+                      <th rowspan="2">Стекло</th>
+                      <th colspan="2">Размеры</th>
+                      <th rowspan="2">Кол-во, шт.</th>
+                    </tr>
+                    <tr>
+                      <th>Ширина, мм</th>
+                      <th>Высота, мм</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for glass in row.rows %}
+                    <tr>
+                      <td>{{ glass.marking|e }}</td>
+                      <td>{{ glass.glass_type|e }}{% if glass.note %}<div class="glass-note">{{ glass.note|e }}</div>{% endif %}</td>
+                      {% if glass.width is none or glass.height is none %}
+                      <td class="center" colspan="2">согласно ТЗ</td>
+                      {% else %}
+                      <td class="center">{{ glass.width }}</td>
+                      <td class="center">{{ glass.height }}</td>
+                      {% endif %}
+                      <td class="center">{{ glass.qty }}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              {% endif %}
+            </td>
+            <td class="quantity">{{ row.qty_text }}</td>
+            <td class="places" {% if not is_pdf %}contenteditable="true" data-delivery-place-key="{{ row.place_key }}" data-original="{{ row.places|e }}"{% endif %}>{{ row.places|e }}</td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td class="item-number">1.</td>
+            <td>В проекте нет секций для отгрузки</td>
+            <td class="quantity">0</td>
+            <td class="places"></td>
+          </tr>
+        {% endif %}
+
+        {% for row in delivery_item2_rows %}
+        <tr class="group-row">
+          {% if loop.first %}<td class="item-number" rowspan="{{ delivery_item2_rows|length }}">2.</td>{% endif %}
+          <td>
+            <div class="row-title">
+              {% if row.article %}<span class="nowrap">{{ row.article|e }}</span> — {% endif %}{{ row.name|e }}
+            </div>
+            {% if row.color %}<div class="row-meta">Цвет: {{ row.color|e }}</div>{% endif %}
+            {% if row.size %}<div class="row-meta">Размер: {{ row.size|e }}</div>{% endif %}
+          </td>
+          <td class="quantity">{{ row.qty_text }}</td>
+          <td class="places" {% if not is_pdf %}contenteditable="true" data-delivery-place-key="{{ row.place_key }}" data-original="{{ row.places|e }}"{% endif %}>{{ row.places|e }}</td>
+        </tr>
+        {% endfor %}
+
+        <tr class="totals">
+          <td colspan="2" style="text-align:right;">Итого</td>
+          <td class="quantity">{{ delivery_total_qty }}</td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="names-total">Всего {{ delivery_names_count }} (два) наименования.</div>
+    <div class="acceptance">
+      Изделия и комплектацию принял. Претензий по качеству и количеству не имею. <span class="acceptance-line"></span>
+    </div>
+
+    <div class="signatures">
+      <div><div class="signature-row"><span class="signature-role">Исполнитель</span><span class="signature-rule"></span></div></div>
+      <div><div class="signature-row"><span class="signature-role">Заказчик</span><span class="signature-rule"></span></div></div>
+      <div><div class="signature-row"><span class="signature-role">Исполнитель</span><span class="signature-rule"></span></div><div class="signature-caption">подпись</div></div>
+      <div><div class="signature-row"><span class="signature-role">Заказчик</span><span class="signature-rule"></span></div><div class="signature-caption">подпись</div></div>
+    </div>
+  </div>
+
+  {% if not is_pdf %}
+  <script>
+  (function() {
+    document.querySelectorAll('[data-delivery-place-key]').forEach(function(el) {
+      el.addEventListener('input', function() {
+        el.classList.toggle('changed', el.textContent.trim() !== (el.dataset.original || ''));
+        window.parent && window.parent.postMessage({ type: 'dirty', dirty: true }, '*');
+      });
+    });
+  })();
+  </script>
+  {% endif %}
+</body>
+</html>

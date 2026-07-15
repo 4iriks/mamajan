@@ -221,6 +221,16 @@ def glass_mm(value: float) -> int:
     return int(ceil(float(value or 0)))
 
 
+def brush_meters(value: float | str) -> str:
+    """Round brush length upward to 0.1 m and keep the unit visible."""
+    normalized = str(value or 0).strip().lower().replace("м", "").replace(",", ".")
+    try:
+        rounded = ceil(float(normalized) * 10) / 10
+    except (TypeError, ValueError):
+        return str(value)
+    return f"{rounded:.1f}".replace(".", ",") + " м"
+
+
 def _strip_split_note(note: str) -> str:
     return re.sub(r"^часть \d+/\d+;?\s*", "", note or "").strip()
 
@@ -289,6 +299,71 @@ def display_profiles(profiles: list) -> list:
     return rows
 
 
+def display_hardware(hardware: list) -> list:
+    """Group related hardware only for the production-sheet presentation."""
+    lock = next(
+        (item for item in hardware if getattr(item, "article", "") == "RS3020"),
+        None,
+    )
+    strike = next(
+        (item for item in hardware if getattr(item, "article", "") == "RS123"),
+        None,
+    )
+    has_lock_group = lock is not None and strike is not None
+    rows = []
+
+    for source_index, item in enumerate(hardware, start=1):
+        article = getattr(item, "article", "")
+        if has_lock_group and article == "RS123":
+            continue
+        if has_lock_group and article == "RS3020":
+            rows.append(
+                SimpleNamespace(
+                    article="",
+                    name=getattr(item, "name", "Замок двухсторонний с ключом"),
+                    value=0,
+                    unit="шт",
+                    image=None,
+                    field_key="rs3020_rs123_group",
+                    display_group="RS3020-RS123",
+                    source_index=source_index,
+                    sub_items=[
+                        SimpleNamespace(
+                            label="Замок",
+                            article="RS3020",
+                            value=getattr(item, "value", 0),
+                            field_key=getattr(item, "field_key", "") or "rs3020_lock",
+                            image=getattr(item, "image", None),
+                        ),
+                        SimpleNamespace(
+                            label="Ответная планка",
+                            article="RS123",
+                            value=getattr(strike, "value", 0),
+                            field_key=getattr(strike, "field_key", "") or "rs123",
+                            image=getattr(strike, "image", None),
+                        ),
+                    ],
+                )
+            )
+            continue
+
+        rows.append(
+            SimpleNamespace(
+                article=article,
+                name=getattr(item, "name", ""),
+                value=getattr(item, "value", 0),
+                unit=getattr(item, "unit", "шт"),
+                image=getattr(item, "image", None),
+                field_key=getattr(item, "field_key", ""),
+                display_group="",
+                source_index=source_index,
+                sub_items=getattr(item, "sub_items", None),
+            )
+        )
+
+    return rows
+
+
 def _parse_json_list(value) -> list:
     if isinstance(value, list):
         return value
@@ -343,10 +418,12 @@ def _get_env() -> Environment:
     env.filters["img_b64"] = _img_b64
     env.filters["enumerate"] = enumerate
     env.filters["glass_mm"] = glass_mm
+    env.filters["brush_meters"] = brush_meters
     env.globals["glass_widths"] = expand_glass_widths
     env.globals["glass_profile_lengths"] = expand_glass_profile_lengths
     env.globals["profile_dimension"] = profile_dimension
     env.globals["display_profiles"] = display_profiles
+    env.globals["display_hardware"] = display_hardware
     env.globals["section_extra_components"] = section_extra_components
     return env
 

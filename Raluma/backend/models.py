@@ -71,6 +71,7 @@ class Project(Base):
         String, nullable=True
     )  # JSON: [{id,name,invoice,paidDate,deliveredDate}]
     paint_manual_rows = Column(String, nullable=True)  # JSON: ручные строки заявки на покраску
+    delivery_note_data = Column(Text, nullable=True)  # JSON: реквизиты и кол-во мест накладной
 
     owner = relationship("User", back_populates="projects")
     sections = relationship(

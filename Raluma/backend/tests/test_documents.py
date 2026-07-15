@@ -13,6 +13,8 @@ from pypdf import PdfReader
 
 from engine.pdf import (
     _img_b64,
+    brush_meters,
+    display_hardware,
     display_profiles,
     expand_glass_profile_lengths,
     expand_glass_widths,
@@ -23,10 +25,12 @@ from engine.pdf import (
 )
 from engine.project_documents import (
     CalculatedSection,
+    _build_delivery_context,
     _build_glass_rows,
     _build_paint_pages,
     _iter_slide_sections,
 )
+from schemas import SectionCreate
 
 
 class TestProfileAssetSafety:
@@ -52,6 +56,56 @@ class TestProfileAssetSafety:
 
 
 class TestProfileDisplayRows:
+    def test_brush_meters_rounds_up_to_one_decimal(self):
+        assert brush_meters(14.11) == "14,2 м"
+        assert brush_meters("3,31") == "3,4 м"
+
+    def test_display_hardware_groups_lock_without_shifting_following_indexes(self):
+        hardware = [
+            SimpleNamespace(
+                article="BEFORE",
+                name="До замка",
+                value=1,
+                unit="шт",
+                image=None,
+                field_key="before",
+                sub_items=None,
+            ),
+            SimpleNamespace(
+                article="RS3020",
+                name="Замок",
+                value=2,
+                unit="шт",
+                image="RS3020.png",
+                field_key="rs3020_lock",
+                sub_items=None,
+            ),
+            SimpleNamespace(
+                article="RS123",
+                name="Ответная планка",
+                value=2,
+                unit="шт",
+                image="RS123.jpg",
+                field_key="rs123",
+                sub_items=None,
+            ),
+            SimpleNamespace(
+                article="AFTER",
+                name="После замка",
+                value=1,
+                unit="шт",
+                image=None,
+                field_key="after",
+                sub_items=None,
+            ),
+        ]
+
+        rows = display_hardware(hardware)
+
+        assert [row.article for row in rows] == ["BEFORE", "", "AFTER"]
+        assert [row.source_index for row in rows] == [1, 2, 4]
+        assert [item.article for item in rows[1].sub_items] == ["RS3020", "RS123"]
+
     def test_expand_glass_profile_lengths_matches_physical_panels(self):
         calc = SimpleNamespace(
             glass=[
@@ -215,6 +269,27 @@ def _create_slide_section(client, admin_headers, project_id, **overrides):
     return r.json()
 
 
+def _delivery_section(**overrides):
+    payload = {
+        "name": "Секция 1",
+        "order": 1,
+        "system": "СЛАЙД",
+        "width": 2000,
+        "height": 2400,
+        "panels": 3,
+        "quantity": 1,
+        "rails": 3,
+        "slide_rows": 1,
+        "threshold": "Стандартный анод",
+        "painting_type": "RAL стандарт",
+        "ral_color": "9016 МАТОВЫЙ",
+        "first_panel_inside": "Справа",
+        "inter_glass_profile": "Алюминиевый RS2061",
+    }
+    payload.update(overrides)
+    return SimpleNamespace(**SectionCreate(**payload).model_dump())
+
+
 class TestPreview:
     def test_preview_returns_html(self, client, admin_headers, project):
         section = _create_slide_section(client, admin_headers, project["id"])
@@ -231,10 +306,12 @@ class TestPreview:
         assert 'width="66" height="30"' in r.text
         assert 'data-profile-image="RS2333-left" transform="translate(48 ' in r.text
         assert 'data-profile-image="RS2333-right" transform="translate(392 ' in r.text
-        assert re.search(r"RU008</td>\s*<td[^>]*>12</td>", r.text)
-        assert re.search(r"RU007</td>\s*<td[^>]*>5</td>", r.text)
+        assert re.search(r"RU008</td>\s*<td[^>]*>\d+,\d м</td>", r.text)
+        assert re.search(r"RU007</td>\s*<td[^>]*>\d+,\d м</td>", r.text)
 
-    def test_five_rail_wall_profiles_touch_top_view(self, client, admin_headers, project):
+    def test_five_rail_wall_profiles_touch_top_view(
+        self, client, admin_headers, project
+    ):
         section = _create_slide_section(
             client,
             admin_headers,
@@ -343,8 +420,38 @@ class TestLocalPreview:
         assert "SLIDE-стандарт 2 ряда" in r.text
         assert "Центральные" in r.text
         assert "RS30301" in r.text
-        assert 'data-profile="inter-glass" data-panel="1" data-dir="1"' in r.text
+        assert 'data-profile="inter-glass" data-panel="2" data-dir="1"' in r.text
         assert 'data-profile="inter-glass" data-panel="3" data-dir="-1"' in r.text
+        assert r.text.count('data-profile="inter-glass"') == 2
+
+    def test_two_row_six_panel_inter_glass_profiles_start_from_center(self, client):
+        r = client.post(
+            "/api/projects/local/sections/preview",
+            json={
+                "project": {"number": "LOCAL-2R-6"},
+                "section": {
+                    "name": "Секция 1",
+                    "system": "СЛАЙД",
+                    "width": 3000,
+                    "height": 2400,
+                    "panels": 6,
+                    "quantity": 1,
+                    "rails": 3,
+                    "slide_rows": 2,
+                    "unused_track": "Внешний",
+                    "threshold": "Стандартный анод",
+                    "inter_glass_profile": "Алюминиевый RS2061",
+                },
+            },
+        )
+
+        assert r.status_code == 200
+        assert r.text.count('data-profile="inter-glass"') == 4
+        for panel, direction in ((2, 1), (3, 1), (4, -1), (5, -1)):
+            assert (
+                f'data-profile="inter-glass" data-panel="{panel}" '
+                f'data-dir="{direction}"'
+            ) in r.text
 
     def test_local_preview_non_slide(self, client):
         r = client.post(
@@ -585,7 +692,7 @@ class TestLocalPreview:
         assert "ПРОЕКТ № LOCAL-HW — Секция 1" in r.text
         assert "Нарезка профиля по ТЗ" in r.text
         assert "Примечания и особые отметки при производстве или проверке ОТК" in r.text
-        assert r.text.count('style="display:block; width:72%; margin:0 auto;"') >= 2
+        assert r.text.count('style="display:block; width:72%; margin:0 0 0 7%;"') >= 2
         production_end = r.text.index("</div><!-- production-page-end -->")
         checklist_start = r.text.index('<div class="check-page">')
         assert production_end < checklist_start
@@ -595,8 +702,38 @@ class TestLocalPreview:
         assert "КОММЕНТАРИИ К СЕКЦИИ" not in r.text
         assert "Комментарий для производства" in r.text
         assert 'class="params-notes"' in r.text
+        assert '<div class="params-notes-title">ПРИМЕЧАНИЕ</div>' in r.text
         assert r.text.count("Комментарий для производства") >= 2
         assert r.text.count('style="width:33%;"') >= 2
+
+    def test_local_preview_groups_rs3020_and_rs123_in_one_hardware_cell(self, client):
+        r = client.post(
+            "/api/projects/local/sections/preview",
+            json={
+                "project": {"number": "LOCAL-LOCK", "customer": "Тест"},
+                "section": {
+                    "name": "Секция 1",
+                    "system": "СЛАЙД",
+                    "width": 2000,
+                    "height": 2400,
+                    "panels": 2,
+                    "quantity": 1,
+                    "rails": 3,
+                    "threshold": "Стандартный анод",
+                    "inter_glass_profile": "Алюминиевый RS2061",
+                    "profile_left_wall": True,
+                    "profile_right_wall": True,
+                    "lock_left": "ЗАМОК двухсторонний с ключом RS3020",
+                },
+            },
+        )
+
+        assert r.status_code == 200
+        assert r.text.count('data-hardware-group="RS3020-RS123"') == 1
+        assert r.text.count('data-hardware-subitem="RS3020"') == 1
+        assert r.text.count('data-hardware-subitem="RS123"') == 1
+        assert 'alt="RS3020"' in r.text
+        assert 'alt="RS123"' in r.text
 
     def test_local_preview_section_4_room_scheme_keeps_physical_glass_order(
         self, client
@@ -1312,6 +1449,407 @@ class TestProjectGlassOrder:
 
         assert [row for row in rows if row["note"] == "(чертеж)"] == []
         assert sum(row["qty"] for row in rows if row["note"] == "") == 3
+
+
+class TestDeliveryNote:
+    @staticmethod
+    def project(**overrides):
+        values = {
+            "number": "Н-001",
+            "customer": "ООО ТЕСТ",
+            "glass_status": "Заказано",
+            "delivery_note_data": json.dumps(
+                {"includeGlass": False, "places": {}}, ensure_ascii=False
+            ),
+        }
+        values.update(overrides)
+        return SimpleNamespace(**values)
+
+    def test_constructions_include_all_systems_and_threshold_does_not_split_group(self):
+        sections = [
+            _delivery_section(
+                name="Секция 1",
+                order=1,
+                quantity=2,
+                threshold="Стандартный анод",
+            ),
+            _delivery_section(
+                name="Секция 2",
+                order=2,
+                quantity=1,
+                threshold="Накладной окраш",
+            ),
+            _delivery_section(
+                name="Секция 3",
+                order=3,
+                system="КНИЖКА",
+                book_system="B25",
+            ),
+            _delivery_section(
+                name="Секция 4",
+                order=4,
+                system="ЛИФТ",
+                door_system="одностворчатая",
+            ),
+            _delivery_section(
+                name="Секция 5",
+                order=5,
+                system="ЦС",
+                cs_shape="Прямоугольник",
+            ),
+        ]
+
+        context = _build_delivery_context(self.project(), sections)
+        rows = [
+            row
+            for row in context["delivery_item1_rows"]
+            if row["kind"] == "construction"
+        ]
+        slide = [row for row in rows if "SLIDE" in row["name"]][0]
+
+        assert len(rows) == 4
+        assert slide["qty"] == 3
+        assert slide["threshold"] == "Пороги согласно ТЗ"
+        assert {
+            (dimension["size"], dimension["threshold"])
+            for dimension in slide["dimensions"]
+        } == {
+            ("2000×2400 мм", "Стандартный анод"),
+            ("2000×2400 мм", "Накладной окраш"),
+        }
+        assert any("КНИЖКА B25" in row["name"] for row in rows)
+        assert any("ЛИФТ" in row["name"] for row in rows)
+        assert any("Raluma ЦС" in row["name"] for row in rows)
+
+    def test_anodized_construction_ignores_stale_ral_color(self):
+        section = _delivery_section(
+            painting_type="Анодированный",
+            ral_color="7024 МАТОВЫЙ",
+            threshold="Стандартный анод",
+        )
+        context = _build_delivery_context(
+            self.project(
+                delivery_note_data=json.dumps(
+                    {"includeGlass": True, "places": {}}, ensure_ascii=False
+                )
+            ),
+            [section],
+        )
+
+        construction = next(
+            row
+            for row in context["delivery_item1_rows"]
+            if row["kind"] == "construction"
+        )
+        glass = next(
+            row for row in context["delivery_item1_rows"] if row["kind"] == "glass"
+        )
+
+        assert construction["color"] == "Анодированный"
+        assert glass["color"] == "Анодированный"
+
+    def test_glass_is_grouped_inside_section_and_marked_in_project_order(self):
+        project = self.project(
+            delivery_note_data=json.dumps(
+                {"includeGlass": True, "places": {}}, ensure_ascii=False
+            )
+        )
+        section = _delivery_section(
+            name="Секция 4",
+            order=4,
+            panels=3,
+            quantity=2,
+        )
+
+        context = _build_delivery_context(project, [section])
+        glass_groups = [
+            row for row in context["delivery_item1_rows"] if row["kind"] == "glass"
+        ]
+
+        assert len(glass_groups) == 1
+        assert glass_groups[0]["qty"] == 6
+        assert sum(row["qty"] for row in glass_groups[0]["rows"]) == 6
+        assert [row["marking"] for row in glass_groups[0]["rows"]] == ["Н-001 4,1"]
+
+    def test_hardware_rows_exclude_rs3018_rs3020_and_keep_special_groups(self):
+        section = _delivery_section(
+            panels=2,
+            quantity=2,
+            handle_left="Ручка-кноб RS3014",
+            handle_right="Стеклянная ручка RS3017",
+            lock_left="ЗАМОК-ЗАЩЕЛКА 1стор RS3018",
+            lock_right="ЗАМОК двухсторонний с ключом RS3020",
+            floor_latches_left=True,
+            extra_components=json.dumps(
+                [
+                    {
+                        "sku": "BOX-1",
+                        "name": "Монтажный бокс",
+                        "color": "RAL 9016",
+                        "size": "1200 мм",
+                        "qty": "3",
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+        )
+
+        context = _build_delivery_context(self.project(), [section])
+        rows = {row["article"]: row for row in context["delivery_item2_rows"]}
+
+        assert (
+            context["delivery_item2_rows"][0]["name"]
+            == "Комплект фурнитуры согласно ТЗ"
+        )
+        assert rows["RS3014"]["qty"] == 2
+        assert rows["RS3017"]["qty"] == 2
+        assert rows["RS205"]["qty"] == 2
+        assert rows["BOX-1"]["qty"] == 6
+        assert "RS3018" not in rows
+        assert "RS3020" not in rows
+
+    def test_reference_4108_total_includes_rs3110_and_six_rs2081(self):
+        sections = [
+            _delivery_section(
+                name="Секция 1",
+                order=1,
+                panels=4,
+                slide_rows=2,
+                profile_left_lock_bar=True,
+                profile_right_lock_bar=True,
+                handle_left="Ручка-кноб RS3014",
+                handle_right="Ручка-кноб RS3014",
+                center_lock="Замок стекло-стекло RS30301",
+                center_handle="Без ручки",
+            ),
+            _delivery_section(
+                name="Секция 2",
+                order=2,
+                panels=3,
+                profile_left_lock_bar=True,
+                profile_right_lock_bar=True,
+            ),
+            _delivery_section(
+                name="Секция 3",
+                order=3,
+                panels=3,
+                profile_left_lock_bar=True,
+                profile_right_lock_bar=True,
+            ),
+            _delivery_section(name="Секция 4", order=4, panels=3),
+        ]
+
+        context = _build_delivery_context(self.project(), sections)
+        hardware = {row["article"]: row for row in context["delivery_item2_rows"]}
+
+        assert hardware["RS3110"]["qty"] == 1
+        assert hardware["RS2081"]["qty"] == 6
+        assert hardware["RS2081"]["color"] == "RAL 9016 МАТОВЫЙ"
+        assert hardware["RS2081"]["size"].endswith(" мм")
+        assert context["delivery_total_qty"] == "15"
+
+    def test_reference_4027_total_is_33(self):
+        project = self.project(
+            number="В26-5-4027",
+            delivery_note_data=json.dumps(
+                {"includeGlass": True, "places": {}}, ensure_ascii=False
+            ),
+        )
+        sections = [
+            _delivery_section(
+                name="Секция 1",
+                order=1,
+                panels=4,
+                slide_rows=2,
+                center_handle="Без ручки",
+            ),
+            _delivery_section(
+                name="Секция 2",
+                order=2,
+                panels=4,
+                handle_left="Ручка-кноб RS3014",
+                handle_right="Ручка-кноб RS3014",
+                floor_latches_left=True,
+                floor_latches_right=True,
+            ),
+            _delivery_section(name="Секция 3", order=3, panels=4),
+            _delivery_section(name="Секция 4", order=4, panels=4),
+            _delivery_section(name="Секция 5", order=5, panels=6),
+        ]
+
+        context = _build_delivery_context(project, sections)
+        glass_qty = sum(
+            row["qty"]
+            for row in context["delivery_item1_rows"]
+            if row["kind"] == "glass"
+        )
+        hardware = {row["article"]: row for row in context["delivery_item2_rows"]}
+
+        assert glass_qty == 22
+        assert hardware["RS3014"]["qty"] == 2
+        assert hardware["RS205"]["qty"] == 2
+        assert hardware["RS3110"]["qty"] == 1
+        assert context["delivery_total_qty"] == "33"
+
+    def test_non_slide_glass_is_listed_without_invented_dimensions(self):
+        project = self.project(
+            delivery_note_data=json.dumps(
+                {"includeGlass": True, "places": {}}, ensure_ascii=False
+            )
+        )
+        sections = [
+            _delivery_section(
+                name="Секция 1",
+                order=1,
+                system="КНИЖКА",
+                panels=3,
+                quantity=2,
+            ),
+            _delivery_section(
+                name="Секция 2",
+                order=2,
+                system="ЛИФТ",
+                panels=2,
+                quantity=1,
+            ),
+            _delivery_section(
+                name="Секция 3",
+                order=3,
+                system="ЦС",
+                panels=1,
+                quantity=1,
+            ),
+        ]
+
+        context = _build_delivery_context(project, sections)
+        glass_rows = [
+            row for row in context["delivery_item1_rows"] if row["kind"] == "glass"
+        ]
+        detail_rows = [detail for row in glass_rows for detail in row["rows"]]
+
+        assert sum(row["qty"] for row in glass_rows) == 9
+        assert {detail["marking"] for detail in detail_rows} == {
+            "Н-001 1,1",
+            "Н-001 2,1",
+            "Н-001 3,1",
+        }
+        assert all(detail["width"] is None for detail in detail_rows)
+        assert all(detail["height"] is None for detail in detail_rows)
+        assert all(detail["note"] == "Размеры согласно ТЗ" for detail in detail_rows)
+
+    def test_places_are_stable_and_restored_per_group(self):
+        section = _delivery_section(quantity=2)
+        first = _build_delivery_context(self.project(), [section])
+        construction = first["delivery_item1_rows"][0]
+        hardware = first["delivery_item2_rows"][0]
+        project = self.project(
+            delivery_note_data=json.dumps(
+                {
+                    "includeGlass": False,
+                    "places": {
+                        construction["place_key"]: "4",
+                        hardware["place_key"]: "2",
+                    },
+                },
+                ensure_ascii=False,
+            )
+        )
+
+        restored = _build_delivery_context(project, [section])
+
+        assert restored["delivery_item1_rows"][0]["places"] == "4"
+        assert restored["delivery_item2_rows"][0]["places"] == "2"
+        assert (
+            restored["delivery_item1_rows"][0]["place_key"]
+            != restored["delivery_item2_rows"][0]["place_key"]
+        )
+
+    def test_authenticated_preview_renders_saved_delivery_requisites(
+        self, client, admin_headers, project
+    ):
+        _create_slide_section(client, admin_headers, project["id"])
+        saved = {
+            "dateMode": "custom",
+            "date": "2026-07-15",
+            "note": "Отгрузка по звонку",
+            "contact": "Иван Иванов",
+            "delivery": "Самовывоз",
+            "includeGlass": False,
+            "places": {},
+        }
+        update = client.put(
+            f"/api/projects/{project['id']}",
+            headers=admin_headers,
+            json={"delivery_note_data": json.dumps(saved, ensure_ascii=False)},
+        )
+        assert update.status_code == 200
+        token = admin_headers["Authorization"].replace("Bearer ", "")
+
+        response = client.get(
+            f"/api/projects/{project['id']}/documents/delivery/preview",
+            params={"token": token},
+        )
+
+        assert response.status_code == 200
+        assert "Накладная № TEST-001" in response.text
+        assert "15.07.2026" in response.text
+        assert "Отгрузка по звонку" in response.text
+        assert "Иван Иванов" in response.text
+        assert "Самовывоз" in response.text
+        assert 'data-delivery-place-key="' in response.text
+        assert "Стекло 10ММ" not in response.text
+        assert "Доставка, разгрузка и монтаж" in response.text
+        assert "Изделия и комплектацию принял" in response.text
+        assert "<th>Примечание</th>" not in response.text
+
+    def test_guest_preview_includes_non_slide_systems(self, client):
+        response = client.post(
+            "/api/projects/local/documents/delivery/preview",
+            json={
+                "project": {
+                    "number": "LOCAL-N-1",
+                    "customer": "Гость",
+                    "delivery_note_data": json.dumps(
+                        {"includeGlass": False, "places": {}},
+                        ensure_ascii=False,
+                    ),
+                },
+                "sections": [
+                    {
+                        "name": "Секция 1",
+                        "order": 1,
+                        "system": "КНИЖКА",
+                        "book_system": "B25",
+                        "width": 2100,
+                        "height": 2500,
+                        "quantity": 2,
+                    },
+                    {
+                        "name": "Секция 2",
+                        "order": 2,
+                        "system": "ЛИФТ",
+                        "width": 1800,
+                        "height": 2300,
+                        "quantity": 1,
+                    },
+                    {
+                        "name": "Секция 3",
+                        "order": 3,
+                        "system": "ЦС",
+                        "cs_shape": "Прямоугольник",
+                        "width": 1200,
+                        "height": 1800,
+                        "quantity": 1,
+                    },
+                ],
+            },
+        )
+
+        assert response.status_code == 200
+        assert "Raluma КНИЖКА B25" in response.text
+        assert "Raluma ЛИФТ" in response.text
+        assert "Raluma ЦС" in response.text
+        assert 'contenteditable="true"' in response.text
 
 
 class TestOverrides:

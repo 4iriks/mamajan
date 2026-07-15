@@ -420,6 +420,29 @@ def _rs2081_screws_per_side(height_mm: float) -> int:
     return max(8, int(max(height_mm - 200, 0) / 300 + 0.5))
 
 
+def _screw_mount_notes(
+    rails: int, *, has_wall_profile: bool, has_rs2081: bool
+) -> tuple[str, str, str]:
+    wall_article = "RS2333" if rails == 3 else "RS2335"
+    top_article = "RS1313" if rails == 3 else "RS1315"
+
+    roller_note = "Прикрутить ролики"
+    if has_rs2081:
+        roller_note += f", RS2081 к {wall_article}" if has_wall_profile else ", RS2081"
+
+    frame_note = (
+        f"Прикрутить {wall_article} к {top_article} и порогу"
+        if has_wall_profile
+        else f"Прикрутить {top_article} и порог"
+    )
+    p_bar_note = (
+        f"Прикрутить RS1082 к {wall_article}"
+        if has_wall_profile
+        else "Прикрутить RS1082"
+    )
+    return roller_note, frame_note, p_bar_note
+
+
 def _expand_panel_glass(
     result: SlideCalcResult, panels: int, fallback_width: float, fallback_height: float
 ) -> list[PanelGlassItem]:
@@ -760,6 +783,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     )
 
     top_article = "RS1313" if rails == 3 else "RS1315"
+    wall_article = "RS2333" if rails == 3 else "RS2335"
     top_len = threshold_len
     _append_profile_with_splits(
         result,
@@ -774,7 +798,6 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     )
 
     if wall_l or wall_r:
-        wall_article = "RS2333" if rails == 3 else "RS2335"
         result.profiles.append(
             ProfileItem(
                 article=wall_article,
@@ -788,13 +811,14 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
             )
         )
 
-    if ig_article and P > 1:
+    inter_glass_count_each = max(P - 2, 0)
+    if ig_article and inter_glass_count_each > 0:
         result.profiles.append(
             ProfileItem(
                 article=ig_article,
                 name=_inter_glass_profile_name(ig_article),
                 length_mm=round(inter_glass_len, 1),
-                qty=(P - 1) * Q,
+                qty=inter_glass_count_each * Q,
                 painted=(painted and ig_article == "RS2061"),
                 image=_profile_image(ig_article),
                 field_key="inter_glass_length",
@@ -869,7 +893,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         result.profiles.append(
             ProfileItem(
                 article="RS1083",
-                name="Двутавр 30×20×30",
+                name="Соединительный профиль 30×20×30",
                 length_mm=round(handle_bar_len + 17, 1),
                 qty=Q,
                 painted=painted,
@@ -890,6 +914,19 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 note="для центральных ручек-профилей RS112",
             )
         )
+    else:
+        result.profiles.append(
+            ProfileItem(
+                article="RS3110",
+                name="h-уплотнитель центрального стыка",
+                length_mm=round(inter_glass_len, 1),
+                qty=Q,
+                painted=False,
+                image="RS3110.jpg",
+                field_key="center_joint_profile_length",
+                note="",
+            )
+        )
 
     latch_count = (
         (1 if _get(section, "floor_latches_left", False) else 0)
@@ -898,16 +935,14 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         + (1 if _get(section, "center_floor_latches_right", False) else 0)
     )
     if latch_count > 0:
-        result.profiles.append(
-            ProfileItem(
-                article="RS205",
-                name="Защёлка в пол",
-                length_mm=0,
-                qty=latch_count * Q,
-                painted=False,
-                image="RS205.png",
-                field_key="floor_latches_qty",
-                note="",
+        result.hardware.append(
+            HardwareItem(
+                "RS205",
+                "Защёлка в пол",
+                latch_count * Q,
+                "шт",
+                "RS205.png",
+                "floor_latches_qty",
             )
         )
 
@@ -946,12 +981,13 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
 
     handle_bar_len_m = handle_bar_len / 1000
     top_len_m = top_len / 1000
+    used_tracks = max(P // 2, 1)
     ru008_m = round(
-        top_len_m * P * 2 * Q + (handle_bar_len_m + 0.03) * total_rs112_count * Q,
+        top_len_m * used_tracks * 2 * Q
+        + (handle_bar_len_m + 0.03) * total_rs112_count * Q,
         3,
     )
 
-    inter_glass_count_each = (P - 1) if P > 1 else 0
     inter_glass_cnt = inter_glass_count_each * Q
     ru007_m = 0.0
     if inter_glass_cnt > 0 and ig_article in ("RS2061", "RS1006"):
@@ -1025,6 +1061,19 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 "шт",
                 "RS3020.png",
                 "rs3020_lock",
+            )
+        )
+
+    rs123_qty = lock3020 * Q
+    if rs123_qty > 0:
+        result.hardware.append(
+            HardwareItem(
+                "RS123",
+                "Ответная планка замка",
+                rs123_qty,
+                "шт",
+                "RS123.jpg",
+                "rs123",
             )
         )
 
@@ -1126,15 +1175,9 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 )
             )
 
-    middle_panels = max(P - 4, 0)
     rs108_qty = 2 * Q
-    rs105_qty = max(0, middle_panels * 2 * Q)
-
-    if total_rs112_count > 0:
-        rs106_qty = side_rs112_count * Q
-    else:
-        non_deaf = (0 if left_is_deaf else 1) + (0 if right_is_deaf else 1)
-        rs106_qty = non_deaf * Q
+    rs105_qty = inter_glass_count_each * 2 * Q
+    rs106_qty = ((0 if left_is_deaf else 1) + (0 if right_is_deaf else 1)) * Q
 
     if rs105_qty > 0:
         result.hardware.append(
@@ -1170,23 +1213,11 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
             )
         )
 
-    rs107_qty = rs105_qty + rs106_qty + rs108_qty
+    rs107_qty = rs105_qty + rs106_qty
     if rs107_qty > 0:
         result.hardware.append(
             HardwareItem(
                 "RS107", "Заглушка запорная", rs107_qty, "шт", "RS107.png", "rs107"
-            )
-        )
-
-    if not center_is_rs112:
-        result.hardware.append(
-            HardwareItem(
-                "RS3110",
-                "h-уплотнитель центрального стыка",
-                Q,
-                "шт",
-                None,
-                "rs3110",
             )
         )
 
@@ -1200,6 +1231,11 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         )
     )
 
+    roller_screw_note, frame_screw_note, p_bar_screw_note = _screw_mount_notes(
+        rails,
+        has_wall_profile=wall_count > 0,
+        has_rs2081=lb_count > 0,
+    )
     screw3913m = (ru003_qty + ru005_qty) * 2 + _rs2081_screws_per_side(H) * lb_count * Q
     result.screws.append(
         ScrewItem(
@@ -1207,7 +1243,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
             "3,9×13 A2 DIN7504M",
             screw3913m,
             "DIN7504M.png",
-            note="Прикрутить ролики, RS2081 к направляющим",
+            note=roller_screw_note,
         )
     )
 
@@ -1218,7 +1254,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
             "4,8×38 A2",
             screw4838_map.get((rails, std), 8),
             "DIN7982.png",
-            note="Прикрутить верхний профиль к порогу",
+            note=frame_screw_note,
         )
     )
 
@@ -1230,7 +1266,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 "3,9×13 A2 DIN7504O",
                 screw3913o,
                 "DIN7504O.png",
-                note="Прикрутить RS1082 к RS2333/2335",
+                note=p_bar_screw_note,
             )
         )
 
@@ -1243,11 +1279,15 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     if screw5425 > 0:
         result.screws.append(
             ScrewItem(
-                "Саморез 5,4×25 A2 (DIN912SW)", "5,4×25 A2", screw5425, "DIN912SW.png"
+                "Саморез 5,4×25 A2 (DIN912SW)",
+                "5,4×25 A2",
+                screw5425,
+                "DIN912SW.png",
+                note="Крепление глухой панели",
             )
         )
 
-    screw3513 = rs122_qty * 2
+    screw3513 = (rs122_qty + rs123_qty) * 2
     if screw3513 > 0:
         result.screws.append(
             ScrewItem(
@@ -1255,7 +1295,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 "3,5×13 A2",
                 screw3513,
                 "DIN7982.png",
-                note="Прикрутить ответные планки RS122",
+                note="Прикрутить ответные планки RS122/123",
             )
         )
 
@@ -1538,6 +1578,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
 
     # Верхний направляющий
     top_article = "RS1313" if rails == 3 else "RS1315"
+    wall_article = "RS2333" if rails == 3 else "RS2335"
     top_len = threshold_len
     _append_profile_with_splits(
         result,
@@ -1553,7 +1594,6 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
 
     # Пристеночный
     if wall_l or wall_r:
-        wall_article = "RS2333" if rails == 3 else "RS2335"
         wall_qty = Q * wall_count
         result.profiles.append(
             ProfileItem(
@@ -1656,16 +1696,14 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
         1 if section.floor_latches_right else 0
     )
     if latch_count > 0:
-        result.profiles.append(
-            ProfileItem(
-                article="RS205",
-                name="Защёлка в пол",
-                length_mm=0,
-                qty=latch_count * Q,
-                painted=False,
-                image="RS205.png",
-                field_key="floor_latches_qty",
-                note="",
+        result.hardware.append(
+            HardwareItem(
+                "RS205",
+                "Защёлка в пол",
+                latch_count * Q,
+                "шт",
+                "RS205.png",
+                "floor_latches_qty",
             )
         )
 
@@ -1761,6 +1799,19 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
                 "шт",
                 "RS3020.png",
                 "rs3020_lock",
+            )
+        )
+
+    rs123_qty = lock3020 * Q
+    if rs123_qty > 0:
+        result.hardware.append(
+            HardwareItem(
+                "RS123",
+                "Ответная планка замка",
+                rs123_qty,
+                "шт",
+                "RS123.jpg",
+                "rs123",
             )
         )
 
@@ -1897,6 +1948,11 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     )
 
     # 3,9×13 A2 (DIN7504M) — для роликов + профиля-замка RS2081
+    roller_screw_note, frame_screw_note, p_bar_screw_note = _screw_mount_notes(
+        rails,
+        has_wall_profile=wall_count > 0,
+        has_rs2081=lb_count > 0,
+    )
     screw3913m = (ru003_qty + ru005_qty) * 2 + _rs2081_screws_per_side(H) * lb_count * Q
     result.screws.append(
         ScrewItem(
@@ -1904,7 +1960,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
             "3,9×13 A2 DIN7504M",
             screw3913m,
             "DIN7504M.png",
-            note="Прикрутить ролики, RS2081 к RS2323/2335",
+            note=roller_screw_note,
         )
     )
 
@@ -1917,7 +1973,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
             "4,8×38 A2",
             screw4838,
             "DIN7982.png",
-            note="Прикрутить RS1333/1335 к RS1313/1315 и порогу",
+            note=frame_screw_note,
         )
     )
 
@@ -1930,7 +1986,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
                 "3,9×13 A2 DIN7504O",
                 screw3913o,
                 "DIN7504O.png",
-                note="Прикрутить RS1082 к RS2333/2335",
+                note=p_bar_screw_note,
             )
         )
 
@@ -1940,12 +1996,16 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     if screw5425 > 0:
         result.screws.append(
             ScrewItem(
-                "Саморез 5,4×25 A2 (DIN912SW)", "5,4×25 A2", screw5425, "DIN912SW.png"
+                "Саморез 5,4×25 A2 (DIN912SW)",
+                "5,4×25 A2",
+                screw5425,
+                "DIN912SW.png",
+                note="Крепление глухой панели",
             )
         )
 
     # 3,5×13 A2 — ответная планка
-    screw3513 = rs122_qty * 2
+    screw3513 = (rs122_qty + rs123_qty) * 2
     if screw3513 > 0:
         result.screws.append(
             ScrewItem(
@@ -1953,7 +2013,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
                 "3,5×13 A2",
                 screw3513,
                 "DIN7982.png",
-                note="Прикрутить ответные планки RS122",
+                note="Прикрутить ответные планки RS122/123",
             )
         )
 

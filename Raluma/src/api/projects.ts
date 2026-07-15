@@ -37,6 +37,7 @@ export interface ProjectList {
   paint_received_date?: string;
   order_items?: string;
   paint_manual_rows?: string;
+  delivery_note_data?: string;
   created_at: string;
   updated_at: string;
   created_by: number;
@@ -116,7 +117,7 @@ export interface SectionOut {
 
 const hasAuthToken = () => Boolean(localStorage.getItem('access_token'));
 
-export type ProjectDocumentType = 'commercial' | 'paint' | 'glass';
+export type ProjectDocumentType = 'commercial' | 'paint' | 'glass' | 'delivery';
 export type ProjectDocumentOverrides = Partial<{
   project_number: string;
   project_customer: string;
@@ -144,10 +145,19 @@ export interface SlideCalcProfile {
   paint_note: string;
 }
 
+export interface SlideCalcPanelGlass {
+  panel: number;
+  position: string;
+  width_mm: number;
+  height_mm: number;
+  glass_profile_length: number;
+}
+
 export interface SlideCalcPreview {
   profiles: SlideCalcProfile[];
   glass: SlideCalcGlass[];
   panel_rails: number[];
+  panel_glass?: SlideCalcPanelGlass[];
 }
 
 // Documents
@@ -335,6 +345,7 @@ export const importLocalProjectsToServer = async () => {
       paint_received_date: project.paint_received_date,
       order_items: project.order_items,
       paint_manual_rows: project.paint_manual_rows,
+      delivery_note_data: project.delivery_note_data,
     });
 
     for (const section of project.sections.sort((a, b) => a.order - b.order)) {

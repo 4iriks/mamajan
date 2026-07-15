@@ -541,6 +541,17 @@ class TestHardware:
         assert _find_hardware(r, "RS3020")
         assert not _find_hardware(r, "RS122")
 
+    def test_rs3020_adds_rs123_strike_plate(self):
+        r = calculate_slide(
+            _make_section(
+                lock_left="ЗАМОК двухсторонний с ключом RS3020",
+                quantity=2,
+            )
+        )
+        rs123 = _find_hardware(r, "RS123")
+        assert rs123[0].value == 2
+        assert rs123[0].image == "RS123.jpg"
+
     def test_no_locks_no_rs122(self):
         r = calculate_slide(_make_section())
         assert not _find_hardware(r, "RS122")
@@ -807,10 +818,30 @@ class TestScrews:
         assert screw.qty == 6
 
     def test_screw_3913o_with_p_bar(self):
-        """DIN7504O = pb_count * 7 * Q."""
+        """Для каждого RS1082 всегда нужно 7 саморезов."""
         r = calculate_slide(_make_section(profile_left_p_bar=True, quantity=2))
         screw = _find_screw(r, "DIN7504О")[0]
-        assert screw.qty == 1 * 7 * 2  # 14
+        assert screw.qty == 1 * 7 * 2
+
+    def test_screw_3913o_does_not_depend_on_height(self):
+        r = calculate_slide(
+            _make_section(height=2501, profile_left_p_bar=True, quantity=2)
+        )
+        screw = _find_screw(r, "DIN7504О")[0]
+        assert screw.qty == 1 * 7 * 2
+
+    def test_screw_3913o_two_rows_uses_seven_per_rs1082(self):
+        r = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                panels=4,
+                profile_left_p_bar=True,
+                profile_right_p_bar=True,
+            )
+        )
+        screw = _find_screw(r, "DIN7504О")[0]
+        assert screw.qty == 2 * 7
+        assert screw.note == "Прикрутить RS1082 к RS2333"
 
     def test_screw_3913o_no_p_bar(self):
         r = calculate_slide(_make_section())
@@ -829,6 +860,7 @@ class TestScrews:
         )
         screw = _find_screw(r, "5,4×25")[0]
         assert screw.qty == 2 * 2  # оба глухие × Q
+        assert screw.note == "Крепление глухой панели"
 
     def test_screw_5425_no_deaf(self):
         r = calculate_slide(
@@ -840,7 +872,7 @@ class TestScrews:
         assert not _find_screw(r, "5,4×25")
 
     def test_screw_3513_with_locks(self):
-        """3,5×13 = RS122 * 2."""
+        """3,5×13 = (RS122 + RS123) * 2."""
         r = calculate_slide(
             _make_section(
                 lock_left="ЗАМОК-ЗАЩЁЛКА 1стор",
@@ -848,8 +880,38 @@ class TestScrews:
             )
         )
         rs122_val = _find_hardware(r, "RS122")[0].value
+        rs123_val = _find_hardware(r, "RS123")[0].value
         screw = _find_screw(r, "3,5×13")[0]
-        assert screw.qty == rs122_val * 2
+        assert screw.qty == (rs122_val + rs123_val) * 2
+        assert screw.note == "Прикрутить ответные планки RS122/123"
+
+    def test_screw_notes_reference_current_profile_articles(self):
+        r = calculate_slide(
+            _make_section(
+                rails=5,
+                profile_left_p_bar=True,
+                profile_left_lock_bar=True,
+            )
+        )
+        assert _find_screw(r, "DIN7504M")[0].note == (
+            "Прикрутить ролики, RS2081 к RS2335"
+        )
+        assert _find_screw(r, "4,8×38")[0].note == (
+            "Прикрутить RS2335 к RS1315 и порогу"
+        )
+        assert _find_screw(r, "DIN7504О")[0].note == ("Прикрутить RS1082 к RS2335")
+
+    def test_screw_notes_omit_profiles_missing_from_section(self):
+        r = calculate_slide(
+            _make_section(
+                profile_left_wall=False,
+                profile_right_wall=False,
+                profile_left_p_bar=True,
+            )
+        )
+        assert _find_screw(r, "DIN7504M")[0].note == "Прикрутить ролики"
+        assert _find_screw(r, "4,8×38")[0].note == "Прикрутить RS1313 и порог"
+        assert _find_screw(r, "DIN7504О")[0].note == "Прикрутить RS1082"
 
     def test_sticker_and_instruction(self):
         r = calculate_slide(_make_section(quantity=3))
@@ -1582,8 +1644,10 @@ class TestSlideTwoRows:
         ru010 = _find_profile(r, "RU010")[0]
         assert rs112.qty == 2
         assert rs1083.length_mm == 2255
+        assert rs1083.name == "Соединительный профиль 30×20×30"
         assert ru010.qty == 2
         assert not _find_hardware(r, "RS3110")
+        assert not _find_profile(r, "RS3110")
 
     def test_center_rs112_splits_glass_profile_lengths(self):
         r = calculate_slide(
@@ -1616,24 +1680,28 @@ class TestSlideTwoRows:
             )
         )
         rs108 = _find_hardware(r, "RS108")[0]
+        rs105 = _find_hardware(r, "RS105")[0]
         screw = _find_screw(r, "4,8×25")[0]
         assert rs108.value == 2
-        assert not _find_hardware(r, "RS105")
+        assert rs105.value == 4
         assert not _find_hardware(r, "RS106")
-        assert screw.qty == rs108.value * 2
+        assert screw.qty == (rs105.value + rs108.value) * 2
 
-    def test_center_rs3110_has_no_missing_image(self):
+    def test_center_rs3110_is_cut_profile_with_image(self):
         r = calculate_slide(
             _make_section(
                 slide_rows=2,
                 panels=4,
-                center_handle="Р‘РµР· СЂСѓС‡РєРё",
-                center_lock="Р‘РµР·",
+                center_handle="Без ручки (глухие)",
+                center_lock="Без",
                 first_panel_inside=None,
             )
         )
-        rs3110 = _find_hardware(r, "RS3110")[0]
-        assert rs3110.image is None
+        rs3110 = _find_profile(r, "RS3110")[0]
+        assert rs3110.length_mm == 2238
+        assert rs3110.qty == 1
+        assert rs3110.image == "RS3110.jpg"
+        assert not _find_hardware(r, "RS3110")
 
     def test_center_locks_are_separate_hardware(self):
         glass_lock = calculate_slide(
@@ -1668,7 +1736,46 @@ class TestSlideTwoRows:
                 first_panel_inside=None,
             )
         )
-        assert _find_profile(r, "RS205")[0].qty == 3
+        assert _find_hardware(r, "RS205")[0].value == 3
+        assert not _find_profile(r, "RS205")
+
+    def test_two_rows_six_panels_use_noncentral_and_central_plugs(self):
+        r = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                panels=6,
+                handle_left="Ручка-кноб RS3014",
+                handle_right="Ручка-кноб RS3014",
+                center_handle="Без ручки (глухие)",
+                center_lock="Без",
+                first_panel_inside=None,
+            )
+        )
+        assert _find_hardware(r, "RS105")[0].value == 8
+        assert _find_hardware(r, "RS106")[0].value == 2
+        assert _find_hardware(r, "RS108")[0].value == 2
+        assert _find_hardware(r, "RS107")[0].value == 10
+        assert _find_screw(r, "4,8×25")[0].qty == 24
+
+    def test_two_rows_brush_and_inter_glass_use_half_tracks(self):
+        r = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                panels=6,
+                quantity=2,
+                inter_glass_profile="Алюминиевый RS2061",
+                center_handle="Без ручки (глухие)",
+                first_panel_inside=None,
+            )
+        )
+        brush = _find_hardware(r, "")[0]
+        ru008 = next(item for item in brush.sub_items if item.article == "RU008")
+        ru007 = next(item for item in brush.sub_items if item.article == "RU007")
+        top_len_m = 1968 / 1000
+        inter_len_m = 2238 / 1000
+        assert ru008.value == round(top_len_m * (6 // 2) * 2 * 2, 3)
+        assert ru007.value == round((inter_len_m + 0.03) * (6 - 2) * 2, 3)
+        assert _find_profile(r, "RS2061")[0].qty == (6 - 2) * 2
 
     def test_inter_glass_plugs_use_both_sides_and_half_panel_formula(self):
         cases = [

@@ -144,6 +144,7 @@ export function createLocalProject(data: { number: string; customer: string; pro
     paint_received_date: undefined,
     order_items: undefined,
     paint_manual_rows: undefined,
+    delivery_note_data: undefined,
     created_at: createdAt,
     updated_at: createdAt,
     created_by: 0,

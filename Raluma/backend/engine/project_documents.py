@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import date, datetime
+import hashlib
 import json
 from math import ceil
 import re
@@ -17,6 +19,7 @@ DOC_TITLES = {
     "commercial": "Коммерческое предложение",
     "paint": "Заявка на покраску",
     "glass": "Заказ стекла",
+    "delivery": "Накладная",
 }
 
 
@@ -71,7 +74,9 @@ def _iter_slide_sections(sections: Iterable[object]) -> list[CalculatedSection]:
         key=lambda section: _section_sort_key(section, 999999),
     )
     slide_sections = [
-        section for section in sorted_sections if getattr(section, "system", None) == "СЛАЙД"
+        section
+        for section in sorted_sections
+        if getattr(section, "system", None) == "СЛАЙД"
     ]
     for index, section in enumerate(slide_sections, start=1):
         rows.append(
@@ -238,16 +243,24 @@ def _expand_2row_glass(section: object, calc: object) -> list[PhysicalGlassItem]
                 result.append(_physical_glass(middle, ""))
         if center_left is not None:
             result.append(
-                _physical_glass(center_left, _glass_note_for_role(section, "center_left"))
+                _physical_glass(
+                    center_left, _glass_note_for_role(section, "center_left")
+                )
             )
         elif center is not None:
-            result.append(_physical_glass(center, _glass_note_for_role(section, "center_left")))
+            result.append(
+                _physical_glass(center, _glass_note_for_role(section, "center_left"))
+            )
         if center_right is not None:
             result.append(
-                _physical_glass(center_right, _glass_note_for_role(section, "center_right"))
+                _physical_glass(
+                    center_right, _glass_note_for_role(section, "center_right")
+                )
             )
         elif center is not None:
-            result.append(_physical_glass(center, _glass_note_for_role(section, "center_right")))
+            result.append(
+                _physical_glass(center, _glass_note_for_role(section, "center_right"))
+            )
         if middle is not None:
             for _ in range(right_middle_count):
                 result.append(_physical_glass(middle, ""))
@@ -512,6 +525,503 @@ def _build_glass_rows(
     return rows
 
 
+def _parse_json_object(raw: object) -> dict:
+    if isinstance(raw, dict):
+        return raw
+    try:
+        parsed = json.loads(raw or "{}")
+    except (TypeError, json.JSONDecodeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _delivery_settings(project: object) -> dict:
+    raw = _parse_json_object(getattr(project, "delivery_note_data", None))
+    date_mode = str(raw.get("dateMode") or "blank")
+    if date_mode not in {"blank", "today", "custom"}:
+        date_mode = "blank"
+
+    raw_places = raw.get("places")
+    places = (
+        {str(key): str(value or "") for key, value in raw_places.items()}
+        if isinstance(raw_places, dict)
+        else {}
+    )
+    default_glass = str(getattr(project, "glass_status", "") or "").strip().lower()
+    include_glass = raw.get("includeGlass", default_glass != "без стекла")
+
+    return {
+        "dateMode": date_mode,
+        "date": str(raw.get("date") or ""),
+        "note": str(raw.get("note") or ""),
+        "contact": str(raw.get("contact") or ""),
+        "delivery": str(raw.get("delivery") or ""),
+        "includeGlass": bool(include_glass),
+        "places": places,
+    }
+
+
+def _delivery_date_text(settings: dict) -> str:
+    mode = settings["dateMode"]
+    if mode == "today":
+        value = date.today()
+    elif mode == "custom":
+        try:
+            value = datetime.strptime(settings["date"], "%Y-%m-%d").date()
+        except (TypeError, ValueError):
+            value = None
+    else:
+        value = None
+    if value is None:
+        return f"___ __________ {date.today().year} г."
+    return value.strftime("%d.%m.%Y")
+
+
+def _delivery_key(prefix: str, *parts: object) -> str:
+    payload = json.dumps(parts, ensure_ascii=False, sort_keys=True, default=str)
+    digest = hashlib.sha1(payload.encode("utf-8")).hexdigest()[:14]
+    return f"{prefix}-{digest}"
+
+
+def _delivery_place(places: dict[str, str], key: str) -> str:
+    return str(places.get(key) or "")
+
+
+def _format_quantity(value: float) -> str:
+    numeric = float(value or 0)
+    if numeric.is_integer():
+        return str(int(numeric))
+    return str(round(numeric, 3)).replace(".", ",")
+
+
+def _section_color(section: object, calc: object | None = None) -> str:
+    painting = str(getattr(section, "painting_type", "") or "").strip()
+    if "анод" in painting.lower():
+        return "Анодированный"
+
+    if calc is not None:
+        color = str(getattr(calc, "color_text", "") or "").strip()
+        if color:
+            return color
+
+    ral = str(getattr(section, "ral_color", "") or "").strip()
+    if ral:
+        return ral if ral.upper().startswith("RAL") else f"RAL {ral}"
+    return painting or "Без цвета"
+
+
+def _section_variant(section: object) -> tuple:
+    system = str(getattr(section, "system", "") or "").strip().upper()
+    if system == "СЛАЙД":
+        return (
+            _positive_int(getattr(section, "slide_rows", 1), 1),
+            _positive_int(getattr(section, "rails", 3), 3),
+        )
+    if system == "КНИЖКА":
+        return (
+            str(getattr(section, "book_system", "") or "").strip(),
+            str(getattr(section, "book_subtype", "") or "").strip(),
+        )
+    if system == "ЛИФТ":
+        return (str(getattr(section, "door_system", "") or "").strip(),)
+    if system == "ЦС":
+        return (str(getattr(section, "cs_shape", "") or "").strip(),)
+    return ()
+
+
+def _construction_name(section: object) -> str:
+    system = str(getattr(section, "system", "") or "").strip().upper()
+    if system == "СЛАЙД":
+        rows = _positive_int(getattr(section, "slide_rows", 1), 1)
+        rails = _positive_int(getattr(section, "rails", 3), 3)
+        row_label = "1 ряд" if rows == 1 else "2 ряда"
+        return f"Raluma SLIDE, {rails}-полозная система, {row_label}"
+    if system == "КНИЖКА":
+        variant = str(getattr(section, "book_system", "") or "").strip()
+        return f"Raluma КНИЖКА{f' {variant}' if variant else ''}"
+    if system == "ЛИФТ":
+        variant = str(getattr(section, "door_system", "") or "").strip()
+        return f"Raluma ЛИФТ{f', {variant}' if variant else ''}"
+    if system == "ЦС":
+        variant = str(getattr(section, "cs_shape", "") or "").strip()
+        return f"Raluma ЦС{f', {variant}' if variant else ''}"
+    return system or "Секция"
+
+
+def _build_delivery_construction_rows(
+    sections: list[object], places: dict[str, str]
+) -> list[dict]:
+    grouped: dict[tuple, dict] = {}
+    for section in sections:
+        system = str(getattr(section, "system", "") or "").strip().upper()
+        if not system or system == "КОМПЛЕКТАЦИЯ":
+            continue
+        color = _section_color(section)
+        variant = _section_variant(section)
+        key = (system, variant, color)
+        group = grouped.setdefault(
+            key,
+            {
+                "name": _construction_name(section),
+                "color": color,
+                "thresholds": [],
+                "dimensions": {},
+                "qty": 0,
+            },
+        )
+        threshold = str(getattr(section, "threshold", "") or "").strip()
+        if threshold and threshold not in group["thresholds"]:
+            group["thresholds"].append(threshold)
+        width = _format_mm(_safe_float(getattr(section, "width", 0)))
+        height = _format_mm(_safe_float(getattr(section, "height", 0)))
+        quantity = max(1, _positive_int(getattr(section, "quantity", 1), 1))
+        dimension_key = (f"{width}×{height} мм", threshold)
+        group["dimensions"][dimension_key] = (
+            group["dimensions"].get(dimension_key, 0) + quantity
+        )
+        group["qty"] += quantity
+
+    rows = []
+    for group_key, group in grouped.items():
+        place_key = _delivery_key("construction", *group_key)
+        thresholds = group.pop("thresholds")
+        if len(thresholds) == 1:
+            threshold_text = thresholds[0]
+        elif len(thresholds) > 1:
+            threshold_text = "Пороги согласно ТЗ"
+        else:
+            threshold_text = ""
+        rows.append(
+            {
+                **group,
+                "dimensions": [
+                    {"size": size, "threshold": threshold, "qty": qty}
+                    for (size, threshold), qty in group["dimensions"].items()
+                ],
+                "threshold": threshold_text,
+                "place_key": place_key,
+                "places": _delivery_place(places, place_key),
+            }
+        )
+    return rows
+
+
+def _delivery_section_number(section: object, fallback: int) -> int:
+    return _section_name_number(section) or _section_order(section, fallback)
+
+
+def _build_delivery_glass_rows(
+    project: object, sections: list[object], places: dict[str, str]
+) -> list[dict]:
+    grouped: dict[tuple, dict] = {}
+    for fallback, section in enumerate(sections, start=1):
+        system = str(getattr(section, "system", "") or "").strip().upper()
+        if not system or system == "КОМПЛЕКТАЦИЯ":
+            continue
+
+        section_rows: dict[tuple, dict] = {}
+        if system == "СЛАЙД":
+            calc = calculate_slide(section)
+            glass_type = calc.glass_type
+            color = _section_color(section, calc)
+            for glass in _expand_glass_for_order(section, calc):
+                width = int(ceil(glass.width_mm))
+                height = int(ceil(glass.height_mm))
+                key = (glass_type, width, height, glass.note)
+                row = section_rows.setdefault(
+                    key,
+                    {
+                        "glass_type": glass_type,
+                        "width": width,
+                        "height": height,
+                        "qty": 0,
+                        "note": glass.note,
+                    },
+                )
+                row["qty"] += 1
+        else:
+            glass_type = str(
+                getattr(section, "glass_type", "") or "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
+            ).strip()
+            color = _section_color(section)
+            panel_count = max(1, _positive_int(getattr(section, "panels", 1), 1))
+            section_qty = max(1, _positive_int(getattr(section, "quantity", 1), 1))
+            section_rows[(glass_type, None, None, "Размеры согласно ТЗ")] = {
+                "glass_type": glass_type,
+                "width": None,
+                "height": None,
+                "qty": panel_count * section_qty,
+                "note": "Размеры согласно ТЗ",
+            }
+
+        section_number = _delivery_section_number(section, fallback)
+        project_number = str(getattr(project, "number", "") or "").strip()
+        outer_key = (color, glass_type)
+        outer = grouped.setdefault(
+            outer_key,
+            {
+                "name": f"Стеклянные панели, {glass_type}",
+                "color": color,
+                "glass_type": glass_type,
+                "rows": [],
+                "qty": 0,
+            },
+        )
+        for row_index, row in enumerate(section_rows.values(), start=1):
+            prefix = f"{project_number} " if project_number else ""
+            row["marking"] = f"{prefix}{section_number},{row_index}"
+            outer["rows"].append(row)
+            outer["qty"] += row["qty"]
+
+    rows = []
+    for group_key, group in grouped.items():
+        place_key = _delivery_key("glass", *group_key)
+        rows.append(
+            {
+                **group,
+                "place_key": place_key,
+                "places": _delivery_place(places, place_key),
+            }
+        )
+    return rows
+
+
+def _parse_extra_components(raw: object) -> list[dict]:
+    if isinstance(raw, list):
+        parsed = raw
+    else:
+        try:
+            parsed = json.loads(raw or "[]")
+        except (TypeError, json.JSONDecodeError):
+            parsed = []
+    return [row for row in parsed if isinstance(row, dict)]
+
+
+def _is_no_option(value: object) -> bool:
+    text = str(value or "").strip().lower().strip("—- ")
+    return not text or text.startswith(("без", "нет"))
+
+
+def _article_from_text(value: object) -> str:
+    match = re.search(r"\b(?:RS|RU|RSD)\d+[A-ZА-Я]*\b", str(value or ""), re.I)
+    return match.group(0).upper() if match else ""
+
+
+def _add_delivery_component(
+    grouped: dict[tuple, dict],
+    *,
+    article: str,
+    name: str,
+    qty: float,
+    color: str = "",
+    size: str = "",
+) -> None:
+    if qty <= 0 or not (article or name):
+        return
+    key = (article.strip(), name.strip(), color.strip(), size.strip())
+    row = grouped.setdefault(
+        key,
+        {
+            "article": key[0],
+            "name": key[1],
+            "color": key[2],
+            "size": key[3],
+            "qty": 0.0,
+        },
+    )
+    row["qty"] += float(qty)
+
+
+def _add_raw_special_hardware(
+    grouped: dict[tuple, dict], section: object, section_qty: int
+) -> None:
+    handles = [
+        getattr(section, "handle_left", None),
+        getattr(section, "handle_right", None),
+        getattr(section, "center_handle", None),
+    ]
+    if not any(value for value in handles):
+        handles = [getattr(section, "handle", None)]
+    for value in handles:
+        if _is_no_option(value):
+            continue
+        article = _article_from_text(value)
+        lower = str(value or "").lower()
+        if article not in {"RS3014", "RS3017", "RS30201"} and not any(
+            token in lower for token in ("кноб", "офис", "скоба")
+        ):
+            continue
+        _add_delivery_component(
+            grouped,
+            article=article,
+            name=str(value).strip(),
+            qty=section_qty,
+        )
+
+    locks = [
+        getattr(section, "lock_left", None),
+        getattr(section, "lock_right", None),
+        getattr(section, "center_lock", None),
+    ]
+    if not any(value for value in locks):
+        locks = [getattr(section, "lock", None)]
+    for value in locks:
+        if _is_no_option(value):
+            continue
+        article = _article_from_text(value)
+        if article in {"RS3018", "RS3020"}:
+            continue
+        if "замок" not in str(value or "").lower():
+            continue
+        _add_delivery_component(
+            grouped,
+            article=article,
+            name=str(value).strip(),
+            qty=section_qty,
+        )
+
+    latch_qty = sum(
+        1
+        for field in (
+            "floor_latches_left",
+            "floor_latches_right",
+            "center_floor_latches_left",
+            "center_floor_latches_right",
+        )
+        if bool(getattr(section, field, False))
+    )
+    if latch_qty:
+        _add_delivery_component(
+            grouped,
+            article="RS205",
+            name="Защёлка в пол",
+            qty=latch_qty * section_qty,
+        )
+
+
+def _build_delivery_hardware_rows(
+    sections: list[object], places: dict[str, str]
+) -> list[dict]:
+    grouped: dict[tuple, dict] = {}
+    special_articles = {"RS3014", "RS3017", "RS30201", "RS205"}
+    excluded_locks = {"RS3018", "RS3020"}
+
+    for section in sections:
+        section_qty = max(1, _positive_int(getattr(section, "quantity", 1), 1))
+        system = str(getattr(section, "system", "") or "").strip().upper()
+        if system == "СЛАЙД":
+            calc = calculate_slide(section)
+            for item in calc.hardware:
+                article = str(getattr(item, "article", "") or "").strip().upper()
+                name = str(getattr(item, "name", "") or "").strip()
+                is_lock = name.lower().startswith("замок")
+                if article in excluded_locks:
+                    continue
+                if article not in special_articles and not is_lock:
+                    continue
+                _add_delivery_component(
+                    grouped,
+                    article=article,
+                    name=name,
+                    qty=_safe_float(getattr(item, "value", 0)),
+                )
+            for profile in calc.profiles:
+                article = str(getattr(profile, "article", "") or "").strip().upper()
+                if article not in {"RS2081", "RS3110"}:
+                    continue
+                length = _safe_float(getattr(profile, "length_mm", 0))
+                _add_delivery_component(
+                    grouped,
+                    article=article,
+                    name=str(getattr(profile, "name", "") or article).strip(),
+                    color=_section_color(section, calc) if article == "RS2081" else "",
+                    size=f"{_format_mm(length)} мм" if article == "RS2081" else "",
+                    qty=_safe_float(getattr(profile, "qty", 0)),
+                )
+        else:
+            _add_raw_special_hardware(grouped, section, section_qty)
+
+        for extra in _parse_extra_components(
+            getattr(section, "extra_components", None)
+        ):
+            qty = _safe_float(extra.get("qty") or extra.get("quantity"), 0)
+            _add_delivery_component(
+                grouped,
+                article=str(extra.get("sku") or extra.get("article") or ""),
+                name=str(extra.get("name") or "Дополнительная комплектующая"),
+                color=str(extra.get("color") or ""),
+                size=str(extra.get("size") or ""),
+                qty=qty * section_qty,
+            )
+
+    rows = []
+    kit_key = _delivery_key("hardware", "base-kit")
+    rows.append(
+        {
+            "article": "",
+            "name": "Комплект фурнитуры согласно ТЗ",
+            "color": "",
+            "size": "",
+            "qty": 1.0,
+            "qty_text": "1",
+            "place_key": kit_key,
+            "places": _delivery_place(places, kit_key),
+        }
+    )
+    for component_key, component in sorted(
+        grouped.items(), key=lambda item: (item[1]["name"], item[1]["article"])
+    ):
+        place_key = _delivery_key("hardware", *component_key)
+        rows.append(
+            {
+                **component,
+                "qty_text": _format_quantity(component["qty"]),
+                "place_key": place_key,
+                "places": _delivery_place(places, place_key),
+            }
+        )
+    return rows
+
+
+def _build_delivery_context(project: object, sections: Iterable[object]) -> dict:
+    sorted_sections = sorted(
+        list(sections), key=lambda section: _section_sort_key(section, 999999)
+    )
+    settings = _delivery_settings(project)
+    places = settings["places"]
+    construction_rows = _build_delivery_construction_rows(sorted_sections, places)
+    glass_rows = (
+        _build_delivery_glass_rows(project, sorted_sections, places)
+        if settings["includeGlass"]
+        else []
+    )
+    hardware_rows = _build_delivery_hardware_rows(sorted_sections, places)
+    item1_rows = [
+        *(
+            {**row, "kind": "construction", "qty_text": str(row["qty"])}
+            for row in construction_rows
+        ),
+        *({**row, "kind": "glass", "qty_text": str(row["qty"])} for row in glass_rows),
+    ]
+    total_qty = sum(float(row["qty"]) for row in item1_rows) + sum(
+        float(row["qty"]) for row in hardware_rows
+    )
+    return {
+        "doc_type": "delivery",
+        "title": DOC_TITLES["delivery"],
+        "project": project,
+        "sections": sorted_sections,
+        "delivery": {
+            **settings,
+            "dateText": _delivery_date_text(settings),
+        },
+        "delivery_item1_rows": item1_rows,
+        "delivery_item2_rows": hardware_rows,
+        "delivery_total_qty": _format_quantity(total_qty),
+        "delivery_names_count": 2,
+    }
+
+
 def build_project_document_context(
     project: object,
     sections: Iterable[object],
@@ -520,9 +1030,14 @@ def build_project_document_context(
     if doc_type not in DOC_TITLES:
         raise ValueError("unknown project document type")
 
+    if doc_type == "delivery":
+        return _build_delivery_context(project, sections)
+
     calculated = _iter_slide_sections(sections)
     commercial_rows = _build_commercial_rows(calculated)
-    paint_pages = _build_paint_pages(calculated, getattr(project, "paint_manual_rows", None))
+    paint_pages = _build_paint_pages(
+        calculated, getattr(project, "paint_manual_rows", None)
+    )
     glass_rows = _build_glass_rows(project, calculated)
 
     return {
@@ -546,5 +1061,8 @@ def render_project_document_html(
 ) -> str:
     context = build_project_document_context(project, sections, doc_type)
     context["is_pdf"] = is_pdf
-    template = _get_env().get_template("project_document.html")
+    template_name = (
+        "delivery_note.html" if doc_type == "delivery" else "project_document.html"
+    )
+    template = _get_env().get_template(template_name)
     return template.render(**context)

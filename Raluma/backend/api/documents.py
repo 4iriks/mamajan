@@ -102,6 +102,8 @@ def _build_local_document_objects(payload: LocalDocumentPayload):
         number=project_data.get("number") or "Локальный проект",
         customer=project_data.get("customer") or "",
         paint_manual_rows=project_data.get("paint_manual_rows") or "[]",
+        glass_status=project_data.get("glass_status") or "",
+        delivery_note_data=project_data.get("delivery_note_data") or "{}",
     )
     section = SimpleNamespace(**section_values)
     return project, section
@@ -114,6 +116,8 @@ def _build_local_project_document_objects(payload: LocalProjectDocumentPayload):
         number=project_data.get("number") or "Локальный проект",
         customer=project_data.get("customer") or "",
         paint_manual_rows=project_data.get("paint_manual_rows") or "[]",
+        glass_status=project_data.get("glass_status") or "",
+        delivery_note_data=project_data.get("delivery_note_data") or "{}",
     )
     sections = []
     for section_data in payload.sections or []:

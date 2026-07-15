@@ -91,6 +91,12 @@ const calcTwoRows: SlideCalcPreview = {
     { position: 'Центральные', width_mm: 500.1, height_mm: 2294, qty: 2, glass_profile_length: 497 },
     { position: 'Правое', width_mm: 530, height_mm: 2294, qty: 1, glass_profile_length: 530 },
   ],
+  panel_glass: [
+    { panel: 1, position: 'Левое', width_mm: 520, height_mm: 2294, glass_profile_length: 520 },
+    { panel: 2, position: 'Центральное левое', width_mm: 500.1, height_mm: 2294, glass_profile_length: 497 },
+    { panel: 3, position: 'Центральное правое', width_mm: 501.1, height_mm: 2294, glass_profile_length: 498 },
+    { panel: 4, position: 'Правое', width_mm: 530, height_mm: 2294, glass_profile_length: 530 },
+  ],
   profiles: calc.profiles,
   panel_rails: [1, 2, 2, 1],
 };
@@ -100,9 +106,10 @@ const schemeMarkupTwoRows = renderToStaticMarkup(<SlideSchemeSVG section={sectio
 
 assert.match(roomMarkupTwoRows, />501</, '2-row room view must render central glass widths rounded up');
 assert.match(schemeMarkupTwoRows, /501 · №2/, '2-row top scheme must render left central panel with calculated width rounded up');
-assert.match(schemeMarkupTwoRows, /501 · №3/, '2-row top scheme must render right central panel with calculated width rounded up');
+assert.match(schemeMarkupTwoRows, /502 · №3/, '2-row top scheme must use physical width for the right central panel');
 assert.match(schemeMarkupTwoRows, /data-dir="1"/, '2-row top scheme must mirror left-side inter-glass profile');
 assert.match(schemeMarkupTwoRows, /data-dir="-1"/, '2-row top scheme must mirror right-side inter-glass profile');
+assert.equal((schemeMarkupTwoRows.match(/data-profile="inter-glass"/g) ?? []).length, 2, '2-row top scheme must not draw an inter-glass profile in the central joint');
 assert.match(schemeMarkupTwoRows, />сдвиг</, '2-row top scheme must render bidirectional shift label');
 
 console.log('slide diagram smoke passed');

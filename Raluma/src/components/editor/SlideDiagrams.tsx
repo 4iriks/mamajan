@@ -5,6 +5,15 @@ import { Section } from './types';
 // ── SVG Схема сверху (СЛАЙД) ──────────────────────────────────────────────────
 
 function expandGlassWidths(calc: SlideCalcPreview | null | undefined, panels: number, fallbackWidth: number) {
+  if (calc?.panel_glass?.length && panels > 0) {
+    const physicalPanels = [...calc.panel_glass]
+      .sort((left, right) => left.panel - right.panel)
+      .slice(0, panels);
+    if (physicalPanels.length === panels) {
+      return physicalPanels.map(panel => Math.ceil(panel.width_mm));
+    }
+  }
+
   if (!calc?.glass?.length || panels <= 0) {
     return Array.from({ length: Math.max(panels, 1) }, () => Math.ceil(fallbackWidth / Math.max(panels, 1)));
   }
@@ -311,7 +320,10 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
       })}
 
       {hasInterGlassProfile && panelLayout.slice(0, -1).map((layout, pi) => {
-        const ownerIndex = !is2row && firstPanelInside === 'Справа' ? pi + 1 : pi;
+        if (is2row && pi === panels / 2 - 1) return null;
+        const ownerIndex = is2row && pi < panels / 2
+          ? pi + 1
+          : (!is2row && firstPanelInside === 'Справа' ? pi + 1 : pi);
         const ri = panelRailMap[ownerIndex] ?? panelRailMap[pi];
         const cy = topPad + ri * rowH + rowH / 2;
         const dir = is2row ? (pi < panels / 2 ? 1 : -1) : (firstPanelInside === 'Справа' ? 1 : -1);
@@ -500,16 +512,19 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
           <g key={i}>
             <rect x={px} y={iY} width={pW} height={iH} fill="var(--theme-accent)" fillOpacity="0.07" />
 
-            {i < panels - 1 && (
+            {i < panels - 1 && (is2row && i === centerLeftIdx ? (
+              <line x1={px + pW} y1={iY} x2={px + pW} y2={iY + iH}
+                stroke="var(--theme-accent)" strokeWidth="0.6" strokeOpacity="0.25" />
+            ) : (
               <rect x={px + pW - 2} y={iY} width={4} height={iH}
                 fill="var(--theme-page)" stroke="var(--theme-accent)" strokeWidth="0.4" strokeOpacity="0.25" />
-            )}
+            ))}
 
             {/* Deaf panel — big X */}
             {isDeaf && (
               <g>
-                <line x1={px + 15} y1={iY + 15} x2={px + pW - 15} y2={iY + iH - 15} stroke="var(--theme-accent)" strokeWidth="1.2" strokeOpacity="0.35" />
-                <line x1={px + pW - 15} y1={iY + 15} x2={px + 15} y2={iY + iH - 15} stroke="var(--theme-accent)" strokeWidth="1.2" strokeOpacity="0.35" />
+                <line x1={px + pW * 0.24} y1={iY + iH * 0.22} x2={px + pW * 0.76} y2={iY + iH * 0.78} stroke="var(--theme-accent)" strokeWidth="1.2" strokeOpacity="0.35" />
+                <line x1={px + pW * 0.76} y1={iY + iH * 0.22} x2={px + pW * 0.24} y2={iY + iH * 0.78} stroke="var(--theme-accent)" strokeWidth="1.2" strokeOpacity="0.35" />
               </g>
             )}
 

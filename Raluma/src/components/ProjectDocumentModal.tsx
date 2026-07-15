@@ -37,6 +37,18 @@ interface PaintManualRow {
   note: string;
 }
 
+type DeliveryDateMode = 'blank' | 'today' | 'custom';
+
+interface DeliveryNoteData {
+  dateMode: DeliveryDateMode;
+  date: string;
+  note: string;
+  contact: string;
+  delivery: string;
+  includeGlass: boolean;
+  places: Record<string, string>;
+}
+
 const makePaintRowId = () => `paint-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
 function normalizePaintRow(row?: Partial<PaintManualRow>): PaintManualRow {
@@ -65,6 +77,34 @@ function parsePaintRows(raw?: string): PaintManualRow[] {
   }
 }
 
+function parseDeliveryData(raw: string | undefined, includeGlass: boolean): DeliveryNoteData {
+  const fallback: DeliveryNoteData = {
+    dateMode: 'blank',
+    date: new Date().toISOString().slice(0, 10),
+    note: '',
+    contact: '',
+    delivery: '',
+    includeGlass,
+    places: {},
+  };
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw) as Partial<DeliveryNoteData>;
+    const dateMode = ['blank', 'today', 'custom'].includes(String(parsed.dateMode))
+      ? parsed.dateMode as DeliveryDateMode
+      : fallback.dateMode;
+    return {
+      ...fallback,
+      ...parsed,
+      dateMode,
+      includeGlass: typeof parsed.includeGlass === 'boolean' ? parsed.includeGlass : includeGlass,
+      places: parsed.places && typeof parsed.places === 'object' ? parsed.places : {},
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 export default function ProjectDocumentModal({
   isOpen,
   onClose,
@@ -82,10 +122,14 @@ export default function ProjectDocumentModal({
   const [paintRows, setPaintRows] = useState<PaintManualRow[]>([]);
   const [catalog, setCatalog] = useState<HardwareCatalogOption[]>([]);
   const [isSavingPaintRows, setIsSavingPaintRows] = useState(false);
+  const [deliveryData, setDeliveryData] = useState<DeliveryNoteData>(() => parseDeliveryData(undefined, true));
+  const [isSavingDelivery, setIsSavingDelivery] = useState(false);
 
   const token = localStorage.getItem('access_token') ?? '';
   const isGuest = !token;
   const isPaintDocument = docType === 'paint';
+  const isDeliveryDocument = docType === 'delivery';
+  const hasDocumentEditor = isPaintDocument || isDeliveryDocument;
   const previewUrl = useMemo(
     () => isGuest ? undefined : `${getProjectDocumentPreviewUrl(projectId, docType)}?token=${encodeURIComponent(token)}&v=${previewVersion}`,
     [docType, isGuest, projectId, token, previewVersion],
@@ -109,6 +153,7 @@ export default function ProjectDocumentModal({
       setPreviewSrcDoc('');
       setIsDirty(false);
       setPaintRows([]);
+      setDeliveryData(parseDeliveryData(undefined, true));
       return;
     }
     loadGuestPreview();
@@ -140,12 +185,74 @@ export default function ProjectDocumentModal({
   }, [isOpen, isPaintDocument, projectId]);
 
   useEffect(() => {
+    if (!isOpen || !isDeliveryDocument) return;
+    let cancelled = false;
+    getProject(projectId)
+      .then(project => {
+        if (cancelled) return;
+        const includeGlass = (project.glass_status || '').trim().toLowerCase() !== 'без стекла';
+        setDeliveryData(parseDeliveryData(project.delivery_note_data, includeGlass));
+      })
+      .catch(() => {
+        if (!cancelled) toast.error('Не удалось загрузить реквизиты накладной');
+      });
+    return () => { cancelled = true; };
+  }, [isDeliveryDocument, isOpen, projectId]);
+
+  useEffect(() => {
     const handler = (e: MessageEvent) => {
-      if (e.data?.type === 'dirty' && docType === 'glass') setIsDirty(true);
+      if (e.data?.type === 'dirty' && (docType === 'glass' || docType === 'delivery')) setIsDirty(true);
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
   }, [docType]);
+
+  const updateDeliveryData = (updates: Partial<DeliveryNoteData>) => {
+    setDeliveryData(current => ({ ...current, ...updates }));
+    setIsDirty(true);
+  };
+
+  const collectDeliveryPlaces = useCallback(() => {
+    const places: Record<string, string> = {};
+    const doc = iframeRef.current?.contentDocument;
+    doc?.querySelectorAll<HTMLElement>('[data-delivery-place-key]').forEach(element => {
+      const key = element.dataset.deliveryPlaceKey;
+      if (key) places[key] = element.textContent?.trim() || '';
+    });
+    return places;
+  }, []);
+
+  const saveDeliveryData = async (
+    showToast = true,
+    refreshPreview = true,
+  ): Promise<boolean> => {
+    setIsSavingDelivery(true);
+    try {
+      const savedData: DeliveryNoteData = {
+        ...deliveryData,
+        places: {
+          ...deliveryData.places,
+          ...collectDeliveryPlaces(),
+        },
+      };
+      await updateProject(projectId, {
+        delivery_note_data: JSON.stringify(savedData),
+      });
+      setDeliveryData(savedData);
+      setIsDirty(false);
+      if (showToast) toast.success('Накладная сохранена');
+      if (refreshPreview) {
+        if (isGuest) await loadGuestPreview();
+        else setPreviewVersion(value => value + 1);
+      }
+      return true;
+    } catch {
+      toast.error('Не удалось сохранить накладную');
+      return false;
+    } finally {
+      setIsSavingDelivery(false);
+    }
+  };
 
   const collectChanges = useCallback((): ProjectDocumentOverrides => {
     if (docType !== 'glass') return {};
@@ -225,6 +332,10 @@ export default function ProjectDocumentModal({
     try {
       if (isPaintDocument) {
         const saved = await savePaintRows();
+        if (!saved) return;
+      }
+      if (isDeliveryDocument) {
+        const saved = await saveDeliveryData(false, false);
         if (!saved) return;
       }
       const changes = collectChanges();
@@ -391,7 +502,82 @@ export default function ProjectDocumentModal({
               </div>
             )}
 
-            <div className="overflow-y-auto bg-gray-100" style={{ height: isPaintDocument ? 'calc(90vh - 295px)' : 'calc(90vh - 130px)' }}>
+            {isDeliveryDocument && (
+              <div className="px-5 py-4 sm:px-8 bg-page border-b border-tint/20 flex-shrink-0">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="text-xs font-bold uppercase tracking-widest text-fg/45">Реквизиты накладной</div>
+                  <button
+                    type="button"
+                    onClick={() => saveDeliveryData()}
+                    disabled={isSavingDelivery}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-accent/30 bg-accent/15 text-accent text-xs font-bold uppercase tracking-wider hover:bg-accent/25 disabled:opacity-50"
+                  >
+                    {isSavingDelivery ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    Сохранить
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                  <label className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Дата</span>
+                    <select
+                      value={deliveryData.dateMode}
+                      onChange={event => updateDeliveryData({ dateMode: event.target.value as DeliveryDateMode })}
+                      className="w-full h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50"
+                    >
+                      <option value="blank">Не заполнять</option>
+                      <option value="today">Сегодня</option>
+                      <option value="custom">Указать дату</option>
+                    </select>
+                  </label>
+                  {deliveryData.dateMode === 'custom' ? (
+                    <label className="space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Дата накладной</span>
+                      <input
+                        type="date"
+                        value={deliveryData.date}
+                        onChange={event => updateDeliveryData({ date: event.target.value })}
+                        className="w-full h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50"
+                      />
+                    </label>
+                  ) : null}
+                  <label className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Контактное лицо</span>
+                    <input
+                      value={deliveryData.contact}
+                      onChange={event => updateDeliveryData({ contact: event.target.value })}
+                      className="w-full h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Доставка / выгрузка / монтаж</span>
+                    <input
+                      value={deliveryData.delivery}
+                      onChange={event => updateDeliveryData({ delivery: event.target.value })}
+                      className="w-full h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50"
+                    />
+                  </label>
+                  <label className="space-y-1 sm:col-span-2 lg:col-start-1 lg:col-span-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Примечание</span>
+                    <input
+                      value={deliveryData.note}
+                      onChange={event => updateDeliveryData({ note: event.target.value })}
+                      className="w-full h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50"
+                    />
+                  </label>
+                  <label className="h-9 self-end lg:col-start-4 rounded-lg bg-black/15 border border-tint/20 px-3 flex items-center gap-2 text-xs cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={deliveryData.includeGlass}
+                      onChange={event => updateDeliveryData({ includeGlass: event.target.checked })}
+                      className="accent-[var(--theme-accent)]"
+                    />
+                    Включить стекла
+                  </label>
+                </div>
+              </div>
+            )}
+
+            <div className="overflow-y-auto bg-gray-100" style={{ height: hasDocumentEditor ? 'calc(90vh - 295px)' : 'calc(90vh - 130px)' }}>
               {isPreviewLoading ? (
                 <div className="h-full flex items-center justify-center bg-gray-100">
                   <Loader2 className="w-8 h-8 text-gray-500 animate-spin" />

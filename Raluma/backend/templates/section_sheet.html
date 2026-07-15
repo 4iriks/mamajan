@@ -41,11 +41,12 @@
   .params td { font-size: 8pt; line-height: 1.35; padding: 0.4mm 1.5mm; }
   .params .val { font-weight: 700; }
   .params-side { border: none; table-layout: fixed; height: 100%; }
-  .params-side td { border: none; padding: 0; vertical-align: top; }
-  .params-side .params-metrics { width: 50%; border-right: 1px solid #000; padding-right: 2mm; }
+  .params-side tbody, .params-side tr { height: 100%; }
+  .params-side td { border: none; padding: 0; vertical-align: top; height: 100%; }
+  .params-side .params-metrics { width: 43%; border-right: 1px solid #000; padding-right: 2mm; }
   .params-side .params-notes { padding-left: 2mm; }
-  .params-notes-title { font-size: 7pt; font-weight: 900; text-transform: uppercase; line-height: 1.15; margin-bottom: 0.8mm; }
-  .params-notes-text { font-size: 7pt; font-weight: 700; line-height: 1.18; white-space: pre-wrap; }
+  .params-notes-title { font-size: 8pt; font-weight: 900; text-transform: uppercase; line-height: 1.1; margin-bottom: 0.8mm; }
+  .params-notes-text { font-size: 9pt; font-weight: 900; line-height: 1.15; white-space: pre-wrap; overflow-wrap: anywhere; }
 
   /* ── Таблица стёкол ── */
   .glass-tbl { width: 100%; margin-top: 0.3mm; }
@@ -80,11 +81,11 @@
   .prof-note { font-size: 7pt; font-style: italic; color: #555; margin-top: 0.1mm; font-weight: 400; }
 
   /* ── Стекольный профиль подтаблица ── */
-  .gp-tbl { width: 55mm; margin-top: 0.5mm; table-layout: fixed; }
+  .gp-tbl { width: 84mm; margin-top: 0.5mm; table-layout: fixed; }
   .gp-tbl td { border: 1px solid #bbb; padding: 0.25mm 1.4mm; font-size: 9.2pt; }
-  .gp-tbl .gp-pos { width: 32mm; text-align: left; white-space: nowrap; }
-  .gp-tbl .gp-len { width: 12mm; text-align: right; padding-right: 1.2mm; font-weight: 700; }
-  .gp-tbl .gp-qty { width: 11mm; text-align: center; font-weight: 700; white-space: nowrap; }
+  .gp-tbl .gp-pos { width: 50mm; text-align: left; white-space: normal; }
+  .gp-tbl .gp-len { width: 17mm; text-align: right; padding-right: 1.2mm; font-weight: 700; }
+  .gp-tbl .gp-qty { width: 17mm; text-align: center; font-weight: 700; white-space: nowrap; }
   .gp-img-box { width: 25mm; height: 10mm; display: flex; align-items: center; justify-content: center; }
   .gp-img { width: 24mm; height: 9.5mm; object-fit: contain; }
   .gp-row { width: 100%; border: none; border-collapse: collapse; }
@@ -105,6 +106,8 @@
   .hw-img.pl-focus-img { transform: scale(1.2); transform-origin: center center; }
   .hw-img.pl-art-rs1082 { display: block; margin: 0 auto; transform: scale(1.55); transform-origin: center center; }
   .hw-img.pl-art-rs1002 { transform: scaleX(1.45) scaleY(1.25); transform-origin: center center; }
+  .hw-sub-label { white-space: nowrap; }
+  .hw-sub-img { width: 9mm; height: 7mm; object-fit: contain; vertical-align: middle; margin-right: 0.5mm; }
   .hw-name { font-size: 8pt; font-weight: 700; }
   .hw-art  { font-weight: 900; font-size: 9.5pt; text-align: center; margin-top: 0; }
   .hw-qty  { float: right; font-size: 10.5pt; font-weight: 900; }
@@ -243,7 +246,7 @@
       {% set lockLX = rfX + 3 %}
       {% set lockRX = rfX + rfW - 3 %}
       <svg viewBox="0 0 {{ rw }} {{ rh }}"
-           xmlns="http://www.w3.org/2000/svg" style="display:block; width:72%; margin:0 auto;">
+           xmlns="http://www.w3.org/2000/svg" style="display:block; width:72%; margin:0 0 0 7%;">
         {# Frame #}
         <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rfW }}" height="{{ rfH }}" fill="none" stroke="#000" stroke-width="1.2"/>
         <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rfW }}" height="{{ rpt }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
@@ -380,7 +383,7 @@
       {% set inter_glass_article = 'RS1006' if 'rs1006' in inter_glass_text else ('RS3061' if 'rs3061' in inter_glass_text or 'rs1004' in inter_glass_text or 'зацеп' in inter_glass_text else 'RS2061') %}
       {% set inter_glass_px = [5, profile_dimension(calc, [inter_glass_article], 'section_width_mm', 20) * rail_w / (section.width or rail_w)] | max %}
       <svg viewBox="0 0 {{ sw }} {{ sh }}"
-           xmlns="http://www.w3.org/2000/svg" style="display:block; width:72%; margin:0 auto;">
+           xmlns="http://www.w3.org/2000/svg" style="display:block; width:72%; margin:0 0 0 7%;">
 
         {# Метки #}
         <text x="{{ left_w + rail_w / 2 }}" y="9" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#666">УЛИЦА</text>
@@ -442,9 +445,10 @@
         {# Номер панели #}
         {% set pnum = pi + 1 if is2row else (P - pi if first_right else pi + 1) %}
         <text x="{{ (gx1 + gx2) / 2 }}" y="{{ cy + 3 }}" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#333">{{ panel_w_mm|glass_mm }} · {{ pnum }}</text>
-        {% if has_inter_glass and pi < P - 1 %}
+        {% set is_center_join = is2row and pi == (P // 2) - 1 %}
+        {% if has_inter_glass and pi < P - 1 and not is_center_join %}
         {% set ix = px + panel_w %}
-        {% set owner_pi = pi + 1 if (not is2row and first_right) else pi %}
+        {% set owner_pi = pi + 1 if (is2row and pi < P / 2) or (not is2row and first_right) else pi %}
         {% set owner_ri = calc.panel_rails[owner_pi] if owner_pi < calc.panel_rails|length else ri %}
         {% set icy = top_pad + owner_ri * row_h + row_h / 2 %}
         {% set idir = (1 if pi < P / 2 else -1) if is2row else (1 if first_right else -1) %}
@@ -595,7 +599,7 @@
             </table>
           </td>
           <td class="params-notes">
-            <div class="params-notes-title">Примечания и особые отметки</div>
+            <div class="params-notes-title">ПРИМЕЧАНИЕ</div>
             <div class="params-notes-text">{{ ov('section_comments', section.comments or '') }}{% if section.extra_parts %}<br>Доп. комплектующие: {{ section.extra_parts }}{% endif %}&nbsp;</div>
           </td>
         </tr>
@@ -705,8 +709,8 @@
 
 <!-- ══════ ФУРНИТУРА ══════ -->
 {% set all_items = [] %}
-{% for h in calc.hardware %}
-  {% set _ = all_items.append({'type':'hw','name':h.name,'article':h.article,'value':h.value,'unit':h.unit,'image':h.image,'idx':loop.index,'sub_items':h.sub_items}) %}
+{% for h in display_hardware(calc.hardware) %}
+  {% set _ = all_items.append({'type':'hw','name':h.name,'article':h.article,'value':h.value,'unit':h.unit,'image':h.image,'idx':h.source_index,'sub_items':h.sub_items,'group_key':h.display_group}) %}
 {% endfor %}
 {% for s in calc.screws %}
   {% set _ = all_items.append({'type':'screw','name':s.name,'article':s.article,'value':s.qty,'unit':'шт','image':s.image,'idx':loop.index,'sub_items':none,'note':s.note}) %}
@@ -729,7 +733,7 @@
   {% set item_r = col_right[r] if r < col_right|length else none %}
   <tr>
     {# ── Левая ячейка ── #}
-    <td style="width:34%;">
+    <td style="width:34%;"{% if item_l and item_l.group_key %} data-hardware-group="{{ item_l.group_key }}"{% endif %}>
       {% if item_l %}
       <table class="hw-inner"><tr>
         {% if item_l.image %}{% set src = item_l.image | img_b64 %}{% if src %}<td class="hw-img-cell{% if item_l.article == 'RS1082' %} pl-center-img{% endif %}"><img src="{{ src }}" class="hw-img{% if item_l.article in pl_focus_image_articles %} pl-art-{{ item_l.article|lower }} pl-focus-img{% endif %}"></td>{% endif %}{% endif %}
@@ -738,11 +742,11 @@
           {% if item_l.sub_items %}
             <table style="width:100%; border:none; border-collapse:collapse;">
             {% for si in item_l.sub_items %}
-              <tr>
-                <td style="border:none; padding:0 1mm; font-size:8.5pt;">{{ si.label }}</td>
+              <tr data-hardware-subitem="{{ si.article }}">
+                <td class="hw-sub-label" style="border:none; padding:0 1mm; font-size:8.5pt;">{% if si.image %}{% set si_src = si.image | img_b64 %}{% if si_src %}<img src="{{ si_src }}" class="hw-sub-img" alt="{{ si.article }}">{% endif %}{% endif %}{{ si.label }}</td>
                 <td style="border:none; padding:0 1mm; font-weight:900; font-size:10pt; text-align:center;">{{ si.article }}</td>
                 {% set si_value_l = ov(si.field_key, si.value) %}
-                <td style="border:none; padding:0 1mm; font-weight:900; font-size:11pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ (si_value_l|float|round(0, 'ceil')|int) if si.article in ['RU008', 'RU007'] else si_value_l }}</td>
+                <td style="border:none; padding:0 1mm; font-weight:900; font-size:11pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ (si_value_l|brush_meters) if si.article in ['RU008', 'RU007'] else si_value_l }}</td>
               </tr>
             {% endfor %}
             </table>
@@ -759,7 +763,7 @@
     </td>
 
     {# ── Средняя ячейка ── #}
-    <td style="width:33%;">
+    <td style="width:33%;"{% if item_m and item_m.group_key %} data-hardware-group="{{ item_m.group_key }}"{% endif %}>
       {% if item_m %}
       <table class="hw-inner"><tr>
         {% if item_m.image %}{% set src = item_m.image | img_b64 %}{% if src %}<td class="hw-img-cell{% if item_m.article == 'RS1082' %} pl-center-img{% endif %}"><img src="{{ src }}" class="hw-img{% if item_m.article in pl_focus_image_articles %} pl-art-{{ item_m.article|lower }} pl-focus-img{% endif %}"></td>{% endif %}{% endif %}
@@ -768,11 +772,11 @@
           {% if item_m.sub_items %}
             <table style="width:100%; border:none; border-collapse:collapse;">
             {% for si in item_m.sub_items %}
-              <tr>
-                <td style="border:none; padding:0 1mm; font-size:8.5pt;">{{ si.label }}</td>
+              <tr data-hardware-subitem="{{ si.article }}">
+                <td class="hw-sub-label" style="border:none; padding:0 1mm; font-size:8.5pt;">{% if si.image %}{% set si_src = si.image | img_b64 %}{% if si_src %}<img src="{{ si_src }}" class="hw-sub-img" alt="{{ si.article }}">{% endif %}{% endif %}{{ si.label }}</td>
                 <td style="border:none; padding:0 1mm; font-weight:900; font-size:10pt; text-align:center;">{{ si.article }}</td>
                 {% set si_value_m = ov(si.field_key, si.value) %}
-                <td style="border:none; padding:0 1mm; font-weight:900; font-size:11pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ (si_value_m|float|round(0, 'ceil')|int) if si.article in ['RU008', 'RU007'] else si_value_m }}</td>
+                <td style="border:none; padding:0 1mm; font-weight:900; font-size:11pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ (si_value_m|brush_meters) if si.article in ['RU008', 'RU007'] else si_value_m }}</td>
               </tr>
             {% endfor %}
             </table>
@@ -789,7 +793,7 @@
     </td>
 
     {# ── Правая ячейка ── #}
-    <td style="width:33%;">
+    <td style="width:33%;"{% if item_r and item_r.group_key %} data-hardware-group="{{ item_r.group_key }}"{% endif %}>
       {% if item_r %}
       <table class="hw-inner"><tr>
         {% if item_r.image %}{% set src = item_r.image | img_b64 %}{% if src %}<td class="hw-img-cell{% if item_r.article == 'RS1082' %} pl-center-img{% endif %}"><img src="{{ src }}" class="hw-img{% if item_r.article in pl_focus_image_articles %} pl-art-{{ item_r.article|lower }} pl-focus-img{% endif %}"></td>{% endif %}{% endif %}
@@ -798,11 +802,11 @@
           {% if item_r.sub_items %}
             <table style="width:100%; border:none; border-collapse:collapse;">
             {% for si in item_r.sub_items %}
-              <tr>
-                <td style="border:none; padding:0 1mm; font-size:8.5pt;">{{ si.label }}</td>
+              <tr data-hardware-subitem="{{ si.article }}">
+                <td class="hw-sub-label" style="border:none; padding:0 1mm; font-size:8.5pt;">{% if si.image %}{% set si_src = si.image | img_b64 %}{% if si_src %}<img src="{{ si_src }}" class="hw-sub-img" alt="{{ si.article }}">{% endif %}{% endif %}{{ si.label }}</td>
                 <td style="border:none; padding:0 1mm; font-weight:900; font-size:10pt; text-align:center;">{{ si.article }}</td>
                 {% set si_value_r = ov(si.field_key, si.value) %}
-                <td style="border:none; padding:0 1mm; font-weight:900; font-size:11pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ (si_value_r|float|round(0, 'ceil')|int) if si.article in ['RU008', 'RU007'] else si_value_r }}</td>
+                <td style="border:none; padding:0 1mm; font-weight:900; font-size:11pt; text-align:right;" {{ ce(si.field_key, si.value) }}>{{ (si_value_r|brush_meters) if si.article in ['RU008', 'RU007'] else si_value_r }}</td>
               </tr>
             {% endfor %}
             </table>

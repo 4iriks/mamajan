@@ -87,6 +87,7 @@ _ADD_COLUMNS = [
     "ALTER TABLE projects ADD COLUMN paint_received_date VARCHAR",
     "ALTER TABLE projects ADD COLUMN order_items VARCHAR",
     "ALTER TABLE projects ADD COLUMN paint_manual_rows TEXT DEFAULT '[]'",
+    "ALTER TABLE projects ADD COLUMN delivery_note_data TEXT DEFAULT '{}'",
     # sections
     "ALTER TABLE sections ADD COLUMN system VARCHAR",
     "ALTER TABLE sections ADD COLUMN door_system VARCHAR",
@@ -183,6 +184,11 @@ _DATA_MIGRATIONS = [
     "UPDATE catalog_items SET image_file = 'RS108.png', name = 'Заглушка стекольного центральная' WHERE sku = 'RS108'",
     "UPDATE catalog_items SET image_file = 'RU003.png', name = 'Ролик 2-колесный' WHERE sku = 'RU003'",
     "UPDATE catalog_items SET image_file = 'RU005.png', name = 'Ролик 4-колесный' WHERE sku = 'RU005'",
+    "INSERT OR IGNORE INTO catalog_items (sku, name, \"group\", system, unit, purchase_price, markup_percent, weight, waste_percent, section_width_mm, section_height_mm, image_file, paint_mode, color_variants, supplier, is_active, note, created_at, updated_at) VALUES ('RS3110', 'h-уплотнитель центрального стыка', 'Профили', 'СЛАЙД', 'м.п.', 0, 35, 0, 4, 0, 0, 'RS3110.jpg', 'Не красится', '[\"Без цвета\"]', 'Склад', 1, 'Для центрального стыка СЛАЙД 2 ряда, кроме варианта с центральными RS112', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+    "INSERT OR IGNORE INTO catalog_items (sku, name, \"group\", system, unit, purchase_price, markup_percent, weight, waste_percent, section_width_mm, section_height_mm, image_file, paint_mode, color_variants, supplier, is_active, note, created_at, updated_at) VALUES ('RS123', 'Ответная планка замка RS3020', 'Фурнитура', 'СЛАЙД', 'шт', 0, 40, 0, 0, 0, 0, 'RS123.jpg', 'Не красится', '[\"Без цвета\"]', 'Фурнитура СПБ', 1, 'Ставится по одной планке на каждый замок RS3020', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+    "UPDATE catalog_items SET name = 'Соединительный профиль 30×20×30', image_file = 'RS1083.png' WHERE sku = 'RS1083'",
+    "UPDATE catalog_items SET name = 'h-уплотнитель центрального стыка', \"group\" = 'Профили', unit = 'м.п.', image_file = 'RS3110.jpg', waste_percent = 4 WHERE sku = 'RS3110'",
+    "UPDATE catalog_items SET name = 'Ответная планка замка RS3020', \"group\" = 'Фурнитура', unit = 'шт', image_file = 'RS123.jpg' WHERE sku = 'RS123'",
 ]
 
 

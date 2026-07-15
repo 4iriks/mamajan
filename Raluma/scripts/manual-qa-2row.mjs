@@ -195,7 +195,9 @@ async function closeTopModal(cdp) {
   const clicked = await cdp.evaluate(`(() => {
     window.confirm = () => true;
     const modals = [...document.querySelectorAll('.fixed .relative')];
-    const modal = modals.find(item => item.innerText.includes('Производственный лист') || item.innerText.includes('Заказ стекла'))
+    const iframeModal = [...document.querySelectorAll('iframe')].at(-1)?.closest('.relative');
+    const modal = iframeModal
+      ?? modals.find(item => item.innerText.includes('Производственный лист') || item.innerText.includes('Заказ стекла') || item.innerText.toLowerCase().includes('накладная'))
       ?? modals.at(-1);
     if (modal) {
       const button = modal.querySelector('.border-b button:last-child');
@@ -251,7 +253,7 @@ async function runScenario(cdp) {
   await fillBySelector(cdp, 'input[placeholder="Введите или выберите заказчика"]', 'QA Client');
   await clickText(cdp, 'Создать');
   await waitForExpression(cdp, 'location.pathname.startsWith("/projects/")', 'guest project editor');
-  await check('project_level_docs_initial', '(() => { const labels = [...document.querySelectorAll("button")].map(button => button.textContent || ""); return labels.some(text => text.includes("Коммерческое")) && labels.some(text => text.includes("Заказ стекла")) && labels.some(text => text.includes("Заявка покр")); })()', 'project docs visible on empty project view');
+  await check('project_level_docs_initial', '(() => { const labels = [...document.querySelectorAll("button")].map(button => button.textContent || ""); return labels.some(text => text.includes("Коммерческое")) && labels.some(text => text.includes("Накладная")) && labels.some(text => text.includes("Заказ стекла")) && labels.some(text => text.includes("Заявка на покраску")); })()', 'project docs visible on empty project view');
   await check('project_level_no_old_buttons_initial', '!document.body.innerText.includes("Схема") && !document.body.innerText.includes("Производственный лист")', 'old project-level section docs absent before active section');
   shot.emptyProject = await screenshot(cdp, '02-empty-project-docs');
 
@@ -333,6 +335,40 @@ async function runScenario(cdp) {
   shot.glassDoc = await screenshot(cdp, '09-glass-document');
   await closeTopModal(cdp);
 
+  await clickText(cdp, 'Накладная');
+  await waitForExpression(cdp, 'document.querySelector("iframe[title=\\"Накладная\\"]")', 'delivery note modal');
+  await waitForExpression(cdp, `document.querySelector('iframe[title="Накладная"]')?.contentDocument?.readyState === 'complete'`, 'delivery note iframe load', 15000);
+  await sleep(700);
+  const deliveryFrameText = await iframeText(cdp, 'Накладная');
+  assert(
+    deliveryFrameText.toUpperCase().includes('НАКЛАДНАЯ №')
+      && deliveryFrameText.includes('Комплект профилей Raluma SLIDE')
+      && deliveryFrameText.includes('Комплект фурнитуры согласно ТЗ')
+      && deliveryFrameText.includes('Кол-во мест'),
+    `Некорректное содержимое накладной:\n${deliveryFrameText.slice(0, 2200)}`,
+  );
+  await cdp.evaluate(`(() => {
+    const cell = document.querySelector('iframe[title="Накладная"]')?.contentDocument?.querySelector('[data-delivery-place-key]');
+    if (!cell) return false;
+    cell.textContent = '3';
+    cell.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  })()`);
+  const savedDelivery = await cdp.evaluate(`(() => {
+    const modal = [...document.querySelectorAll('.fixed .relative')].find(item => item.innerText.toLowerCase().includes('реквизиты накладной'));
+    const button = [...(modal?.querySelectorAll('button') || [])].find(item => item.textContent?.toLowerCase().includes('сохранить'));
+    button?.click();
+    return Boolean(button);
+  })()`);
+  assert(savedDelivery, 'Не найдена кнопка сохранения накладной.');
+  await waitForExpression(cdp, `(() => {
+    const cell = document.querySelector('iframe[title="Накладная"]')?.contentDocument?.querySelector('[data-delivery-place-key]');
+    return cell?.textContent?.trim() === '3';
+  })()`, 'saved delivery places', 15000);
+  const deliveryDocText = await iframeText(cdp, 'Накладная');
+  shot.deliveryDoc = await screenshot(cdp, '10-delivery-note');
+  await closeTopModal(cdp);
+
   await cdp.evaluate('localStorage.clear()');
 
   return {
@@ -342,6 +378,7 @@ async function runScenario(cdp) {
     checks,
     twoRowSheetText: twoRowSheetText.slice(0, 1800),
     glassDocText: glassDocText.slice(0, 1800),
+    deliveryDocText: deliveryDocText.slice(0, 1800),
     runtimeErrors: cdp.runtimeErrors,
   };
 }

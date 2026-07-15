@@ -13,6 +13,8 @@ def test_hardware_catalog_options_are_public(client):
     assert "RS30301" in skus
     assert "RS2323" in skus
     assert "RS1313" in skus
+    assert "RS3110" in skus
+    assert "RS123" in skus
     assert "purchasePrice" not in data[0]
 
 
@@ -112,6 +114,14 @@ def test_profile_asset_returns_existing_threshold_png(client):
     assert r.status_code == 200
     assert r.headers["content-type"] == "image/png"
     assert len(r.content) > 0
+
+
+def test_profile_asset_returns_new_rs123_and_rs3110_images(client):
+    for filename in ("RS123.jpg", "RS3110.jpg"):
+        r = client.get(f"/api/catalog/profile-assets/{filename}")
+        assert r.status_code == 200
+        assert r.headers["content-type"] == "image/jpeg"
+        assert len(r.content) > 0
 
 
 def test_profile_asset_rejects_path_traversal(client):
