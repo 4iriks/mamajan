@@ -29,6 +29,7 @@ from engine.project_documents import (
     _build_glass_rows,
     _build_paint_pages,
     _iter_slide_sections,
+    render_project_document_html,
 )
 from schemas import SectionCreate
 
@@ -1613,8 +1614,11 @@ class TestDeliveryNote:
             _delivery_section(
                 name="Секция 1",
                 order=1,
+                height=2545,
                 panels=4,
                 slide_rows=2,
+                threshold="Накладной окраш",
+                ral_color="9005 МАТОВЫЙ",
                 profile_left_lock_bar=True,
                 profile_right_lock_bar=True,
                 handle_left="Ручка-кноб RS3014",
@@ -1625,14 +1629,20 @@ class TestDeliveryNote:
             _delivery_section(
                 name="Секция 2",
                 order=2,
+                height=2545,
                 panels=3,
+                threshold="Накладной окраш",
+                ral_color="9005 МАТОВЫЙ",
                 profile_left_lock_bar=True,
                 profile_right_lock_bar=True,
             ),
             _delivery_section(
                 name="Секция 3",
                 order=3,
+                height=2545,
                 panels=3,
+                threshold="Накладной окраш",
+                ral_color="9005 МАТОВЫЙ",
                 profile_left_lock_bar=True,
                 profile_right_lock_bar=True,
             ),
@@ -1644,9 +1654,36 @@ class TestDeliveryNote:
 
         assert hardware["RS3110"]["qty"] == 1
         assert hardware["RS2081"]["qty"] == 6
-        assert hardware["RS2081"]["color"] == "RAL 9016 МАТОВЫЙ"
-        assert hardware["RS2081"]["size"].endswith(" мм")
+        assert hardware["RS2081"]["color"] == "RAL 9005 МАТОВЫЙ"
+        assert hardware["RS2081"]["size"] == "2490 мм"
+        assert hardware["RS2081"]["note"] == "БЕЗ ФРЕЗЕРОВКИ ПОД ЗАЩЕЛКИ"
         assert context["delivery_total_qty"] == "15"
+
+        html = render_project_document_html(self.project(), sections, "delivery")
+        assert "БЕЗ ФРЕЗЕРОВКИ ПОД ЗАЩЕЛКИ" in html
+
+    def test_rs2081_processing_note_is_split_by_physical_side(self):
+        section = _delivery_section(
+            height=2545,
+            panels=2,
+            threshold="Накладной окраш",
+            profile_left_lock_bar=True,
+            profile_right_lock_bar=True,
+            lock_left="ЗАМОК-ЗАЩЕЛКА 1стор RS3018",
+            lock_right="Без замка",
+        )
+
+        context = _build_delivery_context(self.project(), [section])
+        rows = [
+            row for row in context["delivery_item2_rows"] if row["article"] == "RS2081"
+        ]
+
+        assert len(rows) == 2
+        assert {row["qty"] for row in rows} == {1.0}
+        assert {row["note"] for row in rows} == {
+            "",
+            "БЕЗ ФРЕЗЕРОВКИ ПОД ЗАЩЕЛКИ",
+        }
 
     def test_reference_4027_total_is_33(self):
         project = self.project(
@@ -1659,22 +1696,59 @@ class TestDeliveryNote:
             _delivery_section(
                 name="Секция 1",
                 order=1,
+                width=4945,
+                height=2890,
                 panels=4,
+                rails=3,
                 slide_rows=2,
+                threshold="Накладной анод",
+                ral_color="7024 МАТОВЫЙ",
                 center_handle="Без ручки",
             ),
             _delivery_section(
                 name="Секция 2",
                 order=2,
+                width=2350,
+                height=2300,
                 panels=4,
+                rails=3,
+                threshold="Накладной анод",
+                ral_color="7024 МАТОВЫЙ",
                 handle_left="Ручка-кноб RS3014",
                 handle_right="Ручка-кноб RS3014",
                 floor_latches_left=True,
                 floor_latches_right=True,
             ),
-            _delivery_section(name="Секция 3", order=3, panels=4),
-            _delivery_section(name="Секция 4", order=4, panels=4),
-            _delivery_section(name="Секция 5", order=5, panels=6),
+            _delivery_section(
+                name="Секция 3",
+                order=3,
+                width=3680,
+                height=2890,
+                panels=6,
+                rails=5,
+                threshold="Накладной анод",
+                ral_color="7024 МАТОВЫЙ",
+            ),
+            _delivery_section(
+                name="Секция 4",
+                order=4,
+                width=3310,
+                height=2890,
+                panels=3,
+                rails=5,
+                threshold="Накладной анод",
+                ral_color="7024 МАТОВЫЙ",
+            ),
+            _delivery_section(
+                name="Секция 5",
+                order=5,
+                width=3890,
+                height=2300,
+                panels=5,
+                rails=5,
+                threshold="Накладной анод",
+                ral_color="7024 МАТОВЫЙ",
+            ),
         ]
 
         context = _build_delivery_context(project, sections)
@@ -1684,8 +1758,33 @@ class TestDeliveryNote:
             if row["kind"] == "glass"
         )
         hardware = {row["article"]: row for row in context["delivery_item2_rows"]}
+        glass_by_section: dict[int, int] = {}
+        for group in context["delivery_item1_rows"]:
+            if group["kind"] != "glass":
+                continue
+            for row in group["rows"]:
+                match = re.search(r"(\d+),\d+$", row["marking"])
+                assert match is not None
+                section_number = int(match.group(1))
+                glass_by_section[section_number] = (
+                    glass_by_section.get(section_number, 0) + row["qty"]
+                )
+        construction_sizes = {
+            dimension["size"]
+            for row in context["delivery_item1_rows"]
+            if row["kind"] == "construction"
+            for dimension in row["dimensions"]
+        }
 
         assert glass_qty == 22
+        assert glass_by_section == {1: 4, 2: 4, 3: 6, 4: 3, 5: 5}
+        assert construction_sizes == {
+            "4945×2890 мм",
+            "2350×2300 мм",
+            "3680×2890 мм",
+            "3310×2890 мм",
+            "3890×2300 мм",
+        }
         assert hardware["RS3014"]["qty"] == 2
         assert hardware["RS205"]["qty"] == 2
         assert hardware["RS3110"]["qty"] == 1
@@ -1801,6 +1900,8 @@ class TestDeliveryNote:
         assert "Доставка, разгрузка и монтаж" in response.text
         assert "Изделия и комплектацию принял" in response.text
         assert "<th>Примечание</th>" not in response.text
+        assert response.text.count('class="signature-role">Исполнитель</span>') == 1
+        assert response.text.count('class="signature-role">Заказчик</span>') == 1
 
     def test_guest_preview_includes_non_slide_systems(self, client):
         response = client.post(

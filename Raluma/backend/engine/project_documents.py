@@ -815,21 +815,33 @@ def _add_delivery_component(
     qty: float,
     color: str = "",
     size: str = "",
+    note: str = "",
 ) -> None:
     if qty <= 0 or not (article or name):
         return
-    key = (article.strip(), name.strip(), color.strip(), size.strip())
+    base_key = (article.strip(), name.strip(), color.strip(), size.strip())
+    normalized_note = note.strip()
+    # Preserve existing place keys for rows that do not have a processing note.
+    key = (*base_key, normalized_note) if normalized_note else base_key
     row = grouped.setdefault(
         key,
         {
-            "article": key[0],
-            "name": key[1],
-            "color": key[2],
-            "size": key[3],
+            "article": base_key[0],
+            "name": base_key[1],
+            "color": base_key[2],
+            "size": base_key[3],
+            "note": normalized_note,
             "qty": 0.0,
         },
     )
     row["qty"] += float(qty)
+
+
+def _rs2081_delivery_note(section: object, side: str) -> str:
+    side_lock = getattr(section, f"lock_{side}", None)
+    if not _is_no_option(side_lock):
+        return ""
+    return "БЕЗ ФРЕЗЕРОВКИ ПОД ЗАЩЕЛКИ"
 
 
 def _add_raw_special_hardware(
@@ -930,12 +942,28 @@ def _build_delivery_hardware_rows(
                 if article not in {"RS2081", "RS3110"}:
                     continue
                 length = _safe_float(getattr(profile, "length_mm", 0))
+                if article == "RS2081":
+                    for side in ("left", "right"):
+                        if not bool(
+                            getattr(section, f"profile_{side}_lock_bar", False)
+                        ):
+                            continue
+                        _add_delivery_component(
+                            grouped,
+                            article=article,
+                            name=str(getattr(profile, "name", "") or article).strip(),
+                            color=_section_color(section, calc),
+                            size=f"{_format_mm(length)} мм",
+                            note=_rs2081_delivery_note(section, side),
+                            qty=section_qty,
+                        )
+                    continue
                 _add_delivery_component(
                     grouped,
                     article=article,
                     name=str(getattr(profile, "name", "") or article).strip(),
-                    color=_section_color(section, calc) if article == "RS2081" else "",
-                    size=f"{_format_mm(length)} мм" if article == "RS2081" else "",
+                    color="",
+                    size="",
                     qty=_safe_float(getattr(profile, "qty", 0)),
                 )
         else:
@@ -962,6 +990,7 @@ def _build_delivery_hardware_rows(
             "name": "Комплект фурнитуры согласно ТЗ",
             "color": "",
             "size": "",
+            "note": "",
             "qty": 1.0,
             "qty_text": "1",
             "place_key": kit_key,
