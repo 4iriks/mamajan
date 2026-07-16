@@ -192,9 +192,10 @@ class TestProfileDisplayRows:
 
 
 class TestDiagramGlassWidths:
-    def test_glass_mm_rounds_up(self):
+    def test_glass_mm_rounds_to_nearest_millimeter(self):
         assert glass_mm(995.0) == 995
-        assert glass_mm(995.1) == 996
+        assert glass_mm(995.1) == 995
+        assert glass_mm(995.5) == 996
         assert glass_mm(995.9) == 996
 
     def test_expands_edge_and_middle_glass_widths(self):
@@ -206,10 +207,10 @@ class TestDiagramGlassWidths:
         )
 
         assert [glass_mm(width) for width in expand_glass_widths(calc, 4, 2000)] == [
-            521,
-            471,
-            471,
-            521,
+            520,
+            470,
+            470,
+            520,
         ]
 
     def test_expands_asymmetric_glass_widths(self):
@@ -796,9 +797,9 @@ class TestLocalPreview:
         )
 
         assert r.status_code == 200
-        assert "902 (918)" in r.text
-        assert "910 (910)" in r.text
-        assert r.text.index("902 (918)") < r.text.index("910 (910)")
+        assert "901 (917)" in r.text
+        assert "909 (909)" in r.text
+        assert r.text.index("901 (917)") < r.text.index("909 (909)")
 
     def test_local_preview_two_row_sheet_uses_three_hardware_columns_without_checklist(
         self, client
@@ -1364,8 +1365,8 @@ class TestProjectGlassOrder:
 
         assert rows[0]["marking"] == "1,1"
         assert rows[0]["markings"] == ["1,1", "1,3"]
-        assert rows[0]["width"] == 1004
-        assert rows[0]["height"] == 2201
+        assert rows[0]["width"] == 1003
+        assert rows[0]["height"] == 2200
         assert rows[1]["marking"] == "1,2"
 
     def test_two_row_center_bracket_drawing_marks_only_central_glass(self):

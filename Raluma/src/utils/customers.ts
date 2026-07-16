@@ -3,14 +3,18 @@ import type { ProjectList } from '../api/projects';
 const BASE_CUSTOMERS = [
   'ООО ПРОЗРАЧНЫЕ РЕШЕНИЯ',
   'ООО КРОКНА ИНЖИНИРИНГ',
-  'ООО СТУДИЯ СПК',
 ];
 
 const CUSTOMER_ALIASES: Record<string, string> = {
   'ооо пр': 'ООО ПРОЗРАЧНЫЕ РЕШЕНИЯ',
   'ооо ки': 'ООО КРОКНА ИНЖИНИРИНГ',
-  'ооо спк': 'ООО СТУДИЯ СПК',
 };
+
+const RETIRED_CUSTOMERS = new Set([
+  'ооо спк',
+  'ооо студия спк',
+  'студия спк',
+]);
 
 function normalizeCustomer(value?: string | null) {
   const clean = (value ?? '').trim();
@@ -29,6 +33,7 @@ export function buildCustomerOptions(
     const clean = normalizeCustomer(value);
     if (!clean) return;
     const key = clean.toLowerCase();
+    if (RETIRED_CUSTOMERS.has(key)) return;
     if (!seen.has(key)) seen.set(key, clean);
   };
 

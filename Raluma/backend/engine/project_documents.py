@@ -11,7 +11,7 @@ from typing import Iterable
 
 from jinja2 import Environment, FileSystemLoader
 
-from engine.pdf import TEMPLATES_DIR, _img_b64
+from engine.pdf import TEMPLATES_DIR, _img_b64, glass_mm
 from engine.slide_calc import calculate_slide
 
 
@@ -492,8 +492,8 @@ def _build_glass_rows(
         for glass_index, glass in enumerate(
             _expand_glass_for_order(item.section, item.calc), start=1
         ):
-            width = int(ceil(glass.width_mm))
-            height = int(ceil(glass.height_mm))
+            width = glass_mm(glass.width_mm)
+            height = glass_mm(glass.height_mm)
             note = glass.note
             key = (item.calc.glass_type, width, height, note)
             row = grouped.setdefault(
@@ -725,8 +725,8 @@ def _build_delivery_glass_rows(
             glass_type = calc.glass_type
             color = _section_color(section, calc)
             for glass in _expand_glass_for_order(section, calc):
-                width = int(ceil(glass.width_mm))
-                height = int(ceil(glass.height_mm))
+                width = glass_mm(glass.width_mm)
+                height = glass_mm(glass.height_mm)
                 key = (glass_type, width, height, glass.note)
                 row = section_rows.setdefault(
                     key,

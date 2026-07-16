@@ -238,8 +238,9 @@
       {% set centerDeaf = is2row and ('глух' in hC or hC == '') %}
       {% set centerLeftIdx = (section.panels // 2) - 1 %}
       {% set centerRightIdx = section.panels // 2 %}
-      {% set leftDeaf = ('без' in hL or 'глухая' in hL) and 'без' in lL and not section.profile_left_handle_bar %}
-      {% set rightDeaf = ('без' in hR or 'глухая' in hR) and 'без' in lR and not section.profile_right_handle_bar %}
+      {% set leftDeaf = ('глух' in hL or hL == 'без') and 'без' in lL and not section.profile_left_handle_bar %}
+      {% set rightDeaf = ('глух' in hR or hR == 'без') and 'без' in lR and not section.profile_right_handle_bar %}
+      {% set roomBidirectional = (not is2row) and (not leftDeaf) and (not rightDeaf) %}
       {% set symY = riY + riH / 2 %}
       {% set handleLX = riX + 8 %}
       {% set handleRX = riX + riW - 8 %}
@@ -281,11 +282,14 @@
         {% if not panelDeaf %}
         {% set alen = [10, rpW * 0.35] | min %}
         {% set panelArrowLeft = (i < section.panels / 2) if is2row else room_first_right %}
-        {% if panelArrowLeft %}
+        {% if panelArrowLeft or roomBidirectional %}
         <line x1="{{ gcx + alen/2 }}" y1="{{ gcy + 4 }}" x2="{{ gcx - alen/2 }}" y2="{{ gcy + 4 }}" stroke="#999" stroke-width="0.8"/>
         <polyline points="{{ gcx - alen/2 + 3 }},{{ gcy + 2 }} {{ gcx - alen/2 }},{{ gcy + 4 }} {{ gcx - alen/2 + 3 }},{{ gcy + 6 }}" stroke="#999" stroke-width="0.8" fill="none"/>
-        {% else %}
+        {% endif %}
+        {% if (not panelArrowLeft) or roomBidirectional %}
+        {% if not roomBidirectional %}
         <line x1="{{ gcx - alen/2 }}" y1="{{ gcy + 4 }}" x2="{{ gcx + alen/2 }}" y2="{{ gcy + 4 }}" stroke="#999" stroke-width="0.8"/>
+        {% endif %}
         <polyline points="{{ gcx + alen/2 - 3 }},{{ gcy + 2 }} {{ gcx + alen/2 }},{{ gcy + 4 }} {{ gcx + alen/2 - 3 }},{{ gcy + 6 }}" stroke="#999" stroke-width="0.8" fill="none"/>
         {% endif %}
         {% endif %}

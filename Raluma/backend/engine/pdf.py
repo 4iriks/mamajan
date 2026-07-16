@@ -218,7 +218,8 @@ def _format_length_for_display(value: float) -> str:
 
 
 def glass_mm(value: float) -> int:
-    return int(ceil(float(value or 0)))
+    """Round a positive glass dimension to the nearest whole millimeter."""
+    return int(float(value or 0) + 0.5)
 
 
 def brush_meters(value: float | str) -> str:

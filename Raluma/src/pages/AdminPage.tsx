@@ -33,7 +33,7 @@ const RoleIcon = ({ role }: { role: string }) => {
   return <User className="w-3.5 h-3.5" />;
 };
 
-const CUSTOMERS = ['ПРОЗРАЧНЫЕ РЕШЕНИЯ', 'КРОКНА ИНЖИНИРИНГ', 'СТУДИЯ СПК'];
+const CUSTOMERS = ['ООО ПРОЗРАЧНЫЕ РЕШЕНИЯ', 'ООО КРОКНА ИНЖИНИРИНГ'];
 
 const INPUT_CLS = "w-full bg-hi/8 border border-tint/40 rounded-2xl px-5 py-3.5 outline-none focus:border-accent/60 transition-all text-fg";
 const SELECT_CLS = "w-full bg-hi/8 border border-tint/40 rounded-2xl px-5 py-3.5 outline-none focus:border-accent/60 transition-all text-fg appearance-none";

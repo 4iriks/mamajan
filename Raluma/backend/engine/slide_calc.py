@@ -1096,7 +1096,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         result.hardware.append(
             HardwareItem(
                 "RS123",
-                "Ответная планка замка",
+                "Ответная планка замка RS3020",
                 rs123_qty,
                 "шт",
                 "RS123.jpg",
@@ -1108,7 +1108,12 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     if rs122_qty > 0:
         result.hardware.append(
             HardwareItem(
-                "RS122", "Ответная планка замка", rs122_qty, "шт", "RS122.png", "rs122"
+                "RS122",
+                "Ответная планка защелки RS3018",
+                rs122_qty,
+                "шт",
+                "RS122.png",
+                "rs122",
             )
         )
 
@@ -1204,7 +1209,11 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
 
     rs108_qty = 2 * Q
     rs105_qty = inter_glass_count_each * 2 * Q
-    rs106_qty = ((0 if left_is_deaf else 1) + (0 if right_is_deaf else 1)) * Q
+    # RS106 ставится на каждую подвижную крайнюю панель и на каждый RS112.
+    # Центральные створки без RS112 получают отдельные заглушки RS108.
+    rs106_qty = (
+        (0 if left_is_deaf else 1) + (0 if right_is_deaf else 1) + center_rs112_count
+    ) * Q
 
     if rs105_qty > 0:
         result.hardware.append(
@@ -1451,16 +1460,8 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     lock_l = section.lock_left or "Без"
     lock_r = section.lock_right or "Без"
 
-    left_is_deaf = (
-        (handle_l.lower() == "глухая" or handle_l == "Без")
-        and lock_l == "Без"
-        and not handle_bar_l
-    )
-    right_is_deaf = (
-        (handle_r.lower() == "глухая" or handle_r == "Без")
-        and lock_r == "Без"
-        and not handle_bar_r
-    )
+    left_is_deaf = _is_deaf_panel(handle_l, lock_l, handle_bar_l)
+    right_is_deaf = _is_deaf_panel(handle_r, lock_r, handle_bar_r)
 
     # ── Длины профилей ────────────────────────────────────────────────────────
 
@@ -1834,7 +1835,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
         result.hardware.append(
             HardwareItem(
                 "RS123",
-                "Ответная планка замка",
+                "Ответная планка замка RS3020",
                 rs123_qty,
                 "шт",
                 "RS123.jpg",
@@ -1846,7 +1847,12 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     if rs122_qty > 0:
         result.hardware.append(
             HardwareItem(
-                "RS122", "Ответная планка замка", rs122_qty, "шт", "RS122.png", "rs122"
+                "RS122",
+                "Ответная планка защелки RS3018",
+                rs122_qty,
+                "шт",
+                "RS122.png",
+                "rs122",
             )
         )
 

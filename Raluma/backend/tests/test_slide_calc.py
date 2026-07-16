@@ -685,6 +685,29 @@ class TestGlassProfilePlugs:
         )
         assert not _find_hardware(r, "RS106")
 
+    def test_rs106_ui_fixed_panel_value_is_deaf(self):
+        """Точное значение из UI не должно добавлять RS106 на глухую панель."""
+        r = calculate_slide(
+            _make_section(
+                handle_left="Без ручки (глухая)",
+                handle_right="Без ручки (глухая)",
+                lock_left="Без",
+                lock_right="Без",
+            )
+        )
+        assert not _find_hardware(r, "RS106")
+
+    def test_rs106_name_matches_locking_profile(self):
+        r = calculate_slide(
+            _make_section(
+                lock_left="ЗАМОК-ЗАЩЕЛКА 1стор RS3018",
+                lock_right="Замок двухсторонний с ключом RS3020",
+            )
+        )
+
+        assert _find_hardware(r, "RS122")[0].name == "Ответная планка защелки RS3018"
+        assert _find_hardware(r, "RS123")[0].name == "Ответная планка замка RS3020"
+
     def test_rs107_total(self):
         """RS107 = RS105 + RS106."""
         r = calculate_slide(
@@ -1797,6 +1820,23 @@ class TestSlideTwoRows:
         assert (
             r.panel_glass[2].glass_profile_length == center_right.glass_profile_length
         )
+        assert _find_hardware(r, "RS106")[0].value == 2
+
+    def test_center_rs112_rs106_respects_section_quantity(self):
+        r = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                panels=4,
+                quantity=2,
+                handle_left="Без ручки (глухая)",
+                handle_right="Без ручки (глухая)",
+                center_handle="Ручки-профиль RS112 (2шт)",
+                center_lock="Без",
+                first_panel_inside=None,
+            )
+        )
+
+        assert _find_hardware(r, "RS106")[0].value == 4
 
     def test_two_rows_central_sashes_use_rs108(self):
         r = calculate_slide(

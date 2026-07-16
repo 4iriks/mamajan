@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type { SlideCalcPreview } from '../src/api/projects';
 import { SlideRoomViewSVG, SlideSchemeSVG } from '../src/components/editor/SlideDiagrams';
 import type { Section } from '../src/components/editor/types';
+import { buildCustomerOptions } from '../src/utils/customers';
 
 const section: Section = {
   id: 'diagram-smoke',
@@ -104,9 +105,9 @@ const calcTwoRows: SlideCalcPreview = {
 const roomMarkupTwoRows = renderToStaticMarkup(<SlideRoomViewSVG section={sectionTwoRows} calc={calcTwoRows} />);
 const schemeMarkupTwoRows = renderToStaticMarkup(<SlideSchemeSVG section={sectionTwoRows} calc={calcTwoRows} />);
 
-assert.match(roomMarkupTwoRows, />501</, '2-row room view must render central glass widths rounded up');
-assert.match(schemeMarkupTwoRows, /501 · №2/, '2-row top scheme must render left central panel with calculated width rounded up');
-assert.match(schemeMarkupTwoRows, /502 · №3/, '2-row top scheme must use physical width for the right central panel');
+assert.match(roomMarkupTwoRows, />500</, '2-row room view must round the left central glass to the nearest millimeter');
+assert.match(schemeMarkupTwoRows, /500 · №2/, '2-row top scheme must round the left central panel to the nearest millimeter');
+assert.match(schemeMarkupTwoRows, /501 · №3/, '2-row top scheme must use the rounded physical width for the right central panel');
 assert.match(schemeMarkupTwoRows, /data-dir="1"/, '2-row top scheme must mirror left-side inter-glass profile');
 assert.match(schemeMarkupTwoRows, /data-dir="-1"/, '2-row top scheme must mirror right-side inter-glass profile');
 assert.equal((schemeMarkupTwoRows.match(/data-profile="inter-glass"/g) ?? []).length, 2, '2-row top scheme must not draw an inter-glass profile in the central joint');
@@ -122,5 +123,43 @@ const centerLeft = schemePanelRect(schemeMarkupTwoRows, 2);
 const centerRight = schemePanelRect(schemeMarkupTwoRows, 3);
 const centerGap = centerRight.x - (centerLeft.x + centerLeft.width);
 assert.ok(centerGap > 0 && centerGap <= 2, '2-row central panels must have a visible scaled 3 mm gap without overlap');
+
+const centerHandleAnchors = [...roomMarkupTwoRows.matchAll(/data-center-handle="(left|right)" data-anchor-x="([^"]+)"/g)]
+  .map(match => ({ side: match[1], x: Number(match[2]) }));
+assert.equal(centerHandleAnchors.length, 2, '2-row room view must render both center handle anchors');
+assert.ok(centerHandleAnchors[0].x < centerHandleAnchors[1].x, 'center handles must stay on their physical sides of the joint');
+assert.match(roomMarkupTwoRows, /data-center-lock="center" data-center-lock-position="joint"/, 'center lock must be attached to the central joint');
+
+const roomMarkupRs206 = renderToStaticMarkup(
+  <SlideRoomViewSVG section={{ ...sectionTwoRows, centerLock: 'Накидная защёлка RS206' }} calc={calcTwoRows} />,
+);
+assert.match(roomMarkupRs206, /data-center-lock="RS206" data-center-lock-position="bottom"/, 'RS206 must be rendered at the bottom edge');
+
+const bidirectionalSection: Section = {
+  ...section,
+  panels: 2,
+  profileLeftHandleBar: false,
+  profileLeftLockBar: false,
+  profileRightPBar: false,
+  profileRightBubble: false,
+  handleLeft: 'Ручка-кноб RS3014',
+  handleRight: 'Ручка-кноб RS3014',
+};
+const bidirectionalMarkup = renderToStaticMarkup(<SlideRoomViewSVG section={bidirectionalSection} calc={calc} />);
+assert.equal(
+  (bidirectionalMarkup.match(/data-panel-direction="both"/g) ?? []).length,
+  2,
+  'one-row moving panels on both sides must show bidirectional arrows',
+);
+
+assert.deepEqual(
+  buildCustomerOptions(
+    [{ customer: 'ООО СТУДИЯ СПК' }, { customer: 'ООО КРОКНА ИНЖИНИРИНГ' }],
+    'ООО СПК',
+    'СТУДИЯ СПК',
+  ),
+  ['ООО ПРОЗРАЧНЫЕ РЕШЕНИЯ', 'ООО КРОКНА ИНЖИНИРИНГ'],
+  'retired customer must not return through saved projects or legacy aliases',
+);
 
 console.log('slide diagram smoke passed');

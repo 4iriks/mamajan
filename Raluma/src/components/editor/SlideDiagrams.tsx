@@ -4,18 +4,22 @@ import { Section } from './types';
 
 // ── SVG Схема сверху (СЛАЙД) ──────────────────────────────────────────────────
 
+function roundGlassMm(value: number) {
+  return Math.floor(Math.max(0, value) + 0.5);
+}
+
 function expandGlassWidths(calc: SlideCalcPreview | null | undefined, panels: number, fallbackWidth: number) {
   if (calc?.panel_glass?.length && panels > 0) {
     const physicalPanels = [...calc.panel_glass]
       .sort((left, right) => left.panel - right.panel)
       .slice(0, panels);
     if (physicalPanels.length === panels) {
-      return physicalPanels.map(panel => Math.ceil(panel.width_mm));
+      return physicalPanels.map(panel => roundGlassMm(panel.width_mm));
     }
   }
 
   if (!calc?.glass?.length || panels <= 0) {
-    return Array.from({ length: Math.max(panels, 1) }, () => Math.ceil(fallbackWidth / Math.max(panels, 1)));
+    return Array.from({ length: Math.max(panels, 1) }, () => roundGlassMm(fallbackWidth / Math.max(panels, 1)));
   }
 
   const findWidth = (needle: string) => {
@@ -29,7 +33,7 @@ function expandGlassWidths(calc: SlideCalcPreview | null | undefined, panels: nu
   const center = findWidth('централь');
   const middle = findWidth('промеж') ?? edge ?? left ?? right ?? fallbackWidth / panels;
 
-  if (panels === 1) return [Math.ceil(middle)];
+  if (panels === 1) return [roundGlassMm(middle)];
   if (center && panels >= 4) {
     const sideMiddleCount = Math.floor(Math.max(panels - 4, 0) / 2);
     const widths = [
@@ -40,7 +44,7 @@ function expandGlassWidths(calc: SlideCalcPreview | null | undefined, panels: nu
       ...Array.from({ length: sideMiddleCount }, () => middle),
       right ?? middle,
     ];
-    return widths.slice(0, panels).map(width => Math.ceil(width));
+    return widths.slice(0, panels).map(roundGlassMm);
   }
 
   const widths = Array.from({ length: panels }, (_, index) => {
@@ -49,7 +53,7 @@ function expandGlassWidths(calc: SlideCalcPreview | null | undefined, panels: nu
     return middle;
   });
 
-  return widths.map(width => Math.ceil(width));
+  return widths.map(roundGlassMm);
 }
 
 function buildPanelLayout(widthsMm: number[], startPx: number, totalPx: number) {
@@ -392,6 +396,7 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
   const floorLatchRight = section.floorLatchesRight;
   const centerHandle = section.centerHandle || 'Без ручки (глухие)';
   const centerLock = section.centerLock || 'Без';
+  const firstPanelsInCenter = (section.unusedTrack ?? 'Внешний') === 'Внешний';
   const centerIsDeaf = centerHandle === 'Без ручки (глухие)' || centerHandle === '';
   const centerLeftIdx = Math.max(0, Math.floor(panels / 2) - 1);
   const centerRightIdx = Math.min(panels - 1, Math.floor(panels / 2));
@@ -436,6 +441,7 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
   const panelWidthsMm = expandGlassWidths(calc, panels, W);
   const panelLayout = buildPanelLayout(panelWidthsMm, iX, iW);
   const arrowLeft = firstRight;
+  const arrowsBothDirections = !is2row && !leftIsDeaf && !rightIsDeaf;
 
   // Left side = i=0, Right side = i=panels-1 (visual position, not panel number)
   const leftPanelIdx = 0;
@@ -544,18 +550,20 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
             {!isDeaf && (
               <>
                 <line
+                  data-panel-direction={arrowsBothDirections ? 'both' : (panelArrowLeft ? 'left' : 'right')}
                   x1={panelArrowLeft ? cx + aLen / 2 : cx - aLen / 2}
                   y1={cy + 5}
                   x2={panelArrowLeft ? cx - aLen / 2 : cx + aLen / 2}
                   y2={cy + 5}
                   stroke="var(--theme-accent)" strokeWidth="1.3" strokeOpacity="0.55"
                 />
-                {panelArrowLeft ? (
+                {(panelArrowLeft || arrowsBothDirections) && (
                   <polyline
                     points={`${cx - aLen / 2 + 6},${cy + 1} ${cx - aLen / 2},${cy + 5} ${cx - aLen / 2 + 6},${cy + 9}`}
                     stroke="var(--theme-accent)" strokeWidth="1.3" fill="none" strokeOpacity="0.55"
                   />
-                ) : (
+                )}
+                {(!panelArrowLeft || arrowsBothDirections) && (
                   <polyline
                     points={`${cx + aLen / 2 - 6},${cy + 1} ${cx + aLen / 2},${cy + 5} ${cx + aLen / 2 - 6},${cy + 9}`}
                     stroke="var(--theme-accent)" strokeWidth="1.3" fill="none" strokeOpacity="0.55"
@@ -563,10 +571,17 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
                 )}
               </>
             )}
-            {isCenterPanel && !centerIsDeaf && renderHandleSymbol(centerHandle, cx)}
-            {isCenterPanel && centerLock !== 'Без' && centerLock && (
-              <rect x={cx - 5} y={cy + 18} width={10} height={7} rx={1.5} fill="var(--theme-accent)" fillOpacity="0.45" stroke="var(--theme-accent)" strokeWidth="1" strokeOpacity="0.75" />
-            )}
+            {isCenterPanel && !centerIsDeaf && (() => {
+              const inset = Math.min(pW * 0.35, Math.max(4, 100 * drawingScale));
+              const anchorX = firstPanelsInCenter
+                ? (i === centerLeftIdx ? px + pW - inset : px + inset)
+                : cx;
+              return (
+                <g data-center-handle={i === centerLeftIdx ? 'left' : 'right'} data-anchor-x={anchorX}>
+                  {renderHandleSymbol(centerHandle, anchorX)}
+                </g>
+              );
+            })()}
 
             {/* Floor latches — small squares at bottom edge */}
             {isLeftPanel && floorLatchLeft && (
@@ -584,6 +599,29 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
           </g>
         );
       })}
+
+      {is2row && centerLock && centerLock !== 'Без' && (() => {
+        const centerBoundaryX = panelLayout[centerLeftIdx].x + panelLayout[centerLeftIdx].width;
+        const isOverheadLatch = centerLock.toLowerCase().includes('rs206')
+          || centerLock.toLowerCase().includes('накидн');
+        const lockY = isOverheadLatch ? iY + iH - 9 : symY + 14;
+        return (
+          <rect
+            data-center-lock={isOverheadLatch ? 'RS206' : 'center'}
+            data-center-lock-position={isOverheadLatch ? 'bottom' : 'joint'}
+            x={centerBoundaryX - 5}
+            y={lockY}
+            width={10}
+            height={7}
+            rx={1.5}
+            fill="var(--theme-accent)"
+            fillOpacity="0.45"
+            stroke="var(--theme-accent)"
+            strokeWidth="1"
+            strokeOpacity="0.75"
+          />
+        );
+      })()}
 
       {Array.from({ length: panels }).map((_, i) => {
         const layout = panelLayout[i];
