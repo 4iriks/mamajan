@@ -337,7 +337,13 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
                   'Без ручки (подвижные)',
                 ]}
                 onChange={v => {
-                  const upd: Partial<Section> = { centerHandle: v };
+                  const nextSupportsOffset = v === 'Стеклянная ручка RS3017' || isBraceHandle(v);
+                  const upd: Partial<Section> = {
+                    centerHandle: v,
+                    centerHandleOffset: nextSupportsOffset && v === ch
+                      ? s.centerHandleOffset
+                      : undefined,
+                  };
                   if (!v || v === 'Без ручки (глухие)') {
                     upd.centerLock = undefined;
                     upd.centerFloorLatchesLeft = false;
@@ -354,9 +360,15 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
                 <input
                   type="number"
                   value={s.centerHandleOffset ?? ''}
-                  onChange={e => update({ centerHandleOffset: parseFloat(e.target.value) || undefined })}
+                  min={0}
+                  step={1}
+                  onChange={e => update({
+                    centerHandleOffset: e.target.value === ''
+                      ? undefined
+                      : Math.max(0, Math.trunc(Number(e.target.value))),
+                  })}
                   className={INP}
-                  placeholder={isBraceHandle(ch) ? '100' : '0'}
+                  placeholder="0"
                 />
               </div>
             )}

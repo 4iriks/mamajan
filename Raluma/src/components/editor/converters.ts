@@ -72,9 +72,15 @@ function normalizeLegacyValue(field: string, value?: string): string | undefined
   return replacements[field]?.[value] ?? value;
 }
 
+function centerHandleSupportsOffset(value?: string): boolean {
+  const handle = (value || '').toLowerCase();
+  return handle.includes('rs3017') || handle.includes('ручка-скоба');
+}
+
 export function apiToLocal(s: SectionOut): Section {
   // Backwards compat: migrate legacy 'ДВЕРЬ' value
   const rawSystem = s.system === 'ДВЕРЬ' ? 'КОМПЛЕКТАЦИЯ' : s.system;
+  const centerHandle = normalizeLegacyValue('centerHandle', s.center_handle);
   return {
     id: String(s.id),
     name: s.name,
@@ -116,9 +122,11 @@ export function apiToLocal(s: SectionOut): Section {
     lockLeft: normalizeLegacyValue('lockLeft', s.lock_left),
     lockRight: normalizeLegacyValue('lockRight', s.lock_right),
     slideRows: s.slide_rows ?? 1,
-    centerHandle: normalizeLegacyValue('centerHandle', s.center_handle),
+    centerHandle,
     centerLock: s.center_lock,
-    centerHandleOffset: s.center_handle_offset,
+    centerHandleOffset: centerHandleSupportsOffset(centerHandle)
+      ? s.center_handle_offset
+      : undefined,
     centerFloorLatchesLeft: s.center_floor_latches_left ?? false,
     centerFloorLatchesRight: s.center_floor_latches_right ?? false,
     bookSubtype: s.book_subtype,
@@ -173,7 +181,9 @@ export function localToApi(s: Section, order: number): Omit<SectionOut, 'id' | '
     slide_rows: s.slideRows,
     center_handle: s.centerHandle,
     center_lock: s.centerLock,
-    center_handle_offset: s.centerHandleOffset,
+    center_handle_offset: centerHandleSupportsOffset(s.centerHandle)
+      ? s.centerHandleOffset
+      : undefined,
     center_floor_latches_left: s.centerFloorLatchesLeft,
     center_floor_latches_right: s.centerFloorLatchesRight,
     book_subtype: s.bookSubtype,

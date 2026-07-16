@@ -6,6 +6,7 @@ from database import get_db
 import models
 import schemas
 from auth import get_current_user
+from engine.legacy_values import normalize_center_handle_offset
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -165,7 +166,9 @@ def copy_project(
             slide_rows=s.slide_rows,
             center_handle=s.center_handle,
             center_lock=s.center_lock,
-            center_handle_offset=s.center_handle_offset,
+            center_handle_offset=normalize_center_handle_offset(
+                s.center_handle, s.center_handle_offset
+            ),
             center_floor_latches_left=s.center_floor_latches_left,
             center_floor_latches_right=s.center_floor_latches_right,
             book_subtype=s.book_subtype,

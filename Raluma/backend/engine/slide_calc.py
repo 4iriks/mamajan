@@ -7,6 +7,7 @@
 from dataclasses import dataclass, field
 from math import ceil
 
+from engine.legacy_values import normalize_center_handle_offset
 from engine.profile_catalog import apply_profile_catalog
 
 
@@ -682,15 +683,18 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     lock_r = _get(section, "lock_right", None) or "Без"
 
     left_is_deaf = _is_two_row_outer_panel_deaf(handle_l_raw, lock_l, handle_bar_l)
-    right_is_deaf = _is_two_row_outer_panel_deaf(
-        handle_r_raw, lock_r, handle_bar_r
-    )
+    right_is_deaf = _is_two_row_outer_panel_deaf(handle_r_raw, lock_r, handle_bar_r)
 
     center_handle = _get(section, "center_handle", None) or "Без ручки (глухие)"
     center_lock = _get(section, "center_lock", None) or "Без"
     center_is_deaf = center_handle == "Без ручки (глухие)" or center_handle == ""
     center_is_rs112 = center_handle == "Ручки-профиль RS112 (2шт)"
-    center_offset = int(_get(section, "center_handle_offset", 0) or 0)
+    center_offset = (
+        normalize_center_handle_offset(
+            center_handle, _get(section, "center_handle_offset", 0)
+        )
+        or 0
+    )
     center_rs112_count = 2 if center_is_rs112 else 0
     centr1 = 43.5 if center_is_rs112 else 0
     centr2 = 8 if center_is_rs112 else 0

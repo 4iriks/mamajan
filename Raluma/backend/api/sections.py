@@ -6,6 +6,7 @@ from database import get_db
 import models
 import schemas
 from auth import get_current_user
+from engine.legacy_values import normalize_section_data_values
 
 router = APIRouter(prefix="/api/projects", tags=["sections"])
 
@@ -54,7 +55,7 @@ def create_section(
         .filter(models.Section.project_id == project_id)
         .scalar()
     )
-    section_data = data.model_dump()
+    section_data = normalize_section_data_values(data.model_dump())
     section_data["order"] = (max_order or 0) + 1
     section = models.Section(project_id=project_id, **section_data)
     db.add(section)
@@ -82,7 +83,8 @@ def update_section(
     )
     if not section:
         raise HTTPException(status_code=404, detail="Секция не найдена")
-    for field, value in data.model_dump().items():
+    section_data = normalize_section_data_values(data.model_dump())
+    for field, value in section_data.items():
         setattr(section, field, value)
     db.commit()
     db.refresh(section)

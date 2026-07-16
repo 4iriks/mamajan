@@ -126,6 +126,50 @@ def test_update_section(client, admin_headers, project, section):
     assert data["width"] == 3000
 
 
+def test_center_handle_offset_is_saved_only_for_supported_handles(
+    client, admin_headers, project
+):
+    created = client.post(
+        f"/api/projects/{project['id']}/sections",
+        headers=admin_headers,
+        json={
+            "name": "Секция с центральной ручкой",
+            "system": "СЛАЙД",
+            "slide_rows": 2,
+            "panels": 4,
+            "center_handle": "Ручка-кноб RS3014",
+            "center_handle_offset": 100,
+        },
+    )
+    assert created.status_code == 201
+    section = created.json()
+    assert section["center_handle_offset"] is None
+
+    supported = client.put(
+        f"/api/projects/{project['id']}/sections/{section['id']}",
+        headers=admin_headers,
+        json={
+            **section,
+            "center_handle": "Стеклянная ручка RS3017",
+            "center_handle_offset": 75,
+        },
+    )
+    assert supported.status_code == 200
+    assert supported.json()["center_handle_offset"] == 75
+
+    unsupported = client.put(
+        f"/api/projects/{project['id']}/sections/{section['id']}",
+        headers=admin_headers,
+        json={
+            **supported.json(),
+            "center_handle": "Ручка-кноб RS3014",
+            "center_handle_offset": 75,
+        },
+    )
+    assert unsupported.status_code == 200
+    assert unsupported.json()["center_handle_offset"] is None
+
+
 def test_update_section_not_found(client, admin_headers, project):
     r = client.put(
         f"/api/projects/{project['id']}/sections/999999",

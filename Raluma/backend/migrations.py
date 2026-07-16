@@ -11,7 +11,10 @@ import json
 
 from sqlalchemy import text
 from database import engine
-from engine.legacy_values import normalize_section_data_values
+from engine.legacy_values import (
+    normalize_center_handle_offset,
+    normalize_section_data_values,
+)
 
 
 # ── Новые таблицы ─────────────────────────────────────────────────────────────
@@ -225,6 +228,31 @@ def _normalize_section_templates(conn):
         )
 
 
+def _normalize_section_center_offsets(conn):
+    """Удалить старые скрытые отступы C у неподдерживаемых ручек."""
+    try:
+        sections = conn.execute(
+            text(
+                "SELECT id, center_handle, center_handle_offset "
+                "FROM sections WHERE center_handle_offset IS NOT NULL"
+            )
+        ).fetchall()
+    except Exception:
+        return
+
+    for section_id, center_handle, offset in sections:
+        normalized = normalize_center_handle_offset(center_handle, offset)
+        if normalized == offset:
+            continue
+        conn.execute(
+            text(
+                "UPDATE sections SET center_handle_offset = :offset "
+                "WHERE id = :section_id"
+            ),
+            {"offset": normalized, "section_id": section_id},
+        )
+
+
 def run_migrations():
     """Выполнить все миграции. Безопасно вызывать при каждом старте."""
     with engine.connect() as conn:
@@ -253,6 +281,7 @@ def run_migrations():
 
         try:
             _normalize_section_templates(conn)
+            _normalize_section_center_offsets(conn)
             conn.commit()
         except Exception:
             pass

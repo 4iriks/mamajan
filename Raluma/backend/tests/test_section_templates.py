@@ -72,6 +72,48 @@ def test_section_templates_list_is_public_and_admin_creates_sanitized(
     client.delete(f"/api/section-templates/{data['id']}", headers=admin_headers)
 
 
+def test_section_template_normalizes_center_handle_offset(client, admin_headers):
+    _cleanup_templates(client, admin_headers)
+
+    unsupported_payload = _slide_template_payload("Шаблон с кнобом")
+    unsupported_payload["system"] = "СЛАЙД 2 ряда"
+    unsupported_payload["template_data"].update(
+        {
+            "slide_rows": 2,
+            "panels": 4,
+            "center_handle": "Ручка-кноб RS3014",
+            "center_handle_offset": 100,
+        }
+    )
+    unsupported = client.post(
+        "/api/section-templates",
+        headers=admin_headers,
+        json=unsupported_payload,
+    )
+    assert unsupported.status_code == 201
+    assert unsupported.json()["template_data"]["center_handle_offset"] is None
+
+    supported_payload = _slide_template_payload("Шаблон со скобой")
+    supported_payload["system"] = "СЛАЙД 2 ряда"
+    supported_payload["template_data"].update(
+        {
+            "slide_rows": 2,
+            "panels": 4,
+            "center_handle": "Ручка-скоба 600мм RS30201",
+            "center_handle_offset": 80,
+        }
+    )
+    supported = client.post(
+        "/api/section-templates",
+        headers=admin_headers,
+        json=supported_payload,
+    )
+    assert supported.status_code == 201
+    assert supported.json()["template_data"]["center_handle_offset"] == 80
+
+    _cleanup_templates(client, admin_headers)
+
+
 def test_section_templates_mutations_require_admin(client, admin_headers):
     _cleanup_templates(client, admin_headers)
     username = f"user-{uuid.uuid4().hex[:8]}"

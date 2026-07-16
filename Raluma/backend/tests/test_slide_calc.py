@@ -1596,6 +1596,135 @@ class TestSlideTwoRows:
         assert center.qty == 2
         assert right.width_mm == expected
 
+    def test_center_offset_zero_matches_four_panel_reference(self):
+        r = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                rails=3,
+                panels=4,
+                width=3635,
+                height=2780,
+                unused_track="Внешний",
+                inter_glass_profile="Профиль с зацепом RS3061",
+                profile_left_p_bar=True,
+                profile_right_p_bar=True,
+                profile_left_bubble=True,
+                profile_right_bubble=True,
+                center_handle="Стеклянная ручка RS3017",
+                center_handle_offset=0,
+                first_panel_inside=None,
+            )
+        )
+
+        assert [
+            (item.width_mm, item.glass_profile_length) for item in r.panel_glass
+        ] == [
+            (910.2, 910.2),
+            (894.2, 891.2),
+            (894.2, 891.2),
+            (910.2, 910.2),
+        ]
+
+    def test_hidden_center_offset_is_ignored_for_six_panel_knob_reference(self):
+        r = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                rails=3,
+                panels=6,
+                width=3837,
+                height=2274,
+                unused_track="Внешний",
+                inter_glass_profile="Алюминиевый RS2061",
+                profile_left_wall=False,
+                profile_right_wall=False,
+                profile_left_p_bar=True,
+                profile_right_p_bar=True,
+                profile_left_bubble=True,
+                profile_right_bubble=True,
+                handle_left="Без ручки (глухая)",
+                handle_right="Без ручки (глухая)",
+                center_handle="Ручка-кноб RS3014",
+                center_handle_offset=100,
+                first_panel_inside=None,
+            )
+        )
+
+        assert [
+            (item.width_mm, item.glass_profile_length) for item in r.panel_glass
+        ] == [
+            (653.7, 653.7),
+            (637.7, 634.7),
+            (637.7, 634.7),
+            (637.7, 634.7),
+            (637.7, 634.7),
+            (653.7, 653.7),
+        ]
+
+    def test_hidden_center_offset_is_ignored_for_all_panel_counts(self):
+        unsupported_handles = (
+            "Ручка-кноб RS3014",
+            "Ручки-профиль RS112 (2шт)",
+            "Без ручки (глухие)",
+            "Без ручки (подвижные)",
+        )
+        for panels in (4, 6, 8, 10):
+            rails = 3 if panels <= 6 else 5
+            for handle in unsupported_handles:
+                baseline = calculate_slide(
+                    _make_section(
+                        slide_rows=2,
+                        rails=rails,
+                        panels=panels,
+                        center_handle=handle,
+                        center_handle_offset=0,
+                        first_panel_inside=None,
+                    )
+                )
+                stale = calculate_slide(
+                    _make_section(
+                        slide_rows=2,
+                        rails=rails,
+                        panels=panels,
+                        center_handle=handle,
+                        center_handle_offset=100,
+                        first_panel_inside=None,
+                    )
+                )
+                assert stale.panel_glass == baseline.panel_glass
+
+    def test_manual_center_offset_is_kept_for_supported_handles(self):
+        for handle in (
+            "Стеклянная ручка RS3017",
+            "Ручка-скоба 600мм RS30201",
+        ):
+            baseline = calculate_slide(
+                _make_section(
+                    slide_rows=2,
+                    panels=4,
+                    center_handle=handle,
+                    center_handle_offset=0,
+                    first_panel_inside=None,
+                )
+            )
+            with_offset = calculate_slide(
+                _make_section(
+                    slide_rows=2,
+                    panels=4,
+                    center_handle=handle,
+                    center_handle_offset=100,
+                    first_panel_inside=None,
+                )
+            )
+
+            assert (
+                baseline.panel_glass[0].width_mm - with_offset.panel_glass[0].width_mm
+                == 50
+            )
+            assert (
+                with_offset.panel_glass[1].width_mm - baseline.panel_glass[1].width_mm
+                == 50
+            )
+
     def test_two_rows_rs3061_uses_115_overlap(self):
         r = calculate_slide(
             _make_section(

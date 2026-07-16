@@ -7,6 +7,24 @@
 from typing import Any
 
 
+def center_handle_supports_offset(value: Any) -> bool:
+    """Отступ C применяется только к стеклянной ручке и ручке-скобе."""
+    handle = str(value or "").strip().lower()
+    return "rs3017" in handle or "ручка-скоба" in handle
+
+
+def normalize_center_handle_offset(handle: Any, offset: Any) -> int | None:
+    """Нормализовать сохраненный отступ C с учетом выбранной ручки."""
+    if not center_handle_supports_offset(handle):
+        return None
+    if offset in (None, ""):
+        return None
+    try:
+        return max(0, int(float(offset)))
+    except (TypeError, ValueError):
+        return None
+
+
 _LEGACY_VALUE_REPLACEMENTS: dict[str, dict[str, str]] = {
     "inter_glass_profile": {
         "h-профиль RS1004": "Профиль с зацепом RS3061",
@@ -49,4 +67,9 @@ def normalize_section_data_values(data: dict[str, Any]) -> dict[str, Any]:
         value = normalized.get(field)
         if isinstance(value, str) and value in replacements:
             normalized[field] = replacements[value]
+    if "center_handle_offset" in normalized:
+        normalized["center_handle_offset"] = normalize_center_handle_offset(
+            normalized.get("center_handle"),
+            normalized.get("center_handle_offset"),
+        )
     return normalized
