@@ -11,6 +11,7 @@ from engine.profile_catalog import apply_profile_catalog
 
 
 MAX_PROFILE_LENGTH_MM = 5950
+DEFAULT_INTER_GLASS_PROFILE = "Алюминиевый RS2061"
 PNG_PROFILE_IMAGES = {
     "RS1002",
     "RS1006",
@@ -218,6 +219,11 @@ def _profile_image(article: str) -> str:
 def _is_no_inter_glass_profile(value: str | None) -> bool:
     text = (value or "").strip().lower()
     return not text or "без" in text
+
+
+def _resolve_inter_glass_profile(value: str | None) -> str:
+    """Map legacy empty values to the former default without masking explicit opt-out."""
+    return value.strip() if value and value.strip() else DEFAULT_INTER_GLASS_PROFILE
 
 
 def _inter_glass_article(value: str | None) -> str:
@@ -705,7 +711,9 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         p_bar_len = H - 55
         glass_H = H - 94
 
-    inter_glass_type = _get(section, "inter_glass_profile", None) or "Без"
+    inter_glass_type = _resolve_inter_glass_profile(
+        _get(section, "inter_glass_profile", None)
+    )
     ig_article = _inter_glass_article(inter_glass_type)
     inter_glass_overlap = _inter_glass_overlap_mm(ig_article)
 
@@ -1470,7 +1478,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
 
     # ── Расчёт стёкол ─────────────────────────────────────────────────────────
 
-    inter_glass_type = section.inter_glass_profile or "Без"
+    inter_glass_type = _resolve_inter_glass_profile(section.inter_glass_profile)
     ig_article = _inter_glass_article(inter_glass_type)
     inter_glass_overlap = _inter_glass_overlap_mm(ig_article)
 

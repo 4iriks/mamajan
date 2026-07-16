@@ -98,6 +98,9 @@ export interface ProjectEditorProps {
 
 // ── Style constants ───────────────────────────────────────────────────────────
 
+export const DEFAULT_INTER_GLASS_PROFILE = 'Алюминиевый RS2061';
+export const NO_INTER_GLASS_PROFILE = '— Без межстекольного профиля —';
+
 export const LBL = 'text-[10px] font-bold uppercase tracking-widest text-accent/40 ml-1';
 export const INP = 'w-full bg-hi/8 border border-tint/30 rounded-xl px-3 py-2 outline-none focus:border-accent/50 transition-all font-mono text-fg text-sm';
 export const SEL = 'w-full bg-hi/8 border border-tint/30 rounded-xl px-3 py-2 outline-none focus:border-accent/50 transition-all appearance-none text-fg text-sm';

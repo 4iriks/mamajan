@@ -25,7 +25,16 @@ import ProjectDocumentModal from './ProjectDocumentModal';
 import { toast } from '../store/toastStore';
 import { useAuthStore } from '../store/authStore';
 
-import { Section, OrderItem, ProjectEditorProps, SystemType, LBL, INP, SEL } from './editor/types';
+import {
+  DEFAULT_INTER_GLASS_PROFILE,
+  Section,
+  OrderItem,
+  ProjectEditorProps,
+  SystemType,
+  LBL,
+  INP,
+  SEL,
+} from './editor/types';
 import { apiToLocal, applyTemplateDataToSection, localToApi, localToTemplateData } from './editor/converters';
 import { EditorSidebar } from './editor/EditorSidebar';
 import { SectionFormWrapper } from './editor/SectionFormWrapper';
@@ -166,6 +175,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         return {
           rails: opts?.slideRails ?? 3,
           slideRows: rows,
+          interGlassProfile: DEFAULT_INTER_GLASS_PROFILE,
           firstPanelInside: rows === 1 ? 'Справа' : undefined,
           unusedTrack: rows === 2 ? 'Внешний' : undefined,
           panels: rows === 2 ? 4 : 3,

@@ -1881,3 +1881,74 @@ class TestSlideTwoRows:
             )
             assert not _find_hardware(r, "RS107L")
             assert not _find_hardware(r, "RS107R")
+
+
+class TestInterGlassProfileDefaults:
+    def test_legacy_null_uses_aluminum_profile_for_reference_section(self):
+        result = calculate_slide(
+            _make_section(
+                width=2003,
+                height=2750,
+                panels=3,
+                inter_glass_profile=None,
+                profile_left_lock_bar=True,
+                profile_right_lock_bar=True,
+                profile_left_handle_bar=True,
+                profile_right_handle_bar=True,
+                lock_left="ЗАМОК-ЗАЩЕЛКА 1стор RS3018",
+                lock_right="ЗАМОК-ЗАЩЕЛКА 1стор RS3018",
+                handle_left=None,
+                handle_right=None,
+            )
+        )
+
+        assert _ceil_panel_widths(result) == [626, 618, 626]
+        assert _ceil_panel_profile_lengths(result) == [642, 615, 642]
+        assert _find_profile(result, "RS2061")[0].qty == 2
+
+    def test_explicit_no_profile_keeps_zero_overlap(self):
+        result = calculate_slide(
+            _make_section(
+                width=2003,
+                height=2750,
+                panels=3,
+                inter_glass_profile="— Без межстекольного профиля —",
+                profile_left_lock_bar=True,
+                profile_right_lock_bar=True,
+                profile_left_handle_bar=True,
+                profile_right_handle_bar=True,
+                lock_left="ЗАМОК-ЗАЩЕЛКА 1стор RS3018",
+                lock_right="ЗАМОК-ЗАЩЕЛКА 1стор RS3018",
+                handle_left=None,
+                handle_right=None,
+            )
+        )
+
+        assert _ceil_panel_widths(result) == [620, 612, 620]
+        assert _ceil_panel_profile_lengths(result) == [636, 612, 636]
+        assert not _find_profile(result, "RS2061")
+
+    def test_five_panel_reference_keeps_side_specific_offsets(self):
+        result = calculate_slide(
+            _make_section(
+                width=4310,
+                height=2620,
+                panels=5,
+                rails=5,
+                inter_glass_profile="Алюминиевый RS2061",
+                profile_left_lock_bar=False,
+                profile_right_lock_bar=False,
+                profile_left_p_bar=True,
+                profile_right_p_bar=True,
+                profile_left_bubble=True,
+                profile_right_bubble=True,
+                handle_left=None,
+                handle_right="Ручка-скоба 600мм RS30201",
+                handle_offset_right=100,
+                lock_left=None,
+                lock_right=None,
+            )
+        )
+
+        assert _ceil_panel_widths(result) == [850, 834, 834, 834, 950]
+        assert _ceil_panel_profile_lengths(result) == [850, 831, 831, 831, 947]

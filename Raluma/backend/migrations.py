@@ -144,6 +144,7 @@ _DATA_MIGRATIONS = [
     "UPDATE sections SET lock = 'ЗАМОК двухсторонний с ключом RS3020' WHERE lock IN ('RS3019 С ключом', 'ЗАМОК-ЗАЩЕЛКА 2стор с ключом')",
     "UPDATE sections SET handle = 'Ручка-скоба 600мм RS30201' WHERE handle = 'Ручка-скоба'",
     "UPDATE sections SET inter_glass_profile = 'Профиль с зацепом RS3061' WHERE inter_glass_profile = 'h-профиль RS1004'",
+    "UPDATE sections SET inter_glass_profile = 'Алюминиевый RS2061' WHERE system = 'СЛАЙД' AND inter_glass_profile IS NULL",
     "UPDATE catalog_items SET paint_mode = 'Частично', note = 'В заявке на покраску отмечать область, которую не красить' WHERE sku IN ('RS2323', 'RS2325')",
     "UPDATE catalog_items SET paint_mode = 'Частично', note = 'Накладной порог, верхние бобышки не красить' WHERE sku IN ('RS23231', 'RS23251')",
     "UPDATE catalog_items SET image_file = 'RS1313.png' WHERE sku = 'RS1313'",

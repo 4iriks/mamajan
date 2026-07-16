@@ -1,4 +1,11 @@
-import { Section, LBL, INP, SEL } from './types';
+import {
+  DEFAULT_INTER_GLASS_PROFILE,
+  NO_INTER_GLASS_PROFILE,
+  Section,
+  LBL,
+  INP,
+  SEL,
+} from './types';
 import { Checkbox, ToggleGroup, RadioList, ProfileCheckbox, SectionDivider } from './FormInputs';
 
 // ── Tab: Основное (общая для всех систем) ─────────────────────────────────────
@@ -192,8 +199,8 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
           </div>
           <div className="space-y-1.5">
             <label className={LBL}>Межстекольный профиль</label>
-            <select value={s.interGlassProfile || ''} onChange={e => update({ interGlassProfile: e.target.value || undefined })} className={SEL}>
-              <option value="">— Без межстекольного профиля —</option>
+            <select value={s.interGlassProfile || DEFAULT_INTER_GLASS_PROFILE} onChange={e => update({ interGlassProfile: e.target.value })} className={SEL}>
+              <option value={NO_INTER_GLASS_PROFILE}>{NO_INTER_GLASS_PROFILE}</option>
               <option>Алюминиевый RS2061</option>
               <option>Прозрачный с фетром RS1006</option>
               <option>Профиль с зацепом RS3061</option>
