@@ -130,6 +130,69 @@ assert.equal(centerHandleAnchors.length, 2, '2-row room view must render both ce
 assert.ok(centerHandleAnchors[0].x < centerHandleAnchors[1].x, 'center handles must stay on their physical sides of the joint');
 assert.match(roomMarkupTwoRows, /data-center-lock="center" data-center-lock-position="joint"/, 'center lock must be attached to the central joint');
 
+const movableTwoRowsMarkup = renderToStaticMarkup(
+  <SlideRoomViewSVG
+    section={{
+      ...sectionTwoRows,
+      profileLeftHandleBar: false,
+      profileLeftLockBar: false,
+      profileRightPBar: false,
+      profileRightBubble: false,
+      handleLeft: 'Ручка-кноб RS3014',
+      handleRight: 'Ручка-кноб RS3014',
+    }}
+    calc={calcTwoRows}
+  />,
+);
+assert.equal(
+  (movableTwoRowsMarkup.match(/data-panel-direction="both"/g) ?? []).length,
+  4,
+  'each 2-row half must show bidirectional arrows when its outer panel is movable',
+);
+
+const leftDeafTwoRowsMarkup = renderToStaticMarkup(
+  <SlideRoomViewSVG
+    section={{
+      ...sectionTwoRows,
+      profileLeftHandleBar: false,
+      profileLeftLockBar: false,
+      profileRightPBar: false,
+      profileRightBubble: false,
+      handleLeft: 'Без ручки (глухая)',
+      handleRight: 'Ручка-кноб RS3014',
+    }}
+    calc={calcTwoRows}
+  />,
+);
+assert.equal(
+  (leftDeafTwoRowsMarkup.match(/data-panel-direction="both"/g) ?? []).length,
+  2,
+  'a deaf outer panel must keep only its half one-directional',
+);
+assert.equal(
+  (leftDeafTwoRowsMarkup.match(/data-panel-direction="left"/g) ?? []).length,
+  1,
+  'the remaining moving panel in a deaf left half must point toward the edge',
+);
+
+const centerRs112Section: Section = {
+  ...sectionTwoRows,
+  centerHandle: 'Ручки-профиль RS112 (2шт)',
+  centerLock: 'Без',
+};
+const centerRs112RoomMarkup = renderToStaticMarkup(<SlideRoomViewSVG section={centerRs112Section} calc={calcTwoRows} />);
+const centerRs112TopMarkup = renderToStaticMarkup(<SlideSchemeSVG section={centerRs112Section} calc={calcTwoRows} />);
+assert.equal(
+  (centerRs112RoomMarkup.match(/data-center-rs112-room="(left|right)"/g) ?? []).length,
+  2,
+  'room view must render a 40 mm RS112 strip on both central panels',
+);
+assert.equal(
+  (centerRs112TopMarkup.match(/data-center-rs112-top="(left|right)"/g) ?? []).length,
+  2,
+  'top view must render both central RS112 profiles',
+);
+
 const roomMarkupRs206 = renderToStaticMarkup(
   <SlideRoomViewSVG section={{ ...sectionTwoRows, centerLock: 'Накидная защёлка RS206' }} calc={calcTwoRows} />,
 );

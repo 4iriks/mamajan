@@ -426,6 +426,67 @@ class TestLocalPreview:
         assert 'data-profile="inter-glass" data-panel="3" data-dir="-1"' in r.text
         assert r.text.count('data-profile="inter-glass"') == 2
 
+    def test_local_preview_two_rows_matches_movement_and_center_rs112(self, client):
+        r = client.post(
+            "/api/projects/local/sections/preview",
+            json={
+                "project": {"number": "LOCAL-2R-RS112", "customer": "Тест"},
+                "section": {
+                    "name": "Секция 1",
+                    "system": "СЛАЙД",
+                    "width": 6056,
+                    "height": 2820,
+                    "panels": 6,
+                    "quantity": 1,
+                    "rails": 3,
+                    "slide_rows": 2,
+                    "unused_track": "Внешний",
+                    "threshold": "Стандартный анод",
+                    "inter_glass_profile": "Алюминиевый RS2061",
+                    "handle_left": "Ручка-кноб RS3014",
+                    "handle_right": "Ручка-кноб RS3014",
+                    "center_handle": "Ручки-профиль RS112 (2шт)",
+                    "center_lock": "Без",
+                },
+            },
+        )
+
+        assert r.status_code == 200
+        assert r.text.count('data-panel-direction="both"') == 6
+        assert r.text.count('data-center-rs112-room=') == 2
+        assert r.text.count('data-center-rs112-top=') == 2
+        assert 'data-center-rs112-room="left"' in r.text
+        assert 'data-center-rs112-room="right"' in r.text
+        assert 'data-center-rs112-top="left"' in r.text
+        assert 'data-center-rs112-top="right"' in r.text
+
+    def test_local_preview_two_rows_keeps_deaf_half_outward(self, client):
+        r = client.post(
+            "/api/projects/local/sections/preview",
+            json={
+                "project": {"number": "LOCAL-2R-DEAF", "customer": "Тест"},
+                "section": {
+                    "name": "Секция 1",
+                    "system": "СЛАЙД",
+                    "width": 4000,
+                    "height": 2800,
+                    "panels": 4,
+                    "quantity": 1,
+                    "rails": 3,
+                    "slide_rows": 2,
+                    "unused_track": "Внешний",
+                    "threshold": "Стандартный анод",
+                    "handle_left": "Без ручки (глухая)",
+                    "handle_right": "Ручка-кноб RS3014",
+                    "center_handle": "Ручка-кноб RS3014",
+                },
+            },
+        )
+
+        assert r.status_code == 200
+        assert r.text.count('data-panel-direction="both"') == 2
+        assert r.text.count('data-panel-direction="left"') == 1
+
     def test_two_row_six_panel_inter_glass_profiles_start_from_center(self, client):
         r = client.post(
             "/api/projects/local/sections/preview",

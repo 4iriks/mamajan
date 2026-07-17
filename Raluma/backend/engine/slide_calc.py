@@ -696,7 +696,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         or 0
     )
     center_rs112_count = 2 if center_is_rs112 else 0
-    centr1 = 43.5 if center_is_rs112 else 0
+    centr1 = 46.5 if center_is_rs112 else 0
     centr2 = 8 if center_is_rs112 else 0
 
     wall_count = (1 if wall_l else 0) + (1 if wall_r else 0)
@@ -917,11 +917,12 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         )
 
     if center_is_rs112:
+        center_connector_len = round(handle_bar_len + 17, 1)
         result.profiles.append(
             ProfileItem(
                 article="RS1083",
                 name="Соединительный профиль 30×20×30",
-                length_mm=round(handle_bar_len + 17, 1),
+                length_mm=center_connector_len,
                 qty=Q,
                 painted=painted,
                 image="RS1083.png",
@@ -933,7 +934,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
             ProfileItem(
                 article="RU010",
                 name="Магнитный уплотнитель",
-                length_mm=round(handle_bar_len, 1),
+                length_mm=center_connector_len,
                 qty=2 * Q,
                 painted=False,
                 image=None,

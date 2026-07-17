@@ -141,6 +141,9 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
   const panelWidthsMm = expandGlassWidths(calc, panels, sectionWidth || railAreaW);
   const panelLayout = buildPanelLayout(panelWidthsMm, leftW, railAreaW);
   const slideLeft = firstPanelInside === 'Справа';
+  const centerIsRs112 = is2row && (section.centerHandle ?? '').toLowerCase().includes('rs112');
+  const centerLeftIndex = Math.max(0, Math.floor(panels / 2) - 1);
+  const centerRightIndex = Math.min(panels - 1, Math.floor(panels / 2));
 
   const scaleBaseMm = Math.max(sectionWidth || panelWidthsMm.reduce((sum, width) => sum + width, 0), 1);
   const mmToPx = (mm: number, minPx = 0) => Math.max(minPx, (mm / scaleBaseMm) * railAreaW);
@@ -307,8 +310,6 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
         const px = layout.x;
         const panelW = layout.width;
         const panelNum = is2row ? pi + 1 : (firstPanelInside === 'Справа' ? panels - pi : pi + 1);
-        const centerLeftIndex = panels / 2 - 1;
-        const centerRightIndex = panels / 2;
         let rx = px + (pi === 0 ? 5 : -6);
         let rRight = px + panelW + (pi === panels - 1 ? -5 : 6);
         if (is2row && pi === centerLeftIndex) {
@@ -327,6 +328,33 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
             ) : (
               <text x={cx} y={cy + 5} textAnchor="middle" fontSize="9" fill="var(--theme-accent)" fillOpacity="0.9" fontWeight="bold">{panelNum}</text>
             )}
+          </g>
+        );
+      })}
+
+      {centerIsRs112 && ([
+        { side: 'left', panelIndex: centerLeftIndex },
+        { side: 'right', panelIndex: centerRightIndex },
+      ] as const).map(({ side, panelIndex }) => {
+        const layout = panelLayout[panelIndex];
+        const railIndex = panelRailMap[panelIndex] ?? 0;
+        const cy = topPad + railIndex * rowH + rowH / 2;
+        const profileX = side === 'left'
+          ? layout.x + layout.width - centerGapPx / 2 - 4
+          : layout.x + centerGapPx / 2 + 4;
+        const glassEndX = profileX + (side === 'left' ? -9 : 9);
+        return (
+          <g key={`center-rs112-${side}`} data-center-rs112-top={side} data-profile-width-mm="40">
+            <line x1={profileX} y1={cy - 14} x2={profileX} y2={cy + 14}
+              stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.82" />
+            <line x1={profileX - 5} y1={cy - 14} x2={profileX + 5} y2={cy - 14}
+              stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.82" strokeLinecap="round" />
+            <line x1={profileX - 5} y1={cy + 14} x2={profileX + 5} y2={cy + 14}
+              stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.82" strokeLinecap="round" />
+            <line x1={profileX} y1={cy - 3} x2={glassEndX} y2={cy - 3}
+              stroke="var(--theme-accent)" strokeWidth="1.4" strokeOpacity="0.68" />
+            <line x1={profileX} y1={cy + 3} x2={glassEndX} y2={cy + 3}
+              stroke="var(--theme-accent)" strokeWidth="1.4" strokeOpacity="0.68" />
           </g>
         );
       })}
@@ -398,6 +426,7 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
   const centerLock = section.centerLock || 'Без';
   const firstPanelsInCenter = (section.unusedTrack ?? 'Внешний') === 'Внешний';
   const centerIsDeaf = centerHandle === 'Без ручки (глухие)' || centerHandle === '';
+  const centerIsRs112 = is2row && centerHandle.toLowerCase().includes('rs112');
   const centerLeftIdx = Math.max(0, Math.floor(panels / 2) - 1);
   const centerRightIdx = Math.min(panels - 1, Math.floor(panels / 2));
 
@@ -521,10 +550,31 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
         const isCenterPanel = is2row && (i === centerLeftIdx || i === centerRightIdx);
         const isDeaf = (isLeftPanel && leftIsDeaf) || (isRightPanel && rightIsDeaf) || (isCenterPanel && centerIsDeaf);
         const panelArrowLeft = is2row ? i < panels / 2 : arrowLeft;
+        const panelBidirectional = is2row
+          ? (i < panels / 2 ? !leftIsDeaf : !rightIsDeaf)
+          : arrowsBothDirections;
+        const centerRs112Width = Math.min(pW * 0.25, Math.max(4, 40 * drawingScale));
+        const centerRs112X = i === centerLeftIdx ? px + pW - centerRs112Width : px;
 
         return (
           <g key={i}>
             <rect x={px} y={iY} width={pW} height={iH} fill="var(--theme-accent)" fillOpacity="0.07" />
+
+            {isCenterPanel && centerIsRs112 && (
+              <rect
+                data-center-rs112-room={i === centerLeftIdx ? 'left' : 'right'}
+                data-profile-width-mm="40"
+                x={centerRs112X}
+                y={iY + 1}
+                width={centerRs112Width}
+                height={Math.max(1, iH - 2)}
+                fill="var(--theme-accent)"
+                fillOpacity="0.28"
+                stroke="var(--theme-accent)"
+                strokeWidth="0.8"
+                strokeOpacity="0.8"
+              />
+            )}
 
             {i < panels - 1 && (is2row && i === centerLeftIdx ? (
               <line x1={px + pW} y1={iY} x2={px + pW} y2={iY + iH}
@@ -550,20 +600,20 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
             {!isDeaf && (
               <>
                 <line
-                  data-panel-direction={arrowsBothDirections ? 'both' : (panelArrowLeft ? 'left' : 'right')}
+                  data-panel-direction={panelBidirectional ? 'both' : (panelArrowLeft ? 'left' : 'right')}
                   x1={panelArrowLeft ? cx + aLen / 2 : cx - aLen / 2}
                   y1={cy + 5}
                   x2={panelArrowLeft ? cx - aLen / 2 : cx + aLen / 2}
                   y2={cy + 5}
                   stroke="var(--theme-accent)" strokeWidth="1.3" strokeOpacity="0.55"
                 />
-                {(panelArrowLeft || arrowsBothDirections) && (
+                {(panelArrowLeft || panelBidirectional) && (
                   <polyline
                     points={`${cx - aLen / 2 + 6},${cy + 1} ${cx - aLen / 2},${cy + 5} ${cx - aLen / 2 + 6},${cy + 9}`}
                     stroke="var(--theme-accent)" strokeWidth="1.3" fill="none" strokeOpacity="0.55"
                   />
                 )}
-                {(!panelArrowLeft || arrowsBothDirections) && (
+                {(!panelArrowLeft || panelBidirectional) && (
                   <polyline
                     points={`${cx + aLen / 2 - 6},${cy + 1} ${cx + aLen / 2},${cy + 5} ${cx + aLen / 2 - 6},${cy + 9}`}
                     stroke="var(--theme-accent)" strokeWidth="1.3" fill="none" strokeOpacity="0.55"
@@ -571,7 +621,7 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
                 )}
               </>
             )}
-            {isCenterPanel && !centerIsDeaf && (() => {
+            {isCenterPanel && !centerIsDeaf && !centerIsRs112 && (() => {
               const inset = Math.min(pW * 0.35, Math.max(4, 100 * drawingScale));
               const anchorX = firstPanelsInCenter
                 ? (i === centerLeftIdx ? px + pW - inset : px + inset)

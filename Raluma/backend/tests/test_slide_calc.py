@@ -1798,8 +1798,30 @@ class TestSlideTwoRows:
         assert rs1083.length_mm == 2255
         assert rs1083.name == "Соединительный профиль 30×20×30"
         assert ru010.qty == 2
+        assert ru010.length_mm == rs1083.length_mm
         assert not _find_hardware(r, "RS3110")
         assert not _find_profile(r, "RS3110")
+
+    def test_center_rs112_uses_updated_465_center_offset(self):
+        r = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                rails=3,
+                panels=4,
+                center_handle="Ручки-профиль RS112 (2шт)",
+                center_lock="Без",
+                first_panel_inside=None,
+            )
+        )
+
+        edge_width = round((2000 - 3 - 16 - 16 - 46.5 - 8 + 9.5 * 2) / 4, 1)
+        center_width = round(edge_width + 8, 1)
+        assert [panel.width_mm for panel in r.panel_glass] == [
+            edge_width,
+            center_width,
+            center_width,
+            edge_width,
+        ]
 
     def test_center_rs112_splits_glass_profile_lengths(self):
         r = calculate_slide(
