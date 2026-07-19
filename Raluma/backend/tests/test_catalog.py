@@ -124,6 +124,19 @@ def test_profile_asset_returns_new_rs123_and_rs3110_images(client):
         assert len(r.content) > 0
 
 
+def test_profile_asset_returns_side_assembly_images(client):
+    for filename in (
+        "SIDE_RS1002.png",
+        "SIDE_RS1082_RS1002.png",
+        "SIDE_RS1082_RS112.png",
+        "SIDE_RS2081_RS112.png",
+    ):
+        r = client.get(f"/api/catalog/profile-assets/{filename}")
+        assert r.status_code == 200
+        assert r.headers["content-type"] == "image/png"
+        assert len(r.content) > 0
+
+
 def test_profile_asset_rejects_path_traversal(client):
     r = client.get("/api/catalog/profile-assets/..%2Fmodels.py")
 

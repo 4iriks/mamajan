@@ -78,13 +78,62 @@ function findProfileDimension(
   return typeof value === 'number' && value > 0 ? value : fallback;
 }
 
-type SideAssemblyVariant = 'lock-handle' | 'p-handle' | 'p-bubble';
+type SideAssemblyVariant = 'lock-handle' | 'p-handle' | 'p-bubble' | 'bubble';
 
-function sideAssemblyBaseWidth(variant: SideAssemblyVariant | null) {
-  if (variant === 'lock-handle') return 100;
-  if (variant === 'p-handle') return 82;
-  if (variant === 'p-bubble') return 56;
-  return 0;
+const SIDE_ASSEMBLY_IMAGES: Record<SideAssemblyVariant, {
+  filename: string;
+  sourceWidth: number;
+  sourceHeight: number;
+  visibleBounds: [number, number, number, number];
+  displayHeight: number;
+}> = {
+  'lock-handle': {
+    filename: 'SIDE_RS2081_RS112.png',
+    sourceWidth: 584,
+    sourceHeight: 383,
+    visibleBounds: [33, 0, 583, 364],
+    displayHeight: 60,
+  },
+  'p-handle': {
+    filename: 'SIDE_RS1082_RS112.png',
+    sourceWidth: 389,
+    sourceHeight: 401,
+    visibleBounds: [36, 14, 357, 379],
+    displayHeight: 60,
+  },
+  'p-bubble': {
+    filename: 'SIDE_RS1082_RS1002.png',
+    sourceWidth: 249,
+    sourceHeight: 245,
+    visibleBounds: [42, 38, 220, 215],
+    displayHeight: 44,
+  },
+  bubble: {
+    filename: 'SIDE_RS1002.png',
+    sourceWidth: 177,
+    sourceHeight: 133,
+    visibleBounds: [17, 21, 149, 108],
+    displayHeight: 32,
+  },
+};
+
+function profileAssetUrl(filename: string) {
+  return `/api/catalog/profile-assets/${encodeURIComponent(filename)}`;
+}
+
+function sideAssemblyImageLayout(variant: SideAssemblyVariant) {
+  const image = SIDE_ASSEMBLY_IMAGES[variant];
+  const [minX, minY, maxX, maxY] = image.visibleBounds;
+  const scale = image.displayHeight / (maxY - minY + 1);
+
+  return {
+    ...image,
+    imageWidth: image.sourceWidth * scale,
+    imageHeight: image.sourceHeight * scale,
+    imageX: -maxX * scale,
+    imageY: -((minY + maxY) / 2) * scale,
+    visibleWidth: (maxX - minX + 1) * scale,
+  };
 }
 
 function sideAssemblyVariant(
@@ -96,10 +145,12 @@ function sideAssemblyVariant(
   if (lockBar && handleBar) return 'lock-handle';
   if (pBar && handleBar) return 'p-handle';
   if (pBar && bubble) return 'p-bubble';
+  if (bubble) return 'bubble';
   return null;
 }
 
 export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: SlideCalcPreview | null }) {
+  const sideAssemblyFilterPrefix = React.useId().replace(/:/g, '');
   const {
     panels, rails = 3, firstPanelInside = 'Справа', unusedTrack,
     width: sectionWidth,
@@ -168,10 +219,9 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
     section.profileRightHandleBar,
     section.profileRightBubble,
   );
-  const sideAssemblyScale = 0.9;
   const sideAssemblyOverlap = 16;
-  const leftAssemblyVisualWidth = sideAssemblyBaseWidth(leftSideVariant) * sideAssemblyScale;
-  const rightAssemblyVisualWidth = sideAssemblyBaseWidth(rightSideVariant) * sideAssemblyScale;
+  const leftAssemblyVisualWidth = leftSideVariant ? sideAssemblyImageLayout(leftSideVariant).visibleWidth : 0;
+  const rightAssemblyVisualWidth = rightSideVariant ? sideAssemblyImageLayout(rightSideVariant).visibleWidth : 0;
   const schemeLeftX = leftSideVariant ? leftW - leftAssemblyVisualWidth + sideAssemblyOverlap - 4 : leftW;
   const schemeRightX = rightSideVariant ? leftW + railAreaW + rightAssemblyVisualWidth - sideAssemblyOverlap + 4 : leftW + railAreaW;
 
@@ -216,58 +266,31 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
     if (!variant) return null;
 
     const cy = topPad + railIndex * rowH + rowH / 2;
-    const visualWidth = sideAssemblyBaseWidth(variant) * sideAssemblyScale;
-    const x = side === 'left'
-      ? leftW - visualWidth + sideAssemblyOverlap
-      : leftW + railAreaW + visualWidth - sideAssemblyOverlap;
+    const image = sideAssemblyImageLayout(variant);
+    const x = side === 'left' ? leftW + sideAssemblyOverlap : leftW + railAreaW - sideAssemblyOverlap;
     const transform = side === 'right'
-      ? `translate(${x} ${cy}) scale(-${sideAssemblyScale} ${sideAssemblyScale})`
-      : `translate(${x} ${cy}) scale(${sideAssemblyScale})`;
-    const stroke = 'var(--theme-accent)';
-    const profileFill = 'var(--theme-page)';
-
-    const renderHandleProfile = (offsetX: number) => (
-      <g>
-        <line x1={offsetX + 12} y1={-22} x2={offsetX + 12} y2={22} stroke={stroke} strokeWidth="2" strokeOpacity="0.72" />
-        <line x1={offsetX + 5} y1={-22} x2={offsetX + 19} y2={-22} stroke={stroke} strokeWidth="2" strokeOpacity="0.72" strokeLinecap="round" />
-        <line x1={offsetX + 5} y1={22} x2={offsetX + 19} y2={22} stroke={stroke} strokeWidth="2" strokeOpacity="0.72" strokeLinecap="round" />
-        <line x1={offsetX + 2} y1={-4} x2={offsetX + 34} y2={-4} stroke={stroke} strokeWidth="1.8" strokeOpacity="0.56" />
-        <line x1={offsetX + 2} y1={4} x2={offsetX + 34} y2={4} stroke={stroke} strokeWidth="1.8" strokeOpacity="0.56" />
-      </g>
-    );
-
-    if (variant === 'lock-handle') {
-      return (
-        <g key={`${side}-side-assembly`} transform={transform} data-side-assembly={variant}>
-          <rect x={1} y={-12} width={32} height={24} fill={profileFill} fillOpacity="0.68" stroke={stroke} strokeWidth="1.7" strokeOpacity="0.74" />
-          <line x1={3} y1={-8} x2={8} y2={-8} stroke={stroke} strokeWidth="1" strokeOpacity="0.38" />
-          <line x1={3} y1={8} x2={8} y2={8} stroke={stroke} strokeWidth="1" strokeOpacity="0.38" />
-          <path d="M 33 -10 H 55 V -4 H 43 V 4 H 55 V 10 H 33 Z" fill={profileFill} fillOpacity="0.72" stroke={stroke} strokeWidth="1.7" strokeOpacity="0.74" strokeLinejoin="round" />
-          <path d="M 42 -7 C 35 -3 35 3 42 7" fill="none" stroke={stroke} strokeWidth="1.45" strokeOpacity="0.58" strokeLinecap="round" />
-          <path d="M 53 -5 H 69 M 53 5 H 69 M 61 -5 V 5" fill="none" stroke={stroke} strokeWidth="1.35" strokeOpacity="0.62" strokeLinecap="round" />
-          <path d="M 69 -5 H 84 V -1 H 76 V 1 H 84 V 5 H 69" fill="none" stroke={stroke} strokeWidth="1.45" strokeOpacity="0.74" strokeLinejoin="round" />
-          {renderHandleProfile(66)}
-        </g>
-      );
-    }
-
-    if (variant === 'p-handle') {
-      return (
-        <g key={`${side}-side-assembly`} transform={transform} data-side-assembly={variant}>
-          <path d="M 2 -13 H 34 V -7 H 13 V 7 H 34 V 13 H 2 Z" fill={profileFill} fillOpacity="0.72" stroke={stroke} strokeWidth="1.7" strokeOpacity="0.74" strokeLinejoin="round" />
-          <path d="M 8 -8 C 17 -4 17 4 8 8" fill="none" stroke={stroke} strokeWidth="1.35" strokeOpacity="0.58" strokeLinecap="round" />
-          <path d="M 33 -5 H 50 M 33 5 H 50 M 42 -5 V 5" fill="none" stroke={stroke} strokeWidth="1.35" strokeOpacity="0.62" strokeLinecap="round" />
-          {renderHandleProfile(47)}
-        </g>
-      );
-    }
+      ? `translate(${x} ${cy}) scale(-1 1)`
+      : `translate(${x} ${cy})`;
+    const filterId = `${sideAssemblyFilterPrefix}-side-assembly-${side}`;
 
     return (
       <g key={`${side}-side-assembly`} transform={transform} data-side-assembly={variant}>
-        <path d="M 2 -13 H 34 V -8 H 12 V 8 H 34 V 13 H 2 Z" fill={profileFill} fillOpacity="0.72" stroke={stroke} strokeWidth="1.7" strokeOpacity="0.74" strokeLinejoin="round" />
-        <path d="M 16 -8 C 4 -5 4 5 16 8" fill="none" stroke={stroke} strokeWidth="1.7" strokeOpacity="0.62" strokeLinecap="round" />
-        <line x1={18} y1={-7} x2={18} y2={7} stroke={stroke} strokeWidth="1.1" strokeOpacity="0.4" />
-        <path d="M 31 -5 H 54 M 31 5 H 54" fill="none" stroke={stroke} strokeWidth="1.35" strokeOpacity="0.62" strokeLinecap="round" />
+        <defs>
+          <filter id={filterId} x="-10%" y="-10%" width="120%" height="120%" colorInterpolationFilters="sRGB">
+            <feFlood floodColor="var(--theme-accent)" floodOpacity="0.82" result="profile-color" />
+            <feComposite in="profile-color" in2="SourceAlpha" operator="in" />
+          </filter>
+        </defs>
+        <image
+          data-side-assembly-image={image.filename}
+          href={profileAssetUrl(image.filename)}
+          x={image.imageX}
+          y={image.imageY}
+          width={image.imageWidth}
+          height={image.imageHeight}
+          preserveAspectRatio="none"
+          filter={`url(#${filterId})`}
+        />
       </g>
     );
   };

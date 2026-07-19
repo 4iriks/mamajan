@@ -70,8 +70,44 @@ assert.match(roomMarkup, />23</, 'room view must render threshold size from cata
 assert.doesNotMatch(schemeMarkup, />16</, 'top scheme must not render a separate wall profile marker');
 assert.match(schemeMarkup, /data-side-assembly="lock-handle"/, 'top scheme must render the left side assembly');
 assert.match(schemeMarkup, /data-side-assembly="p-bubble"/, 'top scheme must render the right side assembly');
-assert.doesNotMatch(schemeMarkup, /RS112|RS2081/, 'top scheme must not render old side profile stack');
+assert.match(schemeMarkup, /data-side-assembly-image="SIDE_RS2081_RS112.png"/, 'left side assembly must use the technical PNG');
+assert.match(schemeMarkup, /data-side-assembly-image="SIDE_RS1082_RS1002.png"/, 'right side assembly must use the technical PNG');
+assert.ok(
+  schemeMarkup.indexOf('data-side-assembly-image=') > schemeMarkup.lastIndexOf('data-scheme-panel='),
+  'side assembly images must render above the glass panels',
+);
+assert.doesNotMatch(schemeMarkup, />RS(?:112|2081)</, 'top scheme must not render old side profile labels');
 assert.match(schemeMarkup, /stroke-linecap="round"/, 'top scheme must render the mirrored inter-glass profile path');
+
+const bubbleOnlyMarkup = renderToStaticMarkup(
+  <SlideSchemeSVG
+    section={{
+      ...section,
+      profileLeftLockBar: false,
+      profileLeftPBar: false,
+      profileLeftHandleBar: false,
+      profileLeftBubble: true,
+    }}
+    calc={calc}
+  />,
+);
+assert.match(bubbleOnlyMarkup, /data-side-assembly="bubble"/, 'standalone RS1002 must render as a side assembly');
+assert.match(bubbleOnlyMarkup, /data-side-assembly-image="SIDE_RS1002.png"/, 'standalone RS1002 must use its PNG');
+
+const pHandleMarkup = renderToStaticMarkup(
+  <SlideSchemeSVG
+    section={{
+      ...section,
+      profileLeftLockBar: false,
+      profileLeftPBar: true,
+      profileLeftHandleBar: true,
+      profileLeftBubble: false,
+    }}
+    calc={calc}
+  />,
+);
+assert.match(pHandleMarkup, /data-side-assembly="p-handle"/, 'RS1082 with RS112 must render as a side assembly');
+assert.match(pHandleMarkup, /data-side-assembly-image="SIDE_RS1082_RS112.png"/, 'RS1082 with RS112 must use its PNG');
 
 const sectionTwoRows: Section = {
   ...section,

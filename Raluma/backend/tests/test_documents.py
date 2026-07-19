@@ -570,6 +570,33 @@ class TestLocalPreview:
         assert 'data-profile-image="RS2333-right"' in r.text
         assert 'data-side-assembly="lock-handle"' in r.text
         assert 'data-side-assembly="p-bubble"' in r.text
+        assert 'data-side-assembly-image="SIDE_RS2081_RS112.png"' in r.text
+        assert 'data-side-assembly-image="SIDE_RS1082_RS1002.png"' in r.text
+        assert r.text.index('data-side-assembly-image="SIDE_RS2081_RS112.png"') > r.text.rindex(
+            'data-scheme-panel='
+        )
+
+    def test_local_preview_bubble_only_uses_dedicated_side_image(self, client):
+        r = client.post(
+            "/api/projects/local/sections/preview",
+            json={
+                "project": {"number": "LOCAL-BUBBLE", "customer": "Тест"},
+                "section": {
+                    "name": "Секция 1",
+                    "system": "СЛАЙД",
+                    "width": 2000,
+                    "height": 2400,
+                    "panels": 2,
+                    "quantity": 1,
+                    "rails": 3,
+                    "profile_left_bubble": True,
+                },
+            },
+        )
+
+        assert r.status_code == 200
+        assert 'data-side-assembly="bubble"' in r.text
+        assert 'data-side-assembly-image="SIDE_RS1002.png"' in r.text
 
     def test_local_preview_inter_glass_mirrors_for_first_panel_right(self, client):
         r = client.post(

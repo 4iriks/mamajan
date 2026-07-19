@@ -389,14 +389,21 @@
       {% set wall_attach_overlap = 11 if rails == 5 else 8 %}
       {% set wall_img_y = top_pad - 6 %}
       {% set wall_img_h = rails * row_h + 12 %}
-      {% set side_scale = 0.55 %}
       {% set side_overlap = 9 %}
-      {% set left_side_variant = 'lock-handle' if section.profile_left_lock_bar and section.profile_left_handle_bar else ('p-handle' if section.profile_left_p_bar and section.profile_left_handle_bar else ('p-bubble' if section.profile_left_p_bar and section.profile_left_bubble else '')) %}
-      {% set right_side_variant = 'lock-handle' if section.profile_right_lock_bar and section.profile_right_handle_bar else ('p-handle' if section.profile_right_p_bar and section.profile_right_handle_bar else ('p-bubble' if section.profile_right_p_bar and section.profile_right_bubble else '')) %}
-      {% set left_side_base_w = 100 if left_side_variant == 'lock-handle' else (82 if left_side_variant == 'p-handle' else (56 if left_side_variant == 'p-bubble' else 0)) %}
-      {% set right_side_base_w = 100 if right_side_variant == 'lock-handle' else (82 if right_side_variant == 'p-handle' else (56 if right_side_variant == 'p-bubble' else 0)) %}
-      {% set left_side_visual_w = left_side_base_w * side_scale %}
-      {% set right_side_visual_w = right_side_base_w * side_scale %}
+      {% set side_images = {
+        'lock-handle': {'filename':'SIDE_RS2081_RS112.png', 'source_w':584, 'source_h':383, 'min_x':33, 'min_y':0, 'max_x':583, 'max_y':364, 'display_h':34},
+        'p-handle': {'filename':'SIDE_RS1082_RS112.png', 'source_w':389, 'source_h':401, 'min_x':36, 'min_y':14, 'max_x':357, 'max_y':379, 'display_h':34},
+        'p-bubble': {'filename':'SIDE_RS1082_RS1002.png', 'source_w':249, 'source_h':245, 'min_x':42, 'min_y':38, 'max_x':220, 'max_y':215, 'display_h':26},
+        'bubble': {'filename':'SIDE_RS1002.png', 'source_w':177, 'source_h':133, 'min_x':17, 'min_y':21, 'max_x':149, 'max_y':108, 'display_h':20}
+      } %}
+      {% set left_side_variant = 'lock-handle' if section.profile_left_lock_bar and section.profile_left_handle_bar else ('p-handle' if section.profile_left_p_bar and section.profile_left_handle_bar else ('p-bubble' if section.profile_left_p_bar and section.profile_left_bubble else ('bubble' if section.profile_left_bubble else ''))) %}
+      {% set right_side_variant = 'lock-handle' if section.profile_right_lock_bar and section.profile_right_handle_bar else ('p-handle' if section.profile_right_p_bar and section.profile_right_handle_bar else ('p-bubble' if section.profile_right_p_bar and section.profile_right_bubble else ('bubble' if section.profile_right_bubble else ''))) %}
+      {% set left_side_image = side_images[left_side_variant] if left_side_variant else none %}
+      {% set right_side_image = side_images[right_side_variant] if right_side_variant else none %}
+      {% set left_side_scale = left_side_image.display_h / (left_side_image.max_y - left_side_image.min_y + 1) if left_side_image else 0 %}
+      {% set right_side_scale = right_side_image.display_h / (right_side_image.max_y - right_side_image.min_y + 1) if right_side_image else 0 %}
+      {% set left_side_visual_w = (left_side_image.max_x - left_side_image.min_x + 1) * left_side_scale if left_side_image else 0 %}
+      {% set right_side_visual_w = (right_side_image.max_x - right_side_image.min_x + 1) * right_side_scale if right_side_image else 0 %}
       {% set scheme_left_x = left_w - left_side_visual_w + side_overlap - 2 if left_side_variant else left_w %}
       {% set scheme_right_x = left_w + rail_w + right_side_visual_w - side_overlap + 2 if right_side_variant else left_w + rail_w %}
       {% set inter_glass_text = (section.inter_glass_profile or '')|lower %}
@@ -462,7 +469,7 @@
         {% set gx1 = px + gl %}
         {% set gx2 = px + panel_w - gr %}
         {# Панель — тонкий прямоугольник #}
-        <rect x="{{ gx1 }}" y="{{ cy - 5 }}" width="{{ gx2 - gx1 }}" height="10" fill="#ddeef5" stroke="#000" stroke-width="0.8"/>
+        <rect data-scheme-panel="{{ pi + 1 }}" x="{{ gx1 }}" y="{{ cy - 5 }}" width="{{ gx2 - gx1 }}" height="10" fill="#ddeef5" stroke="#000" stroke-width="0.8"/>
         {# Номер панели #}
         {% set pnum = pi + 1 if is2row else (P - pi if first_right else pi + 1) %}
         <text x="{{ (gx1 + gx2) / 2 }}" y="{{ cy + 3 }}" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#333">{{ panel_w_mm|glass_mm }} · {{ pnum }}</text>
@@ -492,74 +499,28 @@
         {% set top_ns.x = top_ns.x + panel_w %}
         {% endfor %}
 
-        {% if left_side_variant %}
+        {% if left_side_image %}
         {% set left_side_rail = calc.panel_rails[0] if calc.panel_rails|length > 0 else 0 %}
         {% set left_side_cy = top_pad + left_side_rail * row_h + row_h / 2 %}
-        {% set left_side_x = left_w - left_side_visual_w + side_overlap %}
-        <g transform="translate({{ left_side_x }} {{ left_side_cy }}) scale({{ side_scale }})" data-side-assembly="{{ left_side_variant }}">
-          {% if left_side_variant == 'lock-handle' %}
-          <rect x="1" y="-12" width="32" height="24" fill="#fff" fill-opacity="0.92" stroke="#333" stroke-width="1.7"/>
-          <line x1="3" y1="-8" x2="8" y2="-8" stroke="#333" stroke-width="1" stroke-opacity="0.5"/>
-          <line x1="3" y1="8" x2="8" y2="8" stroke="#333" stroke-width="1" stroke-opacity="0.5"/>
-          <path d="M 33 -10 H 55 V -4 H 43 V 4 H 55 V 10 H 33 Z" fill="#fff" fill-opacity="0.92" stroke="#333" stroke-width="1.7" stroke-linejoin="round"/>
-          <path d="M 42 -7 C 35 -3 35 3 42 7" fill="none" stroke="#333" stroke-width="1.45" stroke-linecap="round"/>
-          <path d="M 53 -5 H 69 M 53 5 H 69 M 61 -5 V 5" fill="none" stroke="#333" stroke-width="1.35" stroke-linecap="round"/>
-          <path d="M 69 -5 H 84 V -1 H 76 V 1 H 84 V 5 H 69" fill="none" stroke="#333" stroke-width="1.45" stroke-linejoin="round"/>
-          <line x1="78" y1="-22" x2="78" y2="22" stroke="#333" stroke-width="2" stroke-opacity="0.85"/>
-          <line x1="71" y1="-22" x2="85" y2="-22" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-opacity="0.85"/>
-          <line x1="71" y1="22" x2="85" y2="22" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-opacity="0.85"/>
-          <line x1="68" y1="-4" x2="100" y2="-4" stroke="#333" stroke-width="1.8" stroke-opacity="0.7"/>
-          <line x1="68" y1="4" x2="100" y2="4" stroke="#333" stroke-width="1.8" stroke-opacity="0.7"/>
-          {% elif left_side_variant == 'p-handle' %}
-          <path d="M 2 -13 H 34 V -7 H 13 V 7 H 34 V 13 H 2 Z" fill="#fff" fill-opacity="0.92" stroke="#333" stroke-width="1.7" stroke-linejoin="round"/>
-          <path d="M 8 -8 C 17 -4 17 4 8 8" fill="none" stroke="#333" stroke-width="1.35" stroke-linecap="round"/>
-          <path d="M 33 -5 H 50 M 33 5 H 50 M 42 -5 V 5" fill="none" stroke="#333" stroke-width="1.35" stroke-linecap="round"/>
-          <line x1="59" y1="-22" x2="59" y2="22" stroke="#333" stroke-width="2" stroke-opacity="0.85"/>
-          <line x1="52" y1="-22" x2="66" y2="-22" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-opacity="0.85"/>
-          <line x1="52" y1="22" x2="66" y2="22" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-opacity="0.85"/>
-          <line x1="49" y1="-4" x2="81" y2="-4" stroke="#333" stroke-width="1.8" stroke-opacity="0.7"/>
-          <line x1="49" y1="4" x2="81" y2="4" stroke="#333" stroke-width="1.8" stroke-opacity="0.7"/>
-          {% else %}
-          <path d="M 2 -13 H 34 V -8 H 12 V 8 H 34 V 13 H 2 Z" fill="#fff" fill-opacity="0.92" stroke="#333" stroke-width="1.7" stroke-linejoin="round"/>
-          <path d="M 16 -8 C 4 -5 4 5 16 8" fill="none" stroke="#333" stroke-width="1.7" stroke-linecap="round"/>
-          <line x1="18" y1="-7" x2="18" y2="7" stroke="#333" stroke-width="1.1" stroke-opacity="0.6"/>
-          <path d="M 31 -5 H 54 M 31 5 H 54" fill="none" stroke="#333" stroke-width="1.35" stroke-linecap="round"/>
-          {% endif %}
+        {% set left_side_src = left_side_image.filename | img_b64 %}
+        <g transform="translate({{ left_w + side_overlap }} {{ left_side_cy }})" data-side-assembly="{{ left_side_variant }}">
+          <image data-side-assembly-image="{{ left_side_image.filename }}" href="{{ left_side_src }}"
+                 x="{{ 0 - left_side_image.max_x * left_side_scale }}"
+                 y="{{ 0 - (left_side_image.min_y + left_side_image.max_y) * left_side_scale / 2 }}"
+                 width="{{ left_side_image.source_w * left_side_scale }}"
+                 height="{{ left_side_image.source_h * left_side_scale }}" preserveAspectRatio="none"/>
         </g>
         {% endif %}
-        {% if right_side_variant %}
+        {% if right_side_image %}
         {% set right_side_rail = calc.panel_rails[P - 1] if calc.panel_rails|length >= P else rails - 1 %}
         {% set right_side_cy = top_pad + right_side_rail * row_h + row_h / 2 %}
-        {% set right_side_x = left_w + rail_w + right_side_visual_w - side_overlap %}
-        <g transform="translate({{ right_side_x }} {{ right_side_cy }}) scale(-{{ side_scale }} {{ side_scale }})" data-side-assembly="{{ right_side_variant }}">
-          {% if right_side_variant == 'lock-handle' %}
-          <rect x="1" y="-12" width="32" height="24" fill="#fff" fill-opacity="0.92" stroke="#333" stroke-width="1.7"/>
-          <line x1="3" y1="-8" x2="8" y2="-8" stroke="#333" stroke-width="1" stroke-opacity="0.5"/>
-          <line x1="3" y1="8" x2="8" y2="8" stroke="#333" stroke-width="1" stroke-opacity="0.5"/>
-          <path d="M 33 -10 H 55 V -4 H 43 V 4 H 55 V 10 H 33 Z" fill="#fff" fill-opacity="0.92" stroke="#333" stroke-width="1.7" stroke-linejoin="round"/>
-          <path d="M 42 -7 C 35 -3 35 3 42 7" fill="none" stroke="#333" stroke-width="1.45" stroke-linecap="round"/>
-          <path d="M 53 -5 H 69 M 53 5 H 69 M 61 -5 V 5" fill="none" stroke="#333" stroke-width="1.35" stroke-linecap="round"/>
-          <path d="M 69 -5 H 84 V -1 H 76 V 1 H 84 V 5 H 69" fill="none" stroke="#333" stroke-width="1.45" stroke-linejoin="round"/>
-          <line x1="78" y1="-22" x2="78" y2="22" stroke="#333" stroke-width="2" stroke-opacity="0.85"/>
-          <line x1="71" y1="-22" x2="85" y2="-22" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-opacity="0.85"/>
-          <line x1="71" y1="22" x2="85" y2="22" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-opacity="0.85"/>
-          <line x1="68" y1="-4" x2="100" y2="-4" stroke="#333" stroke-width="1.8" stroke-opacity="0.7"/>
-          <line x1="68" y1="4" x2="100" y2="4" stroke="#333" stroke-width="1.8" stroke-opacity="0.7"/>
-          {% elif right_side_variant == 'p-handle' %}
-          <path d="M 2 -13 H 34 V -7 H 13 V 7 H 34 V 13 H 2 Z" fill="#fff" fill-opacity="0.92" stroke="#333" stroke-width="1.7" stroke-linejoin="round"/>
-          <path d="M 8 -8 C 17 -4 17 4 8 8" fill="none" stroke="#333" stroke-width="1.35" stroke-linecap="round"/>
-          <path d="M 33 -5 H 50 M 33 5 H 50 M 42 -5 V 5" fill="none" stroke="#333" stroke-width="1.35" stroke-linecap="round"/>
-          <line x1="59" y1="-22" x2="59" y2="22" stroke="#333" stroke-width="2" stroke-opacity="0.85"/>
-          <line x1="52" y1="-22" x2="66" y2="-22" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-opacity="0.85"/>
-          <line x1="52" y1="22" x2="66" y2="22" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-opacity="0.85"/>
-          <line x1="49" y1="-4" x2="81" y2="-4" stroke="#333" stroke-width="1.8" stroke-opacity="0.7"/>
-          <line x1="49" y1="4" x2="81" y2="4" stroke="#333" stroke-width="1.8" stroke-opacity="0.7"/>
-          {% else %}
-          <path d="M 2 -13 H 34 V -8 H 12 V 8 H 34 V 13 H 2 Z" fill="#fff" fill-opacity="0.92" stroke="#333" stroke-width="1.7" stroke-linejoin="round"/>
-          <path d="M 16 -8 C 4 -5 4 5 16 8" fill="none" stroke="#333" stroke-width="1.7" stroke-linecap="round"/>
-          <line x1="18" y1="-7" x2="18" y2="7" stroke="#333" stroke-width="1.1" stroke-opacity="0.6"/>
-          <path d="M 31 -5 H 54 M 31 5 H 54" fill="none" stroke="#333" stroke-width="1.35" stroke-linecap="round"/>
-          {% endif %}
+        {% set right_side_src = right_side_image.filename | img_b64 %}
+        <g transform="translate({{ left_w + rail_w - side_overlap }} {{ right_side_cy }}) scale(-1 1)" data-side-assembly="{{ right_side_variant }}">
+          <image data-side-assembly-image="{{ right_side_image.filename }}" href="{{ right_side_src }}"
+                 x="{{ 0 - right_side_image.max_x * right_side_scale }}"
+                 y="{{ 0 - (right_side_image.min_y + right_side_image.max_y) * right_side_scale / 2 }}"
+                 width="{{ right_side_image.source_w * right_side_scale }}"
+                 height="{{ right_side_image.source_h * right_side_scale }}" preserveAspectRatio="none"/>
         </g>
         {% endif %}
 
