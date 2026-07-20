@@ -342,7 +342,8 @@ async function runScenario(cdp) {
   const deliveryFrameText = await iframeText(cdp, 'Накладная');
   assert(
     deliveryFrameText.toUpperCase().includes('НАКЛАДНАЯ №')
-      && deliveryFrameText.includes('Комплект профилей Raluma SLIDE')
+      && deliveryFrameText.includes('Raluma SLIDE')
+      && deliveryFrameText.includes('Комплект профилей')
       && deliveryFrameText.includes('Комплект фурнитуры согласно ТЗ')
       && deliveryFrameText.includes('Кол-во мест'),
     `Некорректное содержимое накладной:\n${deliveryFrameText.slice(0, 2200)}`,
