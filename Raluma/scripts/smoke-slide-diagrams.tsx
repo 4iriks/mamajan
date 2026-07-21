@@ -68,6 +68,8 @@ assert(!renderedWidths.some(width => width === 400), 'room view must not use the
 assert.match(roomMarkup, />53</, 'room view must render top profile size from catalog metadata');
 assert.match(roomMarkup, />23</, 'room view must render threshold size from catalog metadata');
 assert.doesNotMatch(schemeMarkup, />16</, 'top scheme must not render a separate wall profile marker');
+assert.match(schemeMarkup, /data-profile-image="RS2333-left"/, 'top scheme must render the left wall profile image');
+assert.match(schemeMarkup, /data-profile-image="RS2333-right"/, 'top scheme must render the right wall profile image');
 assert.match(schemeMarkup, /data-side-assembly="lock-handle"/, 'top scheme must render the left side assembly');
 assert.match(schemeMarkup, /data-side-assembly="p-bubble"/, 'top scheme must render the right side assembly');
 assert.match(schemeMarkup, /data-side-assembly-image="SIDE_RS2081_RS112.png"/, 'left side assembly must use the technical PNG');
@@ -78,6 +80,7 @@ assert.ok(
 );
 assert.doesNotMatch(schemeMarkup, />RS(?:112|2081)</, 'top scheme must not render old side profile labels');
 assert.match(schemeMarkup, /stroke-linecap="round"/, 'top scheme must render the mirrored inter-glass profile path');
+assert.match(schemeMarkup, /data-dir="-1"/, 'left-edge inter-glass profile must protrude outside the glass');
 
 const bubbleOnlyMarkup = renderToStaticMarkup(
   <SlideSchemeSVG

@@ -391,19 +391,21 @@
       {% set wall_img_h = rails * row_h + 12 %}
       {% set side_overlap = 9 %}
       {% set side_images = {
-        'lock-handle': {'filename':'SIDE_RS2081_RS112.png', 'source_w':584, 'source_h':383, 'min_x':33, 'min_y':0, 'max_x':583, 'max_y':364, 'display_h':34},
-        'p-handle': {'filename':'SIDE_RS1082_RS112.png', 'source_w':389, 'source_h':401, 'min_x':36, 'min_y':14, 'max_x':357, 'max_y':379, 'display_h':34},
-        'p-bubble': {'filename':'SIDE_RS1082_RS1002.png', 'source_w':249, 'source_h':245, 'min_x':42, 'min_y':38, 'max_x':220, 'max_y':215, 'display_h':26},
-        'bubble': {'filename':'SIDE_RS1002.png', 'source_w':177, 'source_h':133, 'min_x':17, 'min_y':21, 'max_x':149, 'max_y':108, 'display_h':20}
+        'lock-handle': {'filename':'SIDE_RS2081_RS112.png', 'source_w':584, 'source_h':383, 'min_x':33, 'min_y':0, 'max_x':583, 'max_y':364, 'display_h':34, 'width_scale':1.16, 'socket_depth':14},
+        'p-handle': {'filename':'SIDE_RS1082_RS112.png', 'source_w':389, 'source_h':401, 'min_x':36, 'min_y':14, 'max_x':357, 'max_y':379, 'display_h':34, 'width_scale':1.16, 'socket_depth':14},
+        'p-bubble': {'filename':'SIDE_RS1082_RS1002.png', 'source_w':249, 'source_h':245, 'min_x':42, 'min_y':38, 'max_x':220, 'max_y':215, 'display_h':26, 'width_scale':1, 'socket_depth':11},
+        'bubble': {'filename':'SIDE_RS1002.png', 'source_w':177, 'source_h':133, 'min_x':17, 'min_y':21, 'max_x':149, 'max_y':108, 'display_h':20, 'width_scale':1, 'socket_depth':11}
       } %}
       {% set left_side_variant = 'lock-handle' if section.profile_left_lock_bar and section.profile_left_handle_bar else ('p-handle' if section.profile_left_p_bar and section.profile_left_handle_bar else ('p-bubble' if section.profile_left_p_bar and section.profile_left_bubble else ('bubble' if section.profile_left_bubble else ''))) %}
       {% set right_side_variant = 'lock-handle' if section.profile_right_lock_bar and section.profile_right_handle_bar else ('p-handle' if section.profile_right_p_bar and section.profile_right_handle_bar else ('p-bubble' if section.profile_right_p_bar and section.profile_right_bubble else ('bubble' if section.profile_right_bubble else ''))) %}
       {% set left_side_image = side_images[left_side_variant] if left_side_variant else none %}
       {% set right_side_image = side_images[right_side_variant] if right_side_variant else none %}
-      {% set left_side_scale = left_side_image.display_h / (left_side_image.max_y - left_side_image.min_y + 1) if left_side_image else 0 %}
-      {% set right_side_scale = right_side_image.display_h / (right_side_image.max_y - right_side_image.min_y + 1) if right_side_image else 0 %}
-      {% set left_side_visual_w = (left_side_image.max_x - left_side_image.min_x + 1) * left_side_scale if left_side_image else 0 %}
-      {% set right_side_visual_w = (right_side_image.max_x - right_side_image.min_x + 1) * right_side_scale if right_side_image else 0 %}
+      {% set left_side_scale_y = left_side_image.display_h / (left_side_image.max_y - left_side_image.min_y + 1) if left_side_image else 0 %}
+      {% set right_side_scale_y = right_side_image.display_h / (right_side_image.max_y - right_side_image.min_y + 1) if right_side_image else 0 %}
+      {% set left_side_scale_x = left_side_scale_y * left_side_image.width_scale if left_side_image else 0 %}
+      {% set right_side_scale_x = right_side_scale_y * right_side_image.width_scale if right_side_image else 0 %}
+      {% set left_side_visual_w = (left_side_image.max_x - left_side_image.min_x + 1) * left_side_scale_x if left_side_image else 0 %}
+      {% set right_side_visual_w = (right_side_image.max_x - right_side_image.min_x + 1) * right_side_scale_x if right_side_image else 0 %}
       {% set scheme_left_x = left_w - left_side_visual_w + side_overlap - 2 if left_side_variant else left_w %}
       {% set scheme_right_x = left_w + rail_w + right_side_visual_w - side_overlap + 2 if right_side_variant else left_w + rail_w %}
       {% set inter_glass_text = (section.inter_glass_profile or '')|lower %}
@@ -464,8 +466,8 @@
         {% set gr = 4 %}
         {% if pi == 0 %}{% set gl = 3 %}{% endif %}
         {% if pi == P - 1 %}{% set gr = 3 %}{% endif %}
-        {% set gx1 = px + gl %}
-        {% set gx2 = px + panel_w - gr %}
+        {% set gx1 = left_w + side_overlap - left_side_image.socket_depth if pi == 0 and left_side_image else px + gl %}
+        {% set gx2 = left_w + rail_w - side_overlap + right_side_image.socket_depth if pi == P - 1 and right_side_image else px + panel_w - gr %}
         {# Панель — тонкий прямоугольник #}
         <rect data-scheme-panel="{{ pi + 1 }}" x="{{ gx1 }}" y="{{ cy - 3 }}" width="{{ gx2 - gx1 }}" height="6" fill="#ddeef5" stroke="#000" stroke-width="0.8"/>
         {# Номер панели #}
@@ -485,11 +487,13 @@
         {% endif %}
         {% set is_center_join = is2row and pi == (P // 2) - 1 %}
         {% if has_inter_glass and pi < P - 1 and not is_center_join %}
-        {% set ix = px + panel_w %}
-        {% set owner_pi = pi + 1 if (is2row and pi < P / 2) or (not is2row and first_right) else pi %}
+        {% set attaches_to_next = (is2row and pi < P / 2) or (not is2row and first_right) %}
+        {% set owner_pi = pi + 1 if attaches_to_next else pi %}
         {% set owner_ri = calc.panel_rails[owner_pi] if owner_pi < calc.panel_rails|length else ri %}
         {% set icy = top_pad + owner_ri * row_h + row_h / 2 %}
-        {% set idir = (1 if pi < P / 2 else -1) if is2row else (1 if first_right else -1) %}
+        {% set owner_edge_inset = 3 if (attaches_to_next and owner_pi == P - 1) or ((not attaches_to_next) and owner_pi == 0) else 4 %}
+        {% set ix = px + panel_w + owner_edge_inset if attaches_to_next else px + panel_w - owner_edge_inset %}
+        {% set idir = -1 if attaches_to_next else 1 %}
         {% set owner_pnum = owner_pi + 1 if is2row else (P - owner_pi if first_right else owner_pi + 1) %}
         {% set iw = inter_glass_px %}
         <path data-profile="inter-glass" data-panel="{{ owner_pnum }}" data-dir="{{ idir }}" d="M {{ ix + idir * iw }} {{ icy - 6 }} L {{ ix }} {{ icy - 6 }} L {{ ix }} {{ icy + 6 }} L {{ ix + idir * iw }} {{ icy + 6 }}" fill="none" stroke="#666" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -503,10 +507,10 @@
         {% set left_side_src = left_side_image.filename | img_b64 %}
         <g transform="translate({{ left_w + side_overlap }} {{ left_side_cy }})" data-side-assembly="{{ left_side_variant }}">
           <image data-side-assembly-image="{{ left_side_image.filename }}" href="{{ left_side_src }}"
-                 x="{{ 0 - left_side_image.max_x * left_side_scale }}"
-                 y="{{ 0 - (left_side_image.min_y + left_side_image.max_y) * left_side_scale / 2 }}"
-                 width="{{ left_side_image.source_w * left_side_scale }}"
-                 height="{{ left_side_image.source_h * left_side_scale }}" preserveAspectRatio="none"/>
+                 x="{{ 0 - left_side_image.max_x * left_side_scale_x }}"
+                 y="{{ 0 - (left_side_image.min_y + left_side_image.max_y) * left_side_scale_y / 2 }}"
+                 width="{{ left_side_image.source_w * left_side_scale_x }}"
+                 height="{{ left_side_image.source_h * left_side_scale_y }}" preserveAspectRatio="none"/>
         </g>
         {% endif %}
         {% if right_side_image %}
@@ -515,10 +519,10 @@
         {% set right_side_src = right_side_image.filename | img_b64 %}
         <g transform="translate({{ left_w + rail_w - side_overlap }} {{ right_side_cy }}) scale(-1 1)" data-side-assembly="{{ right_side_variant }}">
           <image data-side-assembly-image="{{ right_side_image.filename }}" href="{{ right_side_src }}"
-                 x="{{ 0 - right_side_image.max_x * right_side_scale }}"
-                 y="{{ 0 - (right_side_image.min_y + right_side_image.max_y) * right_side_scale / 2 }}"
-                 width="{{ right_side_image.source_w * right_side_scale }}"
-                 height="{{ right_side_image.source_h * right_side_scale }}" preserveAspectRatio="none"/>
+                 x="{{ 0 - right_side_image.max_x * right_side_scale_x }}"
+                 y="{{ 0 - (right_side_image.min_y + right_side_image.max_y) * right_side_scale_y / 2 }}"
+                 width="{{ right_side_image.source_w * right_side_scale_x }}"
+                 height="{{ right_side_image.source_h * right_side_scale_y }}" preserveAspectRatio="none"/>
         </g>
         {% endif %}
 

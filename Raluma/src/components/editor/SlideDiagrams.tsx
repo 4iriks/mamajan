@@ -86,6 +86,7 @@ const SIDE_ASSEMBLY_IMAGES: Record<SideAssemblyVariant, {
   sourceHeight: number;
   visibleBounds: [number, number, number, number];
   displayHeight: number;
+  widthScale: number;
 }> = {
   'lock-handle': {
     filename: 'SIDE_RS2081_RS112.png',
@@ -93,6 +94,7 @@ const SIDE_ASSEMBLY_IMAGES: Record<SideAssemblyVariant, {
     sourceHeight: 383,
     visibleBounds: [33, 0, 583, 364],
     displayHeight: 60,
+    widthScale: 1.16,
   },
   'p-handle': {
     filename: 'SIDE_RS1082_RS112.png',
@@ -100,6 +102,7 @@ const SIDE_ASSEMBLY_IMAGES: Record<SideAssemblyVariant, {
     sourceHeight: 401,
     visibleBounds: [36, 14, 357, 379],
     displayHeight: 60,
+    widthScale: 1.16,
   },
   'p-bubble': {
     filename: 'SIDE_RS1082_RS1002.png',
@@ -107,6 +110,7 @@ const SIDE_ASSEMBLY_IMAGES: Record<SideAssemblyVariant, {
     sourceHeight: 245,
     visibleBounds: [42, 38, 220, 215],
     displayHeight: 44,
+    widthScale: 1,
   },
   bubble: {
     filename: 'SIDE_RS1002.png',
@@ -114,6 +118,7 @@ const SIDE_ASSEMBLY_IMAGES: Record<SideAssemblyVariant, {
     sourceHeight: 133,
     visibleBounds: [17, 21, 149, 108],
     displayHeight: 32,
+    widthScale: 1,
   },
 };
 
@@ -124,15 +129,16 @@ function profileAssetUrl(filename: string) {
 function sideAssemblyImageLayout(variant: SideAssemblyVariant) {
   const image = SIDE_ASSEMBLY_IMAGES[variant];
   const [minX, minY, maxX, maxY] = image.visibleBounds;
-  const scale = image.displayHeight / (maxY - minY + 1);
+  const scaleY = image.displayHeight / (maxY - minY + 1);
+  const scaleX = scaleY * image.widthScale;
 
   return {
     ...image,
-    imageWidth: image.sourceWidth * scale,
-    imageHeight: image.sourceHeight * scale,
-    imageX: -maxX * scale,
-    imageY: -((minY + maxY) / 2) * scale,
-    visibleWidth: (maxX - minX + 1) * scale,
+    imageWidth: image.sourceWidth * scaleX,
+    imageHeight: image.sourceHeight * scaleY,
+    imageX: -maxX * scaleX,
+    imageY: -((minY + maxY) / 2) * scaleY,
+    visibleWidth: (maxX - minX + 1) * scaleX,
   };
 }
 
@@ -220,10 +226,36 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
     section.profileRightBubble,
   );
   const sideAssemblyOverlap = 16;
+  const sideAssemblySocketDepth = (variant: SideAssemblyVariant | null) => (
+    variant === 'lock-handle' || variant === 'p-handle' ? 22 : 18
+  );
   const leftAssemblyVisualWidth = leftSideVariant ? sideAssemblyImageLayout(leftSideVariant).visibleWidth : 0;
   const rightAssemblyVisualWidth = rightSideVariant ? sideAssemblyImageLayout(rightSideVariant).visibleWidth : 0;
   const schemeLeftX = leftSideVariant ? leftW - leftAssemblyVisualWidth + sideAssemblyOverlap - 4 : leftW;
   const schemeRightX = rightSideVariant ? leftW + railAreaW + rightAssemblyVisualWidth - sideAssemblyOverlap + 4 : leftW + railAreaW;
+  const wallArticle = railCount === 5 ? 'RS2335' : 'RS2333';
+  const wallImageWidth = 34;
+  const wallImageHeight = railCount * rowH + 12;
+  const wallImageY = topPad - 6;
+  const wallAttachOverlap = railCount === 5 ? 11 : 8;
+
+  const panelGlassBounds = (panelIndex: number) => {
+    const layout = panelLayout[panelIndex];
+    let left = layout.x + (panelIndex === 0 ? 5 : -6);
+    let right = layout.x + layout.width + (panelIndex === panels - 1 ? -5 : 6);
+    if (panelIndex === 0 && leftSideVariant) {
+      left = leftW + sideAssemblyOverlap - sideAssemblySocketDepth(leftSideVariant);
+    }
+    if (panelIndex === panels - 1 && rightSideVariant) {
+      right = leftW + railAreaW - sideAssemblyOverlap + sideAssemblySocketDepth(rightSideVariant);
+    }
+    if (is2row && panelIndex === centerLeftIndex) {
+      right = layout.x + layout.width - centerGapPx / 2;
+    } else if (is2row && panelIndex === centerRightIndex) {
+      left = layout.x + centerGapPx / 2;
+    }
+    return { left, right };
+  };
 
   const renderInterGlassProfile = (x: number, y: number, index: number, dir: number) => {
     const h = 20;
@@ -260,7 +292,6 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
   const renderSideAssembly = (
     side: 'left' | 'right',
     variant: SideAssemblyVariant | null,
-    _hasWall: boolean,
     railIndex: number,
   ) => {
     if (!variant) return null;
@@ -295,6 +326,42 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
     );
   };
 
+  const renderWallProfile = (side: 'left' | 'right') => {
+    const enabled = side === 'left' ? section.profileLeftWall : section.profileRightWall;
+    if (!enabled) return null;
+    const filterId = `${sideAssemblyFilterPrefix}-wall-profile-${side}`;
+    const wallX = side === 'left'
+      ? schemeLeftX - wallImageWidth + wallAttachOverlap
+      : schemeRightX - wallAttachOverlap;
+    const transform = side === 'left'
+      ? `translate(${wallX} ${wallImageY + wallImageHeight}) rotate(-90)`
+      : `translate(${wallX + wallImageWidth} ${wallImageY}) rotate(90)`;
+
+    return (
+      <g
+        key={`${side}-wall-profile`}
+        data-profile-image={`${wallArticle}-${side}`}
+        transform={transform}
+      >
+        <defs>
+          <filter id={filterId} x="-10%" y="-10%" width="120%" height="120%" colorInterpolationFilters="sRGB">
+            <feFlood floodColor="var(--theme-accent)" floodOpacity="0.72" result="profile-color" />
+            <feComposite in="profile-color" in2="SourceAlpha" operator="in" />
+          </filter>
+        </defs>
+        <image
+          href={profileAssetUrl(`${wallArticle}.png`)}
+          x="0"
+          y="0"
+          width={wallImageHeight}
+          height={wallImageWidth}
+          preserveAspectRatio="none"
+          filter={`url(#${filterId})`}
+        />
+      </g>
+    );
+  };
+
   return (
     <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} className="w-full drop-shadow-[0_0_15px_rgba(79,209,197,0.08)]" style={{ maxWidth: svgW }}>
 
@@ -309,6 +376,9 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
       {/* Vertical boundary lines */}
       <line x1={schemeLeftX} y1={topPad - 4} x2={schemeLeftX} y2={topPad + railCount * rowH + 4} stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.5" />
       <line x1={schemeRightX} y1={topPad - 4} x2={schemeRightX} y2={topPad + railCount * rowH + 4} stroke="var(--theme-accent)" strokeWidth="2" strokeOpacity="0.5" />
+
+      {renderWallProfile('left')}
+      {renderWallProfile('right')}
 
       {/* Rails */}
       {Array.from({ length: railCount }, (_, ri) => {
@@ -333,13 +403,9 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
         const px = layout.x;
         const panelW = layout.width;
         const panelNum = is2row ? pi + 1 : (firstPanelInside === 'Справа' ? panels - pi : pi + 1);
-        let rx = px + (pi === 0 ? 5 : -6);
-        let rRight = px + panelW + (pi === panels - 1 ? -5 : 6);
-        if (is2row && pi === centerLeftIndex) {
-          rRight = px + panelW - centerGapPx / 2;
-        } else if (is2row && pi === centerRightIndex) {
-          rx = px + centerGapPx / 2;
-        }
+        const bounds = panelGlassBounds(pi);
+        const rx = bounds.left;
+        const rRight = bounds.right;
         const rw = Math.max(1, rRight - rx);
         const cx = px + panelW / 2;
         return (
@@ -382,19 +448,22 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
         );
       })}
 
-      {hasInterGlassProfile && panelLayout.slice(0, -1).map((layout, pi) => {
+      {hasInterGlassProfile && panelLayout.slice(0, -1).map((_, pi) => {
         if (is2row && pi === panels / 2 - 1) return null;
-        const ownerIndex = is2row && pi < panels / 2
-          ? pi + 1
-          : (!is2row && firstPanelInside === 'Справа' ? pi + 1 : pi);
+        const attachesToNextPanel = is2row
+          ? pi < panels / 2
+          : firstPanelInside === 'Справа';
+        const ownerIndex = attachesToNextPanel ? pi + 1 : pi;
         const ri = panelRailMap[ownerIndex] ?? panelRailMap[pi];
         const cy = topPad + ri * rowH + rowH / 2;
-        const dir = is2row ? (pi < panels / 2 ? 1 : -1) : (firstPanelInside === 'Справа' ? 1 : -1);
-        return renderInterGlassProfile(layout.x + layout.width, cy, pi, dir);
+        const ownerBounds = panelGlassBounds(ownerIndex);
+        const edgeX = attachesToNextPanel ? ownerBounds.left : ownerBounds.right;
+        const outwardDirection = attachesToNextPanel ? -1 : 1;
+        return renderInterGlassProfile(edgeX, cy, pi, outwardDirection);
       })}
 
-      {renderSideAssembly('left', leftSideVariant, section.profileLeftWall, panelRailMap[0] ?? 0)}
-      {renderSideAssembly('right', rightSideVariant, section.profileRightWall, panelRailMap[panels - 1] ?? railCount - 1)}
+      {renderSideAssembly('left', leftSideVariant, panelRailMap[0] ?? 0)}
+      {renderSideAssembly('right', rightSideVariant, panelRailMap[panels - 1] ?? railCount - 1)}
 
       {/* Direction arrow */}
       {(() => {

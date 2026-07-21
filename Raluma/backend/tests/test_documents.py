@@ -424,8 +424,8 @@ class TestLocalPreview:
         assert "SLIDE-стандарт 2 ряда" in r.text
         assert "Центральные" in r.text
         assert "RS30301" in r.text
-        assert 'data-profile="inter-glass" data-panel="2" data-dir="1"' in r.text
-        assert 'data-profile="inter-glass" data-panel="3" data-dir="-1"' in r.text
+        assert 'data-profile="inter-glass" data-panel="2" data-dir="-1"' in r.text
+        assert 'data-profile="inter-glass" data-panel="3" data-dir="1"' in r.text
         assert r.text.count('data-profile="inter-glass"') == 2
 
     def test_local_preview_two_rows_matches_movement_and_center_rs112(self, client):
@@ -512,7 +512,7 @@ class TestLocalPreview:
 
         assert r.status_code == 200
         assert r.text.count('data-profile="inter-glass"') == 4
-        for panel, direction in ((2, 1), (3, 1), (4, -1), (5, -1)):
+        for panel, direction in ((2, -1), (3, -1), (4, 1), (5, 1)):
             assert (
                 f'data-profile="inter-glass" data-panel="{panel}" '
                 f'data-dir="{direction}"'
@@ -621,8 +621,8 @@ class TestLocalPreview:
         )
 
         assert r.status_code == 200
-        assert 'data-profile="inter-glass" data-panel="2" data-dir="1"' in r.text
-        assert 'data-profile="inter-glass" data-panel="1" data-dir="1"' in r.text
+        assert 'data-profile="inter-glass" data-panel="2" data-dir="-1"' in r.text
+        assert 'data-profile="inter-glass" data-panel="1" data-dir="-1"' in r.text
         assert 'data-profile="inter-glass" data-panel="3"' not in r.text
         assert (
             'class="prof-img pl-art-rs2061 pl-focus-img mirror-x" alt="RS2061"'
@@ -1730,6 +1730,20 @@ class TestDeliveryNote:
         assert rows["BOX-1"]["qty"] == 6
         assert "RS3018" not in rows
         assert "RS3020" not in rows
+
+    def test_bubble_seal_is_added_to_delivery_note(self):
+        section = _delivery_section(
+            quantity=2,
+            profile_left_bubble=True,
+            profile_right_bubble=True,
+        )
+
+        context = _build_delivery_context(self.project(), [section])
+        rows = {row["article"]: row for row in context["delivery_item2_rows"]}
+
+        assert rows["RS1002"]["name"] == "Пузырьковый уплотнитель"
+        assert rows["RS1002"]["size"] == "2277 мм"
+        assert rows["RS1002"]["qty"] == 4
 
     def test_reference_4108_total_includes_rs3110_and_six_rs2081(self):
         sections = [

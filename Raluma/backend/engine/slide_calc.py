@@ -661,8 +661,8 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     rpl = _side_profile_offset_mm(lock_bar_l, p_bar_l, bubble_l)
     rpr = _side_profile_offset_mm(lock_bar_r, p_bar_r, bubble_r)
 
-    pzl = 5 if bubble_l else 0
-    pzr = 5 if bubble_r else 0
+    pzl = 6 if bubble_l else 0
+    pzr = 6 if bubble_r else 0
     krlr = 8 if handle_bar_l else 0
     krrr = 8 if handle_bar_r else 0
     # П-профиль с пузырьковым уплотнителем образует крайний нахлест 16 мм.
@@ -1438,8 +1438,8 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     rpl = _side_profile_offset_mm(lock_bar_l, p_bar_l, bubble_l)
     rpr = _side_profile_offset_mm(lock_bar_r, p_bar_r, bubble_r)
 
-    pzl = 5 if bubble_l else 0
-    pzr = 5 if bubble_r else 0
+    pzl = 6 if bubble_l else 0
+    pzr = 6 if bubble_r else 0
     krlr = 8 if handle_bar_l else 0
     krrr = 8 if handle_bar_r else 0
     # П-профиль с пузырьковым уплотнителем образует крайний нахлест 16 мм.

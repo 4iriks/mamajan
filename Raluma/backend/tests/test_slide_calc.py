@@ -241,7 +241,7 @@ class TestProfileVariables:
         r = calculate_slide(s)
         left = r.panel_glass[0]
         mid = _find_glass(r, "Промежуточные")[0]
-        edge_base = round((2000 - 16 - 16 - 5 - 16 - 2 + 9.5 * 2) / 3, 1)
+        edge_base = round((2000 - 16 - 16 - 6 - 16 - 2 + 9.5 * 2) / 3, 1)
         expected_mid = edge_base
         assert left.width_mm == round(edge_base + 16, 1)
         assert mid.width_mm == expected_mid
@@ -276,7 +276,7 @@ class TestSinglePanel:
         s = _make_section(panels=1, profile_left_bubble=True, profile_right_bubble=True)
         r = calculate_slide(s)
         g = r.glass[0]
-        assert g.width_mm == 2000 - 16 - 16 - 5 - 5  # 1958
+        assert g.width_mm == 2000 - 16 - 16 - 6 - 6  # 1956
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1058,7 +1058,7 @@ class TestGlassProfile:
         assert all("Промежуточ" not in item.glass_positions for item in rs2021)
 
     def test_customer_two_panel_pbar_bubble_glass_width(self):
-        """DOCX 01.07: 1082 + 1002 с двух сторон → стекло 932 мм."""
+        """При pzl/pzr=6 профиль 1082 + RS1002 дает стекло 931 мм."""
         r = calculate_slide(
             _make_section(
                 width=1900,
@@ -1074,10 +1074,10 @@ class TestGlassProfile:
                 lock_right="Без",
             )
         )
-        assert [ceil(panel.width_mm) for panel in r.panel_glass] == [932, 932]
+        assert [ceil(panel.width_mm) for panel in r.panel_glass] == [931, 931]
 
     def test_customer_two_panel_pbar_bubble_rs2021_physical_lengths(self):
-        """Одинаковые крайние стекла могут иметь разный RS2021: 929 и 932."""
+        """Одинаковые крайние стекла могут иметь разный RS2021: 928 и 931."""
         r = calculate_slide(
             _make_section(
                 width=1900,
@@ -1094,13 +1094,13 @@ class TestGlassProfile:
             )
         )
         assert [ceil(panel.glass_profile_length) for panel in r.panel_glass] == [
-            929,
-            932,
+            928,
+            931,
         ]
         rs2021 = sorted(
             ceil(profile.length_mm) for profile in _find_profile(r, "RS2021")
         )
-        assert rs2021 == [929, 932]
+        assert rs2021 == [928, 931]
 
     def test_customer_two_panel_handle_bar_rs2021_matches_scheme_rounding(self):
         """Схема и таблица RS2021 должны давать одну цифру: 879 (895)."""
@@ -1178,8 +1178,8 @@ class TestCustomerSections0107:
             )
         )
 
-        assert _ceil_panel_widths(r) == [918, 926]
-        assert _ceil_panel_profile_lengths(r) == [934, 926]
+        assert _ceil_panel_widths(r) == [917, 925]
+        assert _ceil_panel_profile_lengths(r) == [933, 925]
         assert sorted(
             int(profile.length_mm) for profile in _find_profile(r, "RS2021")
         ) == [925, 933]
@@ -1681,10 +1681,10 @@ class TestSlideTwoRows:
         assert [
             (item.width_mm, item.glass_profile_length) for item in r.panel_glass
         ] == [
-            (910.2, 910.2),
-            (894.2, 891.2),
-            (894.2, 891.2),
-            (910.2, 910.2),
+            (909.8, 909.8),
+            (893.8, 890.8),
+            (893.8, 890.8),
+            (909.8, 909.8),
         ]
 
     def test_hidden_center_offset_is_ignored_for_six_panel_knob_reference(self):
@@ -1714,12 +1714,12 @@ class TestSlideTwoRows:
         assert [
             (item.width_mm, item.glass_profile_length) for item in r.panel_glass
         ] == [
-            (653.7, 653.7),
-            (637.7, 634.7),
-            (637.7, 634.7),
-            (637.7, 634.7),
-            (637.7, 634.7),
-            (653.7, 653.7),
+            (653.3, 653.3),
+            (637.3, 634.3),
+            (637.3, 634.3),
+            (637.3, 634.3),
+            (637.3, 634.3),
+            (653.3, 653.3),
         ]
 
     def test_hidden_center_offset_is_ignored_for_all_panel_counts(self):

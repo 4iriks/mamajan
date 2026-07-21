@@ -963,7 +963,7 @@ def _build_delivery_hardware_rows(
                 )
             for profile in calc.profiles:
                 article = str(getattr(profile, "article", "") or "").strip().upper()
-                if article not in {"RS2081", "RS3110"}:
+                if article not in {"RS1002", "RS2081", "RS3110"}:
                     continue
                 length = _safe_float(getattr(profile, "length_mm", 0))
                 if article == "RS2081":
@@ -981,6 +981,16 @@ def _build_delivery_hardware_rows(
                             note=_rs2081_delivery_note(section, side),
                             qty=section_qty,
                         )
+                    continue
+                if article == "RS1002":
+                    _add_delivery_component(
+                        grouped,
+                        article=article,
+                        name=str(getattr(profile, "name", "") or article).strip(),
+                        color="",
+                        size=f"{_format_mm(length)} мм",
+                        qty=_safe_float(getattr(profile, "qty", 0)),
+                    )
                     continue
                 _add_delivery_component(
                     grouped,

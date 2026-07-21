@@ -102,11 +102,20 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
   const rails = s.rails ?? 3;
   const thresholdKind = (s.threshold || '').includes('Накладной') ? 'Накладной' : 'Стандартный';
   const thresholdOptions = s.paintingType === 'Анодированный'
-    ? ['Стандартный анод', 'Накладной анод']
-    : ['Стандартный анод', 'Накладной анод', 'Стандартный окраш', 'Накладной окраш'];
+    ? [
+        { value: 'Стандартный анод', label: 'Стандартный анод RS2323/RS2325' },
+        { value: 'Накладной анод', label: 'Накладной анод RS23231/RS23251' },
+      ]
+    : [
+        { value: 'Стандартный анод', label: 'Стандартный анод RS2323/RS2325' },
+        { value: 'Накладной анод', label: 'Накладной анод RS23231/RS23251' },
+        { value: 'Стандартный окраш', label: 'Стандартный окраш RS2323/RS2325' },
+        { value: 'Накладной окраш', label: 'Накладной окраш RS23231/RS23251' },
+      ];
+  const thresholdValues = thresholdOptions.map(option => option.value);
   const normalizedAnodThreshold = `${thresholdKind} анод`;
-  const thresholdValue = thresholdOptions.includes(s.threshold || '')
-    ? s.threshold || thresholdOptions[0]
+  const thresholdValue = thresholdValues.includes(s.threshold || '')
+    ? s.threshold || thresholdOptions[0].value
     : s.paintingType === 'Анодированный'
       ? normalizedAnodThreshold
     : `${thresholdKind} ${(s.threshold || '').toLowerCase().includes('анод') ? 'анод' : 'окраш'}`;
@@ -194,7 +203,7 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
           <div className="space-y-1.5">
             <label className={LBL}>Порог</label>
             <select value={thresholdValue} onChange={e => update({ threshold: e.target.value })} className={SEL}>
-              {thresholdOptions.map(option => <option key={option}>{option}</option>)}
+              {thresholdOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </div>
           <div className="space-y-1.5">
