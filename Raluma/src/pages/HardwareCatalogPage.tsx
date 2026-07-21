@@ -301,7 +301,7 @@ const seedItems: HardwareItem[] = [
   {
     id: 1101,
     sku: 'RS1006',
-    name: 'Прозрачный профиль',
+    name: 'Прозрачный межстекольный',
     group: 'Профили',
     system: 'СЛАЙД',
     unit: 'м.п.',

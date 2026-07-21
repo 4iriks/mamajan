@@ -42,6 +42,8 @@ class TestProfileAssetSafety:
     def test_img_b64_accepts_known_png_profile_images(self):
         assert get_profile_asset_path("RS23231.png") is not None
         assert _img_b64("RS23231.png").startswith("data:image/png;base64,")
+        assert get_profile_asset_path("PAINT_RS23231.png") is not None
+        assert _img_b64("PAINT_RS23231.png").startswith("data:image/png;base64,")
         assert get_profile_asset_path("RS2021.png") is not None
         assert _img_b64("RS2021.png").startswith("data:image/png;base64,")
 
@@ -453,8 +455,8 @@ class TestLocalPreview:
 
         assert r.status_code == 200
         assert r.text.count('data-panel-direction="both"') == 6
-        assert r.text.count('data-center-rs112-room=') == 2
-        assert r.text.count('data-center-rs112-top=') == 2
+        assert r.text.count("data-center-rs112-room=") == 2
+        assert r.text.count("data-center-rs112-top=") == 2
         assert 'data-center-rs112-room="left"' in r.text
         assert 'data-center-rs112-room="right"' in r.text
         assert 'data-center-rs112-top="left"' in r.text
@@ -572,9 +574,9 @@ class TestLocalPreview:
         assert 'data-side-assembly="p-bubble"' in r.text
         assert 'data-side-assembly-image="SIDE_RS2081_RS112.png"' in r.text
         assert 'data-side-assembly-image="SIDE_RS1082_RS1002.png"' in r.text
-        assert r.text.index('data-side-assembly-image="SIDE_RS2081_RS112.png"') > r.text.rindex(
-            'data-scheme-panel='
-        )
+        assert r.text.index(
+            'data-side-assembly-image="SIDE_RS2081_RS112.png"'
+        ) > r.text.rindex("data-scheme-panel=")
 
     def test_local_preview_bubble_only_uses_dedicated_side_image(self, client):
         r = client.post(
@@ -782,7 +784,8 @@ class TestLocalPreview:
         assert "ПРОЕКТ № LOCAL-HW — Секция 1" in r.text
         assert "Нарезка профиля по ТЗ" in r.text
         assert "Примечания и особые отметки при производстве или проверке ОТК" in r.text
-        assert r.text.count('style="display:block; width:72%; margin:0 0 0 7%;"') >= 2
+        assert 'style="display:block; width:90%; margin:0 auto;"' in r.text
+        assert 'style="display:block; width:72%; margin:0 0 0 7%;"' in r.text
         production_end = r.text.index("</div><!-- production-page-end -->")
         checklist_start = r.text.index('<div class="check-page">')
         assert production_end < checklist_start
@@ -1011,10 +1014,7 @@ class TestProjectDocuments:
         assert 'class="meta paint-meta"' in r.text
         assert 'class="paint-meta-value"' in r.text
         assert 'class="paint-meta-value paint-color-value"' in r.text
-        assert "paint-bosses-marker" in r.text
-        assert "paint-marker-standard-threshold" in r.text
-        assert "top: 1.3mm;" in r.text
-        assert "width: 80%;" in r.text
+        assert "paint-bosses-marker" not in r.text
 
     def test_project_paint_preview_skips_anod_threshold(
         self, client, admin_headers, project
@@ -1063,9 +1063,7 @@ class TestProjectDocuments:
         assert r.status_code == 200
         assert "RS23231" in r.text
         assert "НЕ КРАСИТЬ!!!" in r.text
-        assert "paint-marker-overlay-threshold" in r.text
-        assert "top: 1.5mm;" in r.text
-        assert "width: 84%;" in r.text
+        assert "paint-bosses-marker" not in r.text
 
     def test_local_project_paint_preview_includes_manual_rows(self, client):
         r = client.post(
@@ -1299,7 +1297,7 @@ class TestProjectPaintOrder:
         assert row["total_m"] == 3.0
         assert group["image_data"] == "data:image/png;base64,abc"
 
-    def test_threshold_marker_classes_are_article_specific(self):
+    def test_thresholds_use_dedicated_paint_request_images(self):
         section = SimpleNamespace()
         calc = SimpleNamespace(
             color_text="RAL 9016",
@@ -1332,8 +1330,12 @@ class TestProjectPaintOrder:
         )
         rows = {row["article"]: row for row in pages[0]["rows"]}
 
-        assert rows["RS2323"]["paint_marker_class"] == "paint-marker-standard-threshold"
-        assert rows["RS23231"]["paint_marker_class"] == "paint-marker-overlay-threshold"
+        assert rows["RS2323"]["image"] == "PAINT_RS2323.png"
+        assert rows["RS23231"]["image"] == "PAINT_RS23231.png"
+        assert rows["RS2323"]["paint_marker"] is False
+        assert rows["RS23231"]["paint_marker"] is False
+        assert rows["RS2323"]["paint_marker_class"] == ""
+        assert rows["RS23231"]["paint_marker_class"] == ""
 
 
 class TestProjectGlassOrder:
@@ -1631,8 +1633,8 @@ class TestDeliveryNote:
             (dimension["size"], dimension["threshold"])
             for dimension in slide["dimensions"]
         } == {
-            ("2000×2400 мм", "Стандартный анод"),
-            ("2000×2400 мм", "Накладной окраш"),
+            ("2000×2400 мм", "Порог стандартный анод"),
+            ("2000×2400 мм", "Порог накладной окраш"),
         }
         assert any("КНИЖКА B25" in row["name"] for row in rows)
         assert any("ЛИФТ" in row["name"] for row in rows)
@@ -1684,6 +1686,10 @@ class TestDeliveryNote:
         ]
 
         assert len(glass_groups) == 1
+        assert (
+            glass_groups[0]["name"]
+            == "СТЕКЛЯННЫЕ ПАНЕЛИ, RAL 9016 МАТОВЫЙ, РАЗМЕРЫ СТЕКОЛ:"
+        )
         assert glass_groups[0]["qty"] == 6
         assert sum(row["qty"] for row in glass_groups[0]["rows"]) == 6
         assert [row["marking"] for row in glass_groups[0]["rows"]] == ["Н-001 4,1"]
@@ -2016,6 +2022,9 @@ class TestDeliveryNote:
         assert "Доставка, разгрузка и монтаж" in response.text
         assert "Изделия и комплектацию принял" in response.text
         assert "<th>Примечание</th>" not in response.text
+        assert re.search(r'class="item-number"[^>]*>1</td>', response.text)
+        assert ">1.</td>" not in response.text
+        assert ">2.</td>" not in response.text
         assert response.text.count('class="signature-role">Исполнитель</span>') == 1
         assert response.text.count('class="signature-role">Заказчик</span>') == 1
 

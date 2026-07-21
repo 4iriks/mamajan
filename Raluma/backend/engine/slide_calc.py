@@ -201,11 +201,11 @@ def _threshold_display_name(
     painting_type: str | None,
 ) -> str:
     base = _threshold_profile_name(rails, standard_threshold)
-    text = f"{threshold or ''} {painting_type or ''}".lower()
-    if _is_painted(painting_type) or "окраш" in text:
-        return f"{base} окраш"
-    if "анод" in text:
+    threshold_text = (threshold or "").lower()
+    if "анод" in threshold_text:
         return f"{base} анод"
+    if "окраш" in threshold_text or _is_painted(painting_type):
+        return f"{base} окраш"
     return base
 
 
@@ -252,7 +252,7 @@ def _inter_glass_profile_name(article: str) -> str:
     if article == "RS3061":
         return "Профиль с зацепом"
     if article == "RS1006":
-        return "Прозрачный профиль"
+        return "Прозрачный межстекольный"
     return "Межстекольный профиль (штапик)"
 
 
@@ -573,7 +573,7 @@ def _aggregate_glass_profiles(
     for position, profile_length, qty in source_rows:
         if qty <= 0:
             continue
-        key = float(ceil(profile_length))
+        key = float(int(float(profile_length) + 0.5))
         if key not in glass_profile_items:
             glass_profile_items[key] = GlassProfileGroup()
         group = glass_profile_items[key]
@@ -1210,11 +1210,9 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
 
     rs108_qty = 2 * Q
     rs105_qty = inter_glass_count_each * 2 * Q
-    # RS106 ставится на каждую подвижную крайнюю панель и на каждый RS112.
-    # Центральные створки без RS112 получают отдельные заглушки RS108.
-    rs106_qty = (
-        (0 if left_is_deaf else 1) + (0 if right_is_deaf else 1) + center_rs112_count
-    ) * Q
+    # RS106 ставится только на подвижные крайние панели.
+    # Центральные створки всегда получают отдельные заглушки RS108.
+    rs106_qty = ((0 if left_is_deaf else 1) + (0 if right_is_deaf else 1)) * Q
 
     if rs105_qty > 0:
         result.hardware.append(

@@ -5,7 +5,12 @@
 
 from math import ceil
 from types import SimpleNamespace
-from engine.slide_calc import calculate_slide, SlideCalcResult
+from engine.slide_calc import (
+    PanelGlassItem,
+    SlideCalcResult,
+    _aggregate_glass_profiles,
+    calculate_slide,
+)
 
 
 def _make_section(**overrides):
@@ -82,6 +87,38 @@ def _ceil_panel_profile_lengths(result: SlideCalcResult):
 def _assert_mm_close(actual: list[int], expected: list[int], tolerance: int = 1):
     assert len(actual) == len(expected)
     assert all(abs(a - e) <= tolerance for a, e in zip(actual, expected, strict=True))
+
+
+class TestGlassProfileAggregation:
+    @staticmethod
+    def _aggregate(lengths: list[float]) -> list[tuple[int, int]]:
+        result = SlideCalcResult(
+            panel_glass=[
+                PanelGlassItem(
+                    panel=index,
+                    position=f"Панель {index}",
+                    width_mm=length,
+                    height_mm=2400,
+                    glass_profile_length=length,
+                )
+                for index, length in enumerate(lengths, start=1)
+            ]
+        )
+        _aggregate_glass_profiles(result)
+        return sorted((int(item.length_mm), item.qty) for item in result.profiles)
+
+    def test_one_row_reference_uses_nearest_mm_for_rs2021_cutting(self):
+        assert self._aggregate([654.2, 626.8, 626.8, 654.2]) == [
+            (627, 2),
+            (654, 2),
+        ]
+
+    def test_two_row_reference_uses_nearest_mm_for_rs2021_cutting(self):
+        assert self._aggregate([829.2, 802.2, 832.2, 829.2, 802.2, 829.2]) == [
+            (802, 2),
+            (829, 3),
+            (832, 1),
+        ]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1144,8 +1181,8 @@ class TestCustomerSections0107:
         assert _ceil_panel_widths(r) == [918, 926]
         assert _ceil_panel_profile_lengths(r) == [934, 926]
         assert sorted(
-            ceil(profile.length_mm) for profile in _find_profile(r, "RS2021")
-        ) == [926, 934]
+            int(profile.length_mm) for profile in _find_profile(r, "RS2021")
+        ) == [925, 933]
 
     def test_section_7_physical_panels_and_rs2021(self):
         r = calculate_slide(
@@ -1366,6 +1403,8 @@ class TestPainting:
         top = _find_profile(r, "RS1313")[0]
         assert threshold.painted is False
         assert top.painted is True
+        assert r.threshold_text == "Порог 3-рельсовый анод"
+        assert r.color_text == "RAL 9016"
 
     def test_painted_threshold_goes_to_paint_order(self):
         r = calculate_slide(
@@ -1842,9 +1881,10 @@ class TestSlideTwoRows:
         assert (
             r.panel_glass[2].glass_profile_length == center_right.glass_profile_length
         )
-        assert _find_hardware(r, "RS106")[0].value == 2
+        assert not _find_hardware(r, "RS106")
+        assert _find_hardware(r, "RS108")[0].value == 2
 
-    def test_center_rs112_rs106_respects_section_quantity(self):
+    def test_center_rs112_does_not_create_rs106_for_fixed_outer_panels(self):
         r = calculate_slide(
             _make_section(
                 slide_rows=2,
@@ -1858,7 +1898,27 @@ class TestSlideTwoRows:
             )
         )
 
-        assert _find_hardware(r, "RS106")[0].value == 4
+        assert not _find_hardware(r, "RS106")
+        assert _find_hardware(r, "RS108")[0].value == 4
+
+    def test_center_rs112_keeps_only_two_outer_rs106(self):
+        r = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                panels=6,
+                handle_left="Ручка-кноб RS3014",
+                handle_right="Ручка-кноб RS3014",
+                center_handle="Ручки-профиль RS112 (2шт)",
+                center_lock="Без",
+                first_panel_inside=None,
+            )
+        )
+
+        assert _find_hardware(r, "RS105")[0].value == 8
+        assert _find_hardware(r, "RS106")[0].value == 2
+        assert _find_hardware(r, "RS108")[0].value == 2
+        assert _find_hardware(r, "RS107")[0].value == 10
+        assert _find_screw(r, "4,8×25")[0].qty == 24
 
     def test_two_rows_central_sashes_use_rs108(self):
         r = calculate_slide(

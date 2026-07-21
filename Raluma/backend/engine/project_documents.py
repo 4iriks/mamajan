@@ -367,11 +367,13 @@ def _build_paint_pages(
             clean = _ceil_to_step(profile.length_mm, 50)
             allowance = clean + 50
             note = profile.paint_note
+            paint_image = _paint_request_image(profile.article, profile.image)
+            has_baked_marker = paint_image != profile.image
             key = (
                 profile.article,
                 profile.name,
                 clean,
-                profile.image or "",
+                paint_image or "",
                 "",
                 note,
             )
@@ -380,10 +382,13 @@ def _build_paint_pages(
                 {
                     "article": profile.article,
                     "name": profile.name,
-                    "image": profile.image,
+                    "image": paint_image,
                     "image_data": "",
-                    "paint_marker": profile.paint_mode == "Частично",
-                    "paint_marker_class": _paint_marker_class(profile.article),
+                    "paint_marker": profile.paint_mode == "Частично"
+                    and not has_baked_marker,
+                    "paint_marker_class": ""
+                    if has_baked_marker
+                    else _paint_marker_class(profile.article),
                     "qty": 0,
                     "clean": clean,
                     "allowance": allowance,
@@ -469,6 +474,16 @@ def _paint_marker_class(article: str) -> str:
     if normalized in {"rs23231", "rs23251"}:
         return "paint-marker-overlay-threshold"
     return ""
+
+
+def _paint_request_image(article: str, fallback: str | None) -> str | None:
+    images = {
+        "RS2323": "PAINT_RS2323.png",
+        "RS23231": "PAINT_RS23231.png",
+        "RS2325": "PAINT_RS2325.png",
+        "RS23251": "PAINT_RS23251.png",
+    }
+    return images.get(str(article or "").upper(), fallback)
 
 
 def _ceil_to_step(value: float, step: int) -> int:
@@ -648,6 +663,15 @@ def _construction_name(section: object) -> str:
     return system or "Секция"
 
 
+def _delivery_threshold_text(value: object) -> str:
+    threshold = " ".join(str(value or "").split())
+    if not threshold:
+        return ""
+    if threshold.lower().startswith("порог"):
+        return threshold
+    return f"Порог {threshold[:1].lower()}{threshold[1:]}"
+
+
 def _build_delivery_construction_rows(
     sections: list[object], places: dict[str, str]
 ) -> list[dict]:
@@ -669,7 +693,7 @@ def _build_delivery_construction_rows(
                 "qty": 0,
             },
         )
-        threshold = str(getattr(section, "threshold", "") or "").strip()
+        threshold = _delivery_threshold_text(getattr(section, "threshold", ""))
         if threshold and threshold not in group["thresholds"]:
             group["thresholds"].append(threshold)
         width = _format_mm(_safe_float(getattr(section, "width", 0)))
@@ -760,7 +784,7 @@ def _build_delivery_glass_rows(
         outer = grouped.setdefault(
             outer_key,
             {
-                "name": f"Стеклянные панели, {glass_type}",
+                "name": f"СТЕКЛЯННЫЕ ПАНЕЛИ, {color.upper()}, РАЗМЕРЫ СТЕКОЛ:",
                 "color": color,
                 "glass_type": glass_type,
                 "rows": [],

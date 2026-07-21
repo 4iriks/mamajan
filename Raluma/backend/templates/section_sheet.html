@@ -248,7 +248,7 @@
       {% set lockLX = rfX + 3 %}
       {% set lockRX = rfX + rfW - 3 %}
       <svg viewBox="0 0 {{ rw }} {{ rh }}"
-           xmlns="http://www.w3.org/2000/svg" style="display:block; width:72%; margin:0 0 0 7%;">
+           xmlns="http://www.w3.org/2000/svg" style="display:block; width:90%; margin:0 auto;">
         {# Frame #}
         <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rfW }}" height="{{ rfH }}" fill="none" stroke="#000" stroke-width="1.2"/>
         <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rfW }}" height="{{ rpt }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
@@ -289,7 +289,7 @@
         {% endif %}
         {# Panel number #}
         <text x="{{ gcx }}" y="{{ gcy - 4 }}" text-anchor="middle" font-size="7" font-family="Arial" font-weight="bold" fill="#555">{{ pnum }}</text>
-        <text x="{{ gcx }}" y="{{ riY + riH - 2 }}" text-anchor="middle" font-size="9" font-family="Arial" font-weight="bold" fill="#777">{{ panel_w_mm|glass_mm }} ({{ panel_profile_mm|glass_mm }})</text>
+        <text x="{{ gcx }}" y="{{ riY + riH - 2 }}" text-anchor="middle" font-size="7" font-family="Arial" font-weight="bold" fill="#777">{{ panel_w_mm|glass_mm }} ({{ panel_profile_mm|glass_mm }})</text>
         {# Arrow (non-deaf panels) #}
         {% if not panelDeaf %}
         {% set alen = [10, rpW * 0.35] | min %}
@@ -434,7 +434,6 @@
         {% else %}
         <rect data-profile="{{ wall_article }}-left" x="{{ left_wall_x }}" y="{{ wall_img_y }}" width="{{ wall_img_w }}" height="{{ wall_img_h }}" fill="#e8e8e8" stroke="#666" stroke-width="0.3"/>
         {% endif %}
-        <text x="{{ left_wall_x + wall_img_w / 2 }}" y="{{ top_pad + 6 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#666">{{ wall_profile_mm|round|int }}</text>
         {% endif %}
         {% if section.profile_right_wall %}
         {% set right_wall_x = scheme_right_x - wall_attach_overlap %}
@@ -445,7 +444,6 @@
         {% else %}
         <rect data-profile="{{ wall_article }}-right" x="{{ right_wall_x }}" y="{{ wall_img_y }}" width="{{ wall_img_w }}" height="{{ wall_img_h }}" fill="#e8e8e8" stroke="#666" stroke-width="0.3"/>
         {% endif %}
-        <text x="{{ right_wall_x + wall_img_w / 2 }}" y="{{ top_pad + 6 }}" text-anchor="middle" font-size="5" font-family="Arial" fill="#666">{{ wall_profile_mm|round|int }}</text>
         {% endif %}
 
         {# Рельсы #}
@@ -469,7 +467,7 @@
         {% set gx1 = px + gl %}
         {% set gx2 = px + panel_w - gr %}
         {# Панель — тонкий прямоугольник #}
-        <rect data-scheme-panel="{{ pi + 1 }}" x="{{ gx1 }}" y="{{ cy - 5 }}" width="{{ gx2 - gx1 }}" height="10" fill="#ddeef5" stroke="#000" stroke-width="0.8"/>
+        <rect data-scheme-panel="{{ pi + 1 }}" x="{{ gx1 }}" y="{{ cy - 3 }}" width="{{ gx2 - gx1 }}" height="6" fill="#ddeef5" stroke="#000" stroke-width="0.8"/>
         {# Номер панели #}
         {% set pnum = pi + 1 if is2row else (P - pi if first_right else pi + 1) %}
         <text x="{{ (gx1 + gx2) / 2 }}" y="{{ cy + 3 }}" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#333">{{ panel_w_mm|glass_mm }} · {{ pnum }}</text>

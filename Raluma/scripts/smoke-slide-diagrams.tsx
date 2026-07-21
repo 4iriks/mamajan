@@ -164,7 +164,7 @@ const centerHandleAnchors = [...roomMarkupTwoRows.matchAll(/data-center-handle="
   .map(match => ({ side: match[1], x: Number(match[2]) }));
 assert.equal(centerHandleAnchors.length, 2, '2-row room view must render both center handle anchors');
 assert.ok(centerHandleAnchors[0].x < centerHandleAnchors[1].x, 'center handles must stay on their physical sides of the joint');
-assert.match(roomMarkupTwoRows, /data-center-lock="center" data-center-lock-position="joint"/, 'center lock must be attached to the central joint');
+assert.match(roomMarkupTwoRows, /data-center-lock="center" data-center-lock-position="below-handles"/, 'center lock must stay below the central handles');
 
 const movableTwoRowsMarkup = renderToStaticMarkup(
   <SlideRoomViewSVG

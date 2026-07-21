@@ -135,7 +135,7 @@
         {% if delivery_item1_rows %}
           {% for row in delivery_item1_rows %}
           <tr class="group-row">
-            {% if loop.first %}<td class="item-number" rowspan="{{ delivery_item1_rows|length }}">1.</td>{% endif %}
+            {% if loop.first %}<td class="item-number" rowspan="{{ delivery_item1_rows|length }}">1</td>{% endif %}
             <td>
               <div class="row-title">{{ row.name|e }}</div>
               {% if row.kind == 'construction' %}
@@ -153,7 +153,6 @@
                   {% endfor %}
                 </div>
               {% else %}
-                <div class="row-meta">Цвет конструкции: {{ row.color|e }}</div>
                 <table class="glass-table">
                   <colgroup>
                     <col style="width:29%">
@@ -198,7 +197,7 @@
           {% endfor %}
         {% else %}
           <tr>
-            <td class="item-number">1.</td>
+            <td class="item-number">1</td>
             <td>В проекте нет секций для отгрузки</td>
             <td class="quantity">0</td>
             <td class="places"></td>
@@ -207,7 +206,7 @@
 
         {% for row in delivery_item2_rows %}
         <tr class="group-row">
-          {% if loop.first %}<td class="item-number" rowspan="{{ delivery_item2_rows|length }}">2.</td>{% endif %}
+          {% if loop.first %}<td class="item-number" rowspan="{{ delivery_item2_rows|length }}">2</td>{% endif %}
           <td>
             <div class="row-title">
               {% if row.article %}<span class="nowrap">{{ row.article|e }}</span> — {% endif %}{{ row.name|e }}

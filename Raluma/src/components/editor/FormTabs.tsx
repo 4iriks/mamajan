@@ -202,7 +202,7 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
             <select value={s.interGlassProfile || DEFAULT_INTER_GLASS_PROFILE} onChange={e => update({ interGlassProfile: e.target.value })} className={SEL}>
               <option value={NO_INTER_GLASS_PROFILE}>{NO_INTER_GLASS_PROFILE}</option>
               <option>Алюминиевый RS2061</option>
-              <option>Прозрачный с фетром RS1006</option>
+              <option>Прозрачный межстекольный RS1006</option>
               <option>Профиль с зацепом RS3061</option>
             </select>
           </div>

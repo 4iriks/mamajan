@@ -344,7 +344,7 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
         const cx = px + panelW / 2;
         return (
           <g key={pi}>
-            <rect data-scheme-panel={pi + 1} x={rx} y={cy - 9} width={rw} height={18} rx="2"
+            <rect data-scheme-panel={pi + 1} x={rx} y={cy - 6} width={rw} height={12} rx="2"
               fill="var(--theme-accent)" fillOpacity="0.13" stroke="var(--theme-accent)" strokeWidth="1.4" strokeOpacity="0.75" />
             {layout.widthMm ? (
               <text x={cx} y={cy + 5} textAnchor="middle" fontSize="8" fill="var(--theme-accent)" fillOpacity="0.9" fontWeight="bold">{layout.widthMm} · №{panelNum}</text>
@@ -677,11 +677,24 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
         const centerBoundaryX = panelLayout[centerLeftIdx].x + panelLayout[centerLeftIdx].width;
         const isOverheadLatch = centerLock.toLowerCase().includes('rs206')
           || centerLock.toLowerCase().includes('накидн');
-        const lockY = isOverheadLatch ? iY + iH - 9 : symY + 14;
+        const centerHandleText = centerHandle.toLowerCase();
+        const centerHandleHalfHeight = centerIsRs112
+          ? 10
+          : centerHandleText.includes('скоба')
+            ? 26
+            : centerHandleText.includes('кноб') || centerHandleText.includes('rs3014')
+              ? 6
+              : 5;
+        const handleGap = Math.max(4, 100 * drawingScale);
+        const lockBelowHandlesY = Math.min(
+          iY + iH - 10,
+          symY + centerHandleHalfHeight + handleGap,
+        );
+        const lockY = isOverheadLatch ? iY + iH - 9 : lockBelowHandlesY;
         return (
           <rect
             data-center-lock={isOverheadLatch ? 'RS206' : 'center'}
-            data-center-lock-position={isOverheadLatch ? 'bottom' : 'joint'}
+            data-center-lock-position={isOverheadLatch ? 'bottom' : 'below-handles'}
             x={centerBoundaryX - 5}
             y={lockY}
             width={10}
