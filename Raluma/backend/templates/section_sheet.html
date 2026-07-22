@@ -411,7 +411,7 @@
       {% set inter_glass_article = 'RS1006' if 'rs1006' in inter_glass_text else ('RS3061' if 'rs3061' in inter_glass_text or 'rs1004' in inter_glass_text or 'зацеп' in inter_glass_text else 'RS2061') %}
       {% set inter_glass_px = [5, profile_dimension(calc, [inter_glass_article], 'section_width_mm', 20) * rail_w / (section.width or rail_w)] | max %}
       <svg viewBox="0 0 {{ sw }} {{ sh }}"
-           xmlns="http://www.w3.org/2000/svg" style="display:block; width:72%; margin:0 0 0 7%;">
+           xmlns="http://www.w3.org/2000/svg" style="display:block; width:72%; margin:0 auto;">
 
         {# Метки #}
         <text x="{{ left_w + rail_w / 2 }}" y="9" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#666">УЛИЦА</text>
@@ -467,7 +467,7 @@
         {% set gx1 = left_w + side_overlap - left_side_image.socket_depth if pi == 0 and left_side_image else px + gl %}
         {% set gx2 = left_w + rail_w - side_overlap + right_side_image.socket_depth if pi == P - 1 and right_side_image else px + panel_w - gr %}
         {# Панель — тонкий прямоугольник #}
-        <rect data-scheme-panel="{{ pi + 1 }}" x="{{ gx1 }}" y="{{ cy - 3 }}" width="{{ gx2 - gx1 }}" height="6" fill="#ddeef5" stroke="#000" stroke-width="0.8"/>
+        <rect data-scheme-panel="{{ pi + 1 }}" x="{{ gx1 }}" y="{{ cy - 3.5 }}" width="{{ gx2 - gx1 }}" height="7" fill="#ddeef5" stroke="#000" stroke-width="0.8"/>
         {# Номер панели #}
         {% set pnum = pi + 1 if is2row else (P - pi if first_right else pi + 1) %}
         <text x="{{ (gx1 + gx2) / 2 }}" y="{{ cy + 3 }}" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#333">{{ panel_w_mm|glass_mm }} · {{ pnum }}</text>

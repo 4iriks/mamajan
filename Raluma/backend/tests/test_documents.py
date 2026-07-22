@@ -587,6 +587,8 @@ class TestLocalPreview:
         assert right_panel is not None
         assert float(left_panel.group(1)) < 70
         assert float(right_panel.group(1)) + float(right_panel.group(2)) > 370
+        assert re.search(r'data-scheme-panel="1"[^>]+height="7"', r.text)
+        assert 'style="display:block; width:72%; margin:0 auto;"' in r.text
 
     def test_local_preview_bubble_only_uses_dedicated_side_image(self, client):
         r = client.post(
@@ -795,7 +797,7 @@ class TestLocalPreview:
         assert "Нарезка профиля по ТЗ" in r.text
         assert "Примечания и особые отметки при производстве или проверке ОТК" in r.text
         assert 'style="display:block; width:90%; margin:0 auto;"' in r.text
-        assert 'style="display:block; width:72%; margin:0 0 0 7%;"' in r.text
+        assert 'style="display:block; width:72%; margin:0 auto;"' in r.text
         production_end = r.text.index("</div><!-- production-page-end -->")
         checklist_start = r.text.index('<div class="check-page">')
         assert production_end < checklist_start
