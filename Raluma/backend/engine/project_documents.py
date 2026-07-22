@@ -861,13 +861,6 @@ def _add_delivery_component(
     row["qty"] += float(qty)
 
 
-def _rs2081_delivery_note(section: object, side: str) -> str:
-    side_lock = getattr(section, f"lock_{side}", None)
-    if not _is_no_option(side_lock):
-        return ""
-    return "БЕЗ ФРЕЗЕРОВКИ ПОД ЗАЩЕЛКИ"
-
-
 def _add_raw_special_hardware(
     grouped: dict[tuple, dict], section: object, section_qty: int
 ) -> None:
@@ -963,25 +956,9 @@ def _build_delivery_hardware_rows(
                 )
             for profile in calc.profiles:
                 article = str(getattr(profile, "article", "") or "").strip().upper()
-                if article not in {"RS1002", "RS2081", "RS3110"}:
+                if article not in {"RS1002", "RS3110"}:
                     continue
                 length = _safe_float(getattr(profile, "length_mm", 0))
-                if article == "RS2081":
-                    for side in ("left", "right"):
-                        if not bool(
-                            getattr(section, f"profile_{side}_lock_bar", False)
-                        ):
-                            continue
-                        _add_delivery_component(
-                            grouped,
-                            article=article,
-                            name=str(getattr(profile, "name", "") or article).strip(),
-                            color=_section_color(section, calc),
-                            size=f"{_format_mm(length)} мм",
-                            note=_rs2081_delivery_note(section, side),
-                            qty=section_qty,
-                        )
-                    continue
                 if article == "RS1002":
                     _add_delivery_component(
                         grouped,

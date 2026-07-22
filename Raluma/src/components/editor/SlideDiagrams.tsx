@@ -226,9 +226,12 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
     section.profileRightBubble,
   );
   const sideAssemblyOverlap = 16;
-  const sideAssemblySocketDepth = (variant: SideAssemblyVariant | null) => (
-    variant === 'lock-handle' || variant === 'p-handle' ? 22 : 18
-  );
+  const sideAssemblySocketDepth = (variant: SideAssemblyVariant | null) => {
+    if (variant === 'lock-handle') return 30;
+    if (variant === 'p-handle') return 28;
+    if (variant === 'p-bubble') return 32;
+    return 28;
+  };
   const leftAssemblyVisualWidth = leftSideVariant ? sideAssemblyImageLayout(leftSideVariant).visibleWidth : 0;
   const rightAssemblyVisualWidth = rightSideVariant ? sideAssemblyImageLayout(rightSideVariant).visibleWidth : 0;
   const schemeLeftX = leftSideVariant ? leftW - leftAssemblyVisualWidth + sideAssemblyOverlap - 4 : leftW;
@@ -458,8 +461,8 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
         const cy = topPad + ri * rowH + rowH / 2;
         const ownerBounds = panelGlassBounds(ownerIndex);
         const edgeX = attachesToNextPanel ? ownerBounds.left : ownerBounds.right;
-        const outwardDirection = attachesToNextPanel ? -1 : 1;
-        return renderInterGlassProfile(edgeX, cy, pi, outwardDirection);
+        const inwardDirection = attachesToNextPanel ? 1 : -1;
+        return renderInterGlassProfile(edgeX, cy, pi, inwardDirection);
       })}
 
       {renderSideAssembly('left', leftSideVariant, panelRailMap[0] ?? 0)}

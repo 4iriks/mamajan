@@ -80,7 +80,7 @@ assert.ok(
 );
 assert.doesNotMatch(schemeMarkup, />RS(?:112|2081)</, 'top scheme must not render old side profile labels');
 assert.match(schemeMarkup, /stroke-linecap="round"/, 'top scheme must render the mirrored inter-glass profile path');
-assert.match(schemeMarkup, /data-dir="-1"/, 'left-edge inter-glass profile must protrude outside the glass');
+assert.match(schemeMarkup, /data-dir="1"/, 'inter-glass profile prongs must enter the glass edge');
 
 const bubbleOnlyMarkup = renderToStaticMarkup(
   <SlideSchemeSVG

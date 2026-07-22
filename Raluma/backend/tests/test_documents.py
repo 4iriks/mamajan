@@ -424,8 +424,8 @@ class TestLocalPreview:
         assert "SLIDE-стандарт 2 ряда" in r.text
         assert "Центральные" in r.text
         assert "RS30301" in r.text
-        assert 'data-profile="inter-glass" data-panel="2" data-dir="-1"' in r.text
-        assert 'data-profile="inter-glass" data-panel="3" data-dir="1"' in r.text
+        assert 'data-profile="inter-glass" data-panel="2" data-dir="1"' in r.text
+        assert 'data-profile="inter-glass" data-panel="3" data-dir="-1"' in r.text
         assert r.text.count('data-profile="inter-glass"') == 2
 
     def test_local_preview_two_rows_matches_movement_and_center_rs112(self, client):
@@ -512,7 +512,7 @@ class TestLocalPreview:
 
         assert r.status_code == 200
         assert r.text.count('data-profile="inter-glass"') == 4
-        for panel, direction in ((2, -1), (3, -1), (4, 1), (5, 1)):
+        for panel, direction in ((2, 1), (3, 1), (4, -1), (5, -1)):
             assert (
                 f'data-profile="inter-glass" data-panel="{panel}" '
                 f'data-dir="{direction}"'
@@ -621,8 +621,8 @@ class TestLocalPreview:
         )
 
         assert r.status_code == 200
-        assert 'data-profile="inter-glass" data-panel="2" data-dir="-1"' in r.text
-        assert 'data-profile="inter-glass" data-panel="1" data-dir="-1"' in r.text
+        assert 'data-profile="inter-glass" data-panel="2" data-dir="1"' in r.text
+        assert 'data-profile="inter-glass" data-panel="1" data-dir="1"' in r.text
         assert 'data-profile="inter-glass" data-panel="3"' not in r.text
         assert (
             'class="prof-img pl-art-rs2061 pl-focus-img mirror-x" alt="RS2061"'
@@ -1745,7 +1745,7 @@ class TestDeliveryNote:
         assert rows["RS1002"]["size"] == "2277 мм"
         assert rows["RS1002"]["qty"] == 4
 
-    def test_reference_4108_total_includes_rs3110_and_six_rs2081(self):
+    def test_reference_4108_keeps_rs3110_but_excludes_rs2081(self):
         sections = [
             _delivery_section(
                 name="Секция 1",
@@ -1789,16 +1789,14 @@ class TestDeliveryNote:
         hardware = {row["article"]: row for row in context["delivery_item2_rows"]}
 
         assert hardware["RS3110"]["qty"] == 1
-        assert hardware["RS2081"]["qty"] == 6
-        assert hardware["RS2081"]["color"] == "RAL 9005 МАТОВЫЙ"
-        assert hardware["RS2081"]["size"] == "2490 мм"
-        assert hardware["RS2081"]["note"] == "БЕЗ ФРЕЗЕРОВКИ ПОД ЗАЩЕЛКИ"
-        assert context["delivery_total_qty"] == "15"
+        assert "RS2081" not in hardware
+        assert context["delivery_total_qty"] == "9"
 
         html = render_project_document_html(self.project(), sections, "delivery")
-        assert "БЕЗ ФРЕЗЕРОВКИ ПОД ЗАЩЕЛКИ" in html
+        assert "RS3110" in html
+        assert "RS2081" not in html
 
-    def test_rs2081_processing_note_is_split_by_physical_side(self):
+    def test_project_4169_excludes_lock_profiles_from_delivery_note(self):
         section = _delivery_section(
             height=2545,
             panels=2,
@@ -1809,17 +1807,15 @@ class TestDeliveryNote:
             lock_right="Без замка",
         )
 
-        context = _build_delivery_context(self.project(), [section])
+        project = self.project(number="С26-2-4169")
+        context = _build_delivery_context(project, [section])
         rows = [
             row for row in context["delivery_item2_rows"] if row["article"] == "RS2081"
         ]
 
-        assert len(rows) == 2
-        assert {row["qty"] for row in rows} == {1.0}
-        assert {row["note"] for row in rows} == {
-            "",
-            "БЕЗ ФРЕЗЕРОВКИ ПОД ЗАЩЕЛКИ",
-        }
+        assert rows == []
+        html = render_project_document_html(project, [section], "delivery")
+        assert "RS2081" not in html
 
     def test_reference_4027_total_is_33(self):
         project = self.project(
