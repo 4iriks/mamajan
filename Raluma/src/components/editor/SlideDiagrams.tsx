@@ -238,8 +238,10 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
   const schemeRightX = rightSideVariant ? leftW + railAreaW + rightAssemblyVisualWidth - sideAssemblyOverlap + 4 : leftW + railAreaW;
   const wallArticle = railCount === 5 ? 'RS2335' : 'RS2333';
   const wallImageWidth = 34;
-  const wallImageHeight = railCount * rowH + 12;
-  const wallImageY = topPad - 6;
+  // PNG profiles contain transparent end margins. A small bleed keeps the
+  // visible profile joined to both opening boundaries after rotation.
+  const wallImageHeight = railCount * rowH + 16;
+  const wallImageY = topPad - 8;
   const wallAttachOverlap = railCount === 5 ? 11 : 8;
 
   const panelGlassBounds = (panelIndex: number) => {
@@ -579,16 +581,17 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
   const handleRightX = iX + iW - handleInset;
   const symY = iY + iH / 2;
 
-  const renderHandleSymbol = (handle: string, x: number) => {
+  const renderHandleSymbol = (handle: string, x: number, sizeScale = 1) => {
     const h = handle.toLowerCase();
     if (h.includes('кноб') || h.includes('rs3014')) {
-      return <circle cx={x} cy={symY} r={6} fill="var(--theme-accent)" fillOpacity="0.6" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.9" />;
+      return <circle cx={x} cy={symY} r={6 * sizeScale} fill="var(--theme-accent)" fillOpacity="0.6" stroke="var(--theme-accent)" strokeWidth={1.5 * sizeScale} strokeOpacity="0.9" />;
     }
     if (h.includes('скоба')) {
-      return <line x1={x} y1={symY - 26} x2={x} y2={symY + 26} stroke="var(--theme-accent)" strokeWidth="3" strokeOpacity="0.7" />;
+      return <line x1={x} y1={symY - 26 * sizeScale} x2={x} y2={symY + 26 * sizeScale} stroke="var(--theme-accent)" strokeWidth={3 * sizeScale} strokeOpacity="0.7" />;
     }
     if (h.includes('стеклян') || h.includes('rs3017')) {
-      return <rect x={x - 5} y={symY - 5} width={10} height={10} fill="var(--theme-accent)" fillOpacity="0.5" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.9" />;
+      const size = 10 * sizeScale;
+      return <rect x={x - size / 2} y={symY - size / 2} width={size} height={size} fill="var(--theme-accent)" fillOpacity="0.5" stroke="var(--theme-accent)" strokeWidth={1.5 * sizeScale} strokeOpacity="0.9" />;
     }
     return null;
   };
@@ -621,17 +624,6 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
       <rect x={fX} y={fY} width={sidePx} height={fH} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.6" strokeOpacity="0.4" />
       <rect x={fX + fW - sidePx} y={fY} width={sidePx} height={fH} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.6" strokeOpacity="0.4" />
       <rect x={fX} y={fY} width={fW} height={fH} fill="none" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.5" />
-      {topPx >= minProfilePx && (
-        <text x={fX + fW / 2} y={fY + Math.max(8, topPx / 2 + 3)} textAnchor="middle" fontSize="7" fill="var(--theme-accent)" fillOpacity="0.42">
-          {Math.round(topProfileMm)}
-        </text>
-      )}
-      {bottomPx >= minProfilePx && (
-        <text x={fX + fW / 2} y={fY + fH - Math.max(3, bottomPx / 2 - 3)} textAnchor="middle" fontSize="7" fill="var(--theme-accent)" fillOpacity="0.42">
-          {Math.round(bottomProfileMm)}
-        </text>
-      )}
-
       {Array.from({ length: panels }).map((_, i) => {
         const layout = panelLayout[i];
         const px = layout.x;
@@ -717,13 +709,13 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
               </>
             )}
             {isCenterPanel && !centerIsDeaf && !centerIsRs112 && (() => {
-              const inset = Math.min(pW * 0.35, Math.max(4, 100 * drawingScale));
+              const inset = Math.min(pW * 0.35, Math.max(9, 130 * drawingScale));
               const anchorX = firstPanelsInCenter
                 ? (i === centerLeftIdx ? px + pW - inset : px + inset)
                 : cx;
               return (
                 <g data-center-handle={i === centerLeftIdx ? 'left' : 'right'} data-anchor-x={anchorX}>
-                  {renderHandleSymbol(centerHandle, anchorX)}
+                  {renderHandleSymbol(centerHandle, anchorX, 0.84)}
                 </g>
               );
             })()}

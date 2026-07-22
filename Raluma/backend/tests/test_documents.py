@@ -1743,19 +1743,40 @@ class TestDeliveryNote:
         assert "RS3018" not in rows
         assert "RS3020" not in rows
 
-    def test_bubble_seal_is_added_to_delivery_note(self):
-        section = _delivery_section(
-            quantity=2,
-            profile_left_bubble=True,
-            profile_right_bubble=True,
-        )
+    def test_bubble_seal_is_grouped_by_unique_lengths_without_sizes(self):
+        sections = [
+            _delivery_section(
+                name="Секция 1",
+                order=1,
+                height=2400,
+                profile_left_bubble=True,
+            ),
+            _delivery_section(
+                name="Секция 2",
+                order=2,
+                height=2400,
+                profile_right_bubble=True,
+            ),
+            _delivery_section(
+                name="Секция 3",
+                order=3,
+                height=2500,
+                profile_left_bubble=True,
+            ),
+            _delivery_section(
+                name="Секция 4",
+                order=4,
+                height=2600,
+                profile_right_bubble=True,
+            ),
+        ]
 
-        context = _build_delivery_context(self.project(), [section])
+        context = _build_delivery_context(self.project(), sections)
         rows = {row["article"]: row for row in context["delivery_item2_rows"]}
 
         assert rows["RS1002"]["name"] == "Пузырьковый уплотнитель"
-        assert rows["RS1002"]["size"] == "2277 мм"
-        assert rows["RS1002"]["qty"] == 4
+        assert rows["RS1002"]["size"] == ""
+        assert rows["RS1002"]["qty"] == 3
 
     def test_reference_4108_keeps_rs3110_but_excludes_rs2081(self):
         sections = [

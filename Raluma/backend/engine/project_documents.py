@@ -932,6 +932,7 @@ def _build_delivery_hardware_rows(
     sections: list[object], places: dict[str, str]
 ) -> list[dict]:
     grouped: dict[tuple, dict] = {}
+    bubble_seal_lengths: set[float] = set()
     special_articles = {"RS3014", "RS3017", "RS30201", "RS205"}
     excluded_locks = {"RS3018", "RS3020"}
 
@@ -960,14 +961,8 @@ def _build_delivery_hardware_rows(
                     continue
                 length = _safe_float(getattr(profile, "length_mm", 0))
                 if article == "RS1002":
-                    _add_delivery_component(
-                        grouped,
-                        article=article,
-                        name=str(getattr(profile, "name", "") or article).strip(),
-                        color="",
-                        size=f"{_format_mm(length)} мм",
-                        qty=_safe_float(getattr(profile, "qty", 0)),
-                    )
+                    if length > 0:
+                        bubble_seal_lengths.add(round(length, 1))
                     continue
                 _add_delivery_component(
                     grouped,
@@ -992,6 +987,14 @@ def _build_delivery_hardware_rows(
                 size=str(extra.get("size") or ""),
                 qty=qty * section_qty,
             )
+
+    if bubble_seal_lengths:
+        _add_delivery_component(
+            grouped,
+            article="RS1002",
+            name="Пузырьковый уплотнитель",
+            qty=len(bubble_seal_lengths),
+        )
 
     rows = []
     kit_key = _delivery_key("hardware", "base-kit")

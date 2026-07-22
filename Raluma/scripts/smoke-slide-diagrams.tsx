@@ -65,8 +65,8 @@ const renderedWidths = [...roomMarkup.matchAll(/width="([^"]+)"/g)]
 
 assert(renderedWidths.some(width => width === 175), 'room view must keep 2000x2400 proportions');
 assert(!renderedWidths.some(width => width === 400), 'room view must not use the old fixed 400px frame width');
-assert.match(roomMarkup, />53</, 'room view must render top profile size from catalog metadata');
-assert.match(roomMarkup, />23</, 'room view must render threshold size from catalog metadata');
+assert.doesNotMatch(roomMarkup, />53</, 'room view must not render the top profile service size');
+assert.doesNotMatch(roomMarkup, />23</, 'room view must not render the threshold service size');
 assert.doesNotMatch(schemeMarkup, />16</, 'top scheme must not render a separate wall profile marker');
 assert.match(schemeMarkup, /data-profile-image="RS2333-left"/, 'top scheme must render the left wall profile image');
 assert.match(schemeMarkup, /data-profile-image="RS2333-right"/, 'top scheme must render the right wall profile image');
@@ -167,6 +167,10 @@ const centerHandleAnchors = [...roomMarkupTwoRows.matchAll(/data-center-handle="
   .map(match => ({ side: match[1], x: Number(match[2]) }));
 assert.equal(centerHandleAnchors.length, 2, '2-row room view must render both center handle anchors');
 assert.ok(centerHandleAnchors[0].x < centerHandleAnchors[1].x, 'center handles must stay on their physical sides of the joint');
+assert.ok(
+  centerHandleAnchors[1].x - centerHandleAnchors[0].x >= 16,
+  'center handles must remain visually separated around the joint',
+);
 assert.match(roomMarkupTwoRows, /data-center-lock="center" data-center-lock-position="below-handles"/, 'center lock must stay below the central handles');
 
 const movableTwoRowsMarkup = renderToStaticMarkup(
