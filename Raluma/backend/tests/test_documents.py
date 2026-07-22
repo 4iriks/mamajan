@@ -577,6 +577,16 @@ class TestLocalPreview:
         assert r.text.index(
             'data-side-assembly-image="SIDE_RS2081_RS112.png"'
         ) > r.text.rindex("data-scheme-panel=")
+        left_panel = re.search(
+            r'data-scheme-panel="1" x="([^"]+)"[^>]+? width="([^"]+)"', r.text
+        )
+        right_panel = re.search(
+            r'data-scheme-panel="2" x="([^"]+)"[^>]+? width="([^"]+)"', r.text
+        )
+        assert left_panel is not None
+        assert right_panel is not None
+        assert float(left_panel.group(1)) < 70
+        assert float(right_panel.group(1)) + float(right_panel.group(2)) > 370
 
     def test_local_preview_bubble_only_uses_dedicated_side_image(self, client):
         r = client.post(

@@ -391,10 +391,10 @@
       {% set wall_img_h = rails * row_h + 12 %}
       {% set side_overlap = 9 %}
       {% set side_images = {
-        'lock-handle': {'filename':'SIDE_RS2081_RS112.png', 'source_w':584, 'source_h':383, 'min_x':33, 'min_y':0, 'max_x':583, 'max_y':364, 'display_h':34},
-        'p-handle': {'filename':'SIDE_RS1082_RS112.png', 'source_w':389, 'source_h':401, 'min_x':36, 'min_y':14, 'max_x':357, 'max_y':379, 'display_h':34},
-        'p-bubble': {'filename':'SIDE_RS1082_RS1002.png', 'source_w':249, 'source_h':245, 'min_x':42, 'min_y':38, 'max_x':220, 'max_y':215, 'display_h':26},
-        'bubble': {'filename':'SIDE_RS1002.png', 'source_w':177, 'source_h':133, 'min_x':17, 'min_y':21, 'max_x':149, 'max_y':108, 'display_h':20}
+        'lock-handle': {'filename':'SIDE_RS2081_RS112.png', 'source_w':584, 'source_h':383, 'min_x':33, 'min_y':0, 'max_x':583, 'max_y':364, 'display_h':34, 'socket_depth':17},
+        'p-handle': {'filename':'SIDE_RS1082_RS112.png', 'source_w':389, 'source_h':401, 'min_x':36, 'min_y':14, 'max_x':357, 'max_y':379, 'display_h':34, 'socket_depth':16},
+        'p-bubble': {'filename':'SIDE_RS1082_RS1002.png', 'source_w':249, 'source_h':245, 'min_x':42, 'min_y':38, 'max_x':220, 'max_y':215, 'display_h':26, 'socket_depth':19},
+        'bubble': {'filename':'SIDE_RS1002.png', 'source_w':177, 'source_h':133, 'min_x':17, 'min_y':21, 'max_x':149, 'max_y':108, 'display_h':20, 'socket_depth':18}
       } %}
       {% set left_side_variant = 'lock-handle' if section.profile_left_lock_bar and section.profile_left_handle_bar else ('p-handle' if section.profile_left_p_bar and section.profile_left_handle_bar else ('p-bubble' if section.profile_left_p_bar and section.profile_left_bubble else ('bubble' if section.profile_left_bubble else ''))) %}
       {% set right_side_variant = 'lock-handle' if section.profile_right_lock_bar and section.profile_right_handle_bar else ('p-handle' if section.profile_right_p_bar and section.profile_right_handle_bar else ('p-bubble' if section.profile_right_p_bar and section.profile_right_bubble else ('bubble' if section.profile_right_bubble else ''))) %}
@@ -464,8 +464,8 @@
         {% set gr = 4 %}
         {% if pi == 0 %}{% set gl = 3 %}{% endif %}
         {% if pi == P - 1 %}{% set gr = 3 %}{% endif %}
-        {% set gx1 = px + gl %}
-        {% set gx2 = px + panel_w - gr %}
+        {% set gx1 = left_w + side_overlap - left_side_image.socket_depth if pi == 0 and left_side_image else px + gl %}
+        {% set gx2 = left_w + rail_w - side_overlap + right_side_image.socket_depth if pi == P - 1 and right_side_image else px + panel_w - gr %}
         {# Панель — тонкий прямоугольник #}
         <rect data-scheme-panel="{{ pi + 1 }}" x="{{ gx1 }}" y="{{ cy - 3 }}" width="{{ gx2 - gx1 }}" height="6" fill="#ddeef5" stroke="#000" stroke-width="0.8"/>
         {# Номер панели #}
