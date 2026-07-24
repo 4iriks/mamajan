@@ -7,10 +7,13 @@ import {
   SEL,
 } from './types';
 import { Checkbox, ToggleGroup, RadioList, ProfileCheckbox, SectionDivider } from './FormInputs';
+import { DEFAULT_GLASS_TYPE, glassTypeOptions } from '../../constants/glass';
 
 // ── Tab: Основное (общая для всех систем) ─────────────────────────────────────
 
 export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
+  const glassOptions = glassTypeOptions(s.system);
+  const glassOptionsId = `glass-types-${s.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
   const setPaintingType = (type: Section['paintingType']) => {
     const threshold = s.threshold || '';
     const thresholdKind = threshold.includes('Накладной') ? 'Накладной' : 'Стандартный';
@@ -53,14 +56,22 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
         </div>
         <div className="space-y-1.5">
           <label className={LBL}>Стекло</label>
-          <select value={s.glassType} onChange={e => update({ glassType: e.target.value })} className={SEL}>
-            <option>10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ</option>
-            <option>10ММ ЗАКАЛЕННОЕ МАТОВОЕ</option>
-            <option>8ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ</option>
-            <option>8ММ ЗАКАЛЕННОЕ МАТОВОЕ</option>
-            <option>6ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ</option>
-            <option>6ММ ЗАКАЛЕННОЕ МАТОВОЕ</option>
-          </select>
+          <input
+            type="text"
+            list={glassOptionsId}
+            value={s.glassType}
+            onChange={e => update({ glassType: e.target.value })}
+            onBlur={e => {
+              const value = e.currentTarget.value.trim();
+              if (value !== s.glassType) update({ glassType: value || DEFAULT_GLASS_TYPE });
+            }}
+            className={INP}
+            placeholder="Выберите или укажите стекло"
+            autoComplete="off"
+          />
+          <datalist id={glassOptionsId}>
+            {glassOptions.map(option => <option key={option} value={option} />)}
+          </datalist>
         </div>
       </div>
       <div className="space-y-4">

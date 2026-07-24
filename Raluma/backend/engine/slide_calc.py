@@ -13,6 +13,7 @@ from engine.profile_catalog import apply_profile_catalog
 
 MAX_PROFILE_LENGTH_MM = 5950
 DEFAULT_INTER_GLASS_PROFILE = "Алюминиевый RS2061"
+DEFAULT_GLASS_TYPE = "10ММ ПРОЗРАЧНОЕ"
 PNG_PROFILE_IMAGES = {
     "RS1002",
     "RS1006",
@@ -621,7 +622,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     result.color_text = _format_color_text(painting_type, ral_color, threshold)
 
     result.glass_type = (
-        _get(section, "glass_type", None) or "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
+        _get(section, "glass_type", None) or DEFAULT_GLASS_TYPE
     )
     result.threshold_text = _threshold_display_name(
         rails, std, threshold, painting_type
@@ -1398,7 +1399,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
 
     result.color_text = _format_color_text(painting_type, ral_color, threshold)
 
-    result.glass_type = section.glass_type or "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
+    result.glass_type = section.glass_type or DEFAULT_GLASS_TYPE
     result.threshold_text = _threshold_display_name(
         rails, std, threshold, painting_type
     )

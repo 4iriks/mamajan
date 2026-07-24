@@ -1,4 +1,5 @@
 import type { ProjectFull, ProjectList, SectionOut } from './projects';
+import { DEFAULT_GLASS_TYPE } from '../constants/glass';
 
 export const LOCAL_PROJECTS_KEY = 'raluma-local-projects-v1';
 
@@ -43,7 +44,7 @@ function normalizeSection(
     height: section.height ?? 2400,
     panels: section.panels ?? 3,
     quantity: section.quantity ?? 1,
-    glass_type: section.glass_type ?? '10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ',
+    glass_type: section.glass_type ?? DEFAULT_GLASS_TYPE,
     painting_type: section.painting_type ?? 'RAL стандарт',
     ral_color: section.ral_color ?? '9016 МАТОВЫЙ',
     corner_left: section.corner_left ?? false,

@@ -12,7 +12,7 @@ from typing import Iterable
 from jinja2 import Environment, FileSystemLoader
 
 from engine.pdf import TEMPLATES_DIR, _img_b64, glass_mm
-from engine.slide_calc import calculate_slide
+from engine.slide_calc import DEFAULT_GLASS_TYPE, calculate_slide
 
 
 DOC_TITLES = {
@@ -329,7 +329,7 @@ def _manual_paint_row(raw: dict) -> tuple[str, dict] | None:
     name = str(raw.get("name") or "").strip()
     if not article and not name:
         return None
-    color = str(raw.get("color") or "Без цвета").strip() or "Без цвета"
+    color = " ".join(str(raw.get("color") or "").split())
     qty = max(0, int(_safe_float(raw.get("qty") or raw.get("quantity"), 0)))
     clean = _safe_float(raw.get("clean") or raw.get("cleanSize"), 0)
     allowance = _safe_float(raw.get("allowance") or raw.get("allowanceSize"), 0)
@@ -399,11 +399,27 @@ def _build_paint_pages(
             row["qty"] += int(profile.qty)
             row["total_m"] = round(row["qty"] * allowance / 1000, 1)
 
+    calculated_colors = list(grouped)
     for manual_index, raw in enumerate(_parse_paint_manual_rows(manual_rows), start=1):
         parsed = _manual_paint_row(raw)
         if parsed is None:
             continue
         color, row = parsed
+        if color:
+            color = next(
+                (
+                    existing
+                    for existing in calculated_colors
+                    if existing.casefold() == color.casefold()
+                ),
+                color,
+            )
+        elif len(calculated_colors) == 1:
+            color = calculated_colors[0]
+        else:
+            color = "Без цвета"
+        row["_manual"] = True
+        row["_manual_order"] = manual_index
         key = (
             f"manual-{manual_index}",
             row["article"],
@@ -419,7 +435,12 @@ def _build_paint_pages(
     for color, rows_by_key in grouped.items():
         rows = sorted(
             rows_by_key.values(),
-            key=lambda row: (row["article"], row["clean"]),
+            key=lambda row: (
+                1 if row.get("_manual") else 0,
+                int(row.get("_manual_order") or 0),
+                row["article"] if not row.get("_manual") else "",
+                row["clean"] if not row.get("_manual") else 0,
+            ),
         )
         groups = _group_paint_rows(rows)
         total_qty = sum(row["qty"] for row in rows)
@@ -440,15 +461,19 @@ def _group_paint_rows(rows: list[dict]) -> list[dict]:
     groups: list[dict] = []
     by_key: dict[tuple, dict] = {}
     for row in rows:
-        key = (
-            row["article"],
-            row["name"],
-            row["image"] or "",
-            row.get("image_data") or "",
-            row["note"] or "",
-            bool(row["paint_marker"]),
-            row["paint_marker_class"] or "",
-        )
+        if row.get("_manual"):
+            key = ("manual", int(row.get("_manual_order") or 0))
+        else:
+            key = (
+                "calculated",
+                row["article"],
+                row["name"],
+                row["image"] or "",
+                row.get("image_data") or "",
+                row["note"] or "",
+                bool(row["paint_marker"]),
+                row["paint_marker_class"] or "",
+            )
         group = by_key.get(key)
         if group is None:
             group = {
@@ -765,7 +790,7 @@ def _build_delivery_glass_rows(
                 row["qty"] += 1
         else:
             glass_type = str(
-                getattr(section, "glass_type", "") or "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
+                getattr(section, "glass_type", "") or DEFAULT_GLASS_TYPE
             ).strip()
             color = _section_color(section)
             panel_count = max(1, _positive_int(getattr(section, "panels", 1), 1))

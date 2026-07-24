@@ -1309,6 +1309,51 @@ class TestProjectPaintOrder:
         assert row["total_m"] == 3.0
         assert group["image_data"] == "data:image/png;base64,abc"
 
+    def test_blank_manual_paint_row_appends_to_calculated_color_and_total(self):
+        section = SimpleNamespace()
+        calc = SimpleNamespace(
+            color_text="RAL 9016 МАТОВЫЙ",
+            profiles=[
+                SimpleNamespace(
+                    article="RS2021",
+                    name="Стекольный профиль",
+                    length_mm=1445,
+                    qty=2,
+                    painted=True,
+                    image="RS2021.png",
+                    paint_note="",
+                    paint_mode="Красится",
+                )
+            ],
+        )
+
+        pages = _build_paint_pages(
+            [CalculatedSection(order=1, section=section, calc=calc)],
+            [
+                {
+                    "article": "AAA-MANUAL",
+                    "name": "Ручная деталь",
+                    "qty": "1",
+                    "clean": "500",
+                    "allowance": "550",
+                }
+            ],
+        )
+
+        assert len(pages) == 1
+        page = pages[0]
+        assert page["color"] == "RAL 9016 МАТОВЫЙ"
+        assert [row["article"] for row in page["rows"]] == [
+            "RS2021",
+            "AAA-MANUAL",
+        ]
+        assert [group["article"] for group in page["groups"]] == [
+            "RS2021",
+            "AAA-MANUAL",
+        ]
+        assert page["total_qty"] == 3
+        assert page["total_m"] == 3.6
+
     def test_thresholds_use_dedicated_paint_request_images(self):
         section = SimpleNamespace()
         calc = SimpleNamespace(
@@ -1394,6 +1439,40 @@ class TestProjectGlassOrder:
 
         assert [row.section.name for row in rows] == ["Секция 1", "Секция 2"]
         assert [row.order for row in rows] == [1, 2]
+
+    def test_different_glass_names_keep_same_sizes_but_do_not_merge(self):
+        project = SimpleNamespace(number="P-GLASS-TYPE")
+        section = SimpleNamespace(panels=1, quantity=1, slide_rows=1)
+
+        def calculated(order: int, glass_type: str):
+            calc = SimpleNamespace(
+                glass_type=glass_type,
+                glass=[
+                    SimpleNamespace(
+                        position="Промежуточное",
+                        width_mm=900,
+                        height_mm=2200,
+                        qty=1,
+                    )
+                ],
+            )
+            return CalculatedSection(order=order, section=section, calc=calc)
+
+        rows = _build_glass_rows(
+            project,
+            [
+                calculated(1, "10ММ ПРОЗРАЧНОЕ"),
+                calculated(2, "ТРИПЛЕКС 4.1.4"),
+            ],
+        )
+
+        assert len(rows) == 2
+        assert [row["glass_type"] for row in rows] == [
+            "10ММ ПРОЗРАЧНОЕ",
+            "ТРИПЛЕКС 4.1.4",
+        ]
+        assert {(row["width"], row["height"]) for row in rows} == {(900, 2200)}
+        assert [row["marking"] for row in rows] == ["1,1", "2,1"]
 
     def test_left_edge_knob_drawing_does_not_mark_whole_section(self):
         project = SimpleNamespace(number="P-001")

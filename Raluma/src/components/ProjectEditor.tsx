@@ -39,6 +39,7 @@ import { apiToLocal, applyTemplateDataToSection, localToApi, localToTemplateData
 import { EditorSidebar } from './editor/EditorSidebar';
 import { SectionFormWrapper } from './editor/SectionFormWrapper';
 import { buildCustomerOptions, filterCustomerOptions } from '../utils/customers';
+import { DEFAULT_GLASS_TYPE } from '../constants/glass';
 
 export type { SystemType };
 export type { Section };
@@ -212,7 +213,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       system,
       width: 2000, height: 2400, panels: 3, quantity: 1,
       threshold: 'Стандартный окраш',
-      glassType: '10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ',
+      glassType: DEFAULT_GLASS_TYPE,
       paintingType: 'RAL стандарт', ralColor: '9016 МАТОВЫЙ',
       cornerLeft: false, cornerRight: false,
       floorLatchesLeft: false, floorLatchesRight: false,

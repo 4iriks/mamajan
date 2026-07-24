@@ -12,6 +12,7 @@ import {
   ProjectDocumentType,
   updateProject,
 } from '../api/projects';
+import type { SectionOut } from '../api/projects';
 import { toast } from '../store/toastStore';
 
 interface Props {
@@ -77,6 +78,16 @@ function parsePaintRows(raw?: string): PaintManualRow[] {
   }
 }
 
+function projectPaintColors(sections: SectionOut[]): string[] {
+  const colors = new Set<string>();
+  sections.forEach(section => {
+    if (!(section.painting_type || '').toLowerCase().includes('ral')) return;
+    const ral = (section.ral_color || '').trim();
+    colors.add(ral ? `RAL ${ral}` : 'RAL');
+  });
+  return [...colors].sort((a, b) => a.localeCompare(b, 'ru'));
+}
+
 function parseDeliveryData(raw: string | undefined, includeGlass: boolean): DeliveryNoteData {
   const fallback: DeliveryNoteData = {
     dateMode: 'blank',
@@ -120,6 +131,7 @@ export default function ProjectDocumentModal({
   const [isDirty, setIsDirty] = useState(false);
   const [previewVersion, setPreviewVersion] = useState(0);
   const [paintRows, setPaintRows] = useState<PaintManualRow[]>([]);
+  const [paintColors, setPaintColors] = useState<string[]>([]);
   const [catalog, setCatalog] = useState<HardwareCatalogOption[]>([]);
   const [isSavingPaintRows, setIsSavingPaintRows] = useState(false);
   const [deliveryData, setDeliveryData] = useState<DeliveryNoteData>(() => parseDeliveryData(undefined, true));
@@ -153,6 +165,7 @@ export default function ProjectDocumentModal({
       setPreviewSrcDoc('');
       setIsDirty(false);
       setPaintRows([]);
+      setPaintColors([]);
       setDeliveryData(parseDeliveryData(undefined, true));
       return;
     }
@@ -164,7 +177,15 @@ export default function ProjectDocumentModal({
     let cancelled = false;
     getProject(projectId)
       .then(project => {
-        if (!cancelled) setPaintRows(parsePaintRows(project.paint_manual_rows));
+        if (cancelled) return;
+        const colors = projectPaintColors(project.sections);
+        const defaultColor = colors.length === 1 ? colors[0] : '';
+        setPaintColors(colors);
+        setPaintRows(
+          parsePaintRows(project.paint_manual_rows).map(row => (
+            row.color || !defaultColor ? row : { ...row, color: defaultColor }
+          )),
+        );
       })
       .catch(() => {
         if (!cancelled) toast.error('Не удалось загрузить ручные строки покраски');
@@ -275,7 +296,10 @@ export default function ProjectDocumentModal({
   };
 
   const addPaintRow = () => {
-    setPaintRows(rows => [...rows, normalizePaintRow()]);
+    setPaintRows(rows => [
+      ...rows,
+      normalizePaintRow({ color: paintColors.length === 1 ? paintColors[0] : '' }),
+    ]);
   };
 
   const removePaintRow = (id: string) => {
@@ -414,6 +438,9 @@ export default function ProjectDocumentModal({
 
                 {paintRows.length > 0 && (
                   <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                    <datalist id={`paint-colors-${projectId}`}>
+                      {paintColors.map(color => <option key={color} value={color} />)}
+                    </datalist>
                     {paintRows.map(row => (
                       <div
                         key={row.id}
@@ -436,6 +463,7 @@ export default function ProjectDocumentModal({
                           placeholder="Артикул"
                         />
                         <input
+                          list={`paint-colors-${projectId}`}
                           value={row.color}
                           onChange={event => updatePaintRow(row.id, { color: event.target.value })}
                           className="h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50"

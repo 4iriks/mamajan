@@ -3,6 +3,7 @@
 Покрывает: переменные профилей, формулы стёкол, профили, фурнитуру, саморезы.
 """
 
+from dataclasses import asdict
 from math import ceil
 from types import SimpleNamespace
 from engine.slide_calc import (
@@ -24,7 +25,7 @@ def _make_section(**overrides):
         threshold="Стандартный анод",
         painting_type="",
         ral_color="",
-        glass_type="10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
+        glass_type="10ММ ПРОЗРАЧНОЕ",
         first_panel_inside="Справа",
         unused_track="",
         inter_glass_profile="Алюминиевый RS2061",
@@ -188,6 +189,31 @@ class TestBasicSlide:
         mid = _find_glass(self.result, "Промежуточные")[0]
         assert edge.qty == 2
         assert mid.qty == 1  # (3-2)*1
+
+
+class TestGlassTypeLabel:
+    def test_glass_type_does_not_change_one_or_two_row_calculations(self):
+        cases = (
+            {"slide_rows": 1, "panels": 3, "glass_type": "ТРИПЛЕКС 4.1.4"},
+            {"slide_rows": 2, "panels": 4, "glass_type": "СТЕКЛО ПОД ЗАКАЗ"},
+        )
+
+        for case in cases:
+            baseline = asdict(
+                calculate_slide(
+                    _make_section(
+                        slide_rows=case["slide_rows"],
+                        panels=case["panels"],
+                        glass_type="10ММ ПРОЗРАЧНОЕ",
+                    )
+                )
+            )
+            changed = asdict(calculate_slide(_make_section(**case)))
+
+            assert changed["glass_type"] == case["glass_type"]
+            baseline.pop("glass_type")
+            changed.pop("glass_type")
+            assert changed == baseline
 
 
 # ═══════════════════════════════════════════════════════════════════════════

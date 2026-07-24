@@ -125,7 +125,7 @@ class SectionBase(BaseModel):
     height: float = 2400
     panels: int = 3
     quantity: int = 1
-    glass_type: str = "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
+    glass_type: str = "10ММ ПРОЗРАЧНОЕ"
     painting_type: str = "RAL стандарт"
     ral_color: Optional[str] = None
     corner_left: bool = False
