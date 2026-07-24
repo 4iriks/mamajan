@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Any, Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from engine.glass_types import NON_SLIDE_DEFAULT_GLASS_TYPE, default_glass_type
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -125,7 +127,7 @@ class SectionBase(BaseModel):
     height: float = 2400
     panels: int = 3
     quantity: int = 1
-    glass_type: str = "10ММ ПРОЗРАЧНОЕ"
+    glass_type: str = NON_SLIDE_DEFAULT_GLASS_TYPE
     painting_type: str = "RAL стандарт"
     ral_color: Optional[str] = None
     corner_left: bool = False
@@ -188,6 +190,17 @@ class SectionBase(BaseModel):
     comments: Optional[str] = None
     # Производственный лист — ручные правки
     document_overrides: Optional[str] = "{}"
+
+    @model_validator(mode="before")
+    @classmethod
+    def set_system_glass_default(cls, values):
+        if not isinstance(values, dict):
+            return values
+        if str(values.get("glass_type") or "").strip():
+            return values
+        normalized = dict(values)
+        normalized["glass_type"] = default_glass_type(values.get("system"))
+        return normalized
 
 
 class SectionCreate(SectionBase):

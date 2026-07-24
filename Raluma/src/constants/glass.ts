@@ -1,7 +1,8 @@
-export const DEFAULT_GLASS_TYPE = '10ММ ПРОЗРАЧНОЕ';
+export const SLIDE_DEFAULT_GLASS_TYPE = '10ММ ПРОЗРАЧНОЕ';
+export const LEGACY_DEFAULT_GLASS_TYPE = '10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ';
 
 export const SLIDE_GLASS_TYPE_OPTIONS = [
-  DEFAULT_GLASS_TYPE,
+  SLIDE_DEFAULT_GLASS_TYPE,
   '10ММ БРОНЗА В МАССЕ',
   '10ММ СЕРОЕ В МАССЕ',
   '10ММ МАТОВОЕ',
@@ -10,7 +11,7 @@ export const SLIDE_GLASS_TYPE_OPTIONS = [
 ] as const;
 
 const LEGACY_GLASS_TYPE_OPTIONS = [
-  '10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ',
+  LEGACY_DEFAULT_GLASS_TYPE,
   '10ММ ЗАКАЛЕННОЕ МАТОВОЕ',
   '8ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ',
   '8ММ ЗАКАЛЕННОЕ МАТОВОЕ',
@@ -22,4 +23,10 @@ export function glassTypeOptions(system: string): readonly string[] {
   return system === 'СЛАЙД'
     ? SLIDE_GLASS_TYPE_OPTIONS
     : LEGACY_GLASS_TYPE_OPTIONS;
+}
+
+export function defaultGlassType(system: string): string {
+  return system === 'СЛАЙД'
+    ? SLIDE_DEFAULT_GLASS_TYPE
+    : LEGACY_DEFAULT_GLASS_TYPE;
 }

@@ -11,8 +11,9 @@ from typing import Iterable
 
 from jinja2 import Environment, FileSystemLoader
 
+from engine.glass_types import default_glass_type
 from engine.pdf import TEMPLATES_DIR, _img_b64, glass_mm
-from engine.slide_calc import DEFAULT_GLASS_TYPE, calculate_slide
+from engine.slide_calc import calculate_slide
 
 
 DOC_TITLES = {
@@ -790,7 +791,8 @@ def _build_delivery_glass_rows(
                 row["qty"] += 1
         else:
             glass_type = str(
-                getattr(section, "glass_type", "") or DEFAULT_GLASS_TYPE
+                getattr(section, "glass_type", "")
+                or default_glass_type(getattr(section, "system", None))
             ).strip()
             color = _section_color(section)
             panel_count = max(1, _positive_int(getattr(section, "panels", 1), 1))

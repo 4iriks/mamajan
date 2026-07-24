@@ -7,7 +7,7 @@ import {
   SEL,
 } from './types';
 import { Checkbox, ToggleGroup, RadioList, ProfileCheckbox, SectionDivider } from './FormInputs';
-import { DEFAULT_GLASS_TYPE, glassTypeOptions } from '../../constants/glass';
+import { defaultGlassType, glassTypeOptions } from '../../constants/glass';
 
 // ── Tab: Основное (общая для всех систем) ─────────────────────────────────────
 
@@ -63,7 +63,7 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
             onChange={e => update({ glassType: e.target.value })}
             onBlur={e => {
               const value = e.currentTarget.value.trim();
-              if (value !== s.glassType) update({ glassType: value || DEFAULT_GLASS_TYPE });
+              if (value !== s.glassType) update({ glassType: value || defaultGlassType(s.system) });
             }}
             className={INP}
             placeholder="Выберите или укажите стекло"

@@ -97,7 +97,7 @@ class Section(Base):
     height = Column(Float, default=2400)
     panels = Column(Integer, default=3)
     quantity = Column(Integer, default=1)
-    glass_type = Column(String, default="10ММ ПРОЗРАЧНОЕ")
+    glass_type = Column(String, default="10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ")
     painting_type = Column(String, default="RAL стандарт")
     ral_color = Column(String, nullable=True)
     corner_left = Column(Boolean, default=False)

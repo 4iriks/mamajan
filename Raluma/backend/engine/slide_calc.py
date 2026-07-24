@@ -7,13 +7,14 @@
 from dataclasses import dataclass, field
 from math import ceil
 
+from engine.glass_types import SLIDE_DEFAULT_GLASS_TYPE
 from engine.legacy_values import normalize_center_handle_offset
 from engine.profile_catalog import apply_profile_catalog
 
 
 MAX_PROFILE_LENGTH_MM = 5950
 DEFAULT_INTER_GLASS_PROFILE = "Алюминиевый RS2061"
-DEFAULT_GLASS_TYPE = "10ММ ПРОЗРАЧНОЕ"
+DEFAULT_GLASS_TYPE = SLIDE_DEFAULT_GLASS_TYPE
 PNG_PROFILE_IMAGES = {
     "RS1002",
     "RS1006",

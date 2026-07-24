@@ -294,7 +294,59 @@ def _delivery_section(**overrides):
     return SimpleNamespace(**SectionCreate(**payload).model_dump())
 
 
+class TestSystemGlassDefaults:
+    def test_default_depends_on_section_system(self):
+        assert (
+            SectionCreate(name="Слайд", system="СЛАЙД").glass_type
+            == "10ММ ПРОЗРАЧНОЕ"
+        )
+        for system in ("КНИЖКА", "ЛИФТ", "ЦС"):
+            assert (
+                SectionCreate(name=system, system=system).glass_type
+                == "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
+            )
+
+    def test_explicit_custom_glass_is_not_replaced(self):
+        assert (
+            SectionCreate(
+                name="Заказное стекло",
+                system="СЛАЙД",
+                glass_type="СТЕКЛО ПО ТЗ",
+            ).glass_type
+            == "СТЕКЛО ПО ТЗ"
+        )
+
+
 class TestPreview:
+    def test_custom_glass_type_is_escaped_in_section_and_glass_previews(
+        self, client, admin_headers, project
+    ):
+        malicious_glass = '<img src=x onerror="alert(1)">'
+        escaped_glass = "&lt;img src=x onerror=&#34;alert(1)&#34;&gt;"
+        section = _create_slide_section(
+            client,
+            admin_headers,
+            project["id"],
+            glass_type=malicious_glass,
+        )
+        token = admin_headers["Authorization"].replace("Bearer ", "")
+
+        section_preview = client.get(
+            f"/api/projects/{project['id']}/sections/{section['id']}/preview",
+            params={"token": token},
+        )
+        glass_preview = client.get(
+            f"/api/projects/{project['id']}/documents/glass/preview",
+            params={"token": token},
+        )
+
+        assert section_preview.status_code == 200
+        assert glass_preview.status_code == 200
+        assert escaped_glass in section_preview.text
+        assert escaped_glass in glass_preview.text
+        assert malicious_glass not in section_preview.text
+        assert malicious_glass not in glass_preview.text
+
     def test_preview_returns_html(self, client, admin_headers, project):
         section = _create_slide_section(client, admin_headers, project["id"])
         token = admin_headers["Authorization"].replace("Bearer ", "")

@@ -293,6 +293,7 @@ export default function ProjectDocumentModal({
 
   const updatePaintRow = (id: string, updates: Partial<PaintManualRow>) => {
     setPaintRows(rows => rows.map(row => row.id === id ? { ...row, ...updates } : row));
+    setIsDirty(true);
   };
 
   const addPaintRow = () => {
@@ -300,10 +301,12 @@ export default function ProjectDocumentModal({
       ...rows,
       normalizePaintRow({ color: paintColors.length === 1 ? paintColors[0] : '' }),
     ]);
+    setIsDirty(true);
   };
 
   const removePaintRow = (id: string) => {
     setPaintRows(rows => rows.filter(row => row.id !== id));
+    setIsDirty(true);
   };
 
   const selectCatalogItem = (rowId: string, sku: string) => {
@@ -336,6 +339,7 @@ export default function ProjectDocumentModal({
         paint_manual_rows: JSON.stringify(cleaned),
       });
       setPaintRows(cleaned);
+      setIsDirty(false);
       toast.success('Строки заявки на покраску сохранены');
       if (isGuest) {
         await loadGuestPreview();

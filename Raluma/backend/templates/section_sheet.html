@@ -553,7 +553,7 @@
     <td style="width:50%; border-right:1px solid #000;">
       <table style="border:none;">
         <tr><td style="border:none; padding:0.2mm 0;"><b>ЦВЕТ</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ calc.color_text }}</td></tr>
-        <tr><td style="border:none; padding:0.2mm 0;"><b>СТЕКЛО</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ calc.glass_type }}</td></tr>
+        <tr><td style="border:none; padding:0.2mm 0;"><b>СТЕКЛО</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ calc.glass_type|e }}</td></tr>
         <tr><td style="border:none; padding:0.2mm 0;"><b>ПОРОГ</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ calc.threshold_text }}</td></tr>
         <tr><td style="border:none; padding:0.2mm 0;"><b>СИСТЕМА</b></td><td style="border:none; padding:0.2mm 0;" class="val">{{ section.rails }}-рельсовая</td></tr>
         {% set params_is2row = (section.slide_rows or 1) == 2 %}
