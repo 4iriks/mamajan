@@ -529,59 +529,6 @@ export function BookSystemTab({ s, update }: { s: Section; update: (u: Partial<S
   );
 }
 
-// ── Tab: ЛИФТ — Система ───────────────────────────────────────────────────────
-
-export function LiftSystemTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
-  return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-8">
-      <div className="space-y-5">
-        <div className="space-y-2">
-          <label className={LBL}>Кол-во панелей</label>
-          <ToggleGroup value={s.panels?.toString()} options={['2', '3', '4']}
-            onChange={v => update({ panels: parseInt(v) })} />
-        </div>
-        <div className="space-y-2">
-          <label className={LBL}>1-я панель</label>
-          <ToggleGroup value={s.firstPanelInside} options={['Слева', 'Справа']}
-            onChange={v => update({ firstPanelInside: v })} />
-        </div>
-        <div className="space-y-2">
-          <label className={LBL}>Замок</label>
-          <RadioList value={s.lock} noneLabel="Без замка"
-            options={['RS3018 Замок-защёлка', 'С ключом']}
-            onChange={v => update({ lock: v })} />
-        </div>
-      </div>
-      <div className="space-y-5">
-        <div className="space-y-2">
-          <label className={LBL}>Профиль левый</label>
-          <select value={s.profileLeft || ''} onChange={e => update({ profileLeft: e.target.value || undefined })} className={SEL}>
-            <option value="">— Нет —</option>
-            <option>Стойка</option>
-            <option>Угол</option>
-            <option>Торец</option>
-          </select>
-        </div>
-        <div className="space-y-2">
-          <label className={LBL}>Профиль правый</label>
-          <select value={s.profileRight || ''} onChange={e => update({ profileRight: e.target.value || undefined })} className={SEL}>
-            <option value="">— Нет —</option>
-            <option>Стойка</option>
-            <option>Угол</option>
-            <option>Торец</option>
-          </select>
-        </div>
-        <div className="space-y-2">
-          <label className={LBL}>Ручка</label>
-          <RadioList value={s.handle} noneLabel="Без ручки"
-            options={['RS3014 Ручка-кноб', 'RS3017 Стеклянная ручка']}
-            onChange={v => update({ handle: v })} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Tab: ЦС — Форма ───────────────────────────────────────────────────────────
 
 export function CsShapeTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {

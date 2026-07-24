@@ -72,6 +72,13 @@ export interface Section {
   angleLeft?: number;
   angleRight?: number;
   bookSystem?: string;
+  // ЛИФТ
+  liftFillingType?: string;
+  liftFillingCustom?: string;
+  liftControlType?: string;
+  liftRemoteChannels?: number;
+  liftCableSide?: string;
+  liftOpeningType?: string;
   // ДВЕРЬ / ЦС
   doorSystem?: string;
   csShape?: string;

@@ -192,7 +192,15 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           panels: 3,
         };
       }
-      case 'ЛИФТ':   return { panels: opts?.liftPanels || 2 };
+      case 'ЛИФТ':
+        return {
+          panels: opts?.liftPanels || 2,
+          liftFillingType: 'СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ',
+          liftControlType: 'Пульт ДУ',
+          liftRemoteChannels: 1,
+          liftCableSide: 'Справа',
+          liftOpeningType: 'Сдвиг вниз',
+        };
       case 'ЦС':     return { csShape: opts?.csShape || 'Прямоугольник', panels: 1 };
       case 'КОМПЛЕКТАЦИЯ': return { panels: 1, doorSystem: 'Одностворчатая', doorOpening: 'Внутрь' };
     }

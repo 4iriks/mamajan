@@ -180,6 +180,13 @@ class SectionBase(BaseModel):
     angle_left: Optional[float] = None
     angle_right: Optional[float] = None
     book_system: Optional[str] = None
+    # ЛИФТ
+    lift_filling_type: str = "СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
+    lift_filling_custom: Optional[str] = None
+    lift_control_type: str = "Пульт ДУ"
+    lift_remote_channels: Optional[int] = 1
+    lift_cable_side: str = "Справа"
+    lift_opening_type: str = "Сдвиг вниз"
     # ДВЕРЬ / ЦС
     door_system: Optional[str] = None
     cs_shape: Optional[str] = None

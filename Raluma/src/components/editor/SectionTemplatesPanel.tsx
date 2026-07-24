@@ -3,6 +3,7 @@ import { Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import type { SectionTemplate } from '../../api/sectionTemplates';
 import { applyTemplateDataToSection } from './converters';
 import { SlideRoomViewSVG } from './SlideDiagrams';
+import { LiftRoomViewSVG } from './LiftDiagrams';
 import { Section, SYSTEM_COLORS } from './types';
 
 const MAX_TEMPLATES = 10;
@@ -63,6 +64,13 @@ function TemplatePreview({ section }: { section: Section }) {
     return (
       <div className="h-full w-full overflow-hidden [&_svg]:h-full [&_svg]:max-w-none">
         <SlideRoomViewSVG section={section} />
+      </div>
+    );
+  }
+  if (section.system === 'ЛИФТ') {
+    return (
+      <div className="h-full w-full overflow-hidden [&_svg]:h-full [&_svg]:max-w-none">
+        <LiftRoomViewSVG section={section} />
       </div>
     );
   }

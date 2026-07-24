@@ -61,6 +61,75 @@ def test_section_extra_components_save_through_api(client, admin_headers, projec
     assert json.loads(updated.json()["extra_components"]) == updated_components
 
 
+def test_lift_fields_save_through_api(client, admin_headers, project):
+    created = client.post(
+        f"/api/projects/{project['id']}/sections",
+        headers=admin_headers,
+        json={
+            "name": "ЛИФТ 4 панели",
+            "system": "ЛИФТ",
+            "width": 3043,
+            "height": 3300,
+            "panels": 4,
+            "quantity": 2,
+            "lift_filling_type": "ДРУГОЕ 20мм",
+            "lift_filling_custom": "Сэндвич-панель 20мм",
+            "lift_control_type": "Пульт ДУ",
+            "lift_remote_channels": 12,
+            "lift_cable_side": "Слева",
+            "lift_opening_type": "Верх/низ глухие, сдвиг вниз",
+        },
+    )
+
+    assert created.status_code == 201
+    section = created.json()
+    assert section["lift_filling_type"] == "ДРУГОЕ 20мм"
+    assert section["lift_filling_custom"] == "Сэндвич-панель 20мм"
+    assert section["lift_control_type"] == "Пульт ДУ"
+    assert section["lift_remote_channels"] == 12
+    assert section["lift_cable_side"] == "Слева"
+    assert section["lift_opening_type"] == "Верх/низ глухие, сдвиг вниз"
+
+    updated = client.put(
+        f"/api/projects/{project['id']}/sections/{section['id']}",
+        headers=admin_headers,
+        json={
+            **section,
+            "lift_filling_type": "СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)",
+            "lift_filling_custom": None,
+            "lift_control_type": "Кнопка",
+            "lift_remote_channels": None,
+            "lift_cable_side": "Справа",
+            "lift_opening_type": "Сдвиг вверх",
+        },
+    )
+
+    assert updated.status_code == 200
+    saved = updated.json()
+    assert saved["lift_filling_type"] == "СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)"
+    assert saved["lift_filling_custom"] is None
+    assert saved["lift_control_type"] == "Кнопка"
+    assert saved["lift_remote_channels"] is None
+    assert saved["lift_cable_side"] == "Справа"
+    assert saved["lift_opening_type"] == "Сдвиг вверх"
+
+
+def test_lift_fields_have_isolated_defaults(client, admin_headers, project):
+    created = client.post(
+        f"/api/projects/{project['id']}/sections",
+        headers=admin_headers,
+        json={"name": "ЛИФТ по умолчанию", "system": "ЛИФТ", "panels": 2},
+    )
+
+    assert created.status_code == 201
+    section = created.json()
+    assert section["lift_filling_type"] == "СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
+    assert section["lift_control_type"] == "Пульт ДУ"
+    assert section["lift_remote_channels"] == 1
+    assert section["lift_cable_side"] == "Справа"
+    assert section["lift_opening_type"] == "Сдвиг вниз"
+
+
 def test_list_sections(client, admin_headers, project, section):
     r = client.get(f"/api/projects/{project['id']}/sections", headers=admin_headers)
     assert r.status_code == 200

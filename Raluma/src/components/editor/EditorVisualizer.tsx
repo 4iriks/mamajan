@@ -10,6 +10,7 @@ import React from 'react';
 import { SlideCalcPreview } from '../../api/projects';
 import { Section } from './types';
 import { SlideSchemeSVG, SlideRoomViewSVG } from './SlideDiagrams';
+import { LiftRoomViewSVG } from './LiftDiagrams';
 
 export interface EditorVisualizerProps {
   section: Section;
@@ -18,7 +19,38 @@ export interface EditorVisualizerProps {
 }
 
 export const EditorVisualizer: React.FC<EditorVisualizerProps> = ({ section, variant, calc }) => {
-  // Пока визуализация только для СЛАЙД
+  if (section.system === 'ЛИФТ') {
+    const diagram = <LiftRoomViewSVG section={section} />;
+    if (variant === 'mobile') {
+      return (
+        <div className="mb-4 xl:hidden">
+          <div className="overflow-x-auto rounded-2xl border border-tint/30 bg-surface/25 p-4 sm:rounded-[2rem] sm:p-7">
+            <div className="mb-4 flex min-w-[360px] items-center justify-between">
+              <h4 className="text-[10px] font-bold uppercase tracking-widest text-accent/40">Схема ЛИФТ</h4>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-fg/20">
+                {section.panels} пан. · {section.width}×{section.height}
+              </span>
+            </div>
+            <div className="flex justify-center py-2">{diagram}</div>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="hidden xl:sticky xl:top-4 xl:flex xl:w-[500px] xl:flex-shrink-0 xl:flex-col">
+        <div className="rounded-2xl border border-tint/30 bg-surface/25 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-accent/40">Схема ЛИФТ</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-fg/20">
+              {section.panels} пан. · {section.width}×{section.height}
+            </span>
+          </div>
+          {diagram}
+        </div>
+      </div>
+    );
+  }
+
   if (section.system !== 'СЛАЙД') return null;
 
   if (variant === 'mobile') {

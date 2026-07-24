@@ -160,6 +160,16 @@ class Section(Base):
     angle_right = Column(Float, nullable=True)
     book_system = Column(String, nullable=True)  # B25 | B16 | B17 | C16 | C17
 
+    # ЛИФТ
+    lift_filling_type = Column(
+        String, default="СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
+    )
+    lift_filling_custom = Column(String, nullable=True)
+    lift_control_type = Column(String, default="Пульт ДУ")
+    lift_remote_channels = Column(Integer, default=1)
+    lift_cable_side = Column(String, default="Справа")
+    lift_opening_type = Column(String, default="Сдвиг вниз")
+
     # ДВЕРЬ / ЦС
     door_system = Column(String, nullable=True)  # одностворчатая | двустворчатая
     cs_shape = Column(

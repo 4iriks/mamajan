@@ -124,6 +124,13 @@ _ADD_COLUMNS = [
     "ALTER TABLE sections ADD COLUMN center_handle_offset INTEGER",
     "ALTER TABLE sections ADD COLUMN center_floor_latches_left BOOLEAN DEFAULT 0",
     "ALTER TABLE sections ADD COLUMN center_floor_latches_right BOOLEAN DEFAULT 0",
+    # ЛИФТ
+    "ALTER TABLE sections ADD COLUMN lift_filling_type VARCHAR DEFAULT 'СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ'",
+    "ALTER TABLE sections ADD COLUMN lift_filling_custom VARCHAR",
+    "ALTER TABLE sections ADD COLUMN lift_control_type VARCHAR DEFAULT 'Пульт ДУ'",
+    "ALTER TABLE sections ADD COLUMN lift_remote_channels INTEGER DEFAULT 1",
+    "ALTER TABLE sections ADD COLUMN lift_cable_side VARCHAR DEFAULT 'Справа'",
+    "ALTER TABLE sections ADD COLUMN lift_opening_type VARCHAR DEFAULT 'Сдвиг вниз'",
 ]
 
 

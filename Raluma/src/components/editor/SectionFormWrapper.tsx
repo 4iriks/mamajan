@@ -10,7 +10,8 @@ import type { SectionTemplate } from '../../api/sectionTemplates';
 import { Section, LBL, SYSTEM_COLORS } from './types';
 import { localToApi } from './converters';
 import { SectionDivider } from './FormInputs';
-import { MainTab, SlideSystemTab, BookSystemTab, LiftSystemTab, CsShapeTab, DoorSystemTab } from './FormTabs';
+import { MainTab, SlideSystemTab, BookSystemTab, CsShapeTab, DoorSystemTab } from './FormTabs';
+import { LiftMainTab, LiftSystemTab } from './LiftForm';
 import { EditorVisualizer } from './EditorVisualizer';
 import { SectionTemplatesPanel } from './SectionTemplatesPanel';
 import { ExtraComponentsEditor } from './ExtraComponentsEditor';
@@ -144,16 +145,18 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
       />
 
       {/* Flex-контейнер: форма слева, схема справа (на xl) */}
-      <div className={section.system === 'СЛАЙД' ? 'xl:flex xl:gap-5 xl:items-start' : ''}>
+      <div className={section.system === 'СЛАЙД' || section.system === 'ЛИФТ' ? 'xl:flex xl:gap-5 xl:items-start' : ''}>
 
-        <div className={section.system === 'СЛАЙД' ? 'xl:flex-1 xl:min-w-0' : ''}>
+        <div className={section.system === 'СЛАЙД' || section.system === 'ЛИФТ' ? 'xl:flex-1 xl:min-w-0' : ''}>
           {/* Карточка формы */}
           <div className="bg-surface/40 border border-tint/35 rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 mb-4">
             <div className="space-y-5">
               <div>
                 <SectionDivider label="Основное" />
                 <div className="mt-3">
-                  <MainTab s={section} update={onUpdate} />
+                  {section.system === 'ЛИФТ'
+                    ? <LiftMainTab s={section} update={onUpdate} />
+                    : <MainTab s={section} update={onUpdate} />}
                 </div>
               </div>
 

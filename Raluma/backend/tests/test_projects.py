@@ -59,6 +59,45 @@ def test_copy_project(client, admin_headers, project, section):
     client.delete(f"/api/projects/{copy['id']}", headers=admin_headers)
 
 
+def test_copy_project_keeps_lift_fields(client, admin_headers, project):
+    section = client.post(
+        f"/api/projects/{project['id']}/sections",
+        headers=admin_headers,
+        json={
+            "name": "ЛИФТ",
+            "system": "ЛИФТ",
+            "panels": 4,
+            "lift_filling_type": "ДРУГОЕ 8мм",
+            "lift_filling_custom": "Зеркало 8мм",
+            "lift_control_type": "Пульт ДУ",
+            "lift_remote_channels": 24,
+            "lift_cable_side": "Слева",
+            "lift_opening_type": "Верх/низ глухие, сдвиг вниз",
+        },
+    )
+    assert section.status_code == 201
+
+    response = client.post(
+        f"/api/projects/{project['id']}/copy",
+        headers=admin_headers,
+    )
+    assert response.status_code == 201
+    copied_project = response.json()
+    copied_lift = next(
+        row for row in copied_project["sections"] if row["system"] == "ЛИФТ"
+    )
+    assert copied_lift["lift_filling_type"] == "ДРУГОЕ 8мм"
+    assert copied_lift["lift_filling_custom"] == "Зеркало 8мм"
+    assert copied_lift["lift_remote_channels"] == 24
+    assert copied_lift["lift_cable_side"] == "Слева"
+    assert copied_lift["lift_opening_type"] == "Верх/низ глухие, сдвиг вниз"
+
+    client.delete(
+        f"/api/projects/{copied_project['id']}",
+        headers=admin_headers,
+    )
+
+
 def test_delete_project(client, admin_headers):
     r = client.post(
         "/api/projects",
