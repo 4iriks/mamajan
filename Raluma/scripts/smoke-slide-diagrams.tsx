@@ -101,6 +101,19 @@ assert.match(matteSchemeMarkup, /data-glass-pattern="matte"/, 'top scheme must r
 assert.match(roomMarkup, /margin:0 auto/, 'room view must be centered in its card');
 assert.match(schemeMarkup, /margin:0 auto/, 'top scheme must be centered in its card');
 
+const schemeOuterBounds = schemeMarkup.match(
+  /data-diagram-outer-left="([^"]+)" data-diagram-outer-right="([^"]+)"/,
+);
+assert.ok(schemeOuterBounds, 'top scheme must expose its visible outer bounds');
+const schemeOuterLeft = Number(schemeOuterBounds[1]);
+const schemeOuterRight = Number(schemeOuterBounds[2]);
+assert.ok(schemeOuterLeft >= 0, 'left wall profile must stay inside the top scheme SVG');
+assert.ok(schemeOuterRight <= 760, 'right wall profile must stay inside the top scheme SVG');
+assert.ok(
+  Math.abs((schemeOuterLeft + schemeOuterRight) / 2 - 380) < 0.01,
+  'top scheme including asymmetric side assemblies must be visually centered',
+);
+
 const renderedWidths = [...roomMarkup.matchAll(/width="([^"]+)"/g)]
   .map(match => Number(match[1]))
   .filter(Number.isFinite);

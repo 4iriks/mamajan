@@ -171,9 +171,9 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
   const rowH   = 34;
   const topPad = 28;
   const botPad = 42;
-  const leftW  = 100;
-  const rightW = 100;
-  const railAreaW = 450;
+  const leftW  = 130;
+  const rightW = 130;
+  const railAreaW = 500;
   const svgW = leftW + railAreaW + rightW;
   const svgH = topPad + railCount * rowH + botPad;
 
@@ -247,6 +247,13 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
   const wallImageHeight = railCount * rowH + 16;
   const wallImageY = topPad - 8;
   const wallAttachOverlap = railCount === 5 ? 11 : 8;
+  const diagramOuterLeft = section.profileLeftWall
+    ? schemeLeftX - wallImageWidth + wallAttachOverlap
+    : schemeLeftX;
+  const diagramOuterRight = section.profileRightWall
+    ? schemeRightX + wallImageWidth - wallAttachOverlap
+    : schemeRightX;
+  const diagramOffsetX = svgW / 2 - (diagramOuterLeft + diagramOuterRight) / 2;
 
   const panelGlassBounds = (panelIndex: number) => {
     const layout = panelLayout[panelIndex];
@@ -379,10 +386,14 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
           <circle cx="1.25" cy="1.25" r="0.65" fill="var(--theme-accent)" fillOpacity="0.48" />
         </pattern>
       </defs>
-
-      {/* Labels: УЛИЦА (top) / ПОМЕЩЕНИЕ (bottom) */}
-      <text x={leftW + railAreaW / 2} y={12} textAnchor="middle" fontSize="8" fill="var(--theme-accent)" fillOpacity="0.45" fontWeight="bold" letterSpacing="1.5">УЛИЦА</text>
-      <text x={leftW + railAreaW / 2} y={topPad + railCount * rowH + 14} textAnchor="middle" fontSize="8" fill="var(--theme-accent)" fillOpacity="0.45" fontWeight="bold" letterSpacing="1.5">ПОМЕЩЕНИЕ</text>
+      <g
+        transform={`translate(${diagramOffsetX} 0)`}
+        data-diagram-outer-left={diagramOuterLeft + diagramOffsetX}
+        data-diagram-outer-right={diagramOuterRight + diagramOffsetX}
+      >
+        {/* Labels: УЛИЦА (top) / ПОМЕЩЕНИЕ (bottom) */}
+        <text x={leftW + railAreaW / 2} y={12} textAnchor="middle" fontSize="8" fill="var(--theme-accent)" fillOpacity="0.45" fontWeight="bold" letterSpacing="1.5">УЛИЦА</text>
+        <text x={leftW + railAreaW / 2} y={topPad + railCount * rowH + 14} textAnchor="middle" fontSize="8" fill="var(--theme-accent)" fillOpacity="0.45" fontWeight="bold" letterSpacing="1.5">ПОМЕЩЕНИЕ</text>
 
       {/* Boundary lines (top + bottom of opening) */}
       <line x1={schemeLeftX} y1={topPad - 2} x2={schemeRightX} y2={topPad - 2} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.5" />
@@ -509,6 +520,7 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
           </g>
         );
       })()}
+      </g>
     </svg>
   );
 }
