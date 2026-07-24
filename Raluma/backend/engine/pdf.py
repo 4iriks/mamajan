@@ -16,6 +16,15 @@ from jinja2 import Environment, FileSystemLoader
 
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATES_DIR = os.path.join(BACKEND_DIR, "templates")
+
+GLASS_FILL_COLORS = {
+    "clear": "#dceff3",
+    "bronze": "#e4c39f",
+    "gray": "#c9d0d3",
+    "matte": "#e5e8e7",
+    "clarified": "#eefaf8",
+    "triplex": "#d3eadb",
+}
 ASSETS_DIR = os.path.join(BACKEND_DIR, "assets", "profiles")
 ASSETS_PATH = Path(ASSETS_DIR).resolve()
 DRAWINGS_DIR = os.path.join(BACKEND_DIR, "assets", "drawings")
@@ -222,6 +231,22 @@ def glass_mm(value: float) -> int:
     return int(float(value or 0) + 0.5)
 
 
+def glass_fill(value: str | None) -> str:
+    """Return the shared diagram fill for a selected glass description."""
+    normalized = str(value or "").upper()
+    if "БРОНЗ" in normalized:
+        return GLASS_FILL_COLORS["bronze"]
+    if "СЕРО" in normalized:
+        return GLASS_FILL_COLORS["gray"]
+    if "МАТ" in normalized:
+        return GLASS_FILL_COLORS["matte"]
+    if "ПРОСВЕТ" in normalized:
+        return GLASS_FILL_COLORS["clarified"]
+    if "ТРИПЛЕКС" in normalized:
+        return GLASS_FILL_COLORS["triplex"]
+    return GLASS_FILL_COLORS["clear"]
+
+
 def brush_meters(value: float | str) -> str:
     """Round brush length upward to 0.1 m and keep the unit visible."""
     normalized = str(value or 0).strip().lower().replace("м", "").replace(",", ".")
@@ -377,6 +402,7 @@ def _get_env() -> Environment:
     env.filters["img_b64"] = _img_b64
     env.filters["enumerate"] = enumerate
     env.filters["glass_mm"] = glass_mm
+    env.filters["glass_fill"] = glass_fill
     env.filters["brush_meters"] = brush_meters
     env.globals["glass_widths"] = expand_glass_widths
     env.globals["glass_profile_lengths"] = expand_glass_profile_lengths

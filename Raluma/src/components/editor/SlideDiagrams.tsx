@@ -1,5 +1,6 @@
 import React from 'react';
 import { SlideCalcPreview } from '../../api/projects';
+import { glassFillColor } from '../../constants/glass';
 import { Section } from './types';
 
 // ── SVG Схема сверху (СЛАЙД) ──────────────────────────────────────────────────
@@ -157,6 +158,7 @@ function sideAssemblyVariant(
 
 export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: SlideCalcPreview | null }) {
   const sideAssemblyFilterPrefix = React.useId().replace(/:/g, '');
+  const glassFill = glassFillColor(section.glassType);
   const {
     panels, rails = 3, firstPanelInside = 'Справа', unusedTrack,
     width: sectionWidth,
@@ -415,8 +417,8 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
         const cx = px + panelW / 2;
         return (
           <g key={pi}>
-            <rect data-scheme-panel={pi + 1} x={rx} y={cy - 6} width={rw} height={12} rx="2"
-              fill="var(--theme-accent)" fillOpacity="0.13" stroke="var(--theme-accent)" strokeWidth="1.4" strokeOpacity="0.75" />
+            <rect data-scheme-panel={pi + 1} x={rx} y={cy - 6} width={rw} height={12} data-glass-fill={glassFill} rx="2"
+              fill={glassFill} fillOpacity="0.42" stroke="var(--theme-accent)" strokeWidth="1.4" strokeOpacity="0.75" />
             {layout.widthMm ? (
               <text x={cx} y={cy + 5} textAnchor="middle" fontSize="8" fill="var(--theme-accent)" fillOpacity="0.9" fontWeight="bold">{layout.widthMm} · №{panelNum}</text>
             ) : (
@@ -508,6 +510,7 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
 export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: SlideCalcPreview | null }) {
   const panels  = section.panels;
   const is2row = (section.slideRows ?? 1) === 2;
+  const glassFill = glassFillColor(section.glassType);
   const firstRight = (section.firstPanelInside ?? 'Справа') === 'Справа';
   const rails = section.rails ?? 3;
   const W  = section.width;
@@ -645,7 +648,7 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
 
         return (
           <g key={i}>
-            <rect x={px} y={iY} width={pW} height={iH} fill="var(--theme-accent)" fillOpacity="0.07" />
+            <rect data-glass-panel={i + 1} data-glass-fill={glassFill} x={px} y={iY} width={pW} height={iH} fill={glassFill} fillOpacity="0.42" />
 
             {isCenterPanel && centerIsRs112 && (
               <rect

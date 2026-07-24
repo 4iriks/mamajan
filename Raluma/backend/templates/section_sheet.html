@@ -225,6 +225,7 @@
       {% set riY = rfY + rpt %}
       {% set riW = rfW - 2 * rpt %}
       {% set riH = rfH - 2 * rpt %}
+      {% set glass_fill_color = section.glass_type | glass_fill %}
       {% set room_panel_widths = glass_widths(calc, section.panels, section.width) %}
       {% set room_glass_profile_lengths = glass_profile_lengths(calc, section.panels, section.width) %}
       {% set room_total_width = room_panel_widths | sum %}
@@ -264,7 +265,7 @@
         {% set gpx = room_ns.x %}
         {% set gcx = gpx + rpW / 2 %}
         {% set gcy = riY + riH / 2 %}
-        <rect x="{{ gpx }}" y="{{ riY }}" width="{{ rpW }}" height="{{ riH }}" fill="#f4f9fb" stroke="none"/>
+        <rect data-glass-panel="{{ i + 1 }}" data-glass-fill="{{ glass_fill_color }}" x="{{ gpx }}" y="{{ riY }}" width="{{ rpW }}" height="{{ riH }}" fill="{{ glass_fill_color }}" fill-opacity="0.65" stroke="none"/>
         {% if i < section.panels - 1 %}
         <rect x="{{ gpx + rpW - 1 }}" y="{{ riY }}" width="2" height="{{ riH }}" fill="#e0e0e0" stroke="#ccc" stroke-width="0.3"/>
         {% endif %}
@@ -467,7 +468,7 @@
         {% set gx1 = left_w + side_overlap - left_side_image.socket_depth if pi == 0 and left_side_image else px + gl %}
         {% set gx2 = left_w + rail_w - side_overlap + right_side_image.socket_depth if pi == P - 1 and right_side_image else px + panel_w - gr %}
         {# Панель — тонкий прямоугольник #}
-        <rect data-scheme-panel="{{ pi + 1 }}" x="{{ gx1 }}" y="{{ cy - 3.5 }}" width="{{ gx2 - gx1 }}" height="7" fill="#ddeef5" stroke="#000" stroke-width="0.8"/>
+        <rect data-scheme-panel="{{ pi + 1 }}" x="{{ gx1 }}" y="{{ cy - 3.5 }}" width="{{ gx2 - gx1 }}" height="7" data-glass-fill="{{ glass_fill_color }}" fill="{{ glass_fill_color }}" fill-opacity="0.75" stroke="#000" stroke-width="0.8"/>
         {# Номер панели #}
         {% set pnum = pi + 1 if is2row else (P - pi if first_right else pi + 1) %}
         <text x="{{ (gx1 + gx2) / 2 }}" y="{{ cy + 3 }}" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#333">{{ panel_w_mm|glass_mm }} · {{ pnum }}</text>

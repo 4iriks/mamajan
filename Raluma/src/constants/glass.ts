@@ -10,6 +10,15 @@ export const SLIDE_GLASS_TYPE_OPTIONS = [
   'ТРИПЛЕКС 4.1.4',
 ] as const;
 
+export const GLASS_FILL_COLORS = {
+  clear: '#dceff3',
+  bronze: '#e4c39f',
+  gray: '#c9d0d3',
+  matte: '#e5e8e7',
+  clarified: '#eefaf8',
+  triplex: '#d3eadb',
+} as const;
+
 const LEGACY_GLASS_TYPE_OPTIONS = [
   LEGACY_DEFAULT_GLASS_TYPE,
   '10ММ ЗАКАЛЕННОЕ МАТОВОЕ',
@@ -18,6 +27,18 @@ const LEGACY_GLASS_TYPE_OPTIONS = [
   '6ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ',
   '6ММ ЗАКАЛЕННОЕ МАТОВОЕ',
 ] as const;
+
+export function glassFillColor(glassType: string | null | undefined): string {
+  const normalized = (glassType ?? '').toLocaleUpperCase('ru-RU');
+
+  if (normalized.includes('БРОНЗ')) return GLASS_FILL_COLORS.bronze;
+  if (normalized.includes('СЕРО')) return GLASS_FILL_COLORS.gray;
+  if (normalized.includes('МАТ')) return GLASS_FILL_COLORS.matte;
+  if (normalized.includes('ПРОСВЕТ')) return GLASS_FILL_COLORS.clarified;
+  if (normalized.includes('ТРИПЛЕКС')) return GLASS_FILL_COLORS.triplex;
+
+  return GLASS_FILL_COLORS.clear;
+}
 
 export function glassTypeOptions(system: string): readonly string[] {
   return system === 'СЛАЙД'
