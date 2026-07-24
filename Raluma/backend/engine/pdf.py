@@ -247,6 +247,11 @@ def glass_fill(value: str | None) -> str:
     return GLASS_FILL_COLORS["clear"]
 
 
+def glass_is_matte(value: str | None) -> bool:
+    """Return whether glass diagrams should use the matte dot pattern."""
+    return "МАТ" in str(value or "").upper()
+
+
 def brush_meters(value: float | str) -> str:
     """Round brush length upward to 0.1 m and keep the unit visible."""
     normalized = str(value or 0).strip().lower().replace("м", "").replace(",", ".")
@@ -403,6 +408,7 @@ def _get_env() -> Environment:
     env.filters["enumerate"] = enumerate
     env.filters["glass_mm"] = glass_mm
     env.filters["glass_fill"] = glass_fill
+    env.filters["glass_is_matte"] = glass_is_matte
     env.filters["brush_meters"] = brush_meters
     env.globals["glass_widths"] = expand_glass_widths
     env.globals["glass_profile_lengths"] = expand_glass_profile_lengths

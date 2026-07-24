@@ -20,6 +20,7 @@ from engine.pdf import (
     expand_glass_widths,
     get_profile_asset_path,
     glass_fill,
+    glass_is_matte,
     glass_mm,
     profile_dimension,
     section_extra_components,
@@ -333,6 +334,10 @@ class TestSystemGlassDefaults:
     def test_glass_fill_depends_on_selected_type(self, glass_type, expected_fill):
         assert glass_fill(glass_type) == expected_fill
 
+    def test_matte_glass_uses_dot_pattern(self):
+        assert glass_is_matte("10ММ МАТОВОЕ") is True
+        assert glass_is_matte("10ММ ПРОЗРАЧНОЕ") is False
+
 
 class TestPreview:
     def test_selected_glass_color_is_used_in_both_section_diagrams(
@@ -355,6 +360,27 @@ class TestPreview:
         assert response.text.count('data-glass-fill="#e4c39f"') >= 6
         assert 'data-glass-panel="1"' in response.text
         assert 'data-scheme-panel="1"' in response.text
+
+    def test_matte_glass_pattern_is_used_in_both_section_diagrams(
+        self, client, admin_headers, project
+    ):
+        section = _create_slide_section(
+            client,
+            admin_headers,
+            project["id"],
+            glass_type="10ММ МАТОВОЕ",
+        )
+        token = admin_headers["Authorization"].replace("Bearer ", "")
+
+        response = client.get(
+            f"/api/projects/{project['id']}/sections/{section['id']}/preview",
+            params={"token": token},
+        )
+
+        assert response.status_code == 200
+        assert response.text.count('data-glass-pattern="matte"') >= 6
+        assert "url(#matte-room-glass)" in response.text
+        assert "url(#matte-top-glass)" in response.text
 
     def test_custom_glass_type_is_escaped_in_section_and_glass_previews(
         self, client, admin_headers, project

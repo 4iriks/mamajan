@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type { SlideCalcPreview } from '../src/api/projects';
 import { SlideRoomViewSVG, SlideSchemeSVG } from '../src/components/editor/SlideDiagrams';
 import type { Section } from '../src/components/editor/types';
-import { GLASS_FILL_COLORS, glassFillColor } from '../src/constants/glass';
+import { GLASS_FILL_COLORS, glassFillColor, isMatteGlass } from '../src/constants/glass';
 import { buildCustomerOptions } from '../src/utils/customers';
 
 const section: Section = {
@@ -65,6 +65,7 @@ assert.equal(glassFillColor('10ММ СЕРОЕ В МАССЕ'), GLASS_FILL_COLOR
 assert.equal(glassFillColor('10ММ МАТОВОЕ'), GLASS_FILL_COLORS.matte);
 assert.equal(glassFillColor('10ММ ПРОСВЕТЛЕННОЕ'), GLASS_FILL_COLORS.clarified);
 assert.equal(glassFillColor('ТРИПЛЕКС 4.1.4'), GLASS_FILL_COLORS.triplex);
+assert.equal(isMatteGlass('10ММ МАТОВОЕ'), true);
 assert.ok(
   roomMarkup.includes(`data-glass-fill="${GLASS_FILL_COLORS.clear}"`),
   'room view must use the selected glass appearance',
@@ -89,11 +90,25 @@ assert.ok(
   'top scheme must recolor bronze glass',
 );
 
+const matteRoomMarkup = renderToStaticMarkup(
+  <SlideRoomViewSVG section={{ ...section, glassType: '10ММ МАТОВОЕ' }} calc={calc} />,
+);
+const matteSchemeMarkup = renderToStaticMarkup(
+  <SlideSchemeSVG section={{ ...section, glassType: '10ММ МАТОВОЕ' }} calc={calc} />,
+);
+assert.match(matteRoomMarkup, /data-glass-pattern="matte"/, 'room view must render matte glass as visible dots');
+assert.match(matteSchemeMarkup, /data-glass-pattern="matte"/, 'top scheme must render matte glass as visible dots');
+assert.match(roomMarkup, /margin:0 auto/, 'room view must be centered in its card');
+assert.match(schemeMarkup, /margin:0 auto/, 'top scheme must be centered in its card');
+
 const renderedWidths = [...roomMarkup.matchAll(/width="([^"]+)"/g)]
   .map(match => Number(match[1]))
   .filter(Number.isFinite);
 
-assert(renderedWidths.some(width => width === 175), 'room view must keep 2000x2400 proportions');
+assert(
+  renderedWidths.some(width => width > 204 && width < 205),
+  'enlarged room view must keep 2000x2400 proportions',
+);
 assert(!renderedWidths.some(width => width === 400), 'room view must not use the old fixed 400px frame width');
 assert.doesNotMatch(roomMarkup, />53</, 'room view must not render the top profile service size');
 assert.doesNotMatch(roomMarkup, />23</, 'room view must not render the threshold service size');

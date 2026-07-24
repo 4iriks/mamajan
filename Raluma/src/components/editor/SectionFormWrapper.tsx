@@ -49,7 +49,6 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
     .filter(glass => glass.qty > 0)
     .map(glass => glass.width_mm);
   const minGlassWidth = glassWidths.length ? Math.min(...glassWidths) : null;
-  const maxGlassWidth = glassWidths.length ? Math.max(...glassWidths) : null;
 
   // Ctrl+S → сохранить секцию
   const onSaveRef = useRef(onSave);
@@ -168,12 +167,6 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
                     <div className="mt-3 rounded-xl border border-red-400/35 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-200 flex gap-2">
                       <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                       <span>Ширина панели меньше 350 мм. Уменьшите количество панелей.</span>
-                    </div>
-                  )}
-                  {maxGlassWidth !== null && maxGlassWidth > 500 && (
-                    <div className="mt-3 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-100 flex gap-2">
-                      <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                      <span>Для панелей шире 500 мм ставятся 4-колесные ролики RU005: 2 шт на панель.</span>
                     </div>
                   )}
                 </div>

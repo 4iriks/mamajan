@@ -1,6 +1,6 @@
 import React from 'react';
 import { SlideCalcPreview } from '../../api/projects';
-import { glassFillColor } from '../../constants/glass';
+import { glassFillColor, isMatteGlass } from '../../constants/glass';
 import { Section } from './types';
 
 // ── SVG Схема сверху (СЛАЙД) ──────────────────────────────────────────────────
@@ -159,6 +159,8 @@ function sideAssemblyVariant(
 export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: SlideCalcPreview | null }) {
   const sideAssemblyFilterPrefix = React.useId().replace(/:/g, '');
   const glassFill = glassFillColor(section.glassType);
+  const matteGlass = isMatteGlass(section.glassType);
+  const mattePatternId = `${sideAssemblyFilterPrefix}-matte-glass-top`;
   const {
     panels, rails = 3, firstPanelInside = 'Справа', unusedTrack,
     width: sectionWidth,
@@ -169,9 +171,9 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
   const rowH   = 34;
   const topPad = 28;
   const botPad = 42;
-  const leftW  = 118;
-  const rightW = 118;
-  const railAreaW = 380;
+  const leftW  = 100;
+  const rightW = 100;
+  const railAreaW = 450;
   const svgW = leftW + railAreaW + rightW;
   const svgH = topPad + railCount * rowH + botPad;
 
@@ -370,7 +372,13 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
   };
 
   return (
-    <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} className="w-full drop-shadow-[0_0_15px_rgba(79,209,197,0.08)]" style={{ maxWidth: svgW }}>
+    <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} className="block w-full drop-shadow-[0_0_15px_rgba(79,209,197,0.08)]" style={{ maxWidth: svgW, margin: '0 auto' }}>
+      <defs>
+        <pattern id={mattePatternId} data-glass-pattern="matte" width="5" height="5" patternUnits="userSpaceOnUse">
+          <rect width="5" height="5" fill={glassFill} />
+          <circle cx="1.25" cy="1.25" r="0.65" fill="var(--theme-accent)" fillOpacity="0.48" />
+        </pattern>
+      </defs>
 
       {/* Labels: УЛИЦА (top) / ПОМЕЩЕНИЕ (bottom) */}
       <text x={leftW + railAreaW / 2} y={12} textAnchor="middle" fontSize="8" fill="var(--theme-accent)" fillOpacity="0.45" fontWeight="bold" letterSpacing="1.5">УЛИЦА</text>
@@ -417,8 +425,8 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
         const cx = px + panelW / 2;
         return (
           <g key={pi}>
-            <rect data-scheme-panel={pi + 1} x={rx} y={cy - 6} width={rw} height={12} data-glass-fill={glassFill} rx="2"
-              fill={glassFill} fillOpacity="0.42" stroke="var(--theme-accent)" strokeWidth="1.4" strokeOpacity="0.75" />
+            <rect data-scheme-panel={pi + 1} x={rx} y={cy - 6} width={rw} height={12} data-glass-fill={glassFill} data-glass-pattern={matteGlass ? 'matte' : undefined} rx="2"
+              fill={matteGlass ? `url(#${mattePatternId})` : glassFill} fillOpacity="0.52" stroke="var(--theme-accent)" strokeWidth="1.4" strokeOpacity="0.75" />
             {layout.widthMm ? (
               <text x={cx} y={cy + 5} textAnchor="middle" fontSize="8" fill="var(--theme-accent)" fillOpacity="0.9" fontWeight="bold">{layout.widthMm} · №{panelNum}</text>
             ) : (
@@ -508,9 +516,12 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
 // ── SVG: Вид из помещения ─────────────────────────────────────────────────────
 
 export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: SlideCalcPreview | null }) {
+  const diagramId = React.useId().replace(/:/g, '');
   const panels  = section.panels;
   const is2row = (section.slideRows ?? 1) === 2;
   const glassFill = glassFillColor(section.glassType);
+  const matteGlass = isMatteGlass(section.glassType);
+  const mattePatternId = `${diagramId}-matte-glass-room`;
   const firstRight = (section.firstPanelInside ?? 'Справа') === 'Справа';
   const rails = section.rails ?? 3;
   const W  = section.width;
@@ -535,11 +546,11 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
   const rightIsDeaf = (handleRight === 'Без' || handleRight.toLowerCase().includes('глухая'))
     && lockRight === 'Без' && !section.profileRightHandleBar;
 
-  const vbW = 540, vbH = 330;
-  const maxDrawingW = 400;
-  const maxDrawingH = 210;
-  const drawingOriginX = 50;
-  const drawingOriginY = 35;
+  const vbW = 600, vbH = 360;
+  const maxDrawingW = 500;
+  const maxDrawingH = 245;
+  const drawingOriginX = 35;
+  const drawingOriginY = 28;
   const safeW = Math.max(W, 1);
   const safeH = Math.max(Hh, 1);
   const drawingScale = Math.min(maxDrawingW / safeW, maxDrawingH / safeH);
@@ -620,7 +631,13 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
   };
 
   return (
-    <svg viewBox={`0 0 ${vbW} ${vbH}`} className="w-full" style={{ maxWidth: 540, maxHeight: 330 }}>
+    <svg viewBox={`0 0 ${vbW} ${vbH}`} className="block w-full" style={{ maxWidth: 600, maxHeight: 360, margin: '0 auto' }}>
+      <defs>
+        <pattern id={mattePatternId} data-glass-pattern="matte" width="6" height="6" patternUnits="userSpaceOnUse">
+          <rect width="6" height="6" fill={glassFill} />
+          <circle cx="1.5" cy="1.5" r="0.75" fill="var(--theme-accent)" fillOpacity="0.48" />
+        </pattern>
+      </defs>
 
       <rect x={fX} y={fY} width={fW} height={topPx} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.6" strokeOpacity="0.4" />
       <rect x={fX} y={fY + fH - bottomPx} width={fW} height={bottomPx} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.6" strokeOpacity="0.4" />
@@ -648,7 +665,7 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
 
         return (
           <g key={i}>
-            <rect data-glass-panel={i + 1} data-glass-fill={glassFill} x={px} y={iY} width={pW} height={iH} fill={glassFill} fillOpacity="0.42" />
+            <rect data-glass-panel={i + 1} data-glass-fill={glassFill} data-glass-pattern={matteGlass ? 'matte' : undefined} x={px} y={iY} width={pW} height={iH} fill={matteGlass ? `url(#${mattePatternId})` : glassFill} fillOpacity="0.52" />
 
             {isCenterPanel && centerIsRs112 && (
               <rect

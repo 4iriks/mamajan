@@ -40,6 +40,10 @@ export function glassFillColor(glassType: string | null | undefined): string {
   return GLASS_FILL_COLORS.clear;
 }
 
+export function isMatteGlass(glassType: string | null | undefined): boolean {
+  return (glassType ?? '').toLocaleUpperCase('ru-RU').includes('МАТ');
+}
+
 export function glassTypeOptions(system: string): readonly string[] {
   return system === 'СЛАЙД'
     ? SLIDE_GLASS_TYPE_OPTIONS

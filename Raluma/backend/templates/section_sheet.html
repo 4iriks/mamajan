@@ -226,6 +226,7 @@
       {% set riW = rfW - 2 * rpt %}
       {% set riH = rfH - 2 * rpt %}
       {% set glass_fill_color = section.glass_type | glass_fill %}
+      {% set matte_glass = section.glass_type | glass_is_matte %}
       {% set room_panel_widths = glass_widths(calc, section.panels, section.width) %}
       {% set room_glass_profile_lengths = glass_profile_lengths(calc, section.panels, section.width) %}
       {% set room_total_width = room_panel_widths | sum %}
@@ -250,6 +251,14 @@
       {% set lockRX = rfX + rfW - 3 %}
       <svg viewBox="0 0 {{ rw }} {{ rh }}"
            xmlns="http://www.w3.org/2000/svg" style="display:block; width:90%; margin:0 auto;">
+        {% if matte_glass %}
+        <defs>
+          <pattern id="matte-room-glass" data-glass-pattern="matte" width="3" height="3" patternUnits="userSpaceOnUse">
+            <rect width="3" height="3" fill="{{ glass_fill_color }}"/>
+            <circle cx="0.8" cy="0.8" r="0.35" fill="#777" fill-opacity="0.65"/>
+          </pattern>
+        </defs>
+        {% endif %}
         {# Frame #}
         <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rfW }}" height="{{ rfH }}" fill="none" stroke="#000" stroke-width="1.2"/>
         <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rfW }}" height="{{ rpt }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
@@ -265,7 +274,7 @@
         {% set gpx = room_ns.x %}
         {% set gcx = gpx + rpW / 2 %}
         {% set gcy = riY + riH / 2 %}
-        <rect data-glass-panel="{{ i + 1 }}" data-glass-fill="{{ glass_fill_color }}" x="{{ gpx }}" y="{{ riY }}" width="{{ rpW }}" height="{{ riH }}" fill="{{ glass_fill_color }}" fill-opacity="0.65" stroke="none"/>
+        <rect data-glass-panel="{{ i + 1 }}" data-glass-fill="{{ glass_fill_color }}" data-glass-pattern="{{ 'matte' if matte_glass else '' }}" x="{{ gpx }}" y="{{ riY }}" width="{{ rpW }}" height="{{ riH }}" fill="{{ 'url(#matte-room-glass)' if matte_glass else glass_fill_color }}" fill-opacity="0.72" stroke="none"/>
         {% if i < section.panels - 1 %}
         <rect x="{{ gpx + rpW - 1 }}" y="{{ riY }}" width="2" height="{{ riH }}" fill="#e0e0e0" stroke="#ccc" stroke-width="0.3"/>
         {% endif %}
@@ -413,6 +422,14 @@
       {% set inter_glass_px = [5, profile_dimension(calc, [inter_glass_article], 'section_width_mm', 20) * rail_w / (section.width or rail_w)] | max %}
       <svg viewBox="0 0 {{ sw }} {{ sh }}"
            xmlns="http://www.w3.org/2000/svg" style="display:block; width:72%; margin:0 auto;">
+        {% if matte_glass %}
+        <defs>
+          <pattern id="matte-top-glass" data-glass-pattern="matte" width="2.5" height="2.5" patternUnits="userSpaceOnUse">
+            <rect width="2.5" height="2.5" fill="{{ glass_fill_color }}"/>
+            <circle cx="0.7" cy="0.7" r="0.3" fill="#777" fill-opacity="0.7"/>
+          </pattern>
+        </defs>
+        {% endif %}
 
         {# Метки #}
         <text x="{{ left_w + rail_w / 2 }}" y="9" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#666">УЛИЦА</text>
@@ -468,7 +485,7 @@
         {% set gx1 = left_w + side_overlap - left_side_image.socket_depth if pi == 0 and left_side_image else px + gl %}
         {% set gx2 = left_w + rail_w - side_overlap + right_side_image.socket_depth if pi == P - 1 and right_side_image else px + panel_w - gr %}
         {# Панель — тонкий прямоугольник #}
-        <rect data-scheme-panel="{{ pi + 1 }}" x="{{ gx1 }}" y="{{ cy - 3.5 }}" width="{{ gx2 - gx1 }}" height="7" data-glass-fill="{{ glass_fill_color }}" fill="{{ glass_fill_color }}" fill-opacity="0.75" stroke="#000" stroke-width="0.8"/>
+        <rect data-scheme-panel="{{ pi + 1 }}" x="{{ gx1 }}" y="{{ cy - 3.5 }}" width="{{ gx2 - gx1 }}" height="7" data-glass-fill="{{ glass_fill_color }}" data-glass-pattern="{{ 'matte' if matte_glass else '' }}" fill="{{ 'url(#matte-top-glass)' if matte_glass else glass_fill_color }}" fill-opacity="0.8" stroke="#000" stroke-width="0.8"/>
         {# Номер панели #}
         {% set pnum = pi + 1 if is2row else (P - pi if first_right else pi + 1) %}
         <text x="{{ (gx1 + gx2) / 2 }}" y="{{ cy + 3 }}" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#333">{{ panel_w_mm|glass_mm }} · {{ pnum }}</text>

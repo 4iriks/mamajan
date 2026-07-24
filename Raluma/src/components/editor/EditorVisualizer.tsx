@@ -44,7 +44,7 @@ export const EditorVisualizer: React.FC<EditorVisualizerProps> = ({ section, var
 
   // variant === 'desktop'
   return (
-    <div className="hidden xl:flex xl:flex-col xl:gap-3 xl:w-[420px] xl:flex-shrink-0 xl:sticky xl:top-4">
+    <div className="hidden xl:flex xl:flex-col xl:gap-3 xl:w-[500px] xl:flex-shrink-0 xl:sticky xl:top-4">
       <div className="bg-surface/25 border border-tint/30 rounded-2xl p-4">
         <div className="flex items-center justify-between mb-3">
           <span className="text-[10px] font-bold uppercase tracking-widest text-accent/40">Вид из помещения</span>
