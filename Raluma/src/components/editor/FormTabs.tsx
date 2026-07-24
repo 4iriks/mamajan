@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   DEFAULT_INTER_GLASS_PROFILE,
   NO_INTER_GLASS_PROFILE,
@@ -9,11 +10,19 @@ import {
 import { Checkbox, ToggleGroup, RadioList, ProfileCheckbox, SectionDivider } from './FormInputs';
 import { defaultGlassType, glassTypeOptions } from '../../constants/glass';
 
+const CUSTOM_GLASS_OPTION = '__custom_glass__';
+
 // ── Tab: Основное (общая для всех систем) ─────────────────────────────────────
 
 export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
   const glassOptions = glassTypeOptions(s.system);
-  const glassOptionsId = `glass-types-${s.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+  const hasCustomGlass = !glassOptions.some(option => option === s.glassType);
+  const [isCustomGlass, setIsCustomGlass] = useState(hasCustomGlass);
+
+  useEffect(() => {
+    setIsCustomGlass(hasCustomGlass);
+  }, [hasCustomGlass, s.id, s.system]);
+
   const setPaintingType = (type: Section['paintingType']) => {
     const threshold = s.threshold || '';
     const thresholdKind = threshold.includes('Накладной') ? 'Накладной' : 'Стандартный';
@@ -56,22 +65,41 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
         </div>
         <div className="space-y-1.5">
           <label className={LBL}>Стекло</label>
-          <input
-            type="text"
-            list={glassOptionsId}
-            value={s.glassType}
-            onChange={e => update({ glassType: e.target.value })}
-            onBlur={e => {
-              const value = e.currentTarget.value.trim();
-              if (value !== s.glassType) update({ glassType: value || defaultGlassType(s.system) });
+          <select
+            value={isCustomGlass ? CUSTOM_GLASS_OPTION : s.glassType}
+            onChange={e => {
+              if (e.target.value === CUSTOM_GLASS_OPTION) {
+                setIsCustomGlass(true);
+                return;
+              }
+              setIsCustomGlass(false);
+              update({ glassType: e.target.value });
             }}
-            className={INP}
-            placeholder="Выберите или укажите стекло"
-            autoComplete="off"
-          />
-          <datalist id={glassOptionsId}>
-            {glassOptions.map(option => <option key={option} value={option} />)}
-          </datalist>
+            className={SEL}
+          >
+            {glassOptions.map(option => <option key={option} value={option}>{option}</option>)}
+            <option value={CUSTOM_GLASS_OPTION}>Другое</option>
+          </select>
+          {isCustomGlass && (
+            <input
+              type="text"
+              value={hasCustomGlass ? s.glassType : ''}
+              onChange={e => update({ glassType: e.target.value })}
+              onBlur={e => {
+                const value = e.currentTarget.value.trim();
+                if (!value) {
+                  setIsCustomGlass(false);
+                  update({ glassType: defaultGlassType(s.system) });
+                } else if (value !== s.glassType) {
+                  update({ glassType: value });
+                }
+              }}
+              className={INP}
+              placeholder="Введите название стекла"
+              autoComplete="off"
+              autoFocus
+            />
+          )}
         </div>
       </div>
       <div className="space-y-4">
