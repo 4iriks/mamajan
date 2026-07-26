@@ -76,7 +76,6 @@ export interface Section {
   liftFillingType?: string;
   liftFillingCustom?: string;
   liftControlType?: string;
-  liftRemoteChannels?: number;
   liftCableSide?: string;
   liftOpeningType?: string;
   // ДВЕРЬ / ЦС

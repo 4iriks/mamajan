@@ -185,7 +185,6 @@ def copy_project(
             lift_filling_type=s.lift_filling_type,
             lift_filling_custom=s.lift_filling_custom,
             lift_control_type=s.lift_control_type,
-            lift_remote_channels=s.lift_remote_channels,
             lift_cable_side=s.lift_cable_side,
             lift_opening_type=s.lift_opening_type,
             door_system=s.door_system,

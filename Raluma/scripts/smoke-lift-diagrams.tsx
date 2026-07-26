@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { apiToLocal, applyTemplateDataToSection, localToApi, localToTemplateData } from '../src/components/editor/converters';
+import { EditorVisualizer } from '../src/components/editor/EditorVisualizer';
 import { LiftRoomViewSVG } from '../src/components/editor/LiftDiagrams';
 import {
   LIFT_SPLIT_OPENING,
@@ -37,7 +38,6 @@ const baseSection: Section = {
   liftFillingType: 'ДРУГОЕ 20мм',
   liftFillingCustom: 'Панель по ТЗ',
   liftControlType: 'Пульт ДУ',
-  liftRemoteChannels: 16,
   liftCableSide: 'Слева',
   liftOpeningType: 'Сдвиг вниз',
 };
@@ -93,6 +93,8 @@ assert.ok(
 );
 assert.match(proportionalMarkup, /data-cable-side="Слева"/);
 assert.match(proportionalMarkup, /ВВОД КАБЕЛЯ СЛЕВА/);
+assert.match(proportionalMarkup, /data-lift-profile="top"[^>]*stroke-width="8"/);
+assert.match(proportionalMarkup, /data-lift-profile="bottom"[^>]*stroke-width="4"/);
 assert.match(
   renderToStaticMarkup(
     <LiftRoomViewSVG section={{ ...baseSection, liftCableSide: 'Справа' }} />,
@@ -111,7 +113,7 @@ assert.deepEqual(liftOpeningOptions(4), [
 const apiSection = localToApi(baseSection, 3);
 assert.equal(apiSection.lift_filling_type, 'ДРУГОЕ 20мм');
 assert.equal(apiSection.lift_filling_custom, 'Панель по ТЗ');
-assert.equal(apiSection.lift_remote_channels, 16);
+assert.equal('lift_remote_channels' in apiSection, false);
 assert.equal(apiSection.lift_cable_side, 'Слева');
 assert.equal(apiSection.lift_opening_type, 'Сдвиг вниз');
 
@@ -123,17 +125,21 @@ const roundTrip = apiToLocal({
 assert.equal(roundTrip.liftFillingType, baseSection.liftFillingType);
 assert.equal(roundTrip.liftFillingCustom, baseSection.liftFillingCustom);
 assert.equal(roundTrip.liftControlType, baseSection.liftControlType);
-assert.equal(roundTrip.liftRemoteChannels, baseSection.liftRemoteChannels);
 assert.equal(roundTrip.liftCableSide, baseSection.liftCableSide);
 assert.equal(roundTrip.liftOpeningType, baseSection.liftOpeningType);
 
 const templateData = localToTemplateData(baseSection);
 const fromTemplate = applyTemplateDataToSection(
-  { ...baseSection, liftFillingCustom: undefined, liftRemoteChannels: 1 },
+  { ...baseSection, liftFillingCustom: undefined },
   templateData,
 );
 assert.equal(fromTemplate.liftFillingCustom, 'Панель по ТЗ');
-assert.equal(fromTemplate.liftRemoteChannels, 16);
 assert.equal(fromTemplate.liftOpeningType, 'Сдвиг вниз');
 
-console.log('Lift diagrams smoke passed: 7 variants, persistence and proportions');
+const visualizerMarkup = renderToStaticMarkup(
+  <EditorVisualizer section={baseSection} variant="desktop" />,
+);
+assert.match(visualizerMarkup, /data-lift-view-caption/);
+assert.match(visualizerMarkup, /Вид из помещения/);
+
+console.log('Lift diagrams smoke passed: 7 variants, persistence, proportions and caption');

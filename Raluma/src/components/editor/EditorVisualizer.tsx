@@ -20,7 +20,17 @@ export interface EditorVisualizerProps {
 
 export const EditorVisualizer: React.FC<EditorVisualizerProps> = ({ section, variant, calc }) => {
   if (section.system === 'ЛИФТ') {
-    const diagram = <LiftRoomViewSVG section={section} />;
+    const diagram = (
+      <figure className="m-0">
+        <LiftRoomViewSVG section={section} />
+        <figcaption
+          data-lift-view-caption
+          className="mt-1 text-center text-[10px] font-bold uppercase tracking-widest text-accent/50"
+        >
+          Вид из помещения
+        </figcaption>
+      </figure>
+    );
     if (variant === 'mobile') {
       return (
         <div className="mb-4 xl:hidden">

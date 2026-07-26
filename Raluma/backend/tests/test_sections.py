@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 
 def test_create_section(client, admin_headers, project):
     r = client.post(
@@ -75,7 +77,6 @@ def test_lift_fields_save_through_api(client, admin_headers, project):
             "lift_filling_type": "ДРУГОЕ 20мм",
             "lift_filling_custom": "Сэндвич-панель 20мм",
             "lift_control_type": "Пульт ДУ",
-            "lift_remote_channels": 12,
             "lift_cable_side": "Слева",
             "lift_opening_type": "Верх/низ глухие, сдвиг вниз",
         },
@@ -86,7 +87,7 @@ def test_lift_fields_save_through_api(client, admin_headers, project):
     assert section["lift_filling_type"] == "ДРУГОЕ 20мм"
     assert section["lift_filling_custom"] == "Сэндвич-панель 20мм"
     assert section["lift_control_type"] == "Пульт ДУ"
-    assert section["lift_remote_channels"] == 12
+    assert "lift_remote_channels" not in section
     assert section["lift_cable_side"] == "Слева"
     assert section["lift_opening_type"] == "Верх/низ глухие, сдвиг вниз"
 
@@ -98,7 +99,6 @@ def test_lift_fields_save_through_api(client, admin_headers, project):
             "lift_filling_type": "СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)",
             "lift_filling_custom": None,
             "lift_control_type": "Кнопка",
-            "lift_remote_channels": None,
             "lift_cable_side": "Справа",
             "lift_opening_type": "Сдвиг вверх",
         },
@@ -109,7 +109,7 @@ def test_lift_fields_save_through_api(client, admin_headers, project):
     assert saved["lift_filling_type"] == "СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)"
     assert saved["lift_filling_custom"] is None
     assert saved["lift_control_type"] == "Кнопка"
-    assert saved["lift_remote_channels"] is None
+    assert "lift_remote_channels" not in saved
     assert saved["lift_cable_side"] == "Справа"
     assert saved["lift_opening_type"] == "Сдвиг вверх"
 
@@ -125,9 +125,48 @@ def test_lift_fields_have_isolated_defaults(client, admin_headers, project):
     section = created.json()
     assert section["lift_filling_type"] == "СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
     assert section["lift_control_type"] == "Пульт ДУ"
-    assert section["lift_remote_channels"] == 1
+    assert "lift_remote_channels" not in section
     assert section["lift_cable_side"] == "Справа"
     assert section["lift_opening_type"] == "Сдвиг вниз"
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"panels": 5},
+        {"quantity": 0},
+        {"lift_filling_type": "ДРУГОЕ 8мм", "lift_filling_custom": "  "},
+        {"lift_filling_type": "НЕИЗВЕСТНО"},
+        {"lift_control_type": "Тумблер"},
+        {"lift_cable_side": "Сверху"},
+        {"lift_opening_type": "Вбок"},
+        {
+            "panels": 3,
+            "lift_opening_type": "Верх/низ глухие, сдвиг вниз",
+        },
+        {"lift_remote_channels": -1},
+    ],
+)
+def test_invalid_lift_fields_are_rejected(
+    client, admin_headers, project, overrides
+):
+    payload = {
+        "name": "Некорректный ЛИФТ",
+        "system": "ЛИФТ",
+        "width": 2500,
+        "height": 2500,
+        "panels": 2,
+        "quantity": 1,
+    }
+    payload.update(overrides)
+
+    response = client.post(
+        f"/api/projects/{project['id']}/sections",
+        headers=admin_headers,
+        json=payload,
+    )
+
+    assert response.status_code == 422
 
 
 def test_list_sections(client, admin_headers, project, section):

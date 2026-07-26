@@ -70,7 +70,6 @@ def test_copy_project_keeps_lift_fields(client, admin_headers, project):
             "lift_filling_type": "ДРУГОЕ 8мм",
             "lift_filling_custom": "Зеркало 8мм",
             "lift_control_type": "Пульт ДУ",
-            "lift_remote_channels": 24,
             "lift_cable_side": "Слева",
             "lift_opening_type": "Верх/низ глухие, сдвиг вниз",
         },
@@ -88,7 +87,7 @@ def test_copy_project_keeps_lift_fields(client, admin_headers, project):
     )
     assert copied_lift["lift_filling_type"] == "ДРУГОЕ 8мм"
     assert copied_lift["lift_filling_custom"] == "Зеркало 8мм"
-    assert copied_lift["lift_remote_channels"] == 24
+    assert "lift_remote_channels" not in copied_lift
     assert copied_lift["lift_cable_side"] == "Слева"
     assert copied_lift["lift_opening_type"] == "Верх/низ глухие, сдвиг вниз"
 

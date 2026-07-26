@@ -214,27 +214,8 @@ export function LiftSystemTab({
           <ToggleGroup
             value={controlType}
             options={['Пульт ДУ', 'Кнопка']}
-            onChange={value => update({
-              liftControlType: value,
-              ...(value === 'Пульт ДУ' && !s.liftRemoteChannels
-                ? { liftRemoteChannels: 1 }
-                : {}),
-            })}
+            onChange={value => update({ liftControlType: value })}
           />
-          {controlType === 'Пульт ДУ' && (
-            <div className="space-y-1.5 pt-1">
-              <label className={LBL}>Количество каналов</label>
-              <input
-                type="number"
-                min="1"
-                value={s.liftRemoteChannels || ''}
-                onChange={event => update({
-                  liftRemoteChannels: Number.parseInt(event.target.value, 10) || undefined,
-                })}
-                className={INP}
-              />
-            </div>
-          )}
         </div>
 
         <div className="space-y-2">

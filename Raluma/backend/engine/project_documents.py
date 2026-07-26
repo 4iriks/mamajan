@@ -12,6 +12,7 @@ from typing import Iterable
 from jinja2 import Environment, FileSystemLoader
 
 from engine.glass_types import default_glass_type
+from engine.lift_config import lift_filling_text
 from engine.pdf import TEMPLATES_DIR, _img_b64, glass_mm
 from engine.slide_calc import calculate_slide
 
@@ -664,7 +665,10 @@ def _section_variant(section: object) -> tuple:
             str(getattr(section, "book_subtype", "") or "").strip(),
         )
     if system == "ЛИФТ":
-        return (str(getattr(section, "door_system", "") or "").strip(),)
+        return (
+            _positive_int(getattr(section, "panels", 2), 2),
+            str(getattr(section, "lift_opening_type", "") or "Сдвиг вниз").strip(),
+        )
     if system == "ЦС":
         return (str(getattr(section, "cs_shape", "") or "").strip(),)
     return ()
@@ -681,8 +685,11 @@ def _construction_name(section: object) -> str:
         variant = str(getattr(section, "book_system", "") or "").strip()
         return f"Raluma КНИЖКА{f' {variant}' if variant else ''}"
     if system == "ЛИФТ":
-        variant = str(getattr(section, "door_system", "") or "").strip()
-        return f"Raluma ЛИФТ{f', {variant}' if variant else ''}"
+        panels = _positive_int(getattr(section, "panels", 2), 2)
+        opening = str(
+            getattr(section, "lift_opening_type", "") or "Сдвиг вниз"
+        ).strip()
+        return f"Raluma ЛИФТ, {panels} пан., {opening.lower()}"
     if system == "ЦС":
         variant = str(getattr(section, "cs_shape", "") or "").strip()
         return f"Raluma ЦС{f', {variant}' if variant else ''}"
@@ -789,6 +796,18 @@ def _build_delivery_glass_rows(
                     },
                 )
                 row["qty"] += 1
+        elif system == "ЛИФТ":
+            glass_type = lift_filling_text(section)
+            color = _section_color(section)
+            panel_count = max(1, _positive_int(getattr(section, "panels", 2), 2))
+            section_qty = max(1, _positive_int(getattr(section, "quantity", 1), 1))
+            section_rows[(glass_type, None, None, "Размеры согласно ТЗ")] = {
+                "glass_type": glass_type,
+                "width": None,
+                "height": None,
+                "qty": panel_count * section_qty,
+                "note": "Размеры согласно ТЗ",
+            }
         else:
             glass_type = str(
                 getattr(section, "glass_type", "")

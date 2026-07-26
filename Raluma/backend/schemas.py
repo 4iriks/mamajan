@@ -3,6 +3,14 @@ from typing import Any, Optional, List
 from pydantic import BaseModel, Field, model_validator
 
 from engine.glass_types import NON_SLIDE_DEFAULT_GLASS_TYPE, default_glass_type
+from engine.lift_config import (
+    LIFT_CABLE_SIDES,
+    LIFT_CONTROL_TYPES,
+    LIFT_CUSTOM_FILLINGS,
+    LIFT_FILLING_OPTIONS,
+    LIFT_OPENING_TYPES,
+    LIFT_SPLIT_OPENING,
+)
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -184,7 +192,7 @@ class SectionBase(BaseModel):
     lift_filling_type: str = "СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
     lift_filling_custom: Optional[str] = None
     lift_control_type: str = "Пульт ДУ"
-    lift_remote_channels: Optional[int] = 1
+    lift_remote_channels: Optional[int] = Field(default=None, exclude=True)
     lift_cable_side: str = "Справа"
     lift_opening_type: str = "Сдвиг вниз"
     # ДВЕРЬ / ЦС
@@ -208,6 +216,35 @@ class SectionBase(BaseModel):
         normalized = dict(values)
         normalized["glass_type"] = default_glass_type(values.get("system"))
         return normalized
+
+    @model_validator(mode="after")
+    def validate_lift_fields(self):
+        if str(self.system or "").strip().upper() != "ЛИФТ":
+            return self
+        if self.panels not in {2, 3, 4}:
+            raise ValueError("Для ЛИФТ количество панелей должно быть 2, 3 или 4")
+        if self.width <= 0 or self.height <= 0 or self.quantity <= 0:
+            raise ValueError("Размеры и количество секций ЛИФТ должны быть больше нуля")
+        if self.lift_filling_type not in LIFT_FILLING_OPTIONS:
+            raise ValueError("Недопустимый вариант заполнения ЛИФТ")
+        if (
+            self.lift_filling_type in LIFT_CUSTOM_FILLINGS
+            and not str(self.lift_filling_custom or "").strip()
+        ):
+            raise ValueError("Для варианта ДРУГОЕ укажите название заполнения")
+        if self.lift_control_type not in LIFT_CONTROL_TYPES:
+            raise ValueError("Недопустимый вариант управления ЛИФТ")
+        if self.lift_cable_side not in LIFT_CABLE_SIDES:
+            raise ValueError("Недопустимая сторона ввода кабеля ЛИФТ")
+        if self.lift_opening_type not in LIFT_OPENING_TYPES:
+            raise ValueError("Недопустимый вариант открывания ЛИФТ")
+        if self.panels != 4 and self.lift_opening_type == LIFT_SPLIT_OPENING:
+            raise ValueError(
+                "Верхняя и нижняя глухие панели доступны только для 4 панелей"
+            )
+        if self.lift_remote_channels is not None and self.lift_remote_channels <= 0:
+            raise ValueError("Количество каналов должно быть больше нуля")
+        return self
 
 
 class SectionCreate(SectionBase):

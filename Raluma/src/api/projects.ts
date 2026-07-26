@@ -109,7 +109,6 @@ export interface SectionOut {
   lift_filling_type?: string;
   lift_filling_custom?: string;
   lift_control_type?: string;
-  lift_remote_channels?: number;
   lift_cable_side?: string;
   lift_opening_type?: string;
   door_system?: string;

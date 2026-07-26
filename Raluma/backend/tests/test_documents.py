@@ -1791,6 +1791,75 @@ class TestDeliveryNote:
         values.update(overrides)
         return SimpleNamespace(**values)
 
+    def test_lift_glass_uses_selected_filling(self):
+        project = self.project(
+            delivery_note_data=json.dumps(
+                {"includeGlass": True, "places": {}}, ensure_ascii=False
+            )
+        )
+        sections = [
+            _delivery_section(
+                system="ЛИФТ",
+                panels=3,
+                quantity=2,
+                lift_filling_type="СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)",
+            ),
+            _delivery_section(
+                name="Секция 2",
+                order=2,
+                system="ЛИФТ",
+                panels=2,
+                lift_filling_type="ДРУГОЕ 8мм",
+                lift_filling_custom="ЗЕРКАЛО 8мм",
+            ),
+        ]
+
+        context = _build_delivery_context(project, sections)
+        glass_rows = [
+            row for row in context["delivery_item1_rows"] if row["kind"] == "glass"
+        ]
+
+        assert {row["glass_type"] for row in glass_rows} == {
+            "СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)",
+            "ЗЕРКАЛО 8мм",
+        }
+        assert {
+            row["glass_type"]: row["qty"]
+            for row in glass_rows
+        } == {
+            "СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)": 6,
+            "ЗЕРКАЛО 8мм": 2,
+        }
+
+    def test_lift_constructions_split_by_panels_and_opening(self):
+        sections = [
+            _delivery_section(
+                system="ЛИФТ",
+                panels=2,
+                lift_opening_type="Сдвиг вниз",
+            ),
+            _delivery_section(
+                name="Секция 2",
+                order=2,
+                system="ЛИФТ",
+                panels=4,
+                lift_opening_type="Верх/низ глухие, сдвиг вниз",
+            ),
+        ]
+
+        context = _build_delivery_context(self.project(), sections)
+        rows = [
+            row
+            for row in context["delivery_item1_rows"]
+            if row["kind"] == "construction"
+        ]
+
+        assert len(rows) == 2
+        assert {row["name"] for row in rows} == {
+            "Raluma ЛИФТ, 2 пан., сдвиг вниз",
+            "Raluma ЛИФТ, 4 пан., верх/низ глухие, сдвиг вниз",
+        }
+
     def test_constructions_include_all_systems_and_threshold_does_not_split_group(self):
         sections = [
             _delivery_section(

@@ -256,7 +256,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
                 <><Save className="w-4 h-4" /> Сохранить изменения</>
               ) : 'Сохранить секцию'}
             </button>
-            {[
+            {section.system !== 'ЛИФТ' && [
               { name: 'Спецификация', icon: FileText },
               { name: 'Производственный лист', icon: ClipboardList },
               { name: 'Схема', icon: Map },

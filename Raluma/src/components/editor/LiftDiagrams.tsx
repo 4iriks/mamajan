@@ -133,6 +133,26 @@ export function LiftRoomViewSVG({ section }: { section: Section }) {
         strokeOpacity="0.42"
         strokeWidth="1.4"
       />
+      <line
+        data-lift-profile="top"
+        x1={frameX}
+        y1={frameY}
+        x2={frameX + frameWidth}
+        y2={frameY}
+        stroke="var(--theme-accent)"
+        strokeOpacity="0.9"
+        strokeWidth="8"
+      />
+      <line
+        data-lift-profile="bottom"
+        x1={frameX}
+        y1={frameY + frameHeight}
+        x2={frameX + frameWidth}
+        y2={frameY + frameHeight}
+        stroke="var(--theme-accent)"
+        strokeOpacity="0.82"
+        strokeWidth="4"
+      />
 
       {Array.from({ length: panels - 1 }, (_, index) => {
         const y = frameY + panelHeight * (index + 1);

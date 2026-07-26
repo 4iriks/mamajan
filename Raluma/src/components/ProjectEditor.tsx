@@ -197,7 +197,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           panels: opts?.liftPanels || 2,
           liftFillingType: 'СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ',
           liftControlType: 'Пульт ДУ',
-          liftRemoteChannels: 1,
           liftCableSide: 'Справа',
           liftOpeningType: 'Сдвиг вниз',
         };
