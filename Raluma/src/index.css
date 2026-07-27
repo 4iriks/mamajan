@@ -21,14 +21,14 @@
   --theme-dropdown: #0e1f2e;
   --theme-check: #0c1d2d;
   --theme-card-shadow: none;
-  --diagram-glass-clear: #78c8e8;
-  --diagram-glass-bronze: #c49362;
-  --diagram-glass-gray: #87939c;
-  --diagram-glass-matte: #a8b2b5;
-  --diagram-glass-clarified: #a4e3e8;
-  --diagram-glass-triplex: #82c5a2;
+  --diagram-glass-clear: #245d73;
+  --diagram-glass-bronze: #6d4a2e;
+  --diagram-glass-gray: #4a5963;
+  --diagram-glass-matte: #5b666a;
+  --diagram-glass-clarified: #2f6870;
+  --diagram-glass-triplex: #35634b;
   --diagram-line: #7be4da;
-  --diagram-symbol: #0b5d68;
+  --diagram-symbol: #ecfeff;
 }
 
 html.light {

@@ -30,6 +30,7 @@ from engine.project_documents import (
     _build_delivery_context,
     _build_glass_rows,
     _build_paint_pages,
+    _iter_calculated_sections,
     _iter_slide_sections,
     render_project_document_html,
 )
@@ -485,7 +486,7 @@ class TestPreview:
             params={"token": token},
         )
         assert r.status_code == 200
-        assert "только для системы СЛАЙД" in r.text
+        assert "для этой системы пока не реализован" in r.text
 
 
 class TestLocalPreview:
@@ -547,6 +548,49 @@ class TestLocalPreview:
         assert r.text.count('data-center-handle-top=') == 2
         assert 'data-center-lock-room="center"' in r.text
         assert 'data-center-lock-top="center"' in r.text
+
+    def test_local_preview_places_center_lock_on_physical_panel_boundary(self, client):
+        r = client.post(
+            "/api/projects/local/sections/preview",
+            json={
+                "project": {"number": "LOCAL-2R-ASYM", "customer": "Тест"},
+                "section": {
+                    "name": "Секция 1",
+                    "system": "СЛАЙД",
+                    "width": 6056,
+                    "height": 2820,
+                    "panels": 6,
+                    "quantity": 1,
+                    "rails": 3,
+                    "slide_rows": 2,
+                    "unused_track": "Внешний",
+                    "threshold": "Стандартный анод",
+                    "inter_glass_profile": "Алюминиевый RS2061",
+                    "profile_left_lock_bar": True,
+                    "profile_left_handle_bar": True,
+                    "profile_right_p_bar": True,
+                    "profile_right_bubble": True,
+                    "center_handle": "Ручка-кноб RS3014",
+                    "center_lock": "Замок стекло-стекло RS30301",
+                },
+            },
+        )
+
+        assert r.status_code == 200
+        boundary_match = re.search(r'data-center-boundary-x="([0-9.]+)"', r.text)
+        panel_match = re.search(
+            r'data-scheme-panel="3"[^>]*data-panel-boundary-end="([0-9.]+)"',
+            r.text,
+        )
+        lock_match = re.search(
+            r'data-center-lock-top="center"[^>]*\s+x="([0-9.]+)"',
+            r.text,
+        )
+        assert boundary_match and panel_match and lock_match
+        boundary = float(boundary_match.group(1))
+        assert boundary != pytest.approx(220), "fixture must remain asymmetric"
+        assert boundary == pytest.approx(float(panel_match.group(1)))
+        assert float(lock_match.group(1)) == pytest.approx(boundary - 3)
 
     def test_local_preview_two_rows_matches_movement_and_center_rs112(self, client):
         r = client.post(
@@ -647,7 +691,67 @@ class TestLocalPreview:
             },
         )
         assert r.status_code == 200
-        assert "только для системы СЛАЙД" in r.text
+        assert "для этой системы пока не реализован" in r.text
+
+    def test_local_lift_preview_uses_dedicated_sheet(self, client):
+        r = client.post(
+            "/api/projects/local/sections/preview",
+            json={
+                "project": {"number": "LOCAL-LIFT", "customer": "Тест"},
+                "section": {
+                    "name": "Секция 3",
+                    "system": "ЛИФТ",
+                    "width": 3323,
+                    "height": 2910,
+                    "panels": 3,
+                    "quantity": 1,
+                    "painting_type": "RAL стандарт",
+                    "ral_color": "9016 МАТОВЫЙ",
+                    "lift_filling_type": "СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
+                    "lift_control_type": "Пульт ДУ",
+                    "lift_remote_1ch_qty": 1,
+                    "lift_remote_6ch_qty": 0,
+                    "lift_cable_side": "Слева",
+                    "lift_opening_type": "Сдвиг вниз",
+                },
+            },
+        )
+
+        assert r.status_code == 200
+        assert "Производственный лист ЛИФТ" in r.text
+        assert "Вид из помещения" in r.text
+        assert "Кинематическая схема" in r.text
+        assert "Панели при склейке" in r.text
+        assert "LOCAL-LIFT" in r.text
+        assert "RL101" in r.text
+        assert "Крутящий момент" in r.text
+        assert "section_sheet.html" not in r.text
+
+    def test_local_lift_calc_returns_panels_profiles_and_hardware(self, client):
+        r = client.post(
+            "/api/projects/local/sections/calc",
+            json={
+                "project": {"number": "LOCAL-LIFT-CALC"},
+                "section": {
+                    "name": "Секция 1",
+                    "system": "ЛИФТ",
+                    "width": 2302,
+                    "height": 2229,
+                    "panels": 2,
+                    "quantity": 1,
+                    "lift_filling_type": "СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
+                    "lift_control_type": "Пульт ДУ",
+                    "lift_cable_side": "Справа",
+                    "lift_opening_type": "Сдвиг вниз",
+                },
+            },
+        )
+
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["panels"]) == 2
+        assert any(row["article"] == "RL101" for row in data["profiles"])
+        assert any(row["article"] == "RL210" for row in data["hardware"])
 
     def test_local_preview_unused_track_and_side_profile(self, client):
         r = client.post(
@@ -1299,6 +1403,155 @@ class TestProjectDocuments:
         assert "Заказ стекла" in r.text
         assert "Проект LOCAL-DOC" not in r.text
 
+    def test_local_lift_production_preview_uses_dedicated_three_page_sheet(
+        self, client
+    ):
+        r = client.post(
+            "/api/projects/local/sections/preview",
+            json={
+                "project": {"number": "LOCAL-LIFT", "customer": "Гость"},
+                "section": {
+                    "name": "Секция 4",
+                    "system": "ЛИФТ",
+                    "width": 3043,
+                    "height": 3300,
+                    "panels": 4,
+                    "quantity": 1,
+                    "painting_type": "RAL стандарт",
+                    "ral_color": "7016 МУАР",
+                    "lift_filling_type": "СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)",
+                    "lift_control_type": "Пульт ДУ",
+                    "lift_remote_1ch_qty": 2,
+                    "lift_remote_6ch_qty": 1,
+                    "lift_cable_side": "Слева",
+                    "lift_opening_type": "Верх/низ глухие, сдвиг вниз",
+                },
+            },
+        )
+
+        assert r.status_code == 200
+        assert r.text.count('<section class="page">') == 3
+        assert "Панели при склейке" in r.text
+        assert "ЛИФТ · НАРЕЗКА И КОМПЛЕКТАЦИЯ" in r.text
+        assert "ЛИФТ · КОМПЛЕКТАЦИЯ" in r.text
+        assert "RL101" in r.text
+        assert "RL2087" in r.text
+
+    def test_local_lift_project_documents_use_calculation_and_manual_paint_rows(
+        self, client
+    ):
+        section = {
+            "name": "Секция 4",
+            "system": "ЛИФТ",
+            "width": 3043,
+            "height": 3300,
+            "panels": 4,
+            "quantity": 1,
+            "painting_type": "RAL стандарт",
+            "ral_color": "7016 МУАР",
+            "lift_filling_type": "СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)",
+            "lift_control_type": "Пульт ДУ",
+            "lift_remote_1ch_qty": 2,
+            "lift_remote_6ch_qty": 1,
+            "lift_cable_side": "Слева",
+            "lift_opening_type": "Верх/низ глухие, сдвиг вниз",
+        }
+        project = {
+            "number": "LOCAL-LIFT",
+            "customer": "Гость",
+            "paint_manual_rows": json.dumps(
+                [
+                    {
+                        "color": "7016 МУАР",
+                        "article": "MAN-LIFT",
+                        "name": "Ручная позиция ЛИФТ",
+                        "qty": 2,
+                        "clean": 500,
+                        "allowance": 550,
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+            "delivery_note_data": json.dumps(
+                {"includeGlass": True, "places": {}}, ensure_ascii=False
+            ),
+        }
+        payload = {"project": project, "sections": [section]}
+
+        paint = client.post(
+            "/api/projects/local/documents/paint/preview", json=payload
+        )
+        glass = client.post(
+            "/api/projects/local/documents/glass/preview", json=payload
+        )
+        delivery = client.post(
+            "/api/projects/local/documents/delivery/preview", json=payload
+        )
+
+        assert paint.status_code == 200
+        assert "RL101" in paint.text
+        assert "MAN-LIFT" in paint.text
+        assert paint.text.index("RL101") < paint.text.index("MAN-LIFT")
+
+        assert glass.status_code == 200
+        assert "СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)" in glass.text
+        assert "2910" in glass.text
+        assert "752" in glass.text
+
+        assert delivery.status_code == 200
+        assert "Raluma ЛИФТ" in delivery.text
+        assert "RL2087" in delivery.text
+        assert "RL2088" in delivery.text
+        assert "2910" in delivery.text
+
+    def test_authenticated_lift_project_documents_use_saved_section(
+        self, client, admin_headers, project
+    ):
+        created = client.post(
+            f"/api/projects/{project['id']}/sections",
+            headers=admin_headers,
+            json={
+                "name": "ЛИФТ 3 панели",
+                "system": "ЛИФТ",
+                "width": 3323,
+                "height": 2910,
+                "panels": 3,
+                "quantity": 1,
+                "painting_type": "RAL стандарт",
+                "ral_color": "9016 МАТОВЫЙ",
+                "lift_filling_type": "СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
+                "lift_control_type": "Пульт ДУ",
+                "lift_remote_1ch_qty": 1,
+                "lift_remote_6ch_qty": 0,
+                "lift_cable_side": "Слева",
+                "lift_opening_type": "Сдвиг вниз",
+            },
+        )
+        assert created.status_code == 201
+        token = admin_headers["Authorization"].replace("Bearer ", "")
+
+        paint = client.get(
+            f"/api/projects/{project['id']}/documents/paint/preview",
+            params={"token": token},
+        )
+        glass = client.get(
+            f"/api/projects/{project['id']}/documents/glass/preview",
+            params={"token": token},
+        )
+        delivery = client.get(
+            f"/api/projects/{project['id']}/documents/delivery/preview",
+            params={"token": token},
+        )
+
+        assert paint.status_code == 200
+        assert "RL101" in paint.text
+        assert glass.status_code == 200
+        assert "3190" in glass.text
+        assert "905" in glass.text
+        assert delivery.status_code == 200
+        assert "Raluma ЛИФТ, 3 пан." in delivery.text
+        assert "RL2087" in delivery.text
+
     def test_local_project_glass_pdf_download_returns_pdf(self, client):
         pytest.importorskip("weasyprint")
 
@@ -1514,8 +1767,88 @@ class TestProjectPaintOrder:
         assert rows["RS2323"]["paint_marker_class"] == ""
         assert rows["RS23231"]["paint_marker_class"] == ""
 
+    def test_lift_paint_rows_share_color_page_with_manual_row(self):
+        section = _delivery_section(
+            system="ЛИФТ",
+            width=3043,
+            height=3300,
+            panels=4,
+            painting_type="RAL стандарт",
+            ral_color="7016 МУАР",
+            lift_filling_type="СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)",
+            lift_opening_type="Верх/низ глухие, сдвиг вниз",
+        )
+
+        pages = _build_paint_pages(
+            _iter_calculated_sections([section]),
+            [
+                {
+                    "color": "7016 МУАР",
+                    "article": "MAN-LIFT",
+                    "name": "Ручная позиция ЛИФТ",
+                    "qty": 2,
+                    "clean": 500,
+                    "allowance": 550,
+                }
+            ],
+        )
+
+        assert len(pages) == 1
+        page = pages[0]
+        articles = [row["article"] for row in page["rows"]]
+        assert page["color"] == "7016 МУАР"
+        assert "RL101" in articles
+        assert articles[-1] == "MAN-LIFT"
+        assert page["total_qty"] == sum(row["qty"] for row in page["rows"])
+        assert page["total_m"] == round(
+            sum(row["total_m"] for row in page["rows"]), 1
+        )
+
+    def test_anodized_lift_has_no_paint_request_rows(self):
+        section = _delivery_section(
+            system="ЛИФТ",
+            width=3043,
+            height=3300,
+            panels=4,
+            painting_type="Анодированный",
+            ral_color="7016 МУАР",
+            lift_filling_type="СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
+            lift_opening_type="Сдвиг вниз",
+        )
+
+        pages = _build_paint_pages(_iter_calculated_sections([section]))
+
+        assert pages == []
+
 
 class TestProjectGlassOrder:
+    def test_lift_panels_use_calculated_dimensions_and_section_quantity(self):
+        project = SimpleNamespace(number="LIFT-GLASS")
+        section = _delivery_section(
+            system="ЛИФТ",
+            width=2302,
+            height=2229,
+            panels=2,
+            quantity=2,
+            lift_filling_type="СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
+            lift_opening_type="Сдвиг вниз",
+        )
+
+        rows = _build_glass_rows(
+            project,
+            _iter_calculated_sections([section]),
+        )
+
+        assert [(row["width"], row["height"], row["qty"]) for row in rows] == [
+            (2169, 1013, 2),
+            (2167, 1001, 2),
+        ]
+        assert [row["marking"] for row in rows] == ["1,1", "1,2"]
+        assert all(
+            row["glass_type"] == "СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
+            for row in rows
+        )
+
     def test_slide_sections_sort_by_visible_section_number(self):
         def section(name: str, order: int):
             return SimpleNamespace(
@@ -1834,6 +2167,43 @@ class TestDeliveryNote:
             "СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)": 6,
             "ЗЕРКАЛО 8мм": 2,
         }
+        assert all(
+            item["width"] is not None and item["height"] is not None
+            for group in glass_rows
+            for item in group["rows"]
+        )
+
+    def test_lift_delivery_lists_project_remotes_once_and_buttons_per_section(self):
+        sections = [
+            _delivery_section(
+                system="ЛИФТ",
+                lift_control_type="Пульт ДУ",
+                lift_remote_1ch_qty=3,
+                lift_remote_6ch_qty=1,
+            ),
+            _delivery_section(
+                name="Секция 2",
+                order=2,
+                system="ЛИФТ",
+                lift_control_type="Пульт ДУ",
+                lift_remote_1ch_qty=3,
+                lift_remote_6ch_qty=1,
+            ),
+            _delivery_section(
+                name="Секция 3",
+                order=3,
+                system="ЛИФТ",
+                quantity=2,
+                lift_control_type="Кнопка",
+            ),
+        ]
+
+        context = _build_delivery_context(self.project(), sections)
+        rows = {row["article"]: row for row in context["delivery_item2_rows"]}
+
+        assert rows["RL2087"]["qty"] == 3
+        assert rows["RL2088"]["qty"] == 1
+        assert rows["RL2092"]["qty"] == 2
 
     def test_lift_constructions_split_by_panels_and_opening(self):
         sections = [
@@ -2223,7 +2593,7 @@ class TestDeliveryNote:
         assert hardware["RS3110"]["qty"] == 1
         assert context["delivery_total_qty"] == "33"
 
-    def test_non_slide_glass_is_listed_without_invented_dimensions(self):
+    def test_lift_uses_calculated_dimensions_while_unimplemented_systems_do_not(self):
         project = self.project(
             delivery_note_data=json.dumps(
                 {"includeGlass": True, "places": {}}, ensure_ascii=False
@@ -2263,11 +2633,27 @@ class TestDeliveryNote:
         assert {detail["marking"] for detail in detail_rows} == {
             "Н-001 1,1",
             "Н-001 2,1",
+            "Н-001 2,2",
             "Н-001 3,1",
         }
-        assert all(detail["width"] is None for detail in detail_rows)
-        assert all(detail["height"] is None for detail in detail_rows)
-        assert all(detail["note"] == "Размеры согласно ТЗ" for detail in detail_rows)
+        lift_rows = [
+            detail
+            for detail in detail_rows
+            if detail["marking"].startswith("Н-001 2,")
+        ]
+        assert all(detail["width"] is not None for detail in lift_rows)
+        assert all(detail["height"] is not None for detail in lift_rows)
+        placeholder_rows = [
+            detail
+            for detail in detail_rows
+            if not detail["marking"].startswith("Н-001 2,")
+        ]
+        assert all(detail["width"] is None for detail in placeholder_rows)
+        assert all(detail["height"] is None for detail in placeholder_rows)
+        assert all(
+            detail["note"] == "Размеры согласно ТЗ"
+            for detail in placeholder_rows
+        )
 
     def test_places_are_stable_and_restored_per_group(self):
         section = _delivery_section(quantity=2)

@@ -502,7 +502,7 @@
         {% endfor %}
 
         {# Панели стекла #}
-        {% set top_ns = namespace(x=left_w) %}
+        {% set top_ns = namespace(x=left_w, centerBoundary=left_w + rail_w / 2) %}
         {% for pi in range(P) %}
         {% set panel_w_mm = top_panel_widths[pi] if pi < top_panel_widths|length else section.width / P %}
         {% set panel_w = rail_w * panel_w_mm / top_total_width if top_total_width else rail_w / P %}
@@ -516,7 +516,7 @@
         {% set gx1 = left_w + side_overlap - left_side_image.socket_depth if pi == 0 and left_side_image else px + gl %}
         {% set gx2 = left_w + rail_w - side_overlap + right_side_image.socket_depth if pi == P - 1 and right_side_image else px + panel_w - gr %}
         {# Панель — тонкий прямоугольник #}
-        <rect data-scheme-panel="{{ pi + 1 }}" x="{{ gx1 }}" y="{{ cy - 3.5 }}" width="{{ gx2 - gx1 }}" height="7" data-glass-fill="{{ glass_fill_color }}" data-glass-pattern="{{ 'matte' if matte_glass else '' }}" fill="{{ 'url(#matte-top-glass)' if matte_glass else glass_fill_color }}" fill-opacity="0.8" stroke="#000" stroke-width="0.8"/>
+        <rect data-scheme-panel="{{ pi + 1 }}" x="{{ gx1 }}" y="{{ cy - 3.5 }}" width="{{ gx2 - gx1 }}" height="7" data-panel-boundary-start="{{ px }}" data-panel-boundary-end="{{ px + panel_w }}" data-glass-fill="{{ glass_fill_color }}" data-glass-pattern="{{ 'matte' if matte_glass else '' }}" fill="{{ 'url(#matte-top-glass)' if matte_glass else glass_fill_color }}" fill-opacity="0.8" stroke="#000" stroke-width="0.8"/>
         {# Номер панели #}
         {% set pnum = pi + 1 if is2row else (P - pi if first_right else pi + 1) %}
         <text x="{{ (gx1 + gx2) / 2 }}" y="{{ cy + 3 }}" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#333">{{ panel_w_mm|glass_mm }} · {{ pnum }}</text>
@@ -556,12 +556,16 @@
         {% set iw = inter_glass_px %}
         <path data-profile="inter-glass" data-panel="{{ owner_pnum }}" data-dir="{{ idir }}" d="M {{ ix + idir * iw }} {{ icy - 6 }} L {{ ix }} {{ icy - 6 }} L {{ ix }} {{ icy + 6 }} L {{ ix + idir * iw }} {{ icy + 6 }}" fill="none" stroke="#666" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/>
         {% endif %}
+        {% if is2row and pi == (P // 2) - 1 %}
+        {% set top_ns.centerBoundary = px + panel_w %}
+        {% endif %}
         {% set top_ns.x = top_ns.x + panel_w %}
         {% endfor %}
         {% if is2row and top_center_lock and 'без' not in top_center_lock %}
         {% set top_lock_bottom = 'rs206' in top_center_lock or 'накидн' in top_center_lock %}
         <rect data-center-lock-top="{{ 'RS206' if top_lock_bottom else 'center' }}"
-              x="{{ left_w + rail_w / 2 - 3 }}"
+              data-center-boundary-x="{{ top_ns.centerBoundary }}"
+              x="{{ top_ns.centerBoundary - 3 }}"
               y="{{ top_pad + rails * row_h - 4 if top_lock_bottom else top_pad + rails * row_h / 2 + 5 }}"
               width="6" height="4" rx="0.8" fill="#666" stroke="#000" stroke-width="0.5"/>
         {% endif %}

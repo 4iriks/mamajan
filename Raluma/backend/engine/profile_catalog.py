@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from engine.lift_catalog import LIFT_CATALOG_SPECS
+
 
 DEFAULT_COLOR_VARIANTS = ("Анод", "RAL стандарт", "RAL нестандарт")
 
@@ -460,6 +462,32 @@ PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
         note="Формула количества будет уточняться отдельно",
     ),
 }
+
+# ЛИФТ хранит собственный набор позиций отдельно. Общий каталог только
+# объединяет реестры; существующие определения СЛАЙД при этом не меняются.
+PROFILE_CATALOG.update(
+    {
+        spec.article: ProfileCatalogItem(
+            article=spec.article,
+            name=spec.name,
+            image=spec.image,
+            section_width_mm=0,
+            section_height_mm=0,
+            paint_mode=spec.paint_mode,
+            color_variants=spec.color_variants,
+            group=spec.group,
+            system="ЛИФТ",
+            unit=spec.unit,
+            purchase_price=0,
+            markup_percent=35,
+            weight=0,
+            waste_percent=0,
+            supplier="Raluma",
+            note=spec.note,
+        )
+        for spec in LIFT_CATALOG_SPECS
+    }
+)
 
 
 def get_profile_catalog_item(article: str | None) -> ProfileCatalogItem | None:

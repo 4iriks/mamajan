@@ -15,6 +15,8 @@ def test_hardware_catalog_options_are_public(client):
     assert "RS1313" in skus
     assert "RS3110" in skus
     assert "RS123" in skus
+    assert "RL101" in skus
+    assert "RL2085" in skus
     assert "purchasePrice" not in data[0]
 
 
@@ -38,6 +40,11 @@ def test_hardware_catalog_returns_calculation_seed(client, admin_headers):
         by_sku["RS2323"]["note"]
         == "В заявке на покраску отмечать область, которую не красить"
     )
+    assert by_sku["RL101"]["system"] == "ЛИФТ"
+    assert by_sku["RL101"]["imageFile"] == "RL101.png"
+    assert by_sku["RL101"]["paintMode"] == "Красится"
+    assert by_sku["RL2085"]["group"] == "Фурнитура"
+    assert by_sku["RL2085"]["paintMode"] == "Не красится"
 
 
 def test_hardware_catalog_updates_item(client, admin_headers):
@@ -114,6 +121,14 @@ def test_profile_asset_returns_existing_threshold_png(client):
     assert r.status_code == 200
     assert r.headers["content-type"] == "image/png"
     assert len(r.content) > 0
+
+
+def test_profile_asset_returns_lift_images(client):
+    for filename in ("RL101.png", "RL2085.png", "RL210.png"):
+        r = client.get(f"/api/catalog/profile-assets/{filename}")
+        assert r.status_code == 200
+        assert r.headers["content-type"] == "image/png"
+        assert len(r.content) > 0
 
 
 def test_profile_asset_returns_new_rs123_and_rs3110_images(client):

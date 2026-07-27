@@ -419,6 +419,12 @@ def _get_env() -> Environment:
     return env
 
 
+def _section_sheet_template(section) -> str:
+    if str(getattr(section, "system", "") or "").strip().upper() == "ЛИФТ":
+        return "lift_section_sheet.html"
+    return "section_sheet.html"
+
+
 def render_preview(project, section, calc) -> str:
     """
     Рендерит HTML-строку с contenteditable для предпросмотра в iframe.
@@ -431,7 +437,7 @@ def render_preview(project, section, calc) -> str:
         pass
 
     env = _get_env()
-    template = env.get_template("section_sheet.html")
+    template = env.get_template(_section_sheet_template(section))
     return template.render(
         project=project,
         section=section,
@@ -452,7 +458,7 @@ def render_pdf_html(project, section, calc) -> str:
         pass
 
     env = _get_env()
-    template = env.get_template("section_sheet.html")
+    template = env.get_template(_section_sheet_template(section))
     return template.render(
         project=project,
         section=section,

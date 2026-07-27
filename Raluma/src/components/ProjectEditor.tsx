@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -43,6 +43,7 @@ import { defaultGlassType } from '../constants/glass';
 import {
   isLiftRemoteSection,
   sharedLiftRemoteCounts,
+  snapshotSections,
   synchronizeLiftRemoteCounts,
   updateLiftRemoteSections,
 } from './editor/liftRemoteSync';
@@ -68,6 +69,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const { token, user, isAdmin } = useAuthStore();
   const [project, setProject] = useState<{ id: number; number: string; customer: string } | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
+  const savedSectionsRef = useRef<Section[]>([]);
   const [loadingProject, setLoadingProject] = useState(true);
   const [allProjects, setAllProjects] = useState<ProjectList[]>([]);
   const [projectCustomerDraft, setProjectCustomerDraft] = useState('');
@@ -89,7 +91,9 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       setPaintShipDate(p.paint_ship_date || '');
       setPaintReceivedDate(p.paint_received_date || '');
       try { setOrderItems(p.order_items ? JSON.parse(p.order_items) : []); } catch { setOrderItems([]); }
-      setSections(synchronizeLiftRemoteCounts(p.sections.map(s => apiToLocal(s))));
+      const loadedSections = synchronizeLiftRemoteCounts(p.sections.map(s => apiToLocal(s)));
+      savedSectionsRef.current = snapshotSections(loadedSections);
+      setSections(loadedSections);
       setLoadingProject(false);
     }).catch(() => { setLoadingProject(false); onBack(); });
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -243,7 +247,11 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     try {
       const created = await createSection(project.id, localToApi(newSection, sections.length));
       const local = apiToLocal(created);
-      setSections(prev => [...prev, local]);
+      setSections(prev => {
+        const next = [...prev, local];
+        savedSectionsRef.current = snapshotSections(next);
+        return next;
+      });
       setActiveSectionId(local.id);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } } };
@@ -266,7 +274,11 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     try {
       const created = await createSection(project.id, localToApi(copy, sections.length));
       const local = apiToLocal(created);
-      setSections(prev => [...prev, local]);
+      setSections(prev => {
+        const next = [...prev, local];
+        savedSectionsRef.current = snapshotSections(next);
+        return next;
+      });
       setActiveSectionId(local.id);
       toast.success('Секция скопирована');
     } catch (e: unknown) {
@@ -305,7 +317,17 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           ),
         ];
       });
-      await Promise.all(saveRequests);
+      const savedSections = await Promise.all(saveRequests);
+      const savedById = new Map(
+        savedSections.map(section => [String(section.id), apiToLocal(section)]),
+      );
+      setSections(currentSections => {
+        const next = currentSections.map(
+          section => savedById.get(section.id) ?? section,
+        );
+        savedSectionsRef.current = snapshotSections(next);
+        return next;
+      });
       setIsDirty(false);
       toast.success('Секция сохранена');
     } catch (e: unknown) {
@@ -438,7 +460,11 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       const savedById = new Map(
         savedSections.map(section => [String(section.id), apiToLocal(section)]),
       );
-      setSections(nextSections.map(section => savedById.get(section.id) ?? section));
+      const persistedSections = nextSections.map(
+        section => savedById.get(section.id) ?? section,
+      );
+      savedSectionsRef.current = snapshotSections(persistedSections);
+      setSections(persistedSections);
       setIsDirty(false);
       toast.success('Шаблон применен');
     } catch (e: unknown) {
@@ -466,6 +492,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   };
 
   const confirmUnsavedDiscard = () => {
+    setSections(snapshotSections(savedSectionsRef.current));
     setIsDirty(false);
     setUnsavedModalOpen(false);
     setActiveSectionId(pendingNavTarget);
@@ -477,7 +504,11 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     try {
       const sectionId = parseInt(sectionToDelete.id);
       if (!isNaN(sectionId)) await deleteSection(project.id, sectionId);
-      setSections(sections.filter(s => s.id !== sectionToDelete.id));
+      setSections(currentSections => {
+        const next = currentSections.filter(s => s.id !== sectionToDelete.id);
+        savedSectionsRef.current = snapshotSections(next);
+        return next;
+      });
       if (activeSectionId === sectionToDelete.id) setActiveSectionId(null);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } } };

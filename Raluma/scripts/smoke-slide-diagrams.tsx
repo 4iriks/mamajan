@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { SlideCalcPreview } from '../src/api/projects';
@@ -11,6 +12,45 @@ import {
   isMatteGlass,
 } from '../src/constants/glass';
 import { buildCustomerOptions } from '../src/utils/customers';
+
+function relativeLuminance(hex: string): number {
+  const channels = hex
+    .slice(1)
+    .match(/.{2}/g)!
+    .map(value => Number.parseInt(value, 16) / 255)
+    .map(value => value <= 0.03928
+      ? value / 12.92
+      : ((value + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+function contrastRatio(first: string, second: string): number {
+  const [lighter, darker] = [relativeLuminance(first), relativeLuminance(second)]
+    .sort((a, b) => b - a);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+const themeCss = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
+const darkThemeBlock = themeCss.match(/:root\s*\{([\s\S]*?)\}/)?.[1] ?? '';
+const cssColor = (name: string) => {
+  const match = darkThemeBlock.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})`));
+  assert.ok(match, `${name} must be a concrete color in the dark theme`);
+  return match[1];
+};
+const diagramSymbolColor = cssColor('--diagram-symbol');
+for (const glassVariable of [
+  '--diagram-glass-clear',
+  '--diagram-glass-bronze',
+  '--diagram-glass-gray',
+  '--diagram-glass-matte',
+  '--diagram-glass-clarified',
+  '--diagram-glass-triplex',
+]) {
+  assert.ok(
+    contrastRatio(diagramSymbolColor, cssColor(glassVariable)) >= 4.5,
+    `${glassVariable} must keep diagram symbols readable in the dark theme`,
+  );
+}
 
 const section: Section = {
   id: 'diagram-smoke',

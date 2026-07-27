@@ -12,7 +12,7 @@ from typing import Iterable
 from jinja2 import Environment, FileSystemLoader
 
 from engine.glass_types import default_glass_type
-from engine.lift_config import lift_filling_text
+from engine.lift_calc import calculate_lift
 from engine.pdf import TEMPLATES_DIR, _img_b64, glass_mm
 from engine.slide_calc import calculate_slide
 
@@ -86,6 +86,34 @@ def _iter_slide_sections(sections: Iterable[object]) -> list[CalculatedSection]:
                 order=index,
                 section=section,
                 calc=calculate_slide(section),
+            )
+        )
+    return rows
+
+
+def _iter_calculated_sections(
+    sections: Iterable[object],
+) -> list[CalculatedSection]:
+    """Calculate document-capable systems without sharing their formula paths."""
+    rows: list[CalculatedSection] = []
+    sorted_sections = sorted(
+        list(sections),
+        key=lambda section: _section_sort_key(section, 999999),
+    )
+    supported_sections = [
+        section
+        for section in sorted_sections
+        if str(getattr(section, "system", "") or "").strip().upper()
+        in {"СЛАЙД", "ЛИФТ"}
+    ]
+    for index, section in enumerate(supported_sections, start=1):
+        system = str(getattr(section, "system", "") or "").strip().upper()
+        calc = calculate_slide(section) if system == "СЛАЙД" else calculate_lift(section)
+        rows.append(
+            CalculatedSection(
+                order=index,
+                section=section,
+                calc=calc,
             )
         )
     return rows
@@ -531,6 +559,30 @@ def _build_glass_rows(
     grouped: dict[tuple, dict] = {}
 
     for item in calculated:
+        system = str(getattr(item.section, "system", "") or "").strip().upper()
+        if system == "ЛИФТ":
+            for panel in item.calc.panels:
+                width = glass_mm(panel.width_mm)
+                height = glass_mm(panel.height_mm)
+                note = ""
+                key = (item.calc.filling_text, width, height, note)
+                row = grouped.setdefault(
+                    key,
+                    {
+                        "markings": [],
+                        "glass_type": item.calc.filling_text,
+                        "width": width,
+                        "height": height,
+                        "qty": 0,
+                        "area": 0.0,
+                        "note": note,
+                    },
+                )
+                row["markings"].append(f"{item.order},{panel.panel}")
+                row["qty"] += max(1, int(panel.qty or 0))
+                row["area"] = round(width * height * row["qty"] / 1_000_000, 3)
+            continue
+
         for glass_index, glass in enumerate(
             _expand_glass_for_order(item.section, item.calc), start=1
         ):
@@ -797,17 +849,24 @@ def _build_delivery_glass_rows(
                 )
                 row["qty"] += 1
         elif system == "ЛИФТ":
-            glass_type = lift_filling_text(section)
-            color = _section_color(section)
-            panel_count = max(1, _positive_int(getattr(section, "panels", 2), 2))
-            section_qty = max(1, _positive_int(getattr(section, "quantity", 1), 1))
-            section_rows[(glass_type, None, None, "Размеры согласно ТЗ")] = {
-                "glass_type": glass_type,
-                "width": None,
-                "height": None,
-                "qty": panel_count * section_qty,
-                "note": "Размеры согласно ТЗ",
-            }
+            calc = calculate_lift(section)
+            glass_type = calc.filling_text
+            color = _section_color(section, calc)
+            for panel in calc.panels:
+                width = glass_mm(panel.width_mm)
+                height = glass_mm(panel.height_mm)
+                key = (glass_type, width, height, "")
+                row = section_rows.setdefault(
+                    key,
+                    {
+                        "glass_type": glass_type,
+                        "width": width,
+                        "height": height,
+                        "qty": 0,
+                        "note": "",
+                    },
+                )
+                row["qty"] += max(1, int(panel.qty or 0))
         else:
             glass_type = str(
                 getattr(section, "glass_type", "")
@@ -979,6 +1038,7 @@ def _build_delivery_hardware_rows(
 ) -> list[dict]:
     grouped: dict[tuple, dict] = {}
     bubble_seal_lengths: set[float] = set()
+    lift_remote_controls: dict[str, dict] = {}
     special_articles = {"RS3014", "RS3017", "RS30201", "RS205"}
     excluded_locks = {"RS3018", "RS3020"}
 
@@ -1018,6 +1078,31 @@ def _build_delivery_hardware_rows(
                     size="",
                     qty=_safe_float(getattr(profile, "qty", 0)),
                 )
+        elif system == "ЛИФТ":
+            calc = calculate_lift(section)
+            for item in calc.hardware:
+                article = str(getattr(item, "article", "") or "").strip().upper()
+                if article in {"RL2087", "RL2088"}:
+                    row = lift_remote_controls.setdefault(
+                        article,
+                        {
+                            "article": article,
+                            "name": str(getattr(item, "name", "") or article).strip(),
+                            "qty": 0.0,
+                        },
+                    )
+                    # Количество пультов синхронизировано на уровне всего проекта.
+                    row["qty"] = max(
+                        row["qty"],
+                        _safe_float(getattr(item, "value", 0)),
+                    )
+                elif article == "RL2092":
+                    _add_delivery_component(
+                        grouped,
+                        article=article,
+                        name=str(getattr(item, "name", "") or article).strip(),
+                        qty=_safe_float(getattr(item, "value", 0)),
+                    )
         else:
             _add_raw_special_hardware(grouped, section, section_qty)
 
@@ -1040,6 +1125,13 @@ def _build_delivery_hardware_rows(
             article="RS1002",
             name="Пузырьковый уплотнитель",
             qty=len(bubble_seal_lengths),
+        )
+    for remote in lift_remote_controls.values():
+        _add_delivery_component(
+            grouped,
+            article=remote["article"],
+            name=remote["name"],
+            qty=remote["qty"],
         )
 
     rows = []
@@ -1122,8 +1214,14 @@ def build_project_document_context(
     if doc_type == "delivery":
         return _build_delivery_context(project, sections)
 
-    calculated = _iter_slide_sections(sections)
-    commercial_rows = _build_commercial_rows(calculated)
+    section_rows = list(sections)
+    slide_calculated = _iter_slide_sections(section_rows)
+    calculated = (
+        slide_calculated
+        if doc_type == "commercial"
+        else _iter_calculated_sections(section_rows)
+    )
+    commercial_rows = _build_commercial_rows(slide_calculated)
     paint_pages = _build_paint_pages(
         calculated, getattr(project, "paint_manual_rows", None)
     )

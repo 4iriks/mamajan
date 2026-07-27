@@ -21,6 +21,7 @@ from database import get_db
 import models
 import schemas
 from auth import get_current_user, decode_token
+from engine.lift_calc import calculate_lift
 from engine.slide_calc import calculate_slide
 from engine.pdf import append_pdf_drawings, render_preview, render_pdf_html, generate_pdf
 from engine.project_documents import DOC_TITLES, render_project_document_html
@@ -28,6 +29,19 @@ from engine.project_documents import DOC_TITLES, render_project_document_html
 router = APIRouter(prefix="/api/projects", tags=["documents"])
 
 ADMIN_ROLES = ("admin", "superadmin")
+PRODUCTION_SHEET_SYSTEMS = {"СЛАЙД", "ЛИФТ"}
+
+
+def _calculate_section(section):
+    system = str(getattr(section, "system", "") or "").strip().upper()
+    if system == "СЛАЙД":
+        return calculate_slide(section)
+    if system == "ЛИФТ":
+        return calculate_lift(section)
+    raise HTTPException(
+        status_code=400,
+        detail="Производственный лист для этой системы пока не реализован",
+    )
 
 
 def _get_section_or_404(
@@ -162,11 +176,11 @@ def _drawing_files_for_sections(sections) -> list[str]:
 @router.post("/local/sections/preview", response_class=HTMLResponse)
 def preview_local_section(payload: LocalDocumentPayload):
     project, section = _build_local_document_objects(payload)
-    if section.system != "СЛАЙД":
+    if str(section.system or "").strip().upper() not in PRODUCTION_SHEET_SYSTEMS:
         return HTMLResponse(
-            "<p style='padding:20px;font-family:sans-serif'>Производственный лист доступен только для системы СЛАЙД</p>"
+            "<p style='padding:20px;font-family:sans-serif'>Производственный лист для этой системы пока не реализован</p>"
         )
-    calc = calculate_slide(section)
+    calc = _calculate_section(section)
     html = render_preview(project, section, calc)
     return HTMLResponse(html)
 
@@ -174,11 +188,7 @@ def preview_local_section(payload: LocalDocumentPayload):
 @router.post("/local/sections/calc")
 def calculate_local_section(payload: LocalDocumentPayload):
     _, section = _build_local_document_objects(payload)
-    if section.system != "СЛАЙД":
-        raise HTTPException(
-            status_code=400, detail="Расчёт доступен только для системы СЛАЙД"
-        )
-    return asdict(calculate_slide(section))
+    return asdict(_calculate_section(section))
 
 
 @router.post("/local/documents/{doc_type}/preview", response_class=HTMLResponse)
@@ -192,11 +202,7 @@ def preview_local_project_document(doc_type: str, payload: LocalProjectDocumentP
 @router.post("/local/sections/pdf")
 def download_local_pdf(payload: LocalDocumentPayload):
     project, section = _build_local_document_objects(payload)
-    if section.system != "СЛАЙД":
-        raise HTTPException(
-            status_code=400, detail="PDF доступен только для системы СЛАЙД"
-        )
-    calc = calculate_slide(section)
+    calc = _calculate_section(section)
     html = render_pdf_html(project, section, calc)
     pdf_bytes = generate_pdf(html)
     pdf_bytes = append_pdf_drawings(pdf_bytes, _drawing_files_for_sections([section]))
@@ -280,11 +286,11 @@ def preview_section(
 ):
     current_user = _get_user_by_token(token, db)
     project, section = _get_section_or_404(project_id, section_id, db, current_user)
-    if section.system != "СЛАЙД":
+    if str(section.system or "").strip().upper() not in PRODUCTION_SHEET_SYSTEMS:
         return HTMLResponse(
-            "<p style='padding:20px;font-family:sans-serif'>Производственный лист доступен только для системы СЛАЙД</p>"
+            "<p style='padding:20px;font-family:sans-serif'>Производственный лист для этой системы пока не реализован</p>"
         )
-    calc = calculate_slide(section)
+    calc = _calculate_section(section)
     html = render_preview(project, section, calc)
     return HTMLResponse(html)
 
@@ -297,11 +303,7 @@ def download_pdf(
     current_user: models.User = Depends(get_current_user),
 ):
     project, section = _get_section_or_404(project_id, section_id, db, current_user)
-    if section.system != "СЛАЙД":
-        raise HTTPException(
-            status_code=400, detail="PDF доступен только для системы СЛАЙД"
-        )
-    calc = calculate_slide(section)
+    calc = _calculate_section(section)
     html = render_pdf_html(project, section, calc)
     pdf_bytes = generate_pdf(html)
     pdf_bytes = append_pdf_drawings(pdf_bytes, _drawing_files_for_sections([section]))

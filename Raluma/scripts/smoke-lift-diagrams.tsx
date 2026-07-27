@@ -10,6 +10,7 @@ import {
   liftOpeningOptions,
 } from '../src/components/editor/liftConfig';
 import {
+  snapshotSections,
   synchronizeLiftRemoteCounts,
   updateLiftRemoteSections,
 } from '../src/components/editor/liftRemoteSync';
@@ -215,6 +216,22 @@ assert.deepEqual(
 assert.deepEqual(
   [editedSections[2].liftRemote1chQty, editedSections[2].liftRemote6chQty],
   [9, 9],
+);
+
+const savedSections = snapshotSections(normalizedSections);
+const discardedSections = snapshotSections(savedSections);
+assert.deepEqual(
+  discardedSections.slice(0, 2).map(section => [
+    section.liftRemote1chQty,
+    section.liftRemote6chQty,
+  ]),
+  [[3, 2], [3, 2]],
+  'discard must restore the last saved shared remote counts',
+);
+assert.deepEqual(
+  [discardedSections[2].liftRemote1chQty, discardedSections[2].liftRemote6chQty],
+  [9, 9],
+  'discard must not alter a LIFT section controlled by a button',
 );
 
 const reenabledSections = updateLiftRemoteSections(

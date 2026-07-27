@@ -256,11 +256,14 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
                 <><Save className="w-4 h-4" /> Сохранить изменения</>
               ) : 'Сохранить секцию'}
             </button>
-            {section.system !== 'ЛИФТ' && [
-              { name: 'Спецификация', icon: FileText },
-              { name: 'Производственный лист', icon: ClipboardList },
-              { name: 'Схема', icon: Map },
-            ].map(doc => (
+            {(section.system === 'ЛИФТ'
+              ? [{ name: 'Производственный лист', icon: ClipboardList }]
+              : [
+                  { name: 'Спецификация', icon: FileText },
+                  { name: 'Производственный лист', icon: ClipboardList },
+                  { name: 'Схема', icon: Map },
+                ]
+            ).map(doc => (
               <button key={doc.name} onClick={() => onOpenDoc?.(doc.name)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface/60 border border-tint/30 hover:bg-tint/30 hover:border-accent/40 transition-all group">
                 <doc.icon className="w-3.5 h-3.5 text-accent/50 group-hover:text-accent transition-colors flex-shrink-0" />

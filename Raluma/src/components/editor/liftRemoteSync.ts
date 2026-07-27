@@ -5,6 +5,13 @@ export type LiftRemoteCounts = Pick<
   'liftRemote1chQty' | 'liftRemote6chQty'
 >;
 
+export function snapshotSections(sections: Section[]): Section[] {
+  return sections.map(section => ({
+    ...section,
+    extraComponents: section.extraComponents?.map(component => ({ ...component })),
+  }));
+}
+
 export function isLiftRemoteSection(section: Section): boolean {
   return (
     section.system === 'ЛИФТ' &&

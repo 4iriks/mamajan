@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Производственный лист ЛИФТ</title>
+<style>
+  @page { size: A4 portrait; margin: 4mm; }
+  * { box-sizing: border-box; }
+  html { background: #eceff1; }
+  body {
+    width: 202mm;
+    margin: 0 auto;
+    background: #fff;
+    color: #111;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 8pt;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #111; padding: 0.7mm 1mm; vertical-align: middle; }
+  th { background: #eceff0; font-weight: 800; text-align: center; }
+  .page { min-height: 285mm; padding: 0; background: #fff; }
+  .page + .page { page-break-before: always; }
+  .header {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr 1fr;
+    border: 1.5px solid #111;
+    font-weight: 800;
+    font-size: 10pt;
+  }
+  .header > div { padding: 1.1mm 2mm; border-right: 1px solid #111; }
+  .header > div:last-child { border-right: 0; text-align: right; }
+  .section-title {
+    margin: 1.4mm 0 0.8mm;
+    font-size: 12pt;
+    font-weight: 900;
+  }
+  .bar {
+    background: #111;
+    color: #fff;
+    font-weight: 900;
+    font-size: 8pt;
+    text-transform: uppercase;
+    padding: 0.55mm 1.4mm;
+    letter-spacing: 0.2px;
+  }
+  .summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border: 1px solid #111;
+    border-top: 0;
+  }
+  .summary-grid > div { padding: 1mm 1.5mm; }
+  .summary-grid > div + div { border-left: 1px solid #111; }
+  .kv { display: grid; grid-template-columns: 39mm 1fr; line-height: 1.35; }
+  .kv strong { font-weight: 900; }
+  .warning {
+    margin-top: 1mm;
+    border: 1.5px solid #d00000;
+    color: #d00000;
+    font-weight: 900;
+    padding: 1mm 1.5mm;
+    text-align: center;
+  }
+  .diagram-grid {
+    display: grid;
+    grid-template-columns: 1.55fr 0.75fr;
+    gap: 1.5mm;
+    margin-top: 1.5mm;
+  }
+  .diagram-card {
+    border: 1px solid #111;
+    padding: 1mm;
+    min-height: 57mm;
+  }
+  .diagram-title {
+    text-align: center;
+    font-size: 7pt;
+    font-weight: 900;
+    text-transform: uppercase;
+    margin-bottom: 0.5mm;
+  }
+  .front-svg { width: 100%; height: 51mm; display: block; }
+  .side-svg { width: 100%; height: 51mm; display: block; }
+  .assembly {
+    margin-top: 1.5mm;
+    border: 1px solid #111;
+    padding: 1mm;
+  }
+  .assembly-grid {
+    display: grid;
+    grid-template-columns: repeat({{ calc.panels|length }}, 1fr);
+    gap: 1mm;
+  }
+  .assembly-panel {
+    position: relative;
+    height: 44mm;
+    border: 1px solid #777;
+    background: #fafafa;
+    overflow: hidden;
+  }
+  .assembly-panel .fill {
+    position: absolute;
+    left: 7mm;
+    right: 7mm;
+    top: 8mm;
+    bottom: 8mm;
+    border: 1px solid #6796a0;
+    background: #e8f5f7;
+  }
+  .assembly-panel .top-profile,
+  .assembly-panel .bottom-profile {
+    position: absolute;
+    left: 5mm;
+    right: 5mm;
+    height: 6mm;
+    object-fit: contain;
+  }
+  .assembly-panel .top-profile { top: 1mm; }
+  .assembly-panel .bottom-profile { bottom: 1mm; transform: rotate(180deg); }
+  .assembly-panel .side-profile {
+    position: absolute;
+    top: 10mm;
+    bottom: 10mm;
+    width: 6mm;
+    object-fit: contain;
+  }
+  .assembly-panel .side-profile.left { left: 0.8mm; transform: rotate(-90deg); }
+  .assembly-panel .side-profile.right { right: 0.8mm; transform: rotate(90deg); }
+  .assembly-panel .panel-no {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 17mm;
+    text-align: center;
+    font-size: 11pt;
+    font-weight: 900;
+  }
+  .assembly-panel .panel-size {
+    position: absolute;
+    left: 1mm;
+    right: 1mm;
+    bottom: 7.5mm;
+    text-align: center;
+    font-size: 7pt;
+    font-weight: 800;
+  }
+  .assembly-panel .glued-size {
+    position: absolute;
+    left: 1mm;
+    right: 1mm;
+    bottom: 0.5mm;
+    text-align: center;
+    color: #0663aa;
+    font-size: 6.5pt;
+    font-weight: 800;
+  }
+  .fill-table { margin-top: 1.5mm; table-layout: fixed; }
+  .fill-table th, .fill-table td { font-size: 7.5pt; }
+  .fill-table .num { width: 9mm; text-align: center; }
+  .fill-table .role { width: 24mm; }
+  .fill-table .dim { width: 22mm; text-align: center; font-weight: 800; }
+  .fill-table .qty { width: 14mm; text-align: center; font-weight: 800; }
+  .page-two-head { margin-bottom: 1mm; }
+  .profiles { table-layout: fixed; }
+  .profiles th, .profiles td { font-size: 7.4pt; }
+  .profiles .image-col { width: 25mm; text-align: center; }
+  .profiles .article-col { width: 23mm; font-weight: 900; text-align: center; }
+  .profiles .length-col { width: 25mm; text-align: center; font-weight: 900; }
+  .profiles .qty-col { width: 17mm; text-align: center; font-weight: 900; }
+  .profile-image { max-width: 22mm; height: 10mm; object-fit: contain; }
+  .hardware-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-left: 1px solid #111;
+  }
+  .hardware-card {
+    min-height: 15mm;
+    border-right: 1px solid #111;
+    border-bottom: 1px solid #111;
+    padding: 0.7mm;
+    display: grid;
+    grid-template-columns: 15mm 1fr 12mm;
+    align-items: center;
+    gap: 0.5mm;
+  }
+  .hardware-card img { width: 14mm; height: 11mm; object-fit: contain; }
+  .hardware-card .name { font-size: 7pt; font-weight: 700; line-height: 1.1; }
+  .hardware-card .article { font-size: 8.5pt; font-weight: 900; }
+  .hardware-card .qty { text-align: right; font-size: 9pt; font-weight: 900; }
+  .torque-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    border: 1px solid #111;
+    border-top: 0;
+  }
+  .torque-grid > div { padding: 1mm 1.5mm; border-right: 1px solid #111; }
+  .torque-grid > div:last-child { border-right: 0; }
+  .torque-grid strong { display: block; font-size: 10pt; margin-top: 0.4mm; }
+  .comments {
+    border: 1px solid #111;
+    border-top: 0;
+    min-height: 17mm;
+    padding: 1mm 1.5mm;
+    white-space: pre-wrap;
+    font-size: 8.5pt;
+    font-weight: 700;
+  }
+  .control-symbol { color: #166875; font-weight: 900; }
+  {% if not is_pdf %}
+  .page + .page {
+    border-top: 4px dashed rgba(80, 80, 80, 0.45);
+    margin-top: 6mm;
+    padding-top: 4mm;
+  }
+  {% endif %}
+</style>
+</head>
+<body>
+{% set width = section.width|float %}
+{% set height = section.height|float %}
+{% set frame = [width, height]|min * 0.025 %}
+{% set font_size = [width, height]|min * 0.045 %}
+{% set panel_total = namespace(value=0) %}
+{% for panel in calc.panels %}{% set panel_total.value = panel_total.value + panel.height_mm %}{% endfor %}
+
+<section class="page">
+  <div class="header">
+    <div>ПРОЕКТ № {{ project.number|e }}</div>
+    <div>{{ section.name|e }}</div>
+    <div>RALUMA ЛИФТ · {{ section.panels }} ПАН.</div>
+  </div>
+
+  <div class="section-title">Производственный лист</div>
+  <div class="bar">Основные параметры</div>
+  <div class="summary-grid">
+    <div>
+      <div class="kv"><span>ШИРИНА СЕКЦИИ, ММ</span><strong>{{ section.width|glass_mm }}</strong></div>
+      <div class="kv"><span>ВЫСОТА СЕКЦИИ, ММ</span><strong>{{ section.height|glass_mm }}</strong></div>
+      <div class="kv"><span>КОЛИЧЕСТВО ПАНЕЛЕЙ</span><strong>{{ section.panels }}</strong></div>
+      <div class="kv"><span>КОЛИЧЕСТВО СЕКЦИЙ</span><strong>{{ section.quantity }}</strong></div>
+    </div>
+    <div>
+      <div class="kv"><span>ЗАПОЛНЕНИЕ</span><strong>{{ calc.filling_text|e }}</strong></div>
+      <div class="kv"><span>ЦВЕТ</span><strong>{{ calc.color_text|e }}</strong></div>
+      <div class="kv"><span>ОТКРЫВАНИЕ</span><strong>{{ calc.opening_text|e }}</strong></div>
+      <div class="kv"><span>УПРАВЛЕНИЕ</span><strong>{{ calc.control_type|e }}</strong></div>
+      <div class="kv"><span>ВВОД КАБЕЛЯ</span><strong>{{ calc.cable_side|e }}</strong></div>
+    </div>
+  </div>
+  {% if calc.warnings %}
+  <div class="warning">{{ calc.warnings|join(' · ')|e }}</div>
+  {% endif %}
+
+  <div class="diagram-grid">
+    <div class="diagram-card">
+      <div class="diagram-title">Вид из помещения</div>
+      <svg class="front-svg" viewBox="0 0 {{ width + frame * 5 }} {{ height + frame * 5 }}" role="img">
+        <rect x="{{ frame * 2 }}" y="{{ frame * 1.4 }}" width="{{ width }}" height="{{ height }}"
+              fill="#f8fbfc" stroke="#222" stroke-width="{{ frame }}" />
+        <rect x="{{ frame * 2 }}" y="{{ frame * 1.4 }}" width="{{ width }}" height="{{ frame * 2.2 }}"
+              fill="#dfe5e7" stroke="#222" stroke-width="{{ frame * 0.35 }}" />
+        <rect x="{{ frame * 2 }}" y="{{ height + frame * 0.45 }}" width="{{ width }}" height="{{ frame * 0.95 }}"
+              fill="#e7eaeb" stroke="#222" stroke-width="{{ frame * 0.3 }}" />
+        {% set front = namespace(y=frame * 3.6) %}
+        {% for panel in calc.panels %}
+          {% set panel_h = (height - frame * 3.15) * panel.height_mm / panel_total.value %}
+          <rect x="{{ frame * 2.5 }}" y="{{ front.y }}" width="{{ width - frame }}"
+                height="{{ panel_h }}" fill="#eaf5f7" fill-opacity="0.72"
+                stroke="#777" stroke-width="{{ frame * 0.22 }}" />
+          <text x="{{ width / 2 + frame * 2 }}" y="{{ front.y + panel_h / 2 - font_size * 0.12 }}"
+                text-anchor="middle" font-size="{{ font_size }}" font-weight="700">{{ panel.panel }}</text>
+          {% if panel.role == 'Глухая' %}
+            <text x="{{ width / 2 + frame * 2 }}" y="{{ front.y + panel_h / 2 + font_size }}"
+                  text-anchor="middle" font-size="{{ font_size * 0.48 }}" font-weight="700">ГЛУХАЯ</text>
+          {% else %}
+            {% if calc.opening_text == 'Сдвиг вверх' %}
+            <path d="M {{ width / 2 + frame * 2 }} {{ front.y + panel_h * 0.72 }}
+                     L {{ width / 2 + frame * 2 }} {{ front.y + panel_h * 0.28 }}
+                     M {{ width / 2 + frame * 2 }} {{ front.y + panel_h * 0.28 }}
+                     l {{ -font_size * 0.28 }} {{ font_size * 0.38 }}
+                     M {{ width / 2 + frame * 2 }} {{ front.y + panel_h * 0.28 }}
+                     l {{ font_size * 0.28 }} {{ font_size * 0.38 }}"
+                  stroke="#444" stroke-width="{{ frame * 0.32 }}" fill="none" />
+            {% else %}
+            <path d="M {{ width / 2 + frame * 2 }} {{ front.y + panel_h * 0.28 }}
+                     L {{ width / 2 + frame * 2 }} {{ front.y + panel_h * 0.72 }}
+                     M {{ width / 2 + frame * 2 }} {{ front.y + panel_h * 0.72 }}
+                     l {{ -font_size * 0.28 }} {{ -font_size * 0.38 }}
+                     M {{ width / 2 + frame * 2 }} {{ front.y + panel_h * 0.72 }}
+                     l {{ font_size * 0.28 }} {{ -font_size * 0.38 }}"
+                  stroke="#444" stroke-width="{{ frame * 0.32 }}" fill="none" />
+            {% endif %}
+          {% endif %}
+          {% set front.y = front.y + panel_h %}
+        {% endfor %}
+        <line x1="{{ frame * 2 }}" y1="{{ height + frame * 3.1 }}"
+              x2="{{ width + frame * 2 }}" y2="{{ height + frame * 3.1 }}"
+              stroke="#d00000" stroke-width="{{ frame * 0.22 }}" />
+        <text x="{{ width / 2 + frame * 2 }}" y="{{ height + frame * 4.25 }}"
+              text-anchor="middle" font-size="{{ font_size * 0.55 }}" fill="#d00000">
+          {{ section.width|glass_mm }} × {{ section.height|glass_mm }} ММ
+        </text>
+        {% if calc.cable_side == 'Слева' %}
+          <text x="{{ frame * 2 }}" y="{{ frame }}" font-size="{{ font_size * 0.45 }}"
+                fill="#d00000">ВВОД КАБЕЛЯ СЛЕВА</text>
+        {% else %}
+          <text x="{{ width + frame * 2 }}" y="{{ frame }}" text-anchor="end"
+                font-size="{{ font_size * 0.45 }}" fill="#d00000">ВВОД КАБЕЛЯ СПРАВА</text>
+        {% endif %}
+      </svg>
+    </div>
+
+    <div class="diagram-card">
+      <div class="diagram-title">Кинематическая схема</div>
+      <svg class="side-svg" viewBox="0 0 300 330" role="img">
+        <line x1="44" y1="25" x2="44" y2="302" stroke="#222" stroke-width="4" />
+        <circle cx="44" cy="25" r="11" fill="#ddd" stroke="#222" stroke-width="3" />
+        <circle cx="44" cy="302" r="11" fill="#ddd" stroke="#222" stroke-width="3" />
+        <path d="M 44 36 L 44 291" stroke="#555" stroke-width="2" stroke-dasharray="5 4" />
+        {% set side = namespace(y=38) %}
+        {% for panel in calc.panels %}
+          {% set x = 70 + loop.index0 * 27 %}
+          <line x1="44" y1="{{ side.y + 25 }}" x2="{{ x }}" y2="{{ side.y + 25 }}"
+                stroke="#999" stroke-width="1.5" />
+          <rect x="{{ x }}" y="{{ side.y }}" width="128" height="50"
+                fill="#eff7f8" stroke="#333" stroke-width="2" />
+          <rect x="{{ x + 5 }}" y="{{ side.y + 5 }}" width="118" height="40"
+                fill="#dff0f3" stroke="#72919a" stroke-width="1" />
+          <text x="{{ x + 64 }}" y="{{ side.y + 29 }}" text-anchor="middle"
+                font-size="14" font-weight="700">{{ panel.panel }}</text>
+          {% set side.y = side.y + 67 %}
+        {% endfor %}
+        {% if calc.control_type == 'Пульт ДУ' %}
+          <rect x="230" y="17" width="36" height="60" rx="7" fill="#e7e7e7" stroke="#222" stroke-width="2" />
+          <circle cx="248" cy="34" r="4" fill="#166875" />
+          <circle cx="248" cy="48" r="4" fill="#166875" />
+          <text x="248" y="92" text-anchor="middle" font-size="11" font-weight="700">ПУЛЬТ</text>
+        {% else %}
+          <circle cx="248" cy="43" r="20" fill="#e7e7e7" stroke="#222" stroke-width="2" />
+          <circle cx="248" cy="43" r="8" fill="#166875" />
+          <text x="248" y="82" text-anchor="middle" font-size="11" font-weight="700">КНОПКА</text>
+        {% endif %}
+      </svg>
+    </div>
+  </div>
+
+  <div class="assembly">
+    <div class="diagram-title">Панели при склейке</div>
+    <div class="assembly-grid">
+      {% set top_image = 'RL123.png' if calc.filling_kind == 'igu' else 'RL113.png' %}
+      {% set side_image = 'RL122.png' if calc.filling_kind == 'igu' else 'RL112.png' %}
+      {% for panel in calc.panels %}
+      <div class="assembly-panel">
+        <img class="top-profile" src="{{ top_image|img_b64 }}" alt="">
+        <img class="bottom-profile" src="{{ top_image|img_b64 }}" alt="">
+        <img class="side-profile left" src="{{ side_image|img_b64 }}" alt="">
+        <img class="side-profile right" src="{{ side_image|img_b64 }}" alt="">
+        <div class="fill"></div>
+        <div class="panel-no">{{ panel.panel }}</div>
+        <div class="panel-size">ЗАПОЛНЕНИЕ {{ panel.width_mm|glass_mm }} × {{ panel.height_mm|glass_mm }}</div>
+        <div class="glued-size">СКЛЕЙКА {{ panel.glued_width_mm|glass_mm }} × {{ panel.glued_height_mm|glass_mm }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <table class="fill-table">
+    <tr>
+      <th class="num">№</th>
+      <th class="role">Панель</th>
+      <th>Заполнение</th>
+      <th class="dim">Ширина, мм</th>
+      <th class="dim">Высота, мм</th>
+      <th class="dim">Склейка, мм</th>
+      <th class="qty">Кол-во</th>
+    </tr>
+    {% for panel in calc.panels %}
+    <tr>
+      <td class="num">{{ panel.panel }}</td>
+      <td>{{ panel.role|e }}</td>
+      <td>{{ panel.filling|e }}</td>
+      <td class="dim">{{ panel.width_mm|glass_mm }}</td>
+      <td class="dim">{{ panel.height_mm|glass_mm }}</td>
+      <td class="dim">{{ panel.glued_width_mm|glass_mm }} × {{ panel.glued_height_mm|glass_mm }}</td>
+      <td class="qty">{{ panel.qty }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</section>
+
+<section class="page">
+  <div class="header page-two-head">
+    <div>ПРОЕКТ № {{ project.number|e }}</div>
+    <div>{{ section.name|e }}</div>
+    <div>ЛИФТ · НАРЕЗКА И КОМПЛЕКТАЦИЯ</div>
+  </div>
+
+  <div class="bar">Нарезка профилей</div>
+  <table class="profiles">
+    <tr>
+      <th class="image-col">Сечение</th>
+      <th class="article-col">Артикул</th>
+      <th>Наименование / операция</th>
+      <th class="length-col">Длина, мм</th>
+      <th class="qty-col">Кол-во, шт</th>
+    </tr>
+    {% for profile in calc.profiles %}
+    {% set image_data = profile.image|img_b64 if profile.image else '' %}
+    <tr>
+      <td class="image-col">{% if image_data %}<img class="profile-image" src="{{ image_data }}" alt="">{% endif %}</td>
+      <td class="article-col">{{ profile.article|e }}</td>
+      <td><strong>{{ profile.name|e }}</strong>{% if profile.note %}<br><small>{{ profile.note|e }}</small>{% endif %}</td>
+      <td class="length-col">{{ profile.length_mm|glass_mm }}</td>
+      <td class="qty-col">{{ profile.qty }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</section>
+
+<section class="page">
+  <div class="header page-two-head">
+    <div>ПРОЕКТ № {{ project.number|e }}</div>
+    <div>{{ section.name|e }}</div>
+    <div>ЛИФТ · КОМПЛЕКТАЦИЯ</div>
+  </div>
+
+  <div class="bar">Фурнитура</div>
+  <div class="hardware-grid">
+    {% for item in calc.hardware %}
+    {% set image_data = item.image|img_b64 if item.image else '' %}
+    <div class="hardware-card">
+      <div>{% if image_data %}<img src="{{ image_data }}" alt="">{% endif %}</div>
+      <div>
+        <div class="name">{{ item.name|e }}</div>
+        <div class="article">{{ item.article|e }}</div>
+        {% if item.note %}<small>{{ item.note|e }}</small>{% endif %}
+      </div>
+      <div class="qty">{{ item.value|glass_mm }} {{ item.unit|e }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="bar">Крепёж</div>
+  <div class="hardware-grid">
+    {% for item in calc.fasteners %}
+    {% set image_data = item.image|img_b64 if item.image else '' %}
+    <div class="hardware-card">
+      <div>{% if image_data %}<img src="{{ image_data }}" alt="">{% endif %}</div>
+      <div>
+        <div class="name">{{ item.name|e }}</div>
+        <div class="article">{{ item.article|e }}</div>
+      </div>
+      <div class="qty">{{ item.value|glass_mm }} {{ item.unit|e }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if calc.torque %}
+  <div class="bar">Расчёт привода</div>
+  <div class="torque-grid">
+    <div>Вес подвижных панелей<strong>{{ calc.torque.moving_weight_kg|glass_mm }} кг</strong></div>
+    <div>Крутящий момент<strong>{{ calc.torque.torque_nm|glass_mm }} Н·м</strong></div>
+    <div>Количество приводов<strong>{{ calc.torque.drive_count }} шт</strong></div>
+  </div>
+  {% endif %}
+
+  <div class="bar">Примечания и особые отметки</div>
+  <div class="comments">{{ (section.comments or '')|e }}</div>
+</section>
+
+{% if not is_pdf %}
+<script>
+  function reportHeight() {
+    window.parent.postMessage({ type: 'height', height: document.documentElement.scrollHeight }, '*');
+  }
+  window.addEventListener('load', reportHeight);
+  new ResizeObserver(reportHeight).observe(document.body);
+</script>
+{% endif %}
+</body>
+</html>

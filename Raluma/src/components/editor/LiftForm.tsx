@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { INP, LBL, SEL, Section } from './types';
 import { RadioList, ToggleGroup } from './FormInputs';
 import {
@@ -9,6 +10,52 @@ import {
   LIFT_SPLIT_OPENING,
   liftOpeningOptions,
 } from './liftConfig';
+
+export function RemoteCountInput({
+  channel,
+  value,
+  onChange,
+}: {
+  channel: 1 | 6;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  return (
+    <input
+      data-lift-remote-count={channel}
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      value={draft}
+      onChange={event => {
+        const next = event.target.value;
+        if (next === '') {
+          setDraft('');
+          return;
+        }
+        if (!/^\d+$/.test(next)) {
+          event.currentTarget.value = draft;
+          return;
+        }
+        const parsed = Number.parseInt(next, 10);
+        setDraft(String(parsed));
+        onChange(parsed);
+      }}
+      onBlur={() => {
+        if (draft !== '') return;
+        setDraft('0');
+        onChange(0);
+      }}
+      className={INP}
+    />
+  );
+}
 
 function PaintingFields({
   section,
@@ -223,30 +270,18 @@ export function LiftSystemTab({
             >
               <label className="grid grid-cols-[1fr_110px] items-center gap-3 text-sm text-fg/70">
                 <span>Пульт 1 канал, шт</span>
-                <input
-                  data-lift-remote-count="1"
-                  type="number"
-                  min={0}
-                  step={1}
+                <RemoteCountInput
+                  channel={1}
                   value={s.liftRemote1chQty ?? 0}
-                  onChange={event => update({
-                    liftRemote1chQty: Math.max(0, Number.parseInt(event.target.value || '0', 10) || 0),
-                  })}
-                  className={INP}
+                  onChange={value => update({ liftRemote1chQty: value })}
                 />
               </label>
               <label className="grid grid-cols-[1fr_110px] items-center gap-3 text-sm text-fg/70">
                 <span>Пульт 6 каналов, шт</span>
-                <input
-                  data-lift-remote-count="6"
-                  type="number"
-                  min={0}
-                  step={1}
+                <RemoteCountInput
+                  channel={6}
                   value={s.liftRemote6chQty ?? 0}
-                  onChange={event => update({
-                    liftRemote6chQty: Math.max(0, Number.parseInt(event.target.value || '0', 10) || 0),
-                  })}
-                  className={INP}
+                  onChange={value => update({ liftRemote6chQty: value })}
                 />
               </label>
               <p className={`text-[11px] leading-relaxed ${
@@ -256,7 +291,7 @@ export function LiftSystemTab({
               }`}>
                 {(s.liftRemote1chQty ?? 0) + (s.liftRemote6chQty ?? 0) === 0
                   ? 'Количество пультов на весь проект. Укажите нужное количество.'
-                  : 'Вы меняете общее количество пультов в проекте, а не в конкретной секции.'}
+                  : 'Вы меняете общее количество пультов в проекте.'}
               </p>
             </div>
           )}
