@@ -248,7 +248,7 @@
 {% set width = section.width|float %}
 {% set height = section.height|float %}
 {% set frame = [width, height]|min * 0.025 %}
-{% set font_size = [width, height]|min * 0.045 %}
+{% set font_size = [width, height]|min * 0.072 %}
 {% set panel_total = namespace(value=0) %}
 {% for panel in calc.panels %}{% set panel_total.value = panel_total.value + panel.height_mm %}{% endfor %}
 
@@ -300,7 +300,7 @@
                 text-anchor="middle" font-size="{{ font_size }}" font-weight="700">{{ panel.panel }}</text>
           {% if panel.role == 'Глухая' %}
             <text x="{{ width / 2 + frame * 2 }}" y="{{ front.y + panel_h / 2 + font_size }}"
-                  text-anchor="middle" font-size="{{ font_size * 0.48 }}" font-weight="700">ГЛУХАЯ</text>
+                  text-anchor="middle" font-size="{{ font_size * 0.62 }}" font-weight="700">ГЛУХАЯ</text>
           {% else %}
             {% if calc.opening_text == 'Сдвиг вверх' %}
             <path d="M {{ width / 2 + frame * 2 }} {{ front.y + panel_h * 0.72 }}
@@ -380,16 +380,20 @@
         <circle cx="31" cy="307" r="9" fill="#fff" stroke="#222" stroke-width="2.5" />
         {% for panel in calc.panels %}
           {% set x = 54 + loop.index0 * 25 %}
-          {% set y = 23 + loop.index0 * 68 %}
+          {% set y = 35 + loop.index0 * 70 %}
           <path d="M 31 32 L {{ x + 13 }} {{ y + 45 }}" stroke="#999" stroke-width="1"
                 fill="none" marker-end="url(#lift-arrow)" />
-          <image href="{{ kinetic_top|img_b64 }}" x="{{ x }}" y="{{ y }}" width="104" height="29"
-                 preserveAspectRatio="xMidYMid meet" />
+          <image href="{{ kinetic_top|img_b64 }}" x="{{ x + 25 }}" y="{{ y }}" width="90" height="38"
+                 preserveAspectRatio="xMidYMid meet"
+                 transform="rotate(90 {{ x + 70 }} {{ y + 19 }})"
+                 data-profile-orientation="vertical" />
           <line x1="{{ x + 25 }}" y1="{{ y + 22 }}" x2="{{ x + 25 }}" y2="{{ y + 61 }}"
                 stroke="#8ab6bd" stroke-width="4" />
-          <image href="{{ kinetic_bottom|img_b64 }}" x="{{ x - 1 }}" y="{{ y + 48 }}" width="54" height="35"
-                 preserveAspectRatio="xMidYMid meet" />
-          <text x="{{ x + 76 }}" y="{{ y + 42 }}" font-size="12" font-weight="800">{{ panel.panel }}</text>
+          <image href="{{ kinetic_bottom|img_b64 }}" x="{{ x }}" y="{{ y + 45 }}" width="60" height="34"
+                 preserveAspectRatio="xMidYMid meet"
+                 transform="rotate(90 {{ x + 30 }} {{ y + 62 }})"
+                 data-profile-orientation="vertical" />
+          <text x="{{ x + 100 }}" y="{{ y + 52 }}" font-size="12" font-weight="800">{{ panel.panel }}</text>
         {% endfor %}
         <text x="15" y="176" text-anchor="middle" font-size="10" fill="#777"
               transform="rotate(-90 15 176)">НАПРАВЛЕНИЕ ДВИЖЕНИЯ</text>

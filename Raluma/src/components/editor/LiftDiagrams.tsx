@@ -276,8 +276,8 @@ export function LiftKinematicSVG({ section }: { section: Section }) {
   const bottomProfile = profileAsset(isIgu ? 'RL122.png' : 'RL112.png');
   const originX = 84;
   const originY = 58;
-  const stepX = 52;
-  const stepY = 92;
+  const stepX = 55;
+  const stepY = 100;
 
   return (
     <svg
@@ -327,32 +327,36 @@ export function LiftKinematicSVG({ section }: { section: Section }) {
             />
             <image
               href={topProfile}
-              x={x}
+              x={x + 55}
               y={y}
-              width="190"
-              height="54"
+              width="120"
+              height="40"
               preserveAspectRatio="xMidYMid meet"
+              transform={`rotate(90 ${x + 115} ${y + 20})`}
+              data-profile-orientation="vertical"
             />
             <line
-              x1={x + 48}
-              y1={y + 42}
-              x2={x + 48}
-              y2={y + 103}
+              x1={x + 40}
+              y1={y + 30}
+              x2={x + 40}
+              y2={y + 90}
               stroke="var(--theme-accent)"
               strokeOpacity="0.58"
               strokeWidth="7"
             />
             <image
               href={bottomProfile}
-              x={x + 4}
-              y={y + 84}
-              width="92"
-              height="58"
+              x={x}
+              y={y + 62}
+              width="80"
+              height="34"
               preserveAspectRatio="xMidYMid meet"
+              transform={`rotate(90 ${x + 40} ${y + 79})`}
+              data-profile-orientation="vertical"
             />
             <text
-              x={x + 132}
-              y={y + 78}
+              x={x + 155}
+              y={y + 85}
               fill="var(--theme-accent)"
               fontSize="18"
               fontWeight="800"
