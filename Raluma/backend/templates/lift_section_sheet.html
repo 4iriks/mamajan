@@ -70,7 +70,7 @@
   .diagram-card {
     border: 1px solid #111;
     padding: 1mm;
-    min-height: 57mm;
+    min-height: 70mm;
   }
   .diagram-title {
     text-align: center;
@@ -79,8 +79,8 @@
     text-transform: uppercase;
     margin-bottom: 0.5mm;
   }
-  .front-svg { width: 100%; height: 51mm; display: block; }
-  .side-svg { width: 100%; height: 51mm; display: block; }
+  .front-svg { width: 100%; height: 64mm; display: block; }
+  .side-svg { width: 100%; height: 64mm; display: block; }
   .assembly {
     margin-top: 1.5mm;
     border: 1px solid #111;
@@ -375,25 +375,32 @@
             <path d="M0,0 L7,3.5 L0,7" fill="none" stroke="#555" stroke-width="1.2" />
           </marker>
         </defs>
-        <line x1="31" y1="23" x2="31" y2="307" stroke="#222" stroke-width="3" />
-        <circle cx="31" cy="23" r="9" fill="#fff" stroke="#222" stroke-width="2.5" />
-        <circle cx="31" cy="307" r="9" fill="#fff" stroke="#222" stroke-width="2.5" />
+        <line x1="31" y1="18" x2="31" y2="312" stroke="#222" stroke-width="3" />
+        <circle cx="31" cy="18" r="9" fill="#fff" stroke="#222" stroke-width="2.5" />
+        <circle cx="31" cy="312" r="9" fill="#fff" stroke="#222" stroke-width="2.5" />
         {% for panel in calc.panels %}
-          {% set x = 54 + loop.index0 * 25 %}
-          {% set y = 35 + loop.index0 * 70 %}
-          <path d="M 31 32 L {{ x + 13 }} {{ y + 45 }}" stroke="#999" stroke-width="1"
+          {% set pair_height = 58 %}
+          {% set step_y = 68 %}
+          {% set total_height = pair_height + (section.panels - 1) * step_y %}
+          {% set center_x = 80 + loop.index0 * 35 %}
+          {% set top_y = (330 - total_height) / 2 + loop.index0 * step_y %}
+          {% set bottom_y = top_y + pair_height %}
+          <path d="M 31 30 L {{ center_x - 8 }} {{ bottom_y - 4 }}" stroke="#999" stroke-width="1"
                 fill="none" marker-end="url(#lift-arrow)" />
-          <image href="{{ kinetic_top|img_b64 }}" x="{{ x + 25 }}" y="{{ y }}" width="90" height="38"
+          <rect x="{{ center_x - 2 }}" y="{{ top_y + 9 }}" width="4" height="{{ pair_height - 18 }}"
+                fill="#8ab6bd" fill-opacity="0.72" data-lift-panel-glass="{{ panel.panel }}" />
+          <image href="{{ kinetic_top|img_b64 }}" x="{{ center_x - 24 }}" y="{{ top_y - 9 }}"
+                 width="48" height="18"
                  preserveAspectRatio="xMidYMid meet"
-                 transform="rotate(90 {{ x + 70 }} {{ y + 19 }})"
-                 data-profile-orientation="vertical" />
-          <line x1="{{ x + 25 }}" y1="{{ y + 22 }}" x2="{{ x + 25 }}" y2="{{ y + 61 }}"
-                stroke="#8ab6bd" stroke-width="4" />
-          <image href="{{ kinetic_bottom|img_b64 }}" x="{{ x }}" y="{{ y + 45 }}" width="60" height="34"
+                 transform="rotate(-90 {{ center_x }} {{ top_y }})"
+                 data-profile-orientation="vertical" data-profile-position="top" />
+          <image href="{{ kinetic_bottom|img_b64 }}" x="{{ center_x - 24 }}" y="{{ bottom_y - 9 }}"
+                 width="48" height="18"
                  preserveAspectRatio="xMidYMid meet"
-                 transform="rotate(90 {{ x + 30 }} {{ y + 62 }})"
-                 data-profile-orientation="vertical" />
-          <text x="{{ x + 100 }}" y="{{ y + 52 }}" font-size="12" font-weight="800">{{ panel.panel }}</text>
+                 transform="rotate(90 {{ center_x }} {{ bottom_y }})"
+                 data-profile-orientation="vertical" data-profile-position="bottom" />
+          <text x="{{ center_x + 24 }}" y="{{ (top_y + bottom_y) / 2 + 4 }}"
+                font-size="12" font-weight="800">{{ panel.panel }}</text>
         {% endfor %}
         <text x="15" y="176" text-anchor="middle" font-size="10" fill="#777"
               transform="rotate(-90 15 176)">НАПРАВЛЕНИЕ ДВИЖЕНИЯ</text>

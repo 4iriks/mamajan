@@ -274,20 +274,21 @@ export function LiftKinematicSVG({ section }: { section: Section }) {
   const isIgu = filling.includes('20ММ');
   const topProfile = profileAsset(isIgu ? 'RL123.png' : 'RL113.png');
   const bottomProfile = profileAsset(isIgu ? 'RL122.png' : 'RL112.png');
-  const originX = 84;
-  const originY = 58;
-  const stepX = 55;
-  const stepY = 100;
+  const pairHeight = 130;
+  const stepX = 72;
+  const stepY = 140;
+  const originX = 155;
+  const originY = (760 - (pairHeight + (panels - 1) * stepY)) / 2;
 
   return (
     <svg
-      viewBox="0 0 760 500"
+      viewBox="0 0 520 760"
       role="img"
       aria-label={`Кинематическая схема ЛИФТ, ${panels} панели`}
       data-lift-diagram="kinematic"
       data-lift-panels={panels}
       data-lift-kinematic="image-built"
-      style={{ width: '100%', height: 'auto', maxWidth: VIEW_WIDTH, display: 'block', margin: '0 auto' }}
+      style={{ width: '100%', height: 'auto', maxWidth: 560, display: 'block', margin: '0 auto' }}
     >
       <defs>
         <marker id="lift-kinematic-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
@@ -301,62 +302,67 @@ export function LiftKinematicSVG({ section }: { section: Section }) {
       </defs>
 
       <line
-        x1="54"
-        y1="38"
-        x2="54"
-        y2="452"
+        x1="55"
+        y1="35"
+        x2="55"
+        y2="725"
         stroke="var(--theme-accent)"
         strokeOpacity="0.82"
         strokeWidth="4"
       />
-      <circle cx="54" cy="38" r="13" fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="3" />
-      <circle cx="54" cy="452" r="13" fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="3" />
+      <circle cx="55" cy="35" r="13" fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="3" />
+      <circle cx="55" cy="725" r="13" fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="3" />
 
       {Array.from({ length: panels }, (_, index) => {
-        const x = originX + index * stepX;
-        const y = originY + index * stepY;
+        const centerX = originX + index * stepX;
+        const topY = originY + index * stepY;
+        const bottomY = topY + pairHeight;
+        const profileWidth = 100;
+        const profileHeight = 38;
         return (
           <g key={`kinematic-panel-${index}`} data-lift-kinematic-panel={index + 1}>
             <path
-              d={`M 54 52 L ${x + 31} ${y + 76}`}
+              d={`M 55 49 L ${centerX - 18} ${bottomY - 8}`}
               fill="none"
               stroke="var(--theme-accent)"
               strokeOpacity="0.32"
               strokeWidth="1.5"
               markerEnd="url(#lift-kinematic-arrow)"
             />
+            <rect
+              x={centerX - 4}
+              y={topY + 20}
+              width="8"
+              height={pairHeight - 40}
+              fill="var(--theme-accent)"
+              fillOpacity="0.58"
+              data-lift-panel-glass={index + 1}
+            />
             <image
               href={topProfile}
-              x={x + 55}
-              y={y}
-              width="120"
-              height="40"
+              x={centerX - profileWidth / 2}
+              y={topY - profileHeight / 2}
+              width={profileWidth}
+              height={profileHeight}
               preserveAspectRatio="xMidYMid meet"
-              transform={`rotate(90 ${x + 115} ${y + 20})`}
+              transform={`rotate(-90 ${centerX} ${topY})`}
               data-profile-orientation="vertical"
-            />
-            <line
-              x1={x + 40}
-              y1={y + 30}
-              x2={x + 40}
-              y2={y + 90}
-              stroke="var(--theme-accent)"
-              strokeOpacity="0.58"
-              strokeWidth="7"
+              data-profile-position="top"
             />
             <image
               href={bottomProfile}
-              x={x}
-              y={y + 62}
-              width="80"
-              height="34"
+              x={centerX - profileWidth / 2}
+              y={bottomY - profileHeight / 2}
+              width={profileWidth}
+              height={profileHeight}
               preserveAspectRatio="xMidYMid meet"
-              transform={`rotate(90 ${x + 40} ${y + 79})`}
+              transform={`rotate(90 ${centerX} ${bottomY})`}
               data-profile-orientation="vertical"
+              data-profile-position="bottom"
             />
             <text
-              x={x + 155}
-              y={y + 85}
+              x={centerX + 45}
+              y={(topY + bottomY) / 2 + 6}
               fill="var(--theme-accent)"
               fontSize="18"
               fontWeight="800"
@@ -369,9 +375,9 @@ export function LiftKinematicSVG({ section }: { section: Section }) {
 
       <text
         x="25"
-        y="250"
+        y="380"
         textAnchor="middle"
-        transform="rotate(-90 25 250)"
+        transform="rotate(-90 25 380)"
         fill="var(--theme-accent)"
         fillOpacity="0.56"
         fontSize="14"

@@ -1435,6 +1435,9 @@ class TestProjectDocuments:
         assert "ЛИФТ · НАРЕЗКА И КОМПЛЕКТАЦИЯ" in r.text
         assert 'data-lift-kinematic="image-built"' in r.text
         assert r.text.count('data-profile-orientation="vertical"') == 8
+        assert r.text.count('data-profile-position="top"') == 4
+        assert r.text.count('data-profile-position="bottom"') == 4
+        assert r.text.count("data-lift-panel-glass=") == 4
         assert 'data-field="lift_profile_1_length"' in r.text
         assert 'data-field="lift_hardware_1_value"' in r.text
         assert "RL101" in r.text

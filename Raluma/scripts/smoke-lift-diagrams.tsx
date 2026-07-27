@@ -125,6 +125,9 @@ assert.match(kinematicMarkup, /data-lift-diagram="kinematic"/);
 assert.match(kinematicMarkup, /data-lift-kinematic="image-built"/);
 assert.equal((kinematicMarkup.match(/data-lift-kinematic-panel=/g) ?? []).length, 4);
 assert.equal((kinematicMarkup.match(/data-profile-orientation="vertical"/g) ?? []).length, 8);
+assert.equal((kinematicMarkup.match(/data-profile-position="top"/g) ?? []).length, 4);
+assert.equal((kinematicMarkup.match(/data-profile-position="bottom"/g) ?? []).length, 4);
+assert.equal((kinematicMarkup.match(/data-lift-panel-glass=/g) ?? []).length, 4);
 assert.match(kinematicMarkup, /RL123\.png/);
 
 assert.deepEqual(liftOpeningOptions(2), ['Сдвиг вниз', 'Сдвиг вверх']);
