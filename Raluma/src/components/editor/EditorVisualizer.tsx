@@ -10,7 +10,7 @@ import React from 'react';
 import { SlideCalcPreview } from '../../api/projects';
 import { Section } from './types';
 import { SlideSchemeSVG, SlideRoomViewSVG } from './SlideDiagrams';
-import { LiftRoomViewSVG } from './LiftDiagrams';
+import { LiftKinematicSVG, LiftRoomViewSVG } from './LiftDiagrams';
 
 export interface EditorVisualizerProps {
   section: Section;
@@ -20,16 +20,27 @@ export interface EditorVisualizerProps {
 
 export const EditorVisualizer: React.FC<EditorVisualizerProps> = ({ section, variant, calc }) => {
   if (section.system === 'ЛИФТ') {
-    const diagram = (
-      <figure className="m-0">
-        <LiftRoomViewSVG section={section} />
-        <figcaption
-          data-lift-view-caption
-          className="mt-1 text-center text-[10px] font-bold uppercase tracking-widest text-accent/50"
-        >
-          Вид из помещения
-        </figcaption>
-      </figure>
+    const diagrams = (
+      <div className="flex min-w-[360px] flex-col gap-4">
+        <figure className="m-0">
+          <LiftRoomViewSVG section={section} />
+          <figcaption
+            data-lift-view-caption
+            className="mt-1 text-center text-[10px] font-bold uppercase tracking-widest text-accent/50"
+          >
+            Вид из помещения
+          </figcaption>
+        </figure>
+        <figure className="m-0 border-t border-tint/20 pt-3">
+          <LiftKinematicSVG section={section} />
+          <figcaption
+            data-lift-kinematic-caption
+            className="mt-1 text-center text-[10px] font-bold uppercase tracking-widest text-accent/50"
+          >
+            Кинематическая схема
+          </figcaption>
+        </figure>
+      </div>
     );
     if (variant === 'mobile') {
       return (
@@ -41,7 +52,7 @@ export const EditorVisualizer: React.FC<EditorVisualizerProps> = ({ section, var
                 {section.panels} пан. · {section.width}×{section.height}
               </span>
             </div>
-            <div className="flex justify-center py-2">{diagram}</div>
+            <div className="flex justify-center py-2">{diagrams}</div>
           </div>
         </div>
       );
@@ -55,7 +66,7 @@ export const EditorVisualizer: React.FC<EditorVisualizerProps> = ({ section, var
               {section.panels} пан. · {section.width}×{section.height}
             </span>
           </div>
-          {diagram}
+          {diagrams}
         </div>
       </div>
     );

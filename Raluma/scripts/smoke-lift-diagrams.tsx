@@ -3,7 +3,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { apiToLocal, applyTemplateDataToSection, localToApi, localToTemplateData } from '../src/components/editor/converters';
 import { EditorVisualizer } from '../src/components/editor/EditorVisualizer';
-import { LiftRoomViewSVG } from '../src/components/editor/LiftDiagrams';
+import { LiftKinematicSVG, LiftRoomViewSVG } from '../src/components/editor/LiftDiagrams';
 import { LiftSystemTab } from '../src/components/editor/LiftForm';
 import {
   LIFT_SPLIT_OPENING,
@@ -117,6 +117,14 @@ assert.match(
   ),
   /data-lift-control-symbol="button"/,
 );
+
+const kinematicMarkup = renderToStaticMarkup(
+  <LiftKinematicSVG section={{ ...baseSection, panels: 4 }} />,
+);
+assert.match(kinematicMarkup, /data-lift-diagram="kinematic"/);
+assert.match(kinematicMarkup, /data-lift-kinematic="image-built"/);
+assert.equal((kinematicMarkup.match(/data-lift-kinematic-panel=/g) ?? []).length, 4);
+assert.match(kinematicMarkup, /RL123\.png/);
 
 assert.deepEqual(liftOpeningOptions(2), ['Сдвиг вниз', 'Сдвиг вверх']);
 assert.deepEqual(liftOpeningOptions(3), ['Сдвиг вниз', 'Сдвиг вверх']);
@@ -252,5 +260,7 @@ const visualizerMarkup = renderToStaticMarkup(
 );
 assert.match(visualizerMarkup, /data-lift-view-caption/);
 assert.match(visualizerMarkup, /Вид из помещения/);
+assert.match(visualizerMarkup, /data-lift-kinematic-caption/);
+assert.match(visualizerMarkup, /Кинематическая схема/);
 
-console.log('Lift diagrams smoke passed: 7 variants, persistence, proportions and caption');
+console.log('Lift diagrams smoke passed: 7 variants, persistence, proportions and both diagrams');

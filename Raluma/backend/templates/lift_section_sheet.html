@@ -63,7 +63,7 @@
   }
   .diagram-grid {
     display: grid;
-    grid-template-columns: 1.55fr 0.75fr;
+    grid-template-columns: 1.45fr 0.85fr;
     gap: 1.5mm;
     margin-top: 1.5mm;
   }
@@ -100,10 +100,10 @@
   }
   .assembly-panel .fill {
     position: absolute;
-    left: 7mm;
-    right: 7mm;
-    top: 8mm;
-    bottom: 8mm;
+    left: 8.5mm;
+    right: 8.5mm;
+    top: 7mm;
+    bottom: 7mm;
     border: 1px solid #6796a0;
     background: #e8f5f7;
   }
@@ -119,13 +119,13 @@
   .assembly-panel .bottom-profile { bottom: 1mm; transform: rotate(180deg); }
   .assembly-panel .side-profile {
     position: absolute;
-    top: 10mm;
-    bottom: 10mm;
-    width: 6mm;
+    top: 7.5mm;
+    bottom: 7.5mm;
+    width: 8mm;
     object-fit: contain;
   }
-  .assembly-panel .side-profile.left { left: 0.8mm; transform: rotate(-90deg); }
-  .assembly-panel .side-profile.right { right: 0.8mm; transform: rotate(90deg); }
+  .assembly-panel .side-profile.left { left: 0.4mm; transform: rotate(-90deg); }
+  .assembly-panel .side-profile.right { right: 0.4mm; transform: rotate(90deg); }
   .assembly-panel .panel-no {
     position: absolute;
     left: 0;
@@ -161,20 +161,34 @@
   .fill-table .dim { width: 22mm; text-align: center; font-weight: 800; }
   .fill-table .qty { width: 14mm; text-align: center; font-weight: 800; }
   .page-two-head { margin-bottom: 1mm; }
-  .profiles { table-layout: fixed; }
-  .profiles th, .profiles td { font-size: 7.4pt; }
-  .profiles .image-col { width: 25mm; text-align: center; }
-  .profiles .article-col { width: 23mm; font-weight: 900; text-align: center; }
-  .profiles .length-col { width: 25mm; text-align: center; font-weight: 900; }
-  .profiles .qty-col { width: 17mm; text-align: center; font-weight: 900; }
-  .profile-image { max-width: 22mm; height: 10mm; object-fit: contain; }
+  .profile-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-left: 1px solid #111;
+  }
+  .profile-card {
+    min-height: 13mm;
+    border-right: 1px solid #111;
+    border-bottom: 1px solid #111;
+    padding: 0.6mm;
+    display: grid;
+    grid-template-columns: 17mm 1fr 18mm;
+    align-items: center;
+    gap: 0.5mm;
+    break-inside: avoid;
+  }
+  .profile-card img { width: 16mm; height: 9.5mm; object-fit: contain; }
+  .profile-card .name { font-size: 6.8pt; font-weight: 700; line-height: 1.08; }
+  .profile-card .article { font-size: 8pt; font-weight: 900; }
+  .profile-card .measure { text-align: right; font-size: 7.4pt; line-height: 1.15; }
+  .profile-card .measure strong { display: block; font-size: 8.4pt; }
   .hardware-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     border-left: 1px solid #111;
   }
   .hardware-card {
-    min-height: 15mm;
+    min-height: 13mm;
     border-right: 1px solid #111;
     border-bottom: 1px solid #111;
     padding: 0.7mm;
@@ -183,7 +197,7 @@
     align-items: center;
     gap: 0.5mm;
   }
-  .hardware-card img { width: 14mm; height: 11mm; object-fit: contain; }
+  .hardware-card img { width: 14mm; height: 9.5mm; object-fit: contain; }
   .hardware-card .name { font-size: 7pt; font-weight: 700; line-height: 1.1; }
   .hardware-card .article { font-size: 8.5pt; font-weight: 900; }
   .hardware-card .qty { text-align: right; font-size: 9pt; font-weight: 900; }
@@ -199,7 +213,7 @@
   .comments {
     border: 1px solid #111;
     border-top: 0;
-    min-height: 17mm;
+    min-height: 14mm;
     padding: 1mm 1.5mm;
     white-space: pre-wrap;
     font-size: 8.5pt;
@@ -207,6 +221,17 @@
   }
   .control-symbol { color: #166875; font-weight: 900; }
   {% if not is_pdf %}
+  [contenteditable="true"] {
+    min-width: 6mm;
+    outline: 1px dashed rgba(0, 107, 122, 0.45);
+    outline-offset: 1px;
+    background: rgba(0, 188, 212, 0.06);
+    cursor: text;
+  }
+  [contenteditable="true"]:focus {
+    outline: 2px solid #007c89;
+    background: rgba(0, 188, 212, 0.12);
+  }
   .page + .page {
     border-top: 4px dashed rgba(80, 80, 80, 0.45);
     margin-top: 6mm;
@@ -216,6 +241,10 @@
 </style>
 </head>
 <body>
+{% macro editable(field, value) -%}
+  {% if not is_pdf %}contenteditable="true" data-field="{{ field|e }}" data-original="{{ value|e }}"{% endif %}
+{%- endmacro %}
+{% macro doc_value(field, value) -%}{{ overrides.get(field, value)|e }}{%- endmacro %}
 {% set width = section.width|float %}
 {% set height = section.height|float %}
 {% set frame = [width, height]|min * 0.025 %}
@@ -234,17 +263,17 @@
   <div class="bar">Основные параметры</div>
   <div class="summary-grid">
     <div>
-      <div class="kv"><span>ШИРИНА СЕКЦИИ, ММ</span><strong>{{ section.width|glass_mm }}</strong></div>
-      <div class="kv"><span>ВЫСОТА СЕКЦИИ, ММ</span><strong>{{ section.height|glass_mm }}</strong></div>
-      <div class="kv"><span>КОЛИЧЕСТВО ПАНЕЛЕЙ</span><strong>{{ section.panels }}</strong></div>
-      <div class="kv"><span>КОЛИЧЕСТВО СЕКЦИЙ</span><strong>{{ section.quantity }}</strong></div>
+      <div class="kv"><span>ШИРИНА СЕКЦИИ, ММ</span><strong {{ editable('lift_summary_width', section.width|glass_mm) }}>{{ doc_value('lift_summary_width', section.width|glass_mm) }}</strong></div>
+      <div class="kv"><span>ВЫСОТА СЕКЦИИ, ММ</span><strong {{ editable('lift_summary_height', section.height|glass_mm) }}>{{ doc_value('lift_summary_height', section.height|glass_mm) }}</strong></div>
+      <div class="kv"><span>КОЛИЧЕСТВО ПАНЕЛЕЙ</span><strong {{ editable('lift_summary_panels', section.panels) }}>{{ doc_value('lift_summary_panels', section.panels) }}</strong></div>
+      <div class="kv"><span>КОЛИЧЕСТВО СЕКЦИЙ</span><strong {{ editable('lift_summary_quantity', section.quantity) }}>{{ doc_value('lift_summary_quantity', section.quantity) }}</strong></div>
     </div>
     <div>
-      <div class="kv"><span>ЗАПОЛНЕНИЕ</span><strong>{{ calc.filling_text|e }}</strong></div>
-      <div class="kv"><span>ЦВЕТ</span><strong>{{ calc.color_text|e }}</strong></div>
-      <div class="kv"><span>ОТКРЫВАНИЕ</span><strong>{{ calc.opening_text|e }}</strong></div>
-      <div class="kv"><span>УПРАВЛЕНИЕ</span><strong>{{ calc.control_type|e }}</strong></div>
-      <div class="kv"><span>ВВОД КАБЕЛЯ</span><strong>{{ calc.cable_side|e }}</strong></div>
+      <div class="kv"><span>ЗАПОЛНЕНИЕ</span><strong {{ editable('lift_summary_filling', calc.filling_text) }}>{{ doc_value('lift_summary_filling', calc.filling_text) }}</strong></div>
+      <div class="kv"><span>ЦВЕТ</span><strong {{ editable('lift_summary_color', calc.color_text) }}>{{ doc_value('lift_summary_color', calc.color_text) }}</strong></div>
+      <div class="kv"><span>ОТКРЫВАНИЕ</span><strong {{ editable('lift_summary_opening', calc.opening_text) }}>{{ doc_value('lift_summary_opening', calc.opening_text) }}</strong></div>
+      <div class="kv"><span>УПРАВЛЕНИЕ</span><strong {{ editable('lift_summary_control', calc.control_type) }}>{{ doc_value('lift_summary_control', calc.control_type) }}</strong></div>
+      <div class="kv"><span>ВВОД КАБЕЛЯ</span><strong {{ editable('lift_summary_cable', calc.cable_side) }}>{{ doc_value('lift_summary_cable', calc.cable_side) }}</strong></div>
     </div>
   </div>
   {% if calc.warnings %}
@@ -297,7 +326,7 @@
               x2="{{ width + frame * 2 }}" y2="{{ height + frame * 3.1 }}"
               stroke="#d00000" stroke-width="{{ frame * 0.22 }}" />
         <text x="{{ width / 2 + frame * 2 }}" y="{{ height + frame * 4.25 }}"
-              text-anchor="middle" font-size="{{ font_size * 0.55 }}" fill="#d00000">
+              text-anchor="middle" font-size="{{ font_size * 0.82 }}" font-weight="700" fill="#d00000">
           {{ section.width|glass_mm }} × {{ section.height|glass_mm }} ММ
         </text>
         {% if calc.cable_side == 'Слева' %}
@@ -307,39 +336,63 @@
           <text x="{{ width + frame * 2 }}" y="{{ frame }}" text-anchor="end"
                 font-size="{{ font_size * 0.45 }}" fill="#d00000">ВВОД КАБЕЛЯ СПРАВА</text>
         {% endif %}
+        {% if calc.control_type == 'Пульт ДУ' %}
+          <g transform="translate({{ width + frame * 2.45 }} {{ height * 0.43 }})"
+             stroke="#166875" fill="none" stroke-width="{{ frame * 0.2 }}">
+            <rect x="0" y="0" width="{{ frame * 1.05 }}" height="{{ frame * 2.15 }}" rx="{{ frame * 0.2 }}"
+                  fill="#f0f4f5" />
+            <circle cx="{{ frame * 0.525 }}" cy="{{ frame * 0.55 }}" r="{{ frame * 0.12 }}" fill="#166875" />
+            <circle cx="{{ frame * 0.525 }}" cy="{{ frame * 1.08 }}" r="{{ frame * 0.12 }}" />
+            <circle cx="{{ frame * 0.525 }}" cy="{{ frame * 1.61 }}" r="{{ frame * 0.12 }}" />
+          </g>
+        {% else %}
+          <g transform="translate({{ width + frame * 2.35 }} {{ height * 0.47 }})"
+             stroke="#166875" fill="none" stroke-width="{{ frame * 0.2 }}">
+            <rect x="0" y="0" width="{{ frame * 1.3 }}" height="{{ frame * 1.3 }}" rx="{{ frame * 0.16 }}"
+                  fill="#f0f4f5" />
+            <circle cx="{{ frame * 0.65 }}" cy="{{ frame * 0.65 }}" r="{{ frame * 0.3 }}"
+                    fill="#166875" fill-opacity="0.25" />
+          </g>
+        {% endif %}
+        <line x1="{{ width + frame * 3.55 }}" y1="{{ frame * 1.4 }}"
+              x2="{{ width + frame * 3.55 }}" y2="{{ height + frame * 1.4 }}"
+              stroke="#d00000" stroke-width="{{ frame * 0.22 }}" />
+        <text x="{{ width + frame * 4.3 }}" y="{{ height / 2 + frame * 1.4 }}"
+              text-anchor="middle" font-size="{{ font_size * 0.78 }}" font-weight="700" fill="#d00000"
+              transform="rotate(90 {{ width + frame * 4.3 }} {{ height / 2 + frame * 1.4 }})">
+          {{ section.height|glass_mm }} ММ
+        </text>
       </svg>
     </div>
 
     <div class="diagram-card">
       <div class="diagram-title">Кинематическая схема</div>
-      <svg class="side-svg" viewBox="0 0 300 330" role="img">
-        <line x1="44" y1="25" x2="44" y2="302" stroke="#222" stroke-width="4" />
-        <circle cx="44" cy="25" r="11" fill="#ddd" stroke="#222" stroke-width="3" />
-        <circle cx="44" cy="302" r="11" fill="#ddd" stroke="#222" stroke-width="3" />
-        <path d="M 44 36 L 44 291" stroke="#555" stroke-width="2" stroke-dasharray="5 4" />
-        {% set side = namespace(y=38) %}
+      {% set kinetic_top = 'RL123.png' if calc.filling_kind == 'igu' else 'RL113.png' %}
+      {% set kinetic_bottom = 'RL122.png' if calc.filling_kind == 'igu' else 'RL112.png' %}
+      <svg class="side-svg" viewBox="0 0 300 330" role="img" data-lift-kinematic="image-built">
+        <defs>
+          <marker id="lift-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <path d="M0,0 L7,3.5 L0,7" fill="none" stroke="#555" stroke-width="1.2" />
+          </marker>
+        </defs>
+        <line x1="31" y1="23" x2="31" y2="307" stroke="#222" stroke-width="3" />
+        <circle cx="31" cy="23" r="9" fill="#fff" stroke="#222" stroke-width="2.5" />
+        <circle cx="31" cy="307" r="9" fill="#fff" stroke="#222" stroke-width="2.5" />
         {% for panel in calc.panels %}
-          {% set x = 70 + loop.index0 * 27 %}
-          <line x1="44" y1="{{ side.y + 25 }}" x2="{{ x }}" y2="{{ side.y + 25 }}"
-                stroke="#999" stroke-width="1.5" />
-          <rect x="{{ x }}" y="{{ side.y }}" width="128" height="50"
-                fill="#eff7f8" stroke="#333" stroke-width="2" />
-          <rect x="{{ x + 5 }}" y="{{ side.y + 5 }}" width="118" height="40"
-                fill="#dff0f3" stroke="#72919a" stroke-width="1" />
-          <text x="{{ x + 64 }}" y="{{ side.y + 29 }}" text-anchor="middle"
-                font-size="14" font-weight="700">{{ panel.panel }}</text>
-          {% set side.y = side.y + 67 %}
+          {% set x = 54 + loop.index0 * 25 %}
+          {% set y = 23 + loop.index0 * 68 %}
+          <path d="M 31 32 L {{ x + 13 }} {{ y + 45 }}" stroke="#999" stroke-width="1"
+                fill="none" marker-end="url(#lift-arrow)" />
+          <image href="{{ kinetic_top|img_b64 }}" x="{{ x }}" y="{{ y }}" width="104" height="29"
+                 preserveAspectRatio="xMidYMid meet" />
+          <line x1="{{ x + 25 }}" y1="{{ y + 22 }}" x2="{{ x + 25 }}" y2="{{ y + 61 }}"
+                stroke="#8ab6bd" stroke-width="4" />
+          <image href="{{ kinetic_bottom|img_b64 }}" x="{{ x - 1 }}" y="{{ y + 48 }}" width="54" height="35"
+                 preserveAspectRatio="xMidYMid meet" />
+          <text x="{{ x + 76 }}" y="{{ y + 42 }}" font-size="12" font-weight="800">{{ panel.panel }}</text>
         {% endfor %}
-        {% if calc.control_type == 'Пульт ДУ' %}
-          <rect x="230" y="17" width="36" height="60" rx="7" fill="#e7e7e7" stroke="#222" stroke-width="2" />
-          <circle cx="248" cy="34" r="4" fill="#166875" />
-          <circle cx="248" cy="48" r="4" fill="#166875" />
-          <text x="248" y="92" text-anchor="middle" font-size="11" font-weight="700">ПУЛЬТ</text>
-        {% else %}
-          <circle cx="248" cy="43" r="20" fill="#e7e7e7" stroke="#222" stroke-width="2" />
-          <circle cx="248" cy="43" r="8" fill="#166875" />
-          <text x="248" y="82" text-anchor="middle" font-size="11" font-weight="700">КНОПКА</text>
-        {% endif %}
+        <text x="15" y="176" text-anchor="middle" font-size="10" fill="#777"
+              transform="rotate(-90 15 176)">НАПРАВЛЕНИЕ ДВИЖЕНИЯ</text>
       </svg>
     </div>
   </div>
@@ -357,8 +410,14 @@
         <img class="side-profile right" src="{{ side_image|img_b64 }}" alt="">
         <div class="fill"></div>
         <div class="panel-no">{{ panel.panel }}</div>
-        <div class="panel-size">ЗАПОЛНЕНИЕ {{ panel.width_mm|glass_mm }} × {{ panel.height_mm|glass_mm }}</div>
-        <div class="glued-size">СКЛЕЙКА {{ panel.glued_width_mm|glass_mm }} × {{ panel.glued_height_mm|glass_mm }}</div>
+        <div class="panel-size">
+          ЗАПОЛНЕНИЕ
+          <span {{ editable('lift_panel_' ~ panel.panel ~ '_size', (panel.width_mm|glass_mm) ~ ' × ' ~ (panel.height_mm|glass_mm)) }}>{{ doc_value('lift_panel_' ~ panel.panel ~ '_size', (panel.width_mm|glass_mm) ~ ' × ' ~ (panel.height_mm|glass_mm)) }}</span>
+        </div>
+        <div class="glued-size">
+          СКЛЕЙКА
+          <span {{ editable('lift_panel_' ~ panel.panel ~ '_glued', (panel.glued_width_mm|glass_mm) ~ ' × ' ~ (panel.glued_height_mm|glass_mm)) }}>{{ doc_value('lift_panel_' ~ panel.panel ~ '_glued', (panel.glued_width_mm|glass_mm) ~ ' × ' ~ (panel.glued_height_mm|glass_mm)) }}</span>
+        </div>
       </div>
       {% endfor %}
     </div>
@@ -379,10 +438,10 @@
       <td class="num">{{ panel.panel }}</td>
       <td>{{ panel.role|e }}</td>
       <td>{{ panel.filling|e }}</td>
-      <td class="dim">{{ panel.width_mm|glass_mm }}</td>
-      <td class="dim">{{ panel.height_mm|glass_mm }}</td>
-      <td class="dim">{{ panel.glued_width_mm|glass_mm }} × {{ panel.glued_height_mm|glass_mm }}</td>
-      <td class="qty">{{ panel.qty }}</td>
+      <td class="dim" {{ editable('lift_panel_' ~ panel.panel ~ '_width', panel.width_mm|glass_mm) }}>{{ doc_value('lift_panel_' ~ panel.panel ~ '_width', panel.width_mm|glass_mm) }}</td>
+      <td class="dim" {{ editable('lift_panel_' ~ panel.panel ~ '_height', panel.height_mm|glass_mm) }}>{{ doc_value('lift_panel_' ~ panel.panel ~ '_height', panel.height_mm|glass_mm) }}</td>
+      <td class="dim" {{ editable('lift_panel_' ~ panel.panel ~ '_glued_table', (panel.glued_width_mm|glass_mm) ~ ' × ' ~ (panel.glued_height_mm|glass_mm)) }}>{{ doc_value('lift_panel_' ~ panel.panel ~ '_glued_table', (panel.glued_width_mm|glass_mm) ~ ' × ' ~ (panel.glued_height_mm|glass_mm)) }}</td>
+      <td class="qty" {{ editable('lift_panel_' ~ panel.panel ~ '_qty', panel.qty) }}>{{ doc_value('lift_panel_' ~ panel.panel ~ '_qty', panel.qty) }}</td>
     </tr>
     {% endfor %}
   </table>
@@ -396,32 +455,22 @@
   </div>
 
   <div class="bar">Нарезка профилей</div>
-  <table class="profiles">
-    <tr>
-      <th class="image-col">Сечение</th>
-      <th class="article-col">Артикул</th>
-      <th>Наименование / операция</th>
-      <th class="length-col">Длина, мм</th>
-      <th class="qty-col">Кол-во, шт</th>
-    </tr>
+  <div class="profile-grid">
     {% for profile in calc.profiles %}
     {% set image_data = profile.image|img_b64 if profile.image else '' %}
-    <tr>
-      <td class="image-col">{% if image_data %}<img class="profile-image" src="{{ image_data }}" alt="">{% endif %}</td>
-      <td class="article-col">{{ profile.article|e }}</td>
-      <td><strong>{{ profile.name|e }}</strong>{% if profile.note %}<br><small>{{ profile.note|e }}</small>{% endif %}</td>
-      <td class="length-col">{{ profile.length_mm|glass_mm }}</td>
-      <td class="qty-col">{{ profile.qty }}</td>
-    </tr>
+    <div class="profile-card">
+      <div>{% if image_data %}<img src="{{ image_data }}" alt="">{% endif %}</div>
+      <div>
+        <div class="name">{{ profile.name|e }}</div>
+        <div class="article">{{ profile.article|e }}</div>
+        {% if profile.note %}<small>{{ profile.note|e }}</small>{% endif %}
+      </div>
+      <div class="measure">
+        <strong {{ editable(profile.field_key ~ '_length', profile.length_mm|glass_mm) }}>{{ doc_value(profile.field_key ~ '_length', profile.length_mm|glass_mm) }}</strong> мм
+        <span {{ editable(profile.field_key ~ '_qty', profile.qty) }}>{{ doc_value(profile.field_key ~ '_qty', profile.qty) }}</span> шт
+      </div>
+    </div>
     {% endfor %}
-  </table>
-</section>
-
-<section class="page">
-  <div class="header page-two-head">
-    <div>ПРОЕКТ № {{ project.number|e }}</div>
-    <div>{{ section.name|e }}</div>
-    <div>ЛИФТ · КОМПЛЕКТАЦИЯ</div>
   </div>
 
   <div class="bar">Фурнитура</div>
@@ -435,7 +484,7 @@
         <div class="article">{{ item.article|e }}</div>
         {% if item.note %}<small>{{ item.note|e }}</small>{% endif %}
       </div>
-      <div class="qty">{{ item.value|glass_mm }} {{ item.unit|e }}</div>
+      <div class="qty" {{ editable('lift_hardware_' ~ loop.index ~ '_value', item.value|glass_mm) }}>{{ doc_value('lift_hardware_' ~ loop.index ~ '_value', item.value|glass_mm) }} {{ item.unit|e }}</div>
     </div>
     {% endfor %}
   </div>
@@ -450,7 +499,7 @@
         <div class="name">{{ item.name|e }}</div>
         <div class="article">{{ item.article|e }}</div>
       </div>
-      <div class="qty">{{ item.value|glass_mm }} {{ item.unit|e }}</div>
+      <div class="qty" {{ editable('lift_fastener_' ~ loop.index ~ '_value', item.value|glass_mm) }}>{{ doc_value('lift_fastener_' ~ loop.index ~ '_value', item.value|glass_mm) }} {{ item.unit|e }}</div>
     </div>
     {% endfor %}
   </div>
@@ -458,14 +507,14 @@
   {% if calc.torque %}
   <div class="bar">Расчёт привода</div>
   <div class="torque-grid">
-    <div>Вес подвижных панелей<strong>{{ calc.torque.moving_weight_kg|glass_mm }} кг</strong></div>
-    <div>Крутящий момент<strong>{{ calc.torque.torque_nm|glass_mm }} Н·м</strong></div>
-    <div>Количество приводов<strong>{{ calc.torque.drive_count }} шт</strong></div>
+    <div>Вес подвижных панелей<strong {{ editable('lift_torque_weight', calc.torque.moving_weight_kg|glass_mm) }}>{{ doc_value('lift_torque_weight', calc.torque.moving_weight_kg|glass_mm) }} кг</strong></div>
+    <div>Крутящий момент<strong {{ editable('lift_torque_nm', calc.torque.torque_nm|glass_mm) }}>{{ doc_value('lift_torque_nm', calc.torque.torque_nm|glass_mm) }} Н·м</strong></div>
+    <div>Количество приводов<strong {{ editable('lift_torque_drives', calc.torque.drive_count) }}>{{ doc_value('lift_torque_drives', calc.torque.drive_count) }} шт</strong></div>
   </div>
   {% endif %}
 
   <div class="bar">Примечания и особые отметки</div>
-  <div class="comments">{{ (section.comments or '')|e }}</div>
+  <div class="comments" {{ editable('lift_comments', section.comments or '') }}>{{ doc_value('lift_comments', section.comments or '') }}</div>
 </section>
 
 {% if not is_pdf %}

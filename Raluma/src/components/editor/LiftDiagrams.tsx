@@ -11,6 +11,8 @@ const VIEW_HEIGHT = 500;
 const MAX_FRAME_WIDTH = 570;
 const MAX_FRAME_HEIGHT = 300;
 const FRAME_CENTER_Y = 250;
+const profileAsset = (fileName: string) =>
+  `/api/catalog/profile-assets/${encodeURIComponent(fileName)}`;
 
 type PanelState = 'fixed' | 'up' | 'down';
 
@@ -261,6 +263,117 @@ export function LiftRoomViewSVG({ section }: { section: Section }) {
         fontWeight="700"
       >
         {Math.round(safeHeight)}
+      </text>
+    </svg>
+  );
+}
+
+export function LiftKinematicSVG({ section }: { section: Section }) {
+  const panels = Math.min(4, Math.max(2, section.panels || 2));
+  const filling = (section.liftFillingType || '').toUpperCase();
+  const isIgu = filling.includes('20ММ');
+  const topProfile = profileAsset(isIgu ? 'RL123.png' : 'RL113.png');
+  const bottomProfile = profileAsset(isIgu ? 'RL122.png' : 'RL112.png');
+  const originX = 84;
+  const originY = 58;
+  const stepX = 52;
+  const stepY = 92;
+
+  return (
+    <svg
+      viewBox="0 0 760 500"
+      role="img"
+      aria-label={`Кинематическая схема ЛИФТ, ${panels} панели`}
+      data-lift-diagram="kinematic"
+      data-lift-panels={panels}
+      data-lift-kinematic="image-built"
+      style={{ width: '100%', height: 'auto', maxWidth: VIEW_WIDTH, display: 'block', margin: '0 auto' }}
+    >
+      <defs>
+        <marker id="lift-kinematic-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+          <path
+            d="M 0 0 L 8 4 L 0 8"
+            fill="none"
+            stroke="var(--theme-accent)"
+            strokeWidth="1.3"
+          />
+        </marker>
+      </defs>
+
+      <line
+        x1="54"
+        y1="38"
+        x2="54"
+        y2="452"
+        stroke="var(--theme-accent)"
+        strokeOpacity="0.82"
+        strokeWidth="4"
+      />
+      <circle cx="54" cy="38" r="13" fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="3" />
+      <circle cx="54" cy="452" r="13" fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="3" />
+
+      {Array.from({ length: panels }, (_, index) => {
+        const x = originX + index * stepX;
+        const y = originY + index * stepY;
+        return (
+          <g key={`kinematic-panel-${index}`} data-lift-kinematic-panel={index + 1}>
+            <path
+              d={`M 54 52 L ${x + 31} ${y + 76}`}
+              fill="none"
+              stroke="var(--theme-accent)"
+              strokeOpacity="0.32"
+              strokeWidth="1.5"
+              markerEnd="url(#lift-kinematic-arrow)"
+            />
+            <image
+              href={topProfile}
+              x={x}
+              y={y}
+              width="190"
+              height="54"
+              preserveAspectRatio="xMidYMid meet"
+            />
+            <line
+              x1={x + 48}
+              y1={y + 42}
+              x2={x + 48}
+              y2={y + 103}
+              stroke="var(--theme-accent)"
+              strokeOpacity="0.58"
+              strokeWidth="7"
+            />
+            <image
+              href={bottomProfile}
+              x={x + 4}
+              y={y + 84}
+              width="92"
+              height="58"
+              preserveAspectRatio="xMidYMid meet"
+            />
+            <text
+              x={x + 132}
+              y={y + 78}
+              fill="var(--theme-accent)"
+              fontSize="18"
+              fontWeight="800"
+            >
+              {index + 1}
+            </text>
+          </g>
+        );
+      })}
+
+      <text
+        x="25"
+        y="250"
+        textAnchor="middle"
+        transform="rotate(-90 25 250)"
+        fill="var(--theme-accent)"
+        fillOpacity="0.56"
+        fontSize="14"
+        fontWeight="700"
+      >
+        НАПРАВЛЕНИЕ ДВИЖЕНИЯ
       </text>
     </svg>
   );

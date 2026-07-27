@@ -1403,7 +1403,7 @@ class TestProjectDocuments:
         assert "Заказ стекла" in r.text
         assert "Проект LOCAL-DOC" not in r.text
 
-    def test_local_lift_production_preview_uses_dedicated_three_page_sheet(
+    def test_local_lift_production_preview_uses_dedicated_two_page_sheet(
         self, client
     ):
         r = client.post(
@@ -1430,10 +1430,12 @@ class TestProjectDocuments:
         )
 
         assert r.status_code == 200
-        assert r.text.count('<section class="page">') == 3
+        assert r.text.count('<section class="page">') == 2
         assert "Панели при склейке" in r.text
         assert "ЛИФТ · НАРЕЗКА И КОМПЛЕКТАЦИЯ" in r.text
-        assert "ЛИФТ · КОМПЛЕКТАЦИЯ" in r.text
+        assert 'data-lift-kinematic="image-built"' in r.text
+        assert 'data-field="lift_profile_1_length"' in r.text
+        assert 'data-field="lift_hardware_1_value"' in r.text
         assert "RL101" in r.text
         assert "RL2087" in r.text
 
