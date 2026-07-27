@@ -167,6 +167,8 @@ class Section(Base):
     lift_filling_custom = Column(String, nullable=True)
     lift_control_type = Column(String, default="Пульт ДУ")
     lift_remote_channels = Column(Integer, nullable=True)
+    lift_remote_1ch_qty = Column(Integer, default=0, nullable=False)
+    lift_remote_6ch_qty = Column(Integer, default=0, nullable=False)
     lift_cable_side = Column(String, default="Справа")
     lift_opening_type = Column(String, default="Сдвиг вниз")
 

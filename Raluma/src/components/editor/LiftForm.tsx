@@ -216,6 +216,50 @@ export function LiftSystemTab({
             options={['Пульт ДУ', 'Кнопка']}
             onChange={value => update({ liftControlType: value })}
           />
+          {controlType === 'Пульт ДУ' && (
+            <div
+              className="mt-3 space-y-3 rounded-xl border border-tint/25 bg-black/10 p-3"
+              data-lift-remote-counts
+            >
+              <label className="grid grid-cols-[1fr_110px] items-center gap-3 text-sm text-fg/70">
+                <span>Пульт 1 канал, шт</span>
+                <input
+                  data-lift-remote-count="1"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={s.liftRemote1chQty ?? 0}
+                  onChange={event => update({
+                    liftRemote1chQty: Math.max(0, Number.parseInt(event.target.value || '0', 10) || 0),
+                  })}
+                  className={INP}
+                />
+              </label>
+              <label className="grid grid-cols-[1fr_110px] items-center gap-3 text-sm text-fg/70">
+                <span>Пульт 6 каналов, шт</span>
+                <input
+                  data-lift-remote-count="6"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={s.liftRemote6chQty ?? 0}
+                  onChange={event => update({
+                    liftRemote6chQty: Math.max(0, Number.parseInt(event.target.value || '0', 10) || 0),
+                  })}
+                  className={INP}
+                />
+              </label>
+              <p className={`text-[11px] leading-relaxed ${
+                (s.liftRemote1chQty ?? 0) + (s.liftRemote6chQty ?? 0) === 0
+                  ? 'text-amber-400/80'
+                  : 'text-fg/40'
+              }`}>
+                {(s.liftRemote1chQty ?? 0) + (s.liftRemote6chQty ?? 0) === 0
+                  ? 'Количество пультов на весь проект. Укажите нужное количество.'
+                  : 'Вы меняете общее количество пультов в проекте, а не в конкретной секции.'}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">

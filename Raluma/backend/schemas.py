@@ -193,6 +193,8 @@ class SectionBase(BaseModel):
     lift_filling_custom: Optional[str] = None
     lift_control_type: str = "Пульт ДУ"
     lift_remote_channels: Optional[int] = Field(default=None, exclude=True)
+    lift_remote_1ch_qty: int = Field(default=0, ge=0)
+    lift_remote_6ch_qty: int = Field(default=0, ge=0)
     lift_cable_side: str = "Справа"
     lift_opening_type: str = "Сдвиг вниз"
     # ДВЕРЬ / ЦС

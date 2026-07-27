@@ -77,6 +77,8 @@ def test_lift_fields_save_through_api(client, admin_headers, project):
             "lift_filling_type": "ДРУГОЕ 20мм",
             "lift_filling_custom": "Сэндвич-панель 20мм",
             "lift_control_type": "Пульт ДУ",
+            "lift_remote_1ch_qty": 3,
+            "lift_remote_6ch_qty": 2,
             "lift_cable_side": "Слева",
             "lift_opening_type": "Верх/низ глухие, сдвиг вниз",
         },
@@ -88,6 +90,8 @@ def test_lift_fields_save_through_api(client, admin_headers, project):
     assert section["lift_filling_custom"] == "Сэндвич-панель 20мм"
     assert section["lift_control_type"] == "Пульт ДУ"
     assert "lift_remote_channels" not in section
+    assert section["lift_remote_1ch_qty"] == 3
+    assert section["lift_remote_6ch_qty"] == 2
     assert section["lift_cable_side"] == "Слева"
     assert section["lift_opening_type"] == "Верх/низ глухие, сдвиг вниз"
 
@@ -99,6 +103,8 @@ def test_lift_fields_save_through_api(client, admin_headers, project):
             "lift_filling_type": "СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)",
             "lift_filling_custom": None,
             "lift_control_type": "Кнопка",
+            "lift_remote_1ch_qty": 3,
+            "lift_remote_6ch_qty": 2,
             "lift_cable_side": "Справа",
             "lift_opening_type": "Сдвиг вверх",
         },
@@ -110,6 +116,8 @@ def test_lift_fields_save_through_api(client, admin_headers, project):
     assert saved["lift_filling_custom"] is None
     assert saved["lift_control_type"] == "Кнопка"
     assert "lift_remote_channels" not in saved
+    assert saved["lift_remote_1ch_qty"] == 3
+    assert saved["lift_remote_6ch_qty"] == 2
     assert saved["lift_cable_side"] == "Справа"
     assert saved["lift_opening_type"] == "Сдвиг вверх"
 
@@ -126,6 +134,8 @@ def test_lift_fields_have_isolated_defaults(client, admin_headers, project):
     assert section["lift_filling_type"] == "СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
     assert section["lift_control_type"] == "Пульт ДУ"
     assert "lift_remote_channels" not in section
+    assert section["lift_remote_1ch_qty"] == 0
+    assert section["lift_remote_6ch_qty"] == 0
     assert section["lift_cable_side"] == "Справа"
     assert section["lift_opening_type"] == "Сдвиг вниз"
 
@@ -145,6 +155,8 @@ def test_lift_fields_have_isolated_defaults(client, admin_headers, project):
             "lift_opening_type": "Верх/низ глухие, сдвиг вниз",
         },
         {"lift_remote_channels": -1},
+        {"lift_remote_1ch_qty": -1},
+        {"lift_remote_6ch_qty": -1},
     ],
 )
 def test_invalid_lift_fields_are_rejected(

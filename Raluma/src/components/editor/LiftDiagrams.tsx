@@ -60,6 +60,7 @@ export function LiftRoomViewSVG({ section }: { section: Section }) {
   const panels = Math.min(4, Math.max(2, section.panels || 2));
   const opening = section.liftOpeningType || LIFT_DEFAULT_OPENING;
   const cableSide = section.liftCableSide || LIFT_DEFAULT_CABLE_SIDE;
+  const controlType = section.liftControlType || 'Пульт ДУ';
   const safeWidth = Math.max(1, section.width || 1);
   const safeHeight = Math.max(1, section.height || 1);
   const ratio = safeWidth / safeHeight;
@@ -91,6 +92,7 @@ export function LiftRoomViewSVG({ section }: { section: Section }) {
       data-lift-panels={panels}
       data-lift-opening={opening}
       data-cable-side={cableSide}
+      data-control-type={controlType}
       data-frame-width={frameWidth.toFixed(3)}
       data-frame-height={frameHeight.toFixed(3)}
       style={{ width: '100%', height: 'auto', maxWidth: VIEW_WIDTH, display: 'block', margin: '0 auto' }}
@@ -153,6 +155,33 @@ export function LiftRoomViewSVG({ section }: { section: Section }) {
         strokeOpacity="0.82"
         strokeWidth="4"
       />
+
+      {controlType === 'Пульт ДУ' ? (
+        <g
+          data-lift-control-symbol="remote"
+          transform={`translate(${frameX - 48} ${frameY + frameHeight / 2 - 25})`}
+          stroke="var(--theme-accent)"
+          fill="none"
+          strokeWidth="2"
+        >
+          <rect x="9" y="0" width="24" height="50" rx="7" fill="var(--theme-surface)" />
+          <circle cx="21" cy="12" r="3.5" fill="var(--theme-accent)" />
+          <circle cx="21" cy="25" r="3.5" />
+          <circle cx="21" cy="38" r="3.5" />
+          <path d="M 3 20 Q -4 25 3 30 M 39 20 Q 46 25 39 30" strokeOpacity="0.55" />
+        </g>
+      ) : (
+        <g
+          data-lift-control-symbol="button"
+          transform={`translate(${frameX - 49} ${frameY + frameHeight / 2 - 18})`}
+          stroke="var(--theme-accent)"
+          fill="none"
+          strokeWidth="2"
+        >
+          <rect x="0" y="0" width="36" height="36" rx="5" fill="var(--theme-surface)" />
+          <circle cx="18" cy="18" r="8" fill="var(--theme-accent)" fillOpacity="0.28" />
+        </g>
+      )}
 
       {Array.from({ length: panels - 1 }, (_, index) => {
         const y = frameY + panelHeight * (index + 1);

@@ -40,6 +40,18 @@ export function glassFillColor(glassType: string | null | undefined): string {
   return GLASS_FILL_COLORS.clear;
 }
 
+export function diagramGlassFillColor(glassType: string | null | undefined): string {
+  const normalized = (glassType ?? '').toLocaleUpperCase('ru-RU');
+
+  if (normalized.includes('БРОНЗ')) return 'var(--diagram-glass-bronze)';
+  if (normalized.includes('СЕРО')) return 'var(--diagram-glass-gray)';
+  if (normalized.includes('МАТ')) return 'var(--diagram-glass-matte)';
+  if (normalized.includes('ПРОСВЕТ')) return 'var(--diagram-glass-clarified)';
+  if (normalized.includes('ТРИПЛЕКС')) return 'var(--diagram-glass-triplex)';
+
+  return 'var(--diagram-glass-clear)';
+}
+
 export function isMatteGlass(glassType: string | null | undefined): boolean {
   return (glassType ?? '').toLocaleUpperCase('ru-RU').includes('МАТ');
 }

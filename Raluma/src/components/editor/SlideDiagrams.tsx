@@ -1,6 +1,6 @@
 import React from 'react';
 import { SlideCalcPreview } from '../../api/projects';
-import { glassFillColor, isMatteGlass } from '../../constants/glass';
+import { diagramGlassFillColor, isMatteGlass } from '../../constants/glass';
 import { Section } from './types';
 
 // ── SVG Схема сверху (СЛАЙД) ──────────────────────────────────────────────────
@@ -158,7 +158,7 @@ function sideAssemblyVariant(
 
 export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: SlideCalcPreview | null }) {
   const sideAssemblyFilterPrefix = React.useId().replace(/:/g, '');
-  const glassFill = glassFillColor(section.glassType);
+  const glassFill = diagramGlassFillColor(section.glassType);
   const matteGlass = isMatteGlass(section.glassType);
   const mattePatternId = `${sideAssemblyFilterPrefix}-matte-glass-top`;
   const {
@@ -437,11 +437,11 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
         return (
           <g key={pi}>
             <rect data-scheme-panel={pi + 1} x={rx} y={cy - 6} width={rw} height={12} data-glass-fill={glassFill} data-glass-pattern={matteGlass ? 'matte' : undefined} rx="2"
-              fill={matteGlass ? `url(#${mattePatternId})` : glassFill} fillOpacity="0.52" stroke="var(--theme-accent)" strokeWidth="1.4" strokeOpacity="0.75" />
+              fill={matteGlass ? `url(#${mattePatternId})` : glassFill} fillOpacity="0.52" stroke="var(--diagram-line)" strokeWidth="1.4" strokeOpacity="0.9" />
             {layout.widthMm ? (
-              <text x={cx} y={cy + 5} textAnchor="middle" fontSize="8" fill="var(--theme-accent)" fillOpacity="0.9" fontWeight="bold">{layout.widthMm} · №{panelNum}</text>
+              <text x={cx} y={cy + 5} textAnchor="middle" fontSize="8" fill="var(--diagram-symbol)" fillOpacity="1" fontWeight="bold">{layout.widthMm} · №{panelNum}</text>
             ) : (
-              <text x={cx} y={cy + 5} textAnchor="middle" fontSize="9" fill="var(--theme-accent)" fillOpacity="0.9" fontWeight="bold">{panelNum}</text>
+              <text x={cx} y={cy + 5} textAnchor="middle" fontSize="9" fill="var(--diagram-symbol)" fillOpacity="1" fontWeight="bold">{panelNum}</text>
             )}
           </g>
         );
@@ -531,7 +531,7 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
   const diagramId = React.useId().replace(/:/g, '');
   const panels  = section.panels;
   const is2row = (section.slideRows ?? 1) === 2;
-  const glassFill = glassFillColor(section.glassType);
+  const glassFill = diagramGlassFillColor(section.glassType);
   const matteGlass = isMatteGlass(section.glassType);
   const mattePatternId = `${diagramId}-matte-glass-room`;
   const firstRight = (section.firstPanelInside ?? 'Справа') === 'Справа';
@@ -610,14 +610,14 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
   const renderHandleSymbol = (handle: string, x: number, sizeScale = 1) => {
     const h = handle.toLowerCase();
     if (h.includes('кноб') || h.includes('rs3014')) {
-      return <circle cx={x} cy={symY} r={6 * sizeScale} fill="var(--theme-accent)" fillOpacity="0.6" stroke="var(--theme-accent)" strokeWidth={1.5 * sizeScale} strokeOpacity="0.9" />;
+      return <circle cx={x} cy={symY} r={6 * sizeScale} fill="var(--diagram-symbol)" fillOpacity="0.85" stroke="var(--diagram-symbol)" strokeWidth={1.5 * sizeScale} strokeOpacity="1" />;
     }
     if (h.includes('скоба')) {
-      return <line x1={x} y1={symY - 26 * sizeScale} x2={x} y2={symY + 26 * sizeScale} stroke="var(--theme-accent)" strokeWidth={3 * sizeScale} strokeOpacity="0.7" />;
+      return <line x1={x} y1={symY - 26 * sizeScale} x2={x} y2={symY + 26 * sizeScale} stroke="var(--diagram-symbol)" strokeWidth={3 * sizeScale} strokeOpacity="1" />;
     }
     if (h.includes('стеклян') || h.includes('rs3017')) {
       const size = 10 * sizeScale;
-      return <rect x={x - size / 2} y={symY - size / 2} width={size} height={size} fill="var(--theme-accent)" fillOpacity="0.5" stroke="var(--theme-accent)" strokeWidth={1.5 * sizeScale} strokeOpacity="0.9" />;
+      return <rect x={x - size / 2} y={symY - size / 2} width={size} height={size} fill="var(--diagram-symbol)" fillOpacity="0.75" stroke="var(--diagram-symbol)" strokeWidth={1.5 * sizeScale} strokeOpacity="1" />;
     }
     return null;
   };
@@ -625,17 +625,17 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
   const renderLockSymbol = (lock: string, x: number) => {
     const l = lock.toLowerCase();
     if (l.includes('1стор') || l.includes('1-сторон')) {
-      return <line x1={x} y1={symY - 12} x2={x} y2={symY + 12} stroke="var(--theme-accent)" strokeWidth="2.5" strokeOpacity="0.7" />;
+      return <line x1={x} y1={symY - 12} x2={x} y2={symY + 12} stroke="var(--diagram-symbol)" strokeWidth="2.5" strokeOpacity="1" />;
     }
     if (l.includes('2стор') || l.includes('2-сторон') || l.includes('ключ')) {
       const kx = x + 12;
       return (
         <g>
-          <line x1={x} y1={symY - 12} x2={x} y2={symY + 12} stroke="var(--theme-accent)" strokeWidth="2.5" strokeOpacity="0.7" />
-          <circle cx={kx} cy={symY - 5} r={5} fill="none" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.8" />
-          <line x1={kx} y1={symY} x2={kx} y2={symY + 12} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.8" />
-          <line x1={kx} y1={symY + 6} x2={kx + 4} y2={symY + 6} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.8" />
-          <line x1={kx} y1={symY + 9} x2={kx + 3} y2={symY + 9} stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.8" />
+          <line x1={x} y1={symY - 12} x2={x} y2={symY + 12} stroke="var(--diagram-symbol)" strokeWidth="2.5" strokeOpacity="1" />
+          <circle cx={kx} cy={symY - 5} r={5} fill="none" stroke="var(--diagram-symbol)" strokeWidth="1.5" strokeOpacity="1" />
+          <line x1={kx} y1={symY} x2={kx} y2={symY + 12} stroke="var(--diagram-symbol)" strokeWidth="1.5" strokeOpacity="1" />
+          <line x1={kx} y1={symY + 6} x2={kx + 4} y2={symY + 6} stroke="var(--diagram-symbol)" strokeWidth="1.5" strokeOpacity="1" />
+          <line x1={kx} y1={symY + 9} x2={kx + 3} y2={symY + 9} stroke="var(--diagram-symbol)" strokeWidth="1.5" strokeOpacity="1" />
         </g>
       );
     }
@@ -712,7 +712,7 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
             )}
 
             <text x={cx} y={cy - 12} textAnchor="middle" fontSize="14"
-              fill="var(--theme-accent)" fillOpacity="0.85" fontWeight="bold" fontFamily="monospace">
+              fill="var(--diagram-symbol)" fillOpacity="1" fontWeight="bold" fontFamily="monospace">
               {num}
             </text>
 
@@ -724,18 +724,18 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
                   y1={cy + 5}
                   x2={panelArrowLeft ? cx - aLen / 2 : cx + aLen / 2}
                   y2={cy + 5}
-                  stroke="var(--theme-accent)" strokeWidth="1.3" strokeOpacity="0.55"
+                  stroke="var(--diagram-symbol)" strokeWidth="1.5" strokeOpacity="0.9"
                 />
                 {(panelArrowLeft || panelBidirectional) && (
                   <polyline
                     points={`${cx - aLen / 2 + 6},${cy + 1} ${cx - aLen / 2},${cy + 5} ${cx - aLen / 2 + 6},${cy + 9}`}
-                    stroke="var(--theme-accent)" strokeWidth="1.3" fill="none" strokeOpacity="0.55"
+                    stroke="var(--diagram-symbol)" strokeWidth="1.5" fill="none" strokeOpacity="0.9"
                   />
                 )}
                 {(!panelArrowLeft || panelBidirectional) && (
                   <polyline
                     points={`${cx + aLen / 2 - 6},${cy + 1} ${cx + aLen / 2},${cy + 5} ${cx + aLen / 2 - 6},${cy + 9}`}
-                    stroke="var(--theme-accent)" strokeWidth="1.3" fill="none" strokeOpacity="0.55"
+                    stroke="var(--diagram-symbol)" strokeWidth="1.5" fill="none" strokeOpacity="0.9"
                   />
                 )}
               </>
@@ -796,9 +796,9 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
             width={10}
             height={7}
             rx={1.5}
-            fill="var(--theme-accent)"
-            fillOpacity="0.45"
-            stroke="var(--theme-accent)"
+            fill="var(--diagram-symbol)"
+            fillOpacity="0.75"
+            stroke="var(--diagram-symbol)"
             strokeWidth="1"
             strokeOpacity="0.75"
           />

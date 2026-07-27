@@ -96,6 +96,8 @@ function normalizeSection(
     lift_filling_type: section.lift_filling_type ?? 'СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ',
     lift_filling_custom: section.lift_filling_custom,
     lift_control_type: section.lift_control_type ?? 'Пульт ДУ',
+    lift_remote_1ch_qty: section.lift_remote_1ch_qty ?? 0,
+    lift_remote_6ch_qty: section.lift_remote_6ch_qty ?? 0,
     lift_cable_side: section.lift_cable_side ?? 'Справа',
     lift_opening_type: section.lift_opening_type ?? 'Сдвиг вниз',
     door_system: section.door_system,

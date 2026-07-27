@@ -143,6 +143,8 @@ export function apiToLocal(s: SectionOut): Section {
     liftFillingType: s.lift_filling_type,
     liftFillingCustom: s.lift_filling_custom,
     liftControlType: s.lift_control_type,
+    liftRemote1chQty: s.lift_remote_1ch_qty ?? 0,
+    liftRemote6chQty: s.lift_remote_6ch_qty ?? 0,
     liftCableSide: s.lift_cable_side,
     liftOpeningType: s.lift_opening_type,
     doorSystem: s.door_system,
@@ -200,6 +202,8 @@ export function localToApi(s: Section, order: number): Omit<SectionOut, 'id' | '
     lift_filling_type: s.liftFillingType,
     lift_filling_custom: s.liftFillingCustom,
     lift_control_type: s.liftControlType,
+    lift_remote_1ch_qty: s.liftRemote1chQty ?? 0,
+    lift_remote_6ch_qty: s.liftRemote6chQty ?? 0,
     lift_cable_side: s.liftCableSide,
     lift_opening_type: s.liftOpeningType,
     door_system: s.doorSystem, cs_shape: s.csShape, cs_width2: s.csWidth2,
@@ -214,6 +218,8 @@ export function localToTemplateData(s: Section): Partial<SectionOut> {
   delete data.name;
   delete data.order;
   delete data.document_overrides;
+  delete data.lift_remote_1ch_qty;
+  delete data.lift_remote_6ch_qty;
   return data;
 }
 

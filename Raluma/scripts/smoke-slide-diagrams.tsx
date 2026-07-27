@@ -4,7 +4,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type { SlideCalcPreview } from '../src/api/projects';
 import { SlideRoomViewSVG, SlideSchemeSVG } from '../src/components/editor/SlideDiagrams';
 import type { Section } from '../src/components/editor/types';
-import { GLASS_FILL_COLORS, glassFillColor, isMatteGlass } from '../src/constants/glass';
+import {
+  GLASS_FILL_COLORS,
+  diagramGlassFillColor,
+  glassFillColor,
+  isMatteGlass,
+} from '../src/constants/glass';
 import { buildCustomerOptions } from '../src/utils/customers';
 
 const section: Section = {
@@ -67,11 +72,11 @@ assert.equal(glassFillColor('10ММ ПРОСВЕТЛЕННОЕ'), GLASS_FILL_COL
 assert.equal(glassFillColor('ТРИПЛЕКС 4.1.4'), GLASS_FILL_COLORS.triplex);
 assert.equal(isMatteGlass('10ММ МАТОВОЕ'), true);
 assert.ok(
-  roomMarkup.includes(`data-glass-fill="${GLASS_FILL_COLORS.clear}"`),
+  roomMarkup.includes(`data-glass-fill="${diagramGlassFillColor(section.glassType)}"`),
   'room view must use the selected glass appearance',
 );
 assert.ok(
-  schemeMarkup.includes(`data-glass-fill="${GLASS_FILL_COLORS.clear}"`),
+  schemeMarkup.includes(`data-glass-fill="${diagramGlassFillColor(section.glassType)}"`),
   'top scheme must use the selected glass appearance',
 );
 
@@ -82,11 +87,11 @@ const bronzeSchemeMarkup = renderToStaticMarkup(
   <SlideSchemeSVG section={{ ...section, glassType: '10ММ БРОНЗА В МАССЕ' }} calc={calc} />,
 );
 assert.ok(
-  bronzeRoomMarkup.includes(`data-glass-fill="${GLASS_FILL_COLORS.bronze}"`),
+  bronzeRoomMarkup.includes(`data-glass-fill="${diagramGlassFillColor('10ММ БРОНЗА В МАССЕ')}"`),
   'room view must recolor bronze glass',
 );
 assert.ok(
-  bronzeSchemeMarkup.includes(`data-glass-fill="${GLASS_FILL_COLORS.bronze}"`),
+  bronzeSchemeMarkup.includes(`data-glass-fill="${diagramGlassFillColor('10ММ БРОНЗА В МАССЕ')}"`),
   'top scheme must recolor bronze glass',
 );
 

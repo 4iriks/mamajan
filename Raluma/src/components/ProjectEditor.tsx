@@ -40,6 +40,12 @@ import { EditorSidebar } from './editor/EditorSidebar';
 import { SectionFormWrapper } from './editor/SectionFormWrapper';
 import { buildCustomerOptions, filterCustomerOptions } from '../utils/customers';
 import { defaultGlassType } from '../constants/glass';
+import {
+  isLiftRemoteSection,
+  sharedLiftRemoteCounts,
+  synchronizeLiftRemoteCounts,
+  updateLiftRemoteSections,
+} from './editor/liftRemoteSync';
 
 export type { SystemType };
 export type { Section };
@@ -83,7 +89,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       setPaintShipDate(p.paint_ship_date || '');
       setPaintReceivedDate(p.paint_received_date || '');
       try { setOrderItems(p.order_items ? JSON.parse(p.order_items) : []); } catch { setOrderItems([]); }
-      setSections(p.sections.map(s => apiToLocal(s)));
+      setSections(synchronizeLiftRemoteCounts(p.sections.map(s => apiToLocal(s))));
       setLoadingProject(false);
     }).catch(() => { setLoadingProject(false); onBack(); });
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -231,6 +237,9 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       ...defaultsForSystem(system, opts),
       ...extra,
     };
+    if (isLiftRemoteSection(newSection)) {
+      Object.assign(newSection, sharedLiftRemoteCounts(sections));
+    }
     try {
       const created = await createSection(project.id, localToApi(newSection, sections.length));
       const local = apiToLocal(created);
@@ -251,6 +260,9 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       name: `Секция ${maxNum + 1}`,
       documentOverrides: '{}',
     };
+    if (isLiftRemoteSection(copy)) {
+      Object.assign(copy, sharedLiftRemoteCounts(sections));
+    }
     try {
       const created = await createSection(project.id, localToApi(copy, sections.length));
       const local = apiToLocal(created);
@@ -266,7 +278,9 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const updateActiveSection = (updates: Partial<Section>) => {
     if (!activeSectionId) return;
     setIsDirty(true);
-    setSections(sections.map(s => s.id === activeSectionId ? { ...s, ...updates } : s));
+    setSections(currentSections =>
+      updateLiftRemoteSections(currentSections, activeSectionId, updates),
+    );
   };
 
   const handleSaveSection = async () => {
@@ -275,9 +289,23 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     const sectionId = parseInt(activeSection.id);
     if (isNaN(sectionId)) return;
     setIsSaving(true);
-    const idx = sections.findIndex(s => s.id === activeSectionId);
     try {
-      await updateSection(project.id, sectionId, localToApi(activeSection, idx));
+      const sectionsToSave = isLiftRemoteSection(activeSection)
+        ? sections.filter(isLiftRemoteSection)
+        : [activeSection];
+      const saveRequests = sectionsToSave.flatMap(section => {
+        const savedSectionId = parseInt(section.id);
+        if (isNaN(savedSectionId)) return [];
+        const savedIndex = sections.findIndex(item => item.id === section.id);
+        return [
+          updateSection(
+            project.id,
+            savedSectionId,
+            localToApi(section, savedIndex),
+          ),
+        ];
+      });
+      await Promise.all(saveRequests);
       setIsDirty(false);
       toast.success('Секция сохранена');
     } catch (e: unknown) {
@@ -381,14 +409,36 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
 
     const sectionId = parseInt(activeSection.id);
     if (isNaN(sectionId)) return;
-    const idx = sections.findIndex(s => s.id === activeSectionId);
     const nextSection = applyTemplateDataToSection(activeSection, template.template_data);
+    const nextSections = updateLiftRemoteSections(
+      sections,
+      activeSection.id,
+      nextSection,
+    );
+    const linkedSection = nextSections.find(section => section.id === activeSection.id);
+    if (!linkedSection) return;
+    const sectionsToSave = isLiftRemoteSection(linkedSection)
+      ? nextSections.filter(isLiftRemoteSection)
+      : [linkedSection];
 
     setIsSaving(true);
     try {
-      const saved = await updateSection(project.id, sectionId, localToApi(nextSection, idx));
-      const local = apiToLocal(saved);
-      setSections(prev => prev.map(section => section.id === activeSection.id ? local : section));
+      const savedSections = await Promise.all(sectionsToSave.flatMap(section => {
+        const savedSectionId = parseInt(section.id);
+        if (isNaN(savedSectionId)) return [];
+        const savedIndex = nextSections.findIndex(item => item.id === section.id);
+        return [
+          updateSection(
+            project.id,
+            savedSectionId,
+            localToApi(section, savedIndex),
+          ),
+        ];
+      }));
+      const savedById = new Map(
+        savedSections.map(section => [String(section.id), apiToLocal(section)]),
+      );
+      setSections(nextSections.map(section => savedById.get(section.id) ?? section));
       setIsDirty(false);
       toast.success('Шаблон применен');
     } catch (e: unknown) {

@@ -239,6 +239,10 @@
       {% set hC = (section.center_handle or 'Без ручки (глухие)')|lower %}
       {% set centerDeaf = is2row and ('глух' in hC or hC == '') %}
       {% set centerRS112 = is2row and 'rs112' in hC %}
+      {% set centerKnob = is2row and ('rs3014' in hC or 'кноб' in hC) %}
+      {% set centerGlassHandle = is2row and ('rs3017' in hC or 'стеклян' in hC) %}
+      {% set centerBrace = is2row and ('rs30201' in hC or 'скоб' in hC) %}
+      {% set centerLockText = (section.center_lock or '')|lower %}
       {% set centerLeftIdx = (section.panels // 2) - 1 %}
       {% set centerRightIdx = section.panels // 2 %}
       {% set leftDeaf = ('глух' in hL or hL == 'без') and 'без' in lL and not section.profile_left_handle_bar %}
@@ -266,7 +270,7 @@
         <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rpt }}" height="{{ rfH }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
         <rect x="{{ rfX + rfW - rpt }}" y="{{ rfY }}" width="{{ rpt }}" height="{{ rfH }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
         {# Panels #}
-        {% set room_ns = namespace(x=riX) %}
+        {% set room_ns = namespace(x=riX, centerBoundary=riX + riW / 2) %}
         {% for i in range(section.panels) %}
         {% set panel_w_mm = room_panel_widths[i] if i < room_panel_widths|length else section.width / section.panels %}
         {% set panel_profile_mm = room_glass_profile_lengths[i] if i < room_glass_profile_lengths|length else panel_w_mm %}
@@ -281,6 +285,9 @@
         {% set pnum = i + 1 if is2row else (section.panels - i if room_first_right else i + 1) %}
         {# Deaf panel — X #}
         {% set isCenterPanel = is2row and (i == centerLeftIdx or i == centerRightIdx) %}
+        {% if i == centerLeftIdx %}
+        {% set room_ns.centerBoundary = gpx + rpW %}
+        {% endif %}
         {% set panelDeaf = (i == 0 and leftDeaf) or (i == section.panels - 1 and rightDeaf) or (isCenterPanel and centerDeaf) %}
         {% if isCenterPanel and centerRS112 %}
         {% set rs112w = 2.4 %}
@@ -292,6 +299,18 @@
         <rect data-center-rs112-room="{{ 'left' if i == centerLeftIdx else 'right' }}" data-profile-width-mm="40"
               x="{{ rs112x }}" y="{{ riY }}" width="{{ rs112w }}" height="{{ riH }}"
               fill="#777" fill-opacity="0.24" stroke="#555" stroke-width="0.5"/>
+        {% endif %}
+        {% if isCenterPanel and not centerDeaf and not centerRS112 and (centerKnob or centerGlassHandle or centerBrace) %}
+        {% set centerHandleX = gpx + rpW - 7 if i == centerLeftIdx else gpx + 7 %}
+        <g data-center-handle-room="{{ 'left' if i == centerLeftIdx else 'right' }}">
+          {% if centerKnob %}
+          <circle cx="{{ centerHandleX }}" cy="{{ symY }}" r="3.5" fill="#666" stroke="#000" stroke-width="0.8"/>
+          {% elif centerGlassHandle %}
+          <rect x="{{ centerHandleX - 3 }}" y="{{ symY - 3 }}" width="6" height="6" fill="#666" stroke="#000" stroke-width="0.8"/>
+          {% elif centerBrace %}
+          <line x1="{{ centerHandleX }}" y1="{{ symY - 16 }}" x2="{{ centerHandleX }}" y2="{{ symY + 16 }}" stroke="#000" stroke-width="1.8"/>
+          {% endif %}
+        </g>
         {% endif %}
         {% if panelDeaf %}
         <line x1="{{ gpx + 8 }}" y1="{{ riY + 6 }}" x2="{{ gpx + rpW - 8 }}" y2="{{ riY + riH - 6 }}" stroke="#aaa" stroke-width="0.7"/>
@@ -333,6 +352,14 @@
         {% endif %}
         {% set room_ns.x = room_ns.x + rpW %}
         {% endfor %}
+        {% if is2row and centerLockText and 'без' not in centerLockText %}
+        {% set centerLockBottom = 'rs206' in centerLockText or 'накидн' in centerLockText %}
+        <rect data-center-lock-room="{{ 'RS206' if centerLockBottom else 'center' }}"
+              x="{{ room_ns.centerBoundary - 3.5 }}"
+              y="{{ riY + riH - 5 if centerLockBottom else symY + 9 }}"
+              width="7" height="5" rx="1"
+              fill="#666" stroke="#000" stroke-width="0.6"/>
+        {% endif %}
         {# Handle symbols (on door panel) #}
         {% if 'кноб' in hL or 'rs3014' in hL %}
         <circle cx="{{ handleLX }}" cy="{{ symY }}" r="3.5" fill="#666" stroke="#000" stroke-width="0.8"/>
@@ -388,6 +415,10 @@
       {% set is2row = (section.slide_rows or 1) == 2 %}
       {% set top_center_handle = (section.center_handle or '')|lower %}
       {% set top_center_rs112 = is2row and 'rs112' in top_center_handle %}
+      {% set top_center_knob = is2row and ('rs3014' in top_center_handle or 'кноб' in top_center_handle) %}
+      {% set top_center_glass = is2row and ('rs3017' in top_center_handle or 'стеклян' in top_center_handle) %}
+      {% set top_center_brace = is2row and ('rs30201' in top_center_handle or 'скоб' in top_center_handle) %}
+      {% set top_center_lock = (section.center_lock or '')|lower %}
       {% set first_right = (not is2row) and (section.first_panel_inside or 'Справа') == 'Справа' %}
       {% set top_panel_widths = glass_widths(calc, P, section.width) %}
       {% set top_total_width = top_panel_widths | sum %}
@@ -501,6 +532,19 @@
           <line x1="{{ rs112x }}" y1="{{ cy + 2 }}" x2="{{ rs112_glass_x }}" y2="{{ cy + 2 }}" stroke="#555" stroke-width="0.8"/>
         </g>
         {% endif %}
+        {% if is2row and not top_center_rs112 and (top_center_knob or top_center_glass or top_center_brace) and (pi == (P // 2) - 1 or pi == P // 2) %}
+        {% set center_side = 'left' if pi == (P // 2) - 1 else 'right' %}
+        {% set center_marker_x = gx2 - 5 if center_side == 'left' else gx1 + 5 %}
+        <g data-center-handle-top="{{ center_side }}">
+          {% if top_center_knob %}
+          <circle cx="{{ center_marker_x }}" cy="{{ cy }}" r="2.5" fill="#666" stroke="#000" stroke-width="0.6"/>
+          {% elif top_center_glass %}
+          <rect x="{{ center_marker_x - 2.3 }}" y="{{ cy - 2.3 }}" width="4.6" height="4.6" fill="#666" stroke="#000" stroke-width="0.6"/>
+          {% elif top_center_brace %}
+          <line x1="{{ center_marker_x }}" y1="{{ cy - 6 }}" x2="{{ center_marker_x }}" y2="{{ cy + 6 }}" stroke="#000" stroke-width="1.4"/>
+          {% endif %}
+        </g>
+        {% endif %}
         {% set is_center_join = is2row and pi == (P // 2) - 1 %}
         {% if has_inter_glass and pi < P - 1 and not is_center_join %}
         {% set ix = px + panel_w %}
@@ -514,6 +558,13 @@
         {% endif %}
         {% set top_ns.x = top_ns.x + panel_w %}
         {% endfor %}
+        {% if is2row and top_center_lock and 'без' not in top_center_lock %}
+        {% set top_lock_bottom = 'rs206' in top_center_lock or 'накидн' in top_center_lock %}
+        <rect data-center-lock-top="{{ 'RS206' if top_lock_bottom else 'center' }}"
+              x="{{ left_w + rail_w / 2 - 3 }}"
+              y="{{ top_pad + rails * row_h - 4 if top_lock_bottom else top_pad + rails * row_h / 2 + 5 }}"
+              width="6" height="4" rx="0.8" fill="#666" stroke="#000" stroke-width="0.5"/>
+        {% endif %}
 
         {% if left_side_image %}
         {% set left_side_rail = calc.panel_rails[0] if calc.panel_rails|length > 0 else 0 %}

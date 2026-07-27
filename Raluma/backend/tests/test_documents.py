@@ -543,6 +543,10 @@ class TestLocalPreview:
         assert 'data-profile="inter-glass" data-panel="2" data-dir="1"' in r.text
         assert 'data-profile="inter-glass" data-panel="3" data-dir="-1"' in r.text
         assert r.text.count('data-profile="inter-glass"') == 2
+        assert r.text.count('data-center-handle-room=') == 2
+        assert r.text.count('data-center-handle-top=') == 2
+        assert 'data-center-lock-room="center"' in r.text
+        assert 'data-center-lock-top="center"' in r.text
 
     def test_local_preview_two_rows_matches_movement_and_center_rs112(self, client):
         r = client.post(
