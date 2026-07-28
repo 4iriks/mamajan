@@ -275,9 +275,9 @@ export function LiftKinematicSVG({ section }: { section: Section }) {
   const topProfile = profileAsset(isIgu ? 'RL123.png' : 'RL113.png');
   const bottomProfile = profileAsset(isIgu ? 'RL122.png' : 'RL112.png');
   const pairHeight = 90;
-  const stepX = 88;
+  const stepX = 60;
   const stepY = 88;
-  const originX = 190;
+  const originX = (760 - (panels - 1) * stepX) / 2;
   const originY = (500 - (pairHeight + (panels - 1) * stepY)) / 2;
 
   return (
