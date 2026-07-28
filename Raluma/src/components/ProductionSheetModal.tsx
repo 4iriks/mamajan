@@ -1,7 +1,21 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, RotateCcw, Download, Loader2 } from 'lucide-react';
-import { getPreviewUrl, getLocalPreviewHtml, saveDocumentOverrides, downloadPdf } from '../api/projects';
+import {
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Loader2,
+  RotateCcw,
+  Save,
+  X,
+} from 'lucide-react';
+import {
+  downloadSectionDocument,
+  getLocalPreviewHtml,
+  getPreviewUrl,
+  saveDocumentOverrides,
+} from '../api/projects';
+import type { DocumentFileFormat } from '../api/projects';
 import { toast } from '../store/toastStore';
 
 interface Props {
@@ -19,7 +33,7 @@ export default function ProductionSheetModal({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadingFormat, setDownloadingFormat] = useState<DocumentFileFormat | null>(null);
   const [iframeHeight, setIframeHeight] = useState(600);
   const [previewSrcDoc, setPreviewSrcDoc] = useState('');
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -78,19 +92,21 @@ export default function ProductionSheetModal({
     return changed;
   }, []);
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     const changes = collectChanges();
     if (Object.keys(changes).length === 0) {
       setIsDirty(false);
-      return;
+      return true;
     }
     setIsSaving(true);
     try {
       await saveDocumentOverrides(projectId, sectionId, changes);
       setIsDirty(false);
       toast.success('Правки сохранены');
+      return true;
     } catch {
       toast.error('Ошибка сохранения');
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -105,15 +121,19 @@ export default function ProductionSheetModal({
     setIsDirty(false);
   };
 
-  const handleDownload = async () => {
-    setIsDownloading(true);
+  const handleDownload = async (format: DocumentFileFormat) => {
+    setDownloadingFormat(format);
     try {
-      const filename = `ПЛ_${projectNumber}_сек${sectionOrder}.pdf`;
-      await downloadPdf(projectId, sectionId, filename);
+      if (isDirty) {
+        const saved = await handleSave();
+        if (!saved) return;
+      }
+      const filename = `ПЛ_${projectNumber}_сек${sectionOrder}.${format}`;
+      await downloadSectionDocument(projectId, sectionId, format, filename);
     } catch {
-      toast.error('Ошибка генерации PDF');
+      toast.error(`Ошибка генерации ${format.toUpperCase()}`);
     } finally {
-      setIsDownloading(false);
+      setDownloadingFormat(null);
     }
   };
 
@@ -193,14 +213,25 @@ export default function ProductionSheetModal({
                   Отменить
                 </button>
               </div>
-              <button
-                onClick={handleDownload}
-                disabled={isDownloading}
-                className="flex items-center gap-2 px-5 py-2 rounded-xl bg-accent/15 hover:bg-accent/25 text-accent border border-accent/30 font-bold transition-all disabled:opacity-50 text-sm"
-              >
-                {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                Скачать PDF
-              </button>
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                {([
+                  ['pdf', 'PDF', Download],
+                  ['docx', 'Word', FileText],
+                  ['xlsx', 'Excel', FileSpreadsheet],
+                ] as const).map(([format, label, Icon]) => (
+                  <button
+                    key={format}
+                    onClick={() => handleDownload(format)}
+                    disabled={downloadingFormat !== null}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent/15 hover:bg-accent/25 text-accent border border-accent/30 font-bold transition-all disabled:opacity-50 text-sm"
+                  >
+                    {downloadingFormat === format
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : <Icon className="w-4 h-4" />}
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
           </motion.div>
         </div>

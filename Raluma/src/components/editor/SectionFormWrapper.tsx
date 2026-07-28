@@ -75,7 +75,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
   }, [isDirty]);
 
   useEffect(() => {
-    if (section.system !== 'СЛАЙД') {
+    if (section.system !== 'СЛАЙД' && section.system !== 'ЛИФТ') {
       setSlideCalc(null);
       return;
     }
@@ -190,6 +190,15 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
                   <div className="mt-3">
                     <LiftSystemTab s={section} update={onUpdate} />
                   </div>
+                  {slideCalc?.torque?.warning && (
+                    <div
+                      data-lift-torque-warning
+                      className="mt-3 flex gap-2 rounded-xl border border-red-400/45 bg-red-500/12 px-4 py-3 text-sm font-bold text-red-200"
+                    >
+                      <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                      <span>{slideCalc.torque.warning}</span>
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -159,6 +159,7 @@ _DATA_MIGRATIONS = [
     "UPDATE sections SET inter_glass_profile = 'Алюминиевый RS2061' WHERE system = 'СЛАЙД' AND inter_glass_profile IS NULL",
     "UPDATE catalog_items SET paint_mode = 'Частично', note = 'В заявке на покраску отмечать область, которую не красить' WHERE sku IN ('RS2323', 'RS2325')",
     "UPDATE catalog_items SET paint_mode = 'Частично', note = 'Накладной порог, верхние бобышки не красить' WHERE sku IN ('RS23231', 'RS23251')",
+    "UPDATE catalog_items SET paint_mode = 'Частично', color_variants = '[\"Анод\", \"RAL стандарт\", \"RAL нестандарт\"]', note = 'W - 155 красится; W - 62 не красится по исходным Excel ЛИФТ' WHERE sku = 'RL104' AND system = 'ЛИФТ'",
     "UPDATE catalog_items SET image_file = 'RS1313.png' WHERE sku = 'RS1313'",
     "UPDATE catalog_items SET image_file = 'RS1315.png' WHERE sku = 'RS1315'",
     "UPDATE catalog_items SET image_file = 'RS2323.png' WHERE sku = 'RS2323'",

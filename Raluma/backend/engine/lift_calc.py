@@ -14,6 +14,7 @@ from engine.lift_config import LIFT_SPLIT_OPENING, lift_filling_text
 
 GLASS_PANEL_KIND = "glass"
 IGU_PANEL_KIND = "igu"
+PENOPLEX_20MM = "ПЕНОПЛЕКС 20 ММ"
 
 
 @dataclass
@@ -198,11 +199,16 @@ def _build_panels(
     for index, role in enumerate(roles):
         panel_width = special_width if index == special_index else base_width
         panel_height = special_height if index == special_index else base_height
+        panel_filling = (
+            PENOPLEX_20MM
+            if panels == 2 and is_igu and role == "Глухая"
+            else filling
+        )
         result.append(
             LiftPanelItem(
                 panel=index + 1,
                 role=role,
-                filling=filling,
+                filling=panel_filling,
                 width_mm=panel_width,
                 height_mm=panel_height,
                 qty=quantity,
@@ -468,8 +474,9 @@ def _calculate_torque(
     largest = max(panels, key=lambda panel: panel.glued_width_mm * panel.glued_height_mm)
     thickness = 12 if is_igu else 8
     area_m2 = largest.glued_width_mm * largest.glued_height_mm / 1_000_000
-    weight = _ceil_tenth(area_m2 * moving_panels * thickness * 2.5 * 1.1)
-    torque = _ceil_tenth(weight * 9.81 * 51 / 1000)
+    raw_weight = area_m2 * moving_panels * thickness * 2.5 * 1.1
+    weight = _ceil_tenth(raw_weight)
+    torque = _ceil_tenth(raw_weight * 9.81 * 51 / 1000)
     drive_count = 1 if torque <= 80 else 2
     warning = ""
     if torque > 160:
@@ -701,3 +708,35 @@ def calculate_lift(section: object) -> LiftCalcResult:
         result.warnings.append(result.torque.warning)
     _add_lift_hardware(result, section, is_igu=is_igu)
     return result
+
+
+def lift_geometry_error(section: object) -> str:
+    """Return a validation error when LIFT formulas produce invalid dimensions."""
+    result = calculate_lift(section)
+    invalid_panels = [
+        panel.panel
+        for panel in result.panels
+        if min(
+            panel.width_mm,
+            panel.height_mm,
+            panel.glued_width_mm,
+            panel.glued_height_mm,
+        )
+        <= 0
+    ]
+    if invalid_panels:
+        numbers = ", ".join(str(number) for number in invalid_panels)
+        return (
+            "Размеры секции ЛИФТ слишком малы: "
+            f"получены недопустимые размеры панелей {numbers}"
+        )
+
+    profile_errors = [
+        warning
+        for warning in result.warnings
+        if "расчетная длина" in warning.lower()
+        and "недопустима" in warning.lower()
+    ]
+    if profile_errors:
+        return "Размеры секции ЛИФТ слишком малы: " + "; ".join(profile_errors)
+    return ""

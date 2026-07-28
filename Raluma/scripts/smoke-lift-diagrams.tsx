@@ -128,7 +128,9 @@ assert.equal((kinematicMarkup.match(/data-profile-orientation="vertical"/g) ?? [
 assert.equal((kinematicMarkup.match(/data-profile-position="top"/g) ?? []).length, 4);
 assert.equal((kinematicMarkup.match(/data-profile-position="bottom"/g) ?? []).length, 4);
 assert.equal((kinematicMarkup.match(/data-lift-panel-glass=/g) ?? []).length, 4);
-assert.match(kinematicMarkup, /RL123\.png/);
+assert.match(kinematicMarkup, /RL113\.png/);
+assert.match(kinematicMarkup, /RL112\.png/);
+assert.doesNotMatch(kinematicMarkup, /RL123\.png|RL122\.png/);
 
 assert.deepEqual(liftOpeningOptions(2), ['Сдвиг вниз', 'Сдвиг вверх']);
 assert.deepEqual(liftOpeningOptions(3), ['Сдвиг вниз', 'Сдвиг вверх']);

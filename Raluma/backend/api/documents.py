@@ -22,6 +22,9 @@ import models
 import schemas
 from auth import get_current_user, decode_token
 from engine.lift_calc import calculate_lift
+from engine.office_common import normalize_filename
+from engine.office_docx import build_project_docx, build_section_docx
+from engine.office_xlsx import build_project_xlsx, build_section_xlsx
 from engine.slide_calc import calculate_slide
 from engine.pdf import append_pdf_drawings, render_preview, render_pdf_html, generate_pdf
 from engine.project_documents import DOC_TITLES, render_project_document_html
@@ -30,6 +33,11 @@ router = APIRouter(prefix="/api/projects", tags=["documents"])
 
 ADMIN_ROLES = ("admin", "superadmin")
 PRODUCTION_SHEET_SYSTEMS = {"СЛАЙД", "ЛИФТ"}
+OFFICE_PROJECT_DOCUMENTS = {"glass", "paint"}
+OFFICE_MEDIA_TYPES = {
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
 
 
 def _calculate_section(section):
@@ -156,6 +164,49 @@ def _validate_project_doc_type(doc_type: str) -> str:
     return doc_type
 
 
+def _validate_office_project_doc_type(doc_type: str) -> str:
+    _validate_project_doc_type(doc_type)
+    if doc_type not in OFFICE_PROJECT_DOCUMENTS:
+        raise HTTPException(
+            status_code=400,
+            detail="Word и Excel доступны для заказа стекла и заявки на покраску",
+        )
+    return doc_type
+
+
+def _office_response(content: bytes, filename: str, file_format: str):
+    from urllib.parse import quote
+
+    encoded = quote(normalize_filename(filename))
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type=OFFICE_MEDIA_TYPES[file_format],
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"},
+    )
+
+
+def _build_section_office(
+    project: object,
+    section: object,
+    file_format: str,
+) -> bytes:
+    calc = _calculate_section(section)
+    if file_format == "docx":
+        return build_section_docx(project, section, calc)
+    return build_section_xlsx(project, section, calc)
+
+
+def _build_project_office(
+    project: object,
+    sections,
+    doc_type: str,
+    file_format: str,
+) -> bytes:
+    if file_format == "docx":
+        return build_project_docx(project, sections, doc_type)
+    return build_project_xlsx(project, sections, doc_type)
+
+
 def _drawing_files_for_sections(sections) -> list[str]:
     files: list[str] = []
     for section in sections:
@@ -217,6 +268,26 @@ def download_local_pdf(payload: LocalDocumentPayload):
     )
 
 
+def _download_local_section_office(
+    payload: LocalDocumentPayload,
+    file_format: str,
+):
+    project, section = _build_local_document_objects(payload)
+    content = _build_section_office(project, section, file_format)
+    filename = f"ПЛ_{project.number}_{section.name}.{file_format}"
+    return _office_response(content, filename, file_format)
+
+
+@router.post("/local/sections/docx")
+def download_local_section_docx(payload: LocalDocumentPayload):
+    return _download_local_section_office(payload, "docx")
+
+
+@router.post("/local/sections/xlsx")
+def download_local_section_xlsx(payload: LocalDocumentPayload):
+    return _download_local_section_office(payload, "xlsx")
+
+
 @router.post("/local/documents/{doc_type}/pdf")
 def download_local_project_document_pdf(
     doc_type: str,
@@ -237,6 +308,39 @@ def download_local_project_document_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"},
     )
+
+
+def _download_local_project_office(
+    doc_type: str,
+    payload: LocalProjectDocumentPayload,
+    file_format: str,
+):
+    doc_type = _validate_office_project_doc_type(doc_type)
+    project, sections = _build_local_project_document_objects(payload)
+    content = _build_project_office(
+        project,
+        sections,
+        doc_type,
+        file_format,
+    )
+    filename = f"{DOC_TITLES[doc_type]}_{project.number}.{file_format}"
+    return _office_response(content, filename, file_format)
+
+
+@router.post("/local/documents/{doc_type}/docx")
+def download_local_project_document_docx(
+    doc_type: str,
+    payload: LocalProjectDocumentPayload,
+):
+    return _download_local_project_office(doc_type, payload, "docx")
+
+
+@router.post("/local/documents/{doc_type}/xlsx")
+def download_local_project_document_xlsx(
+    doc_type: str,
+    payload: LocalProjectDocumentPayload,
+):
+    return _download_local_project_office(doc_type, payload, "xlsx")
 
 
 @router.get("/{project_id}/documents/{doc_type}/preview", response_class=HTMLResponse)
@@ -274,6 +378,57 @@ def download_project_document_pdf(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"},
+    )
+
+
+def _download_project_office(
+    project_id: int,
+    doc_type: str,
+    file_format: str,
+    db: Session,
+    current_user: models.User,
+):
+    doc_type = _validate_office_project_doc_type(doc_type)
+    project = _get_project_or_404(project_id, db, current_user)
+    content = _build_project_office(
+        project,
+        project.sections,
+        doc_type,
+        file_format,
+    )
+    filename = f"{DOC_TITLES[doc_type]}_{project.number}.{file_format}"
+    return _office_response(content, filename, file_format)
+
+
+@router.get("/{project_id}/documents/{doc_type}/docx")
+def download_project_document_docx(
+    project_id: int,
+    doc_type: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return _download_project_office(
+        project_id,
+        doc_type,
+        "docx",
+        db,
+        current_user,
+    )
+
+
+@router.get("/{project_id}/documents/{doc_type}/xlsx")
+def download_project_document_xlsx(
+    project_id: int,
+    doc_type: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return _download_project_office(
+        project_id,
+        doc_type,
+        "xlsx",
+        db,
+        current_user,
     )
 
 
@@ -315,6 +470,57 @@ def download_pdf(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"},
+    )
+
+
+def _download_section_office(
+    project_id: int,
+    section_id: int,
+    file_format: str,
+    db: Session,
+    current_user: models.User,
+):
+    project, section = _get_section_or_404(
+        project_id,
+        section_id,
+        db,
+        current_user,
+    )
+    content = _build_section_office(project, section, file_format)
+    section_number = getattr(section, "order", None) or getattr(section, "name", "")
+    filename = f"ПЛ_{project.number}_сек{section_number}.{file_format}"
+    return _office_response(content, filename, file_format)
+
+
+@router.get("/{project_id}/sections/{section_id}/docx")
+def download_section_docx(
+    project_id: int,
+    section_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return _download_section_office(
+        project_id,
+        section_id,
+        "docx",
+        db,
+        current_user,
+    )
+
+
+@router.get("/{project_id}/sections/{section_id}/xlsx")
+def download_section_xlsx(
+    project_id: int,
+    section_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return _download_section_office(
+        project_id,
+        section_id,
+        "xlsx",
+        db,
+        current_user,
     )
 
 

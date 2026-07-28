@@ -6,6 +6,7 @@ PDF-генерацию проверяем только если установл
 import io
 import json
 import re
+import zipfile
 from types import SimpleNamespace
 
 import pytest
@@ -1209,6 +1210,30 @@ class TestLocalPreview:
         assert threshold["section_width_mm"] == 76
         assert threshold["paint_note"] == "НЕ КРАСИТЬ!!!"
 
+    def test_local_lift_calc_returns_torque_warning_for_section_form(self, client):
+        r = client.post(
+            "/api/projects/local/sections/calc",
+            json={
+                "project": {"number": "LOCAL-LIFT-WARNING"},
+                "section": {
+                    "name": "Секция 1",
+                    "system": "ЛИФТ",
+                    "width": 5000,
+                    "height": 5000,
+                    "panels": 4,
+                    "quantity": 1,
+                    "lift_filling_type": "СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)",
+                    "lift_opening_type": "Сдвиг вниз",
+                },
+            },
+        )
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["torque"]["torque_nm"] > 160
+        assert data["torque"]["warning"]
+        assert data["torque"]["warning"] in data["warnings"]
+
 
 class TestProjectDocuments:
     def test_project_commercial_preview_returns_readonly_html(
@@ -1437,6 +1462,10 @@ class TestProjectDocuments:
         assert r.text.count('data-profile-orientation="vertical"') == 8
         assert r.text.count('data-profile-position="top"') == 4
         assert r.text.count('data-profile-position="bottom"') == 4
+        assert r.text.count('data-profile-article="RL113"') == 12
+        assert r.text.count('data-profile-article="RL112"') == 12
+        assert 'data-profile-article="RL123"' not in r.text
+        assert 'data-profile-article="RL122"' not in r.text
         assert r.text.count("data-lift-panel-glass=") == 4
         assert 'data-field="lift_profile_1_length"' in r.text
         assert 'data-field="lift_hardware_1_value"' in r.text
@@ -1586,6 +1615,159 @@ class TestProjectDocuments:
         assert r.content.startswith(b"%PDF")
 
 
+class TestOfficeDownloads:
+    @staticmethod
+    def _archive_text(content: bytes) -> str:
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            return "\n".join(
+                archive.read(name).decode("utf-8", errors="ignore")
+                for name in archive.namelist()
+                if name.endswith(".xml")
+            )
+
+    @pytest.mark.parametrize(
+        ("system", "file_format", "expected_text"),
+        [
+            ("СЛАЙД", "docx", "RS1315"),
+            ("СЛАЙД", "xlsx", "RS1315"),
+            ("ЛИФТ", "docx", "RL101"),
+            ("ЛИФТ", "xlsx", "RL101"),
+        ],
+    )
+    def test_local_section_office_downloads(
+        self, client, system, file_format, expected_text
+    ):
+        section = {
+            "name": "Секция 1",
+            "system": system,
+            "width": 3043,
+            "height": 3300,
+            "panels": 4,
+            "quantity": 1,
+            "painting_type": "RAL стандарт",
+            "ral_color": "7016 МУАР",
+        }
+        if system == "СЛАЙД":
+            section.update(
+                {
+                    "rails": 5,
+                    "threshold": "Стандартный анод",
+                    "first_panel_inside": "Справа",
+                }
+            )
+        else:
+            section.update(
+                {
+                    "lift_filling_type": "СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
+                    "lift_control_type": "Пульт ДУ",
+                    "lift_remote_1ch_qty": 2,
+                    "lift_remote_6ch_qty": 1,
+                    "lift_cable_side": "Слева",
+                    "lift_opening_type": "Сдвиг вниз",
+                }
+            )
+
+        response = client.post(
+            f"/api/projects/local/sections/{file_format}",
+            json={
+                "project": {"number": "OFFICE-SECTION", "customer": "Тест"},
+                "section": section,
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.content.startswith(b"PK")
+        assert expected_text in self._archive_text(response.content)
+        assert "attachment;" in response.headers["content-disposition"]
+
+    @pytest.mark.parametrize("file_format", ["docx", "xlsx"])
+    def test_local_glass_office_download_contains_project_rows(
+        self, client, file_format
+    ):
+        response = client.post(
+            f"/api/projects/local/documents/glass/{file_format}",
+            json={
+                "project": {"number": "OFFICE-GLASS", "customer": "Заказчик"},
+                "sections": [
+                    {
+                        "name": "Секция 1",
+                        "system": "СЛАЙД",
+                        "width": 2000,
+                        "height": 2400,
+                        "panels": 3,
+                        "quantity": 1,
+                        "rails": 3,
+                        "threshold": "Стандартный анод",
+                        "first_panel_inside": "Справа",
+                    }
+                ],
+            },
+        )
+
+        assert response.status_code == 200
+        archive_text = self._archive_text(response.content)
+        assert "OFFICE-GLASS" in archive_text
+        assert "1,1" in archive_text
+
+    @pytest.mark.parametrize("file_format", ["docx", "xlsx"])
+    def test_local_paint_office_download_keeps_manual_rows(
+        self, client, file_format
+    ):
+        response = client.post(
+            f"/api/projects/local/documents/paint/{file_format}",
+            json={
+                "project": {
+                    "number": "OFFICE-PAINT",
+                    "customer": "Заказчик",
+                    "paint_manual_rows": json.dumps(
+                        [
+                            {
+                                "color": "RAL 7016",
+                                "article": "MAN-OFFICE",
+                                "name": "Ручная позиция",
+                                "qty": 2,
+                                "clean": 1450,
+                                "allowance": 1500,
+                                "totalM": 3.0,
+                            }
+                        ],
+                        ensure_ascii=False,
+                    ),
+                },
+                "sections": [
+                    {
+                        "name": "Секция 1",
+                        "system": "СЛАЙД",
+                        "width": 2000,
+                        "height": 2400,
+                        "panels": 3,
+                        "quantity": 1,
+                        "rails": 3,
+                        "threshold": "Стандартный анод",
+                        "painting_type": "Анодированный",
+                        "first_panel_inside": "Справа",
+                    }
+                ],
+            },
+        )
+
+        assert response.status_code == 200
+        archive_text = self._archive_text(response.content)
+        assert "MAN-OFFICE" in archive_text
+        assert "Ручная позиция" in archive_text
+
+    @pytest.mark.parametrize("file_format", ["docx", "xlsx"])
+    def test_local_unsupported_project_office_download_is_rejected(
+        self, client, file_format
+    ):
+        response = client.post(
+            f"/api/projects/local/documents/commercial/{file_format}",
+            json={"project": {"number": "OFFICE"}, "sections": []},
+        )
+
+        assert response.status_code == 400
+
+
 class TestProjectPaintOrder:
     def test_clean_size_rounds_up_to_50_mm_step(self):
         section = SimpleNamespace()
@@ -1733,6 +1915,45 @@ class TestProjectPaintOrder:
         assert page["total_qty"] == 3
         assert page["total_m"] == 3.6
 
+    def test_manual_paint_color_with_ral_prefix_joins_calculated_page(self):
+        section = SimpleNamespace()
+        calc = SimpleNamespace(
+            color_text="9003 ГЛЯНЦЕВЫЙ",
+            profiles=[
+                SimpleNamespace(
+                    article="RS2021",
+                    name="Стекольный профиль",
+                    length_mm=1000,
+                    qty=1,
+                    painted=True,
+                    image="RS2021.png",
+                    paint_note="",
+                    paint_mode="Красится",
+                )
+            ],
+        )
+
+        pages = _build_paint_pages(
+            [CalculatedSection(order=1, section=section, calc=calc)],
+            [
+                {
+                    "color": "RAL 9003 ГЛЯНЦЕВЫЙ",
+                    "article": "MAN-9003",
+                    "name": "Ручная позиция",
+                    "qty": 1,
+                    "clean": 500,
+                    "allowance": 550,
+                }
+            ],
+        )
+
+        assert len(pages) == 1
+        assert pages[0]["color"] == "9003 ГЛЯНЦЕВЫЙ"
+        assert [row["article"] for row in pages[0]["rows"]] == [
+            "RS2021",
+            "MAN-9003",
+        ]
+
     def test_thresholds_use_dedicated_paint_request_images(self):
         section = SimpleNamespace()
         calc = SimpleNamespace(
@@ -1854,6 +2075,33 @@ class TestProjectGlassOrder:
             row["glass_type"] == "СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
             for row in rows
         )
+
+    def test_two_panel_lift_igu_orders_only_glass_and_keeps_project_section_number(
+        self,
+    ):
+        project = SimpleNamespace(number="LIFT-IGU")
+        book = SimpleNamespace(name="Секция 1", order=1, system="КНИЖКА")
+        lift = _delivery_section(
+            name="Секция 2",
+            order=2,
+            system="ЛИФТ",
+            width=2600,
+            height=2750,
+            panels=2,
+            quantity=1,
+            lift_filling_type="СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)",
+            lift_opening_type="Сдвиг вниз",
+        )
+
+        rows = _build_glass_rows(
+            project,
+            _iter_calculated_sections([lift, book]),
+        )
+
+        assert [(row["glass_type"], row["qty"]) for row in rows] == [
+            ("СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)", 1)
+        ]
+        assert rows[0]["marking"] == "2,1"
 
     def test_slide_sections_sort_by_visible_section_number(self):
         def section(name: str, order: int):
@@ -2178,6 +2426,34 @@ class TestDeliveryNote:
             for group in glass_rows
             for item in group["rows"]
         )
+
+    def test_two_panel_lift_igu_delivery_separates_penoplex(self):
+        project = self.project(
+            delivery_note_data=json.dumps(
+                {"includeGlass": True, "places": {}}, ensure_ascii=False
+            )
+        )
+        sections = [
+            _delivery_section(
+                system="ЛИФТ",
+                width=2600,
+                height=2750,
+                panels=2,
+                quantity=2,
+                lift_filling_type="СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)",
+            )
+        ]
+
+        context = _build_delivery_context(project, sections)
+        rows = {
+            row["glass_type"]: row
+            for row in context["delivery_item1_rows"]
+            if row["kind"] == "glass"
+        }
+
+        assert rows["СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)"]["qty"] == 2
+        assert rows["ПЕНОПЛЕКС 20 ММ"]["qty"] == 2
+        assert rows["ПЕНОПЛЕКС 20 ММ"]["name"].startswith("ПАНЕЛИ ПЕНОПЛЕКС")
 
     def test_lift_delivery_lists_project_remotes_once_and_buttons_per_section(self):
         sections = [

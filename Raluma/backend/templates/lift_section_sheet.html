@@ -367,8 +367,9 @@
 
     <div class="diagram-card">
       <div class="diagram-title">Кинематическая схема</div>
-      {% set kinetic_top = 'RL123.png' if calc.filling_kind == 'igu' else 'RL113.png' %}
-      {% set kinetic_bottom = 'RL122.png' if calc.filling_kind == 'igu' else 'RL112.png' %}
+      {% set uses_glass_profile_family = calc.filling_kind != 'igu' or section.panels == 4 %}
+      {% set kinetic_top = 'RL113.png' if uses_glass_profile_family else 'RL123.png' %}
+      {% set kinetic_bottom = 'RL112.png' if uses_glass_profile_family else 'RL122.png' %}
       <svg class="side-svg" viewBox="0 0 300 330" role="img" data-lift-kinematic="image-built">
         <defs>
           <marker id="lift-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
@@ -393,12 +394,14 @@
                  width="48" height="18"
                  preserveAspectRatio="xMidYMid meet"
                  transform="rotate(-90 {{ center_x }} {{ top_y }})"
-                 data-profile-orientation="vertical" data-profile-position="top" />
+                 data-profile-orientation="vertical" data-profile-position="top"
+                 data-profile-article="{{ kinetic_top[:-4] }}" />
           <image href="{{ kinetic_bottom|img_b64 }}" x="{{ center_x - 24 }}" y="{{ bottom_y - 9 }}"
                  width="48" height="18"
                  preserveAspectRatio="xMidYMid meet"
                  transform="rotate(90 {{ center_x }} {{ bottom_y }})"
-                 data-profile-orientation="vertical" data-profile-position="bottom" />
+                 data-profile-orientation="vertical" data-profile-position="bottom"
+                 data-profile-article="{{ kinetic_bottom[:-4] }}" />
           <text x="{{ center_x + 24 }}" y="{{ (top_y + bottom_y) / 2 + 4 }}"
                 font-size="12" font-weight="800">{{ panel.panel }}</text>
         {% endfor %}
@@ -411,14 +414,14 @@
   <div class="assembly">
     <div class="diagram-title">Панели при склейке</div>
     <div class="assembly-grid">
-      {% set top_image = 'RL123.png' if calc.filling_kind == 'igu' else 'RL113.png' %}
-      {% set side_image = 'RL122.png' if calc.filling_kind == 'igu' else 'RL112.png' %}
+      {% set top_image = 'RL113.png' if uses_glass_profile_family else 'RL123.png' %}
+      {% set side_image = 'RL112.png' if uses_glass_profile_family else 'RL122.png' %}
       {% for panel in calc.panels %}
       <div class="assembly-panel">
-        <img class="top-profile" src="{{ top_image|img_b64 }}" alt="">
-        <img class="bottom-profile" src="{{ top_image|img_b64 }}" alt="">
-        <img class="side-profile left" src="{{ side_image|img_b64 }}" alt="">
-        <img class="side-profile right" src="{{ side_image|img_b64 }}" alt="">
+        <img class="top-profile" src="{{ top_image|img_b64 }}" alt="" data-profile-article="{{ top_image[:-4] }}">
+        <img class="bottom-profile" src="{{ top_image|img_b64 }}" alt="" data-profile-article="{{ top_image[:-4] }}">
+        <img class="side-profile left" src="{{ side_image|img_b64 }}" alt="" data-profile-article="{{ side_image[:-4] }}">
+        <img class="side-profile right" src="{{ side_image|img_b64 }}" alt="" data-profile-article="{{ side_image[:-4] }}">
         <div class="fill"></div>
         <div class="panel-no">{{ panel.panel }}</div>
         <div class="panel-size">

@@ -1,10 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, Loader2, Plus, Save, Trash2, Upload, X } from 'lucide-react';
+import {
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Loader2,
+  Plus,
+  Save,
+  Trash2,
+  Upload,
+  X,
+} from 'lucide-react';
 import { listHardwareCatalogOptions } from '../api/catalog';
 import type { HardwareCatalogOption } from '../api/catalog';
 import {
-  downloadProjectDocumentPdf,
+  downloadProjectDocument,
   getProject,
   getLocalProjectDocumentPreviewHtml,
   getProjectDocumentPreviewUrl,
@@ -12,7 +22,7 @@ import {
   ProjectDocumentType,
   updateProject,
 } from '../api/projects';
-import type { SectionOut } from '../api/projects';
+import type { DocumentFileFormat, SectionOut } from '../api/projects';
 import { toast } from '../store/toastStore';
 
 interface Props {
@@ -127,7 +137,7 @@ export default function ProjectDocumentModal({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [previewSrcDoc, setPreviewSrcDoc] = useState('');
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadingFormat, setDownloadingFormat] = useState<DocumentFileFormat | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [previewVersion, setPreviewVersion] = useState(0);
   const [paintRows, setPaintRows] = useState<PaintManualRow[]>([]);
@@ -355,8 +365,8 @@ export default function ProjectDocumentModal({
     }
   };
 
-  const handleDownload = async () => {
-    setIsDownloading(true);
+  const handleDownload = async (format: DocumentFileFormat) => {
+    setDownloadingFormat(format);
     try {
       if (isPaintDocument) {
         const saved = await savePaintRows();
@@ -367,12 +377,18 @@ export default function ProjectDocumentModal({
         if (!saved) return;
       }
       const changes = collectChanges();
-      await downloadProjectDocumentPdf(projectId, docType, `${title}_${projectNumber}.pdf`, changes);
+      await downloadProjectDocument(
+        projectId,
+        docType,
+        format,
+        `${title}_${projectNumber}.${format}`,
+        changes,
+      );
       setIsDirty(false);
     } catch {
-      toast.error('Ошибка генерации PDF');
+      toast.error(`Ошибка генерации ${format.toUpperCase()}`);
     } finally {
-      setIsDownloading(false);
+      setDownloadingFormat(null);
     }
   };
 
@@ -404,7 +420,7 @@ export default function ProjectDocumentModal({
                 <h2 className="text-lg font-bold">{title}</h2>
                 <p className="text-xs text-fg/40 mt-0.5">
                   {projectNumber}
-                  {isDirty && <span className="ml-2 text-yellow-400">● правки попадут в PDF</span>}
+                  {isDirty && <span className="ml-2 text-yellow-400">● правки попадут в документ</span>}
                 </p>
               </div>
               <button onClick={handleClose} className="text-fg/20 hover:text-fg transition-colors ml-4">
@@ -417,7 +433,7 @@ export default function ProjectDocumentModal({
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="text-xs font-bold uppercase tracking-widest text-fg/45">Ручные строки покраски</div>
-                    <div className="text-[11px] text-fg/35 mt-1">Добавляются в PDF вместе с расчетными строками</div>
+                    <div className="text-[11px] text-fg/35 mt-1">Добавляются в документы вместе с расчетными строками</div>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -626,14 +642,29 @@ export default function ProjectDocumentModal({
             </div>
 
             <div className="px-5 py-4 sm:px-8 sm:py-5 bg-page border-t border-tint/20 flex items-center justify-end flex-shrink-0">
-              <button
-                onClick={handleDownload}
-                disabled={isDownloading}
-                className="flex items-center gap-2 px-5 py-2 rounded-xl bg-accent/15 hover:bg-accent/25 text-accent border border-accent/30 font-bold transition-all disabled:opacity-50 text-sm"
-              >
-                {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                Скачать PDF
-              </button>
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                {([
+                  ['pdf', 'PDF', Download],
+                  ...(isPaintDocument || docType === 'glass'
+                    ? [
+                      ['docx', 'Word', FileText],
+                      ['xlsx', 'Excel', FileSpreadsheet],
+                    ] as const
+                    : []),
+                ] as const).map(([format, label, Icon]) => (
+                  <button
+                    key={format}
+                    onClick={() => handleDownload(format)}
+                    disabled={downloadingFormat !== null}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent/15 hover:bg-accent/25 text-accent border border-accent/30 font-bold transition-all disabled:opacity-50 text-sm"
+                  >
+                    {downloadingFormat === format
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : <Icon className="w-4 h-4" />}
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
           </motion.div>
         </div>

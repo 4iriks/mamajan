@@ -145,6 +145,8 @@ def test_lift_fields_have_isolated_defaults(client, admin_headers, project):
     [
         {"panels": 5},
         {"quantity": 0},
+        {"width": 100},
+        {"height": 100},
         {"lift_filling_type": "ДРУГОЕ 8мм", "lift_filling_custom": "  "},
         {"lift_filling_type": "НЕИЗВЕСТНО"},
         {"lift_control_type": "Тумблер"},

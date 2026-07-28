@@ -125,6 +125,7 @@ export interface SectionOut {
 const hasAuthToken = () => Boolean(localStorage.getItem('access_token'));
 
 export type ProjectDocumentType = 'commercial' | 'paint' | 'glass' | 'delivery';
+export type DocumentFileFormat = 'pdf' | 'docx' | 'xlsx';
 export type ProjectDocumentOverrides = Partial<{
   project_number: string;
   project_customer: string;
@@ -165,6 +166,12 @@ export interface SlideCalcPreview {
   glass: SlideCalcGlass[];
   panel_rails: number[];
   panel_glass?: SlideCalcPanelGlass[];
+  torque?: {
+    torque_nm: number;
+    drive_count: number;
+    warning: string;
+  } | null;
+  warnings?: string[];
 }
 
 // Documents
@@ -211,17 +218,36 @@ export const getLocalProjectDocumentPreviewHtml = async (projectId: number, docT
   return resp.data;
 };
 
-export const downloadPdf = async (projectId: number, sectionId: number, filename: string) => {
-  const resp = hasAuthToken()
-    ? await client.get(`/api/projects/${projectId}/sections/${sectionId}/pdf`, { responseType: 'blob' })
-    : await client.post('/api/projects/local/sections/pdf', getLocalDocumentPayload(projectId, sectionId), { responseType: 'blob' });
-  const url = URL.createObjectURL(resp.data);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
+function triggerBlobDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
   URL.revokeObjectURL(url);
+}
+
+export const downloadSectionDocument = async (
+  projectId: number,
+  sectionId: number,
+  format: DocumentFileFormat,
+  filename: string,
+) => {
+  const resp = hasAuthToken()
+    ? await client.get(`/api/projects/${projectId}/sections/${sectionId}/${format}`, { responseType: 'blob' })
+    : await client.post(
+      `/api/projects/local/sections/${format}`,
+      getLocalDocumentPayload(projectId, sectionId),
+      { responseType: 'blob' },
+    );
+  triggerBlobDownload(resp.data, filename);
 };
+
+export const downloadPdf = (
+  projectId: number,
+  sectionId: number,
+  filename: string,
+) => downloadSectionDocument(projectId, sectionId, 'pdf', filename);
 
 function applyProjectDocumentOverrides(
   payload: { project: Partial<ProjectList>; sections: SectionOut[] },
@@ -242,9 +268,10 @@ function applyProjectDocumentOverrides(
   };
 }
 
-export const downloadProjectDocumentPdf = async (
+export const downloadProjectDocument = async (
   projectId: number,
   docType: ProjectDocumentType,
+  format: DocumentFileFormat,
   filename: string,
   overrides?: ProjectDocumentOverrides,
 ) => {
@@ -258,22 +285,37 @@ export const downloadProjectDocumentPdf = async (
       }))
       : getLocalProjectDocumentPayload(projectId);
     resp = await client.post(
-      `/api/projects/local/documents/${docType}/pdf`,
+      `/api/projects/local/documents/${docType}/${format}`,
       applyProjectDocumentOverrides(payload, overrides),
       { responseType: 'blob' },
     );
   } else {
     resp = hasAuthToken()
-      ? await client.get(`/api/projects/${projectId}/documents/${docType}/pdf`, { responseType: 'blob' })
-      : await client.post(`/api/projects/local/documents/${docType}/pdf`, getLocalProjectDocumentPayload(projectId), { responseType: 'blob' });
+      ? await client.get(
+        `/api/projects/${projectId}/documents/${docType}/${format}`,
+        { responseType: 'blob' },
+      )
+      : await client.post(
+        `/api/projects/local/documents/${docType}/${format}`,
+        getLocalProjectDocumentPayload(projectId),
+        { responseType: 'blob' },
+      );
   }
-  const url = URL.createObjectURL(resp.data);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  triggerBlobDownload(resp.data, filename);
 };
+
+export const downloadProjectDocumentPdf = (
+  projectId: number,
+  docType: ProjectDocumentType,
+  filename: string,
+  overrides?: ProjectDocumentOverrides,
+) => downloadProjectDocument(
+  projectId,
+  docType,
+  'pdf',
+  filename,
+  overrides,
+);
 
 // Projects
 export const getProjects = () =>

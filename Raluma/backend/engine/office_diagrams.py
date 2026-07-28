@@ -1,0 +1,413 @@
+"""Raster diagrams used by editable Office exports.
+
+The PDF/HTML documents keep their native SVG diagrams. Office files receive
+high-resolution PNG equivalents so tables remain editable while schemes stay
+stable in Word and Excel.
+"""
+
+from __future__ import annotations
+
+import io
+
+from PIL import Image, ImageDraw
+
+from engine.office_common import load_font
+from engine.pdf import expand_glass_widths, glass_fill, glass_is_matte, glass_mm
+
+
+INK = "#123F47"
+MUTED = "#77979D"
+GRID = "#A8BBC0"
+RED = "#D00000"
+BACKGROUND = "#FFFFFF"
+
+
+def _png(image: Image.Image) -> bytes:
+    output = io.BytesIO()
+    image.save(output, format="PNG", optimize=True)
+    return output.getvalue()
+
+
+def _text_size(draw: ImageDraw.ImageDraw, text: str, font) -> tuple[int, int]:
+    box = draw.textbbox((0, 0), text, font=font)
+    return box[2] - box[0], box[3] - box[1]
+
+
+def _center_text(
+    draw: ImageDraw.ImageDraw,
+    xy: tuple[float, float],
+    text: str,
+    font,
+    fill=INK,
+) -> None:
+    width, height = _text_size(draw, text, font)
+    draw.text((xy[0] - width / 2, xy[1] - height / 2), text, font=font, fill=fill)
+
+
+def _arrow(
+    draw: ImageDraw.ImageDraw,
+    start: tuple[float, float],
+    end: tuple[float, float],
+    *,
+    color=INK,
+    width=4,
+) -> None:
+    draw.line((start, end), fill=color, width=width)
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    length = max((dx * dx + dy * dy) ** 0.5, 1)
+    ux, uy = dx / length, dy / length
+    px, py = -uy, ux
+    size = 13
+    p1 = (
+        end[0] - ux * size + px * size * 0.55,
+        end[1] - uy * size + py * size * 0.55,
+    )
+    p2 = (
+        end[0] - ux * size - px * size * 0.55,
+        end[1] - uy * size - py * size * 0.55,
+    )
+    draw.polygon((end, p1, p2), fill=color)
+
+
+def _matte_pattern(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
+) -> None:
+    for y in range(box[1] + 8, box[3] - 4, 13):
+        for x in range(box[0] + 8, box[2] - 4, 13):
+            draw.ellipse((x, y, x + 2, y + 2), fill="#A7B4B6")
+
+
+def _fit_rect(
+    source_width: float,
+    source_height: float,
+    max_width: int,
+    max_height: int,
+) -> tuple[int, int]:
+    source_width = max(float(source_width or 1), 1)
+    source_height = max(float(source_height or 1), 1)
+    scale = min(max_width / source_width, max_height / source_height)
+    return max(1, round(source_width * scale)), max(1, round(source_height * scale))
+
+
+def render_slide_room(section: object, calc: object) -> bytes:
+    canvas = Image.new("RGB", (1600, 700), BACKGROUND)
+    draw = ImageDraw.Draw(canvas)
+    title_font = load_font(30, bold=True)
+    number_font = load_font(30, bold=True)
+    dim_font = load_font(23, bold=True)
+    small_font = load_font(19)
+
+    _center_text(draw, (800, 34), "ВИД ИЗ ПОМЕЩЕНИЯ", title_font)
+    section_width = float(getattr(section, "width", 0) or 1)
+    section_height = float(getattr(section, "height", 0) or 1)
+    drawing_width, drawing_height = _fit_rect(
+        section_width, section_height, 1340, 470
+    )
+    left = (1600 - drawing_width) // 2
+    top = 80 + max(0, (470 - drawing_height) // 2)
+    right = left + drawing_width
+    bottom = top + drawing_height
+
+    draw.rectangle((left, top, right, bottom), outline=INK, width=7)
+    draw.rectangle((left + 10, top + 10, right - 10, bottom - 10), outline=GRID, width=2)
+
+    panels = max(int(getattr(section, "panels", 0) or 0), 1)
+    widths = [
+        max(float(value or 0), 1)
+        for value in expand_glass_widths(calc, panels, section_width)
+    ]
+    width_sum = sum(widths) or panels
+    fill = glass_fill(getattr(calc, "glass_type", ""))
+    matte = glass_is_matte(getattr(calc, "glass_type", ""))
+    slide_rows = int(getattr(section, "slide_rows", 1) or 1)
+    first_value = str(getattr(section, "first_panel_inside", "") or "")
+    first_right = first_value == "Справа"
+    first_center = "центр" in first_value.lower()
+
+    x = left + 12
+    inner_width = drawing_width - 24
+    for index, panel_width in enumerate(widths):
+        panel_px = inner_width * panel_width / width_sum
+        panel_left = round(x)
+        panel_right = round(x + panel_px)
+        box = (panel_left, top + 12, panel_right, bottom - 12)
+        draw.rectangle(box, fill=fill, outline=GRID, width=2)
+        if matte:
+            _matte_pattern(draw, box)
+
+        if slide_rows == 2:
+            number = index + 1
+            direction = -1 if index < panels / 2 else 1
+            if not first_center:
+                direction *= -1
+        else:
+            number = panels - index if first_right else index + 1
+            direction = -1 if first_right else 1
+
+        cx = (panel_left + panel_right) / 2
+        cy = (top + bottom) / 2
+        _center_text(draw, (cx, cy - 30), str(number), number_font)
+        _arrow(
+            draw,
+            (cx - direction * 28, cy + 18),
+            (cx + direction * 28, cy + 18),
+            width=4,
+        )
+        _center_text(draw, (cx, bottom + 35), str(glass_mm(panel_width)), dim_font)
+        x += panel_px
+
+    draw.line((left, bottom + 62, right, bottom + 62), fill=GRID, width=2)
+    _center_text(
+        draw,
+        ((left + right) / 2, bottom + 95),
+        str(glass_mm(section_width)),
+        dim_font,
+    )
+    draw.line((right + 40, top, right + 40, bottom), fill=GRID, width=2)
+    _center_text(
+        draw,
+        (right + 75, (top + bottom) / 2),
+        str(glass_mm(section_height)),
+        dim_font,
+    )
+    _center_text(draw, ((left + right) / 2, top - 25), "УЛИЦА", small_font, MUTED)
+    _center_text(
+        draw, ((left + right) / 2, bottom + 130), "ПОМЕЩЕНИЕ", small_font, MUTED
+    )
+    return _png(canvas)
+
+
+def render_slide_top(section: object, calc: object) -> bytes:
+    canvas = Image.new("RGB", (1600, 620), BACKGROUND)
+    draw = ImageDraw.Draw(canvas)
+    title_font = load_font(30, bold=True)
+    label_font = load_font(20, bold=True)
+    small_font = load_font(18)
+    _center_text(draw, (800, 34), "СХЕМА · ВИД СВЕРХУ", title_font)
+
+    left, top, right, bottom = 110, 92, 1490, 485
+    rails = max(int(getattr(section, "rails", 3) or 3), 1)
+    panels = max(int(getattr(section, "panels", 0) or 0), 1)
+    row_height = (bottom - top) / rails
+    draw.rectangle((left, top, right, bottom), outline=INK, width=4)
+    for rail in range(1, rails):
+        y = top + rail * row_height
+        draw.line((left, y, right, y), fill=GRID, width=2)
+
+    widths = [
+        max(float(value or 0), 1)
+        for value in expand_glass_widths(
+            calc, panels, float(getattr(section, "width", 0) or 1)
+        )
+    ]
+    total = sum(widths) or panels
+    rails_for_panels = list(getattr(calc, "panel_rails", None) or [])
+    fill = glass_fill(getattr(calc, "glass_type", ""))
+    matte = glass_is_matte(getattr(calc, "glass_type", ""))
+    x = left
+    for index, panel_width in enumerate(widths):
+        panel_px = (right - left) * panel_width / total
+        rail = rails_for_panels[index] if index < len(rails_for_panels) else index % rails
+        cy = top + (rail + 0.5) * row_height
+        x1 = round(x + 4)
+        x2 = round(x + panel_px - 4)
+        y1 = round(cy - min(19, row_height * 0.27))
+        y2 = round(cy + min(19, row_height * 0.27))
+        draw.rectangle((x1, y1, x2, y2), fill=fill, outline=INK, width=3)
+        if matte:
+            _matte_pattern(draw, (x1, y1, x2, y2))
+        _center_text(
+            draw,
+            ((x1 + x2) / 2, (y1 + y2) / 2),
+            f"{glass_mm(panel_width)} · №{index + 1}",
+            label_font,
+        )
+        x += panel_px
+
+    _center_text(draw, (800, 70), "УЛИЦА", small_font, MUTED)
+    _center_text(draw, (800, 518), "ПОМЕЩЕНИЕ", small_font, MUTED)
+    _arrow(draw, (735, 560), (865, 560), color=INK, width=3)
+    return _png(canvas)
+
+
+def render_lift_front(section: object, calc: object) -> bytes:
+    canvas = Image.new("RGB", (1050, 980), BACKGROUND)
+    draw = ImageDraw.Draw(canvas)
+    title_font = load_font(30, bold=True)
+    number_font = load_font(28, bold=True)
+    dim_font = load_font(22, bold=True)
+    small_font = load_font(18, bold=True)
+    _center_text(draw, (525, 35), "ВИД ИЗ ПОМЕЩЕНИЯ", title_font)
+
+    section_width = float(getattr(section, "width", 0) or 1)
+    section_height = float(getattr(section, "height", 0) or 1)
+    drawing_width, drawing_height = _fit_rect(
+        section_width, section_height, 720, 760
+    )
+    left = (1050 - drawing_width) // 2
+    top = 90 + max(0, (760 - drawing_height) // 2)
+    right = left + drawing_width
+    bottom = top + drawing_height
+    draw.rectangle((left, top, right, bottom), outline=INK, width=8)
+    draw.rectangle((left + 12, top + 12, right - 12, bottom - 12), outline=GRID, width=2)
+    draw.rectangle((left, top, right, top + 22), fill="#DCE4E6", outline=INK, width=2)
+    draw.rectangle((left, bottom - 20, right, bottom), fill="#E6EAEB", outline=INK, width=2)
+
+    panels = list(getattr(calc, "panels", None) or [])
+    total_height = sum(max(float(panel.height_mm or 0), 1) for panel in panels) or 1
+    fill = glass_fill(getattr(calc, "filling_text", ""))
+    matte = glass_is_matte(getattr(calc, "filling_text", ""))
+    y = top + 22
+    usable_height = drawing_height - 42
+    opening = str(getattr(calc, "opening_text", "") or "")
+    for panel in panels:
+        panel_height = usable_height * max(float(panel.height_mm or 0), 1) / total_height
+        box = (left + 12, round(y), right - 12, round(y + panel_height))
+        draw.rectangle(box, fill=fill, outline=GRID, width=2)
+        if matte:
+            _matte_pattern(draw, box)
+        cy = (box[1] + box[3]) / 2
+        _center_text(draw, ((left + right) / 2, cy - 18), str(panel.panel), number_font)
+        if str(panel.role).lower().startswith("глух"):
+            _center_text(draw, ((left + right) / 2, cy + 24), "ГЛУХАЯ", small_font)
+        elif "вверх" in opening.lower():
+            _arrow(
+                draw,
+                ((left + right) / 2, cy + 40),
+                ((left + right) / 2, cy - 40),
+                width=4,
+            )
+        else:
+            _arrow(
+                draw,
+                ((left + right) / 2, cy - 40),
+                ((left + right) / 2, cy + 40),
+                width=4,
+            )
+        y += panel_height
+
+    cable = str(getattr(calc, "cable_side", "") or "")
+    cable_x = left if cable == "Слева" else right
+    anchor = "СЛЕВА" if cable == "Слева" else "СПРАВА"
+    draw.text(
+        (cable_x - 5 if cable == "Слева" else cable_x - 235, top - 42),
+        f"ВВОД КАБЕЛЯ {anchor}",
+        font=small_font,
+        fill=RED,
+    )
+    draw.line((left, bottom + 36, right, bottom + 36), fill=RED, width=2)
+    _center_text(
+        draw,
+        ((left + right) / 2, bottom + 68),
+        f"{glass_mm(section_width)} × {glass_mm(section_height)} ММ",
+        dim_font,
+        RED,
+    )
+    return _png(canvas)
+
+
+def render_lift_kinematic(section: object, calc: object) -> bytes:
+    canvas = Image.new("RGB", (1050, 980), BACKGROUND)
+    draw = ImageDraw.Draw(canvas)
+    title_font = load_font(30, bold=True)
+    number_font = load_font(25, bold=True)
+    label_font = load_font(19, bold=True)
+    _center_text(draw, (525, 35), "КИНЕМАТИЧЕСКАЯ СХЕМА", title_font)
+
+    x_axis = 170
+    top, bottom = 100, 870
+    draw.line((x_axis, top, x_axis, bottom), fill=INK, width=8)
+    draw.ellipse((x_axis - 22, top - 22, x_axis + 22, top + 22), fill=BACKGROUND, outline=INK, width=6)
+    draw.ellipse((x_axis - 22, bottom - 22, x_axis + 22, bottom + 22), fill=BACKGROUND, outline=INK, width=6)
+
+    panels = list(getattr(calc, "panels", None) or [])
+    count = max(len(panels), 1)
+    y_step = min(195, 560 / max(count - 1, 1))
+    start_y = 205
+    for index, panel in enumerate(panels):
+        cx = 410 + index * 115
+        cy = start_y + index * y_step
+        glass_top = cy - 65
+        glass_bottom = cy + 65
+        draw.line((x_axis + 10, top + 20, cx - 25, glass_bottom), fill=GRID, width=3)
+        draw.rectangle((cx - 12, glass_top, cx + 12, glass_bottom), fill="#8AB6BD")
+        draw.rounded_rectangle(
+            (cx - 42, glass_top - 22, cx + 42, glass_top + 22),
+            radius=5,
+            fill="#F5F7F7",
+            outline=INK,
+            width=4,
+        )
+        draw.rounded_rectangle(
+            (cx - 42, glass_bottom - 22, cx + 42, glass_bottom + 22),
+            radius=5,
+            fill="#F5F7F7",
+            outline=INK,
+            width=4,
+        )
+        _center_text(draw, (cx + 67, cy), str(panel.panel), number_font)
+
+    label = "НАПРАВЛЕНИЕ ДВИЖЕНИЯ"
+    rotated = Image.new("RGBA", (400, 50), (255, 255, 255, 0))
+    rotated_draw = ImageDraw.Draw(rotated)
+    rotated_draw.text((0, 5), label, font=label_font, fill=MUTED)
+    rotated = rotated.rotate(90, expand=True)
+    canvas.paste(rotated, (55, 310), rotated)
+    return _png(canvas)
+
+
+def render_lift_assembly(section: object, calc: object) -> bytes:
+    panels = list(getattr(calc, "panels", None) or [])
+    count = max(len(panels), 1)
+    canvas = Image.new("RGB", (1600, 520), BACKGROUND)
+    draw = ImageDraw.Draw(canvas)
+    title_font = load_font(28, bold=True)
+    number_font = load_font(30, bold=True)
+    label_font = load_font(18, bold=True)
+    _center_text(draw, (800, 30), "ПАНЕЛИ ПРИ СКЛЕЙКЕ", title_font)
+    gap = 20
+    card_width = (1500 - gap * (count - 1)) / count
+    fill_color = glass_fill(getattr(calc, "filling_text", ""))
+    for index, panel in enumerate(panels):
+        left = 50 + index * (card_width + gap)
+        right = left + card_width
+        top, bottom = 75, 475
+        draw.rectangle((left, top, right, bottom), outline=GRID, width=2)
+        fill_box = (left + 50, top + 65, right - 50, bottom - 95)
+        draw.rectangle(fill_box, fill=fill_color, outline=INK, width=3)
+        _center_text(
+            draw,
+            ((fill_box[0] + fill_box[2]) / 2, (fill_box[1] + fill_box[3]) / 2),
+            str(panel.panel),
+            number_font,
+        )
+        _center_text(
+            draw,
+            ((left + right) / 2, bottom - 60),
+            f"ЗАПОЛНЕНИЕ {glass_mm(panel.width_mm)} × {glass_mm(panel.height_mm)}",
+            label_font,
+        )
+        _center_text(
+            draw,
+            ((left + right) / 2, bottom - 28),
+            f"СКЛЕЙКА {glass_mm(panel.glued_width_mm)} × {glass_mm(panel.glued_height_mm)}",
+            label_font,
+            "#006FA8",
+        )
+    return _png(canvas)
+
+
+def section_diagrams(section: object, calc: object) -> list[tuple[str, bytes]]:
+    system = str(getattr(section, "system", "") or "").strip().upper()
+    if system == "ЛИФТ":
+        return [
+            ("Вид из помещения", render_lift_front(section, calc)),
+            ("Кинематическая схема", render_lift_kinematic(section, calc)),
+            ("Панели при склейке", render_lift_assembly(section, calc)),
+        ]
+    return [
+        ("Вид из помещения", render_slide_room(section, calc)),
+        ("Схема · вид сверху", render_slide_top(section, calc)),
+    ]

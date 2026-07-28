@@ -12,7 +12,7 @@ from typing import Iterable
 from jinja2 import Environment, FileSystemLoader
 
 from engine.glass_types import default_glass_type
-from engine.lift_calc import calculate_lift
+from engine.lift_calc import PENOPLEX_20MM, calculate_lift
 from engine.pdf import TEMPLATES_DIR, _img_b64, glass_mm
 from engine.slide_calc import calculate_slide
 
@@ -100,14 +100,10 @@ def _iter_calculated_sections(
         list(sections),
         key=lambda section: _section_sort_key(section, 999999),
     )
-    supported_sections = [
-        section
-        for section in sorted_sections
-        if str(getattr(section, "system", "") or "").strip().upper()
-        in {"СЛАЙД", "ЛИФТ"}
-    ]
-    for index, section in enumerate(supported_sections, start=1):
+    for index, section in enumerate(sorted_sections, start=1):
         system = str(getattr(section, "system", "") or "").strip().upper()
+        if system not in {"СЛАЙД", "ЛИФТ"}:
+            continue
         calc = calculate_slide(section) if system == "СЛАЙД" else calculate_lift(section)
         rows.append(
             CalculatedSection(
@@ -354,6 +350,13 @@ def _parse_paint_manual_rows(raw_rows: object) -> list[dict]:
     return [row for row in rows if isinstance(row, dict)]
 
 
+def _paint_color_key(value: object) -> str:
+    normalized = " ".join(str(value or "").split()).casefold()
+    if normalized.startswith("ral "):
+        normalized = normalized[4:].strip()
+    return normalized
+
+
 def _manual_paint_row(raw: dict) -> tuple[str, dict] | None:
     article = str(raw.get("article") or raw.get("sku") or "").strip()
     name = str(raw.get("name") or "").strip()
@@ -436,11 +439,12 @@ def _build_paint_pages(
             continue
         color, row = parsed
         if color:
+            color_key = _paint_color_key(color)
             color = next(
                 (
                     existing
                     for existing in calculated_colors
-                    if existing.casefold() == color.casefold()
+                    if _paint_color_key(existing) == color_key
                 ),
                 color,
             )
@@ -561,16 +565,20 @@ def _build_glass_rows(
     for item in calculated:
         system = str(getattr(item.section, "system", "") or "").strip().upper()
         if system == "ЛИФТ":
+            glass_index = 0
             for panel in item.calc.panels:
+                if panel.filling == PENOPLEX_20MM:
+                    continue
+                glass_index += 1
                 width = glass_mm(panel.width_mm)
                 height = glass_mm(panel.height_mm)
                 note = ""
-                key = (item.calc.filling_text, width, height, note)
+                key = (panel.filling, width, height, note)
                 row = grouped.setdefault(
                     key,
                     {
                         "markings": [],
-                        "glass_type": item.calc.filling_text,
+                        "glass_type": panel.filling,
                         "width": width,
                         "height": height,
                         "qty": 0,
@@ -578,7 +586,7 @@ def _build_glass_rows(
                         "note": note,
                     },
                 )
-                row["markings"].append(f"{item.order},{panel.panel}")
+                row["markings"].append(f"{item.order},{glass_index}")
                 row["qty"] += max(1, int(panel.qty or 0))
                 row["area"] = round(width * height * row["qty"] / 1_000_000, 3)
             continue
@@ -850,9 +858,9 @@ def _build_delivery_glass_rows(
                 row["qty"] += 1
         elif system == "ЛИФТ":
             calc = calculate_lift(section)
-            glass_type = calc.filling_text
             color = _section_color(section, calc)
             for panel in calc.panels:
+                glass_type = panel.filling
                 width = glass_mm(panel.width_mm)
                 height = glass_mm(panel.height_mm)
                 key = (glass_type, width, height, "")
@@ -885,18 +893,24 @@ def _build_delivery_glass_rows(
 
         section_number = _delivery_section_number(section, fallback)
         project_number = str(getattr(project, "number", "") or "").strip()
-        outer_key = (color, glass_type)
-        outer = grouped.setdefault(
-            outer_key,
-            {
-                "name": f"СТЕКЛЯННЫЕ ПАНЕЛИ, {color.upper()}, РАЗМЕРЫ СТЕКОЛ:",
-                "color": color,
-                "glass_type": glass_type,
-                "rows": [],
-                "qty": 0,
-            },
-        )
         for row_index, row in enumerate(section_rows.values(), start=1):
+            row_glass_type = row["glass_type"]
+            outer_key = (color, row_glass_type)
+            is_penoplex = row_glass_type == PENOPLEX_20MM
+            outer = grouped.setdefault(
+                outer_key,
+                {
+                    "name": (
+                        f"ПАНЕЛИ ПЕНОПЛЕКС 20 ММ, {color.upper()}, РАЗМЕРЫ ПАНЕЛЕЙ:"
+                        if is_penoplex
+                        else f"СТЕКЛЯННЫЕ ПАНЕЛИ, {color.upper()}, РАЗМЕРЫ СТЕКОЛ:"
+                    ),
+                    "color": color,
+                    "glass_type": row_glass_type,
+                    "rows": [],
+                    "qty": 0,
+                },
+            )
             prefix = f"{project_number} " if project_number else ""
             row["marking"] = f"{prefix}{section_number},{row_index}"
             outer["rows"].append(row)

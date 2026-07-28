@@ -43,6 +43,10 @@ def test_hardware_catalog_returns_calculation_seed(client, admin_headers):
     assert by_sku["RL101"]["system"] == "ЛИФТ"
     assert by_sku["RL101"]["imageFile"] == "RL101.png"
     assert by_sku["RL101"]["paintMode"] == "Красится"
+    assert by_sku["RL104"]["paintMode"] == "Частично"
+    assert by_sku["RL104"]["note"] == (
+        "W - 155 красится; W - 62 не красится по исходным Excel ЛИФТ"
+    )
     assert by_sku["RL2085"]["group"] == "Фурнитура"
     assert by_sku["RL2085"]["paintMode"] == "Не красится"
 

@@ -224,6 +224,37 @@ def test_lift_custom_20mm_filling_uses_igu_formulas():
     assert not _profile_rows(result, "RL113")
 
 
+def test_two_panel_igu_uses_penoplex_for_the_fixed_panel():
+    result = calculate_lift(
+        _section(
+            width=2600,
+            height=2750,
+            lift_filling_type="СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)",
+        )
+    )
+
+    assert [(panel.role, panel.filling) for panel in result.panels] == [
+        ("Подвижная", "СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)"),
+        ("Глухая", "ПЕНОПЛЕКС 20 ММ"),
+    ]
+
+
+def test_two_panel_igu_penoplex_follows_the_fixed_panel_when_opening_up():
+    result = calculate_lift(
+        _section(
+            width=2600,
+            height=2750,
+            lift_filling_type="СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)",
+            lift_opening_type="Сдвиг вверх",
+        )
+    )
+
+    assert [(panel.role, panel.filling) for panel in result.panels] == [
+        ("Глухая", "ПЕНОПЛЕКС 20 ММ"),
+        ("Подвижная", "СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)"),
+    ]
+
+
 def test_lift_opening_changes_panel_order_but_not_dimensions():
     down = calculate_lift(_section(panels=3, width=3323, height=2910))
     up = calculate_lift(
@@ -289,6 +320,37 @@ def test_lift_hardware_uses_torque_drive_and_cable_rules():
     assert _hardware(two_drive, "RL2092")[0].value == 1
 
 
+def test_lift_drive_boundary_uses_unrounded_weight_for_torque():
+    result = calculate_lift(
+        _section(
+            width=2817,
+            height=3660,
+            lift_filling_type="СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)",
+        )
+    )
+
+    assert result.torque is not None
+    assert result.torque.moving_weight_kg == 160
+    assert result.torque.torque_nm == 80
+    assert result.torque.drive_count == 1
+
+
+def test_lift_torque_over_160_adds_section_warning():
+    result = calculate_lift(
+        _section(
+            width=5000,
+            height=5000,
+            panels=4,
+            lift_filling_type="СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)",
+        )
+    )
+
+    assert result.torque is not None
+    assert result.torque.torque_nm > 160
+    assert result.torque.warning
+    assert result.torque.warning in result.warnings
+
+
 def test_lift_chain_and_fasteners_follow_hardware_workbook():
     result = calculate_lift(_section(width=2302, height=2229, panels=2))
 
@@ -310,3 +372,29 @@ def test_lift_anodized_profiles_do_not_enter_painting():
 
     assert result.color_text == "Анодированный"
     assert all(not profile.painted for profile in result.profiles)
+
+
+def test_four_panel_igu_uses_profile_family_from_source_workbook():
+    result = calculate_lift(
+        _section(
+            width=2460,
+            height=3950,
+            panels=4,
+            lift_filling_type="СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)",
+        )
+    )
+
+    articles = {profile.article for profile in result.profiles}
+    assert {"RL113", "RL112", "RL115", "RL114"} <= articles
+    assert not {"RL123", "RL122", "RL1241", "RL1211"} & articles
+
+
+def test_rl104_painting_depends_on_profile_application():
+    result = calculate_lift(_section(width=3323, height=2910, panels=3))
+    rows = [profile for profile in result.profiles if profile.article == "RL104"]
+
+    assert len(rows) == 2
+    assert {(row.length_mm, row.painted) for row in rows} == {
+        (3168, True),
+        (3261, False),
+    }

@@ -27,18 +27,20 @@ def _profile(
     name: str,
     *,
     painted: bool = True,
+    partial: bool = False,
     note: str = "Длина и количество рассчитываются по формулам системы ЛИФТ",
 ) -> LiftCatalogSpec:
+    paint_mode = "Частично" if partial else ("Красится" if painted else "Не красится")
     return LiftCatalogSpec(
         article=article,
         name=name,
         image=f"{article}.png",
         group="Профили",
         unit="м.п.",
-        paint_mode="Красится" if painted else "Не красится",
+        paint_mode=paint_mode,
         color_variants=(
             ("Анод", "RAL стандарт", "RAL нестандарт")
-            if painted
+            if painted or partial
             else ("Без цвета",)
         ),
         note=note,
@@ -70,7 +72,12 @@ LIFT_CATALOG_SPECS = (
     _profile("RL103", "Боковой профиль рамы"),
     _profile("RL103-1", "Боковой профиль рамы"),
     _profile("RL103-2", "Боковой профиль рамы"),
-    _profile("RL104", "Нижний профиль рамы", painted=False),
+    _profile(
+        "RL104",
+        "Нижний профиль рамы",
+        partial=True,
+        note="W - 155 красится; W - 62 не красится по исходным Excel ЛИФТ",
+    ),
     _profile("RL105", "Вертикальный профиль панели"),
     _profile("RL112", "Профиль панели под стекло 8 мм"),
     _profile("RL113", "Профиль панели под стекло 8 мм"),

@@ -272,8 +272,9 @@ export function LiftKinematicSVG({ section }: { section: Section }) {
   const panels = Math.min(4, Math.max(2, section.panels || 2));
   const filling = (section.liftFillingType || '').toUpperCase();
   const isIgu = filling.includes('20ММ');
-  const topProfile = profileAsset(isIgu ? 'RL123.png' : 'RL113.png');
-  const bottomProfile = profileAsset(isIgu ? 'RL122.png' : 'RL112.png');
+  const usesGlassProfileFamily = !isIgu || panels === 4;
+  const topProfile = profileAsset(usesGlassProfileFamily ? 'RL113.png' : 'RL123.png');
+  const bottomProfile = profileAsset(usesGlassProfileFamily ? 'RL112.png' : 'RL122.png');
   const pairHeight = 90;
   const stepX = 60;
   const stepY = 88;

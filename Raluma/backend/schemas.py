@@ -11,6 +11,7 @@ from engine.lift_config import (
     LIFT_OPENING_TYPES,
     LIFT_SPLIT_OPENING,
 )
+from engine.lift_calc import lift_geometry_error
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -246,6 +247,9 @@ class SectionBase(BaseModel):
             )
         if self.lift_remote_channels is not None and self.lift_remote_channels <= 0:
             raise ValueError("Количество каналов должно быть больше нуля")
+        geometry_error = lift_geometry_error(self)
+        if geometry_error:
+            raise ValueError(geometry_error)
         return self
 
 
