@@ -253,7 +253,7 @@
       {% set handleRX = riX + riW - 8 %}
       {% set lockLX = rfX + 3 %}
       {% set lockRX = rfX + rfW - 3 %}
-      <svg viewBox="0 0 {{ rw }} {{ rh }}"
+      <svg data-office-diagram="slide-room" viewBox="0 0 {{ rw }} {{ rh }}"
            xmlns="http://www.w3.org/2000/svg" style="display:block; width:90%; margin:0 auto;">
         {% if matte_glass %}
         <defs>
@@ -451,7 +451,7 @@
       {% set has_inter_glass = inter_glass_text and ('без' not in inter_glass_text) %}
       {% set inter_glass_article = 'RS1006' if 'rs1006' in inter_glass_text else ('RS3061' if 'rs3061' in inter_glass_text or 'rs1004' in inter_glass_text or 'зацеп' in inter_glass_text else 'RS2061') %}
       {% set inter_glass_px = [5, profile_dimension(calc, [inter_glass_article], 'section_width_mm', 20) * rail_w / (section.width or rail_w)] | max %}
-      <svg viewBox="0 0 {{ sw }} {{ sh }}"
+      <svg data-office-diagram="slide-top" viewBox="0 0 {{ sw }} {{ sh }}"
            xmlns="http://www.w3.org/2000/svg" style="display:block; width:72%; margin:0 auto;">
         {% if matte_glass %}
         <defs>

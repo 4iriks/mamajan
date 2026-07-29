@@ -191,11 +191,34 @@ def _formats(workbook: xlsxwriter.Workbook) -> dict[str, Any]:
         "card": workbook.add_format(
             {
                 "font_name": "Arial",
-                "font_size": 7,
-                "bold": True,
-                "valign": "vcenter",
+                "font_size": 6.2,
+                "valign": "top",
                 "text_wrap": True,
                 **border,
+            }
+        ),
+        "card_heading": workbook.add_format(
+            {
+                "font_name": "Arial",
+                "font_size": 6.4,
+                "bold": True,
+                "font_color": "#162D37",
+            }
+        ),
+        "card_quantity": workbook.add_format(
+            {
+                "font_name": "Arial",
+                "font_size": 7.4,
+                "bold": True,
+                "font_color": "#000000",
+            }
+        ),
+        "card_note": workbook.add_format(
+            {
+                "font_name": "Arial",
+                "font_size": 5.4,
+                "italic": True,
+                "font_color": "#5F696E",
             }
         ),
     }
@@ -348,32 +371,71 @@ def _write_diagrams(
     calc: object,
 ) -> int:
     diagrams = section_diagrams(section, calc)
-    for index, (title, data) in enumerate(diagrams):
-        start_col = 0 if index % 2 == 0 else 6
-        line = row + (index // 2) * 14
+    system = str(getattr(section, "system", "") or "").strip().upper()
+
+    if system == "СЛАЙД":
+        for index, (title, data) in enumerate(diagrams[:2]):
+            line = row + index * 10
+            worksheet.merge_range(line, 0, line, 11, title.upper(), formats["header"])
+            worksheet.merge_range(line + 1, 0, line + 9, 11, "", formats["cell"])
+            for diagram_row in range(line + 1, line + 10):
+                worksheet.set_row(diagram_row, 16)
+            _insert_image(
+                worksheet,
+                line + 1,
+                0,
+                io.BytesIO(data),
+                max_width_px=790,
+                max_height_px=175,
+                x_offset=8,
+                y_offset=4,
+            )
+        return row + min(len(diagrams), 2) * 10
+
+    for index, (title, data) in enumerate(diagrams[:2]):
+        start_col = index * 6
+        line = row
         worksheet.merge_range(line, start_col, line, start_col + 5, title.upper(), formats["header"])
         worksheet.merge_range(
             line + 1,
             start_col,
-            line + 13,
+            line + 11,
             start_col + 5,
             "",
             formats["cell"],
         )
-        for diagram_row in range(line + 1, line + 14):
-            worksheet.set_row(diagram_row, 18)
-        stream = io.BytesIO(data)
+        for diagram_row in range(line + 1, line + 12):
+            worksheet.set_row(diagram_row, 16)
         _insert_image(
             worksheet,
             line + 1,
             start_col,
-            stream,
-            max_width_px=550,
-            max_height_px=220,
-            x_offset=10,
-            y_offset=7,
+            io.BytesIO(data),
+            max_width_px=385,
+            max_height_px=185,
+            x_offset=6,
+            y_offset=4,
         )
-    return row + ((len(diagrams) + 1) // 2) * 14
+
+    next_row = row + 12
+    if len(diagrams) > 2:
+        title, data = diagrams[2]
+        worksheet.merge_range(next_row, 0, next_row, 11, title.upper(), formats["header"])
+        worksheet.merge_range(next_row + 1, 0, next_row + 10, 11, "", formats["cell"])
+        for diagram_row in range(next_row + 1, next_row + 11):
+            worksheet.set_row(diagram_row, 16)
+        _insert_image(
+            worksheet,
+            next_row + 1,
+            0,
+            io.BytesIO(data),
+            max_width_px=790,
+            max_height_px=165,
+            x_offset=8,
+            y_offset=4,
+        )
+        next_row += 11
+    return next_row
 
 
 def _write_headers(
@@ -588,7 +650,7 @@ def _write_compact_cards(
     formats: dict[str, Any],
     row: int,
     title: str,
-    cards: list[tuple[io.BytesIO | None, str]],
+    cards: list[tuple[io.BytesIO | None, str, str, str]],
 ) -> int:
     if not cards:
         return row
@@ -601,8 +663,19 @@ def _write_compact_cards(
             if index >= len(cards):
                 worksheet.merge_range(row, start + 1, row, start + 3, "", formats["cell"])
                 continue
-            image, text = cards[index]
-            worksheet.merge_range(row, start + 1, row, start + 3, text, formats["card"])
+            image, heading, quantity, note = cards[index]
+            worksheet.merge_range(row, start + 1, row, start + 3, "", formats["card"])
+            rich_parts: list[Any] = [
+                formats["card_heading"],
+                heading,
+                "\n",
+                formats["card_quantity"],
+                quantity,
+            ]
+            if note:
+                rich_parts.extend(("\n", formats["card_note"], note))
+            rich_parts.append(formats["card"])
+            worksheet.write_rich_string(row, start + 1, *rich_parts)
             _insert_image(
                 worksheet,
                 row,
@@ -614,7 +687,7 @@ def _write_compact_cards(
                 y_offset=2,
                 allow_enlarge=False,
             )
-        worksheet.set_row(row, 38)
+        worksheet.set_row(row, 52)
         row += 1
     return row
 
@@ -626,7 +699,7 @@ def _write_compact_profiles(
     calc: object,
     overrides: dict[str, Any],
 ) -> int:
-    cards: list[tuple[io.BytesIO | None, str]] = []
+    cards: list[tuple[io.BytesIO | None, str, str, str]] = []
     for index, profile in enumerate(profile_rows(calc)):
         cuts = list(getattr(profile, "display_cuts", None) or [])
         if not cuts:
@@ -655,17 +728,15 @@ def _write_compact_profiles(
                     format_dimension(cut.get("length")),
                 )
                 values.append(f"{length} мм × {quantity} шт")
-        text = (
-            f"{getattr(profile, 'article', '')} · {getattr(profile, 'name', '')}\n"
-            f"{'; '.join(values)}"
-        )
+        heading = f"{getattr(profile, 'article', '')} · {getattr(profile, 'name', '')}"
+        quantity = "; ".join(values)
         note = str(getattr(profile, "note", "") or "")
-        if note:
-            text += f"\n{note}"
         cards.append(
             (
                 image_stream(getattr(profile, "image", None), max_size=(600, 260)),
-                text,
+                heading,
+                quantity,
+                note,
             )
         )
     return _write_compact_cards(
@@ -684,13 +755,17 @@ def _write_compact_hardware(
     calc: object,
     overrides: dict[str, Any],
 ) -> int:
-    cards: list[tuple[io.BytesIO | None, str]] = []
+    cards: list[tuple[io.BytesIO | None, str, str, str]] = []
     for article, name, value, unit, image, field_key, note in hardware_rows(calc):
         quantity = override_value(overrides, field_key, format_number(value))
-        text = f"{article} · {name}\n{quantity} {unit}".strip()
-        if note:
-            text += f"\n{note}"
-        cards.append((image_stream(image, max_size=(500, 260)), text))
+        cards.append(
+            (
+                image_stream(image, max_size=(500, 260)),
+                f"{article} · {name}",
+                f"{quantity} {unit}".strip(),
+                note,
+            )
+        )
     return _write_compact_cards(
         worksheet,
         formats,
@@ -735,7 +810,7 @@ def _build_details_sheet(
     overrides: dict[str, Any],
 ) -> None:
     worksheet = workbook.add_worksheet("Нарезка и комплектация")
-    _setup_sheet(worksheet)
+    _setup_sheet(worksheet, landscape=False)
     _section_sheet_columns(worksheet)
     row = _write_section_header(
         worksheet,
@@ -797,7 +872,7 @@ def _build_slide_checklist_sheet(
     overrides: dict[str, Any],
 ) -> None:
     worksheet = workbook.add_worksheet("Чек-лист")
-    _setup_sheet(worksheet)
+    _setup_sheet(worksheet, landscape=False)
     _section_sheet_columns(worksheet)
     worksheet.merge_range(
         0,
@@ -962,7 +1037,7 @@ def build_section_xlsx(project: object, section: object, calc: object) -> bytes:
     system = str(getattr(section, "system", "") or "").strip().upper()
 
     worksheet = workbook.add_worksheet("Производственный лист")
-    _setup_sheet(worksheet, paper=8)
+    _setup_sheet(worksheet, landscape=False, paper=9)
     _section_sheet_columns(worksheet)
     row = _write_section_header(
         worksheet,

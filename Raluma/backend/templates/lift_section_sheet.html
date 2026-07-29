@@ -283,7 +283,7 @@
   <div class="diagram-grid">
     <div class="diagram-card">
       <div class="diagram-title">Вид из помещения</div>
-      <svg class="front-svg" viewBox="0 0 {{ width + frame * 5 }} {{ height + frame * 5 }}" role="img">
+      <svg class="front-svg" data-office-diagram="lift-front" viewBox="0 0 {{ width + frame * 5 }} {{ height + frame * 5 }}" role="img">
         <rect x="{{ frame * 2 }}" y="{{ frame * 1.4 }}" width="{{ width }}" height="{{ height }}"
               fill="#f8fbfc" stroke="#222" stroke-width="{{ frame }}" />
         <rect x="{{ frame * 2 }}" y="{{ frame * 1.4 }}" width="{{ width }}" height="{{ frame * 2.2 }}"
@@ -370,7 +370,7 @@
       {% set uses_glass_profile_family = calc.filling_kind != 'igu' or section.panels == 4 %}
       {% set kinetic_top = 'RL113.png' if uses_glass_profile_family else 'RL123.png' %}
       {% set kinetic_bottom = 'RL112.png' if uses_glass_profile_family else 'RL122.png' %}
-      <svg class="side-svg" viewBox="0 0 300 330" role="img" data-lift-kinematic="image-built">
+      <svg class="side-svg" data-office-diagram="lift-kinematic" viewBox="0 0 300 330" role="img" data-lift-kinematic="image-built">
         <defs>
           <marker id="lift-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
             <path d="M0,0 L7,3.5 L0,7" fill="none" stroke="#555" stroke-width="1.2" />

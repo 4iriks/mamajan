@@ -340,9 +340,14 @@ def _add_diagrams(document: Document, section: object, calc: object) -> None:
     diagrams = section_diagrams(section, calc)
     first = diagrams[:2]
     is_lift = str(getattr(section, "system", "") or "").strip().upper() == "ЛИФТ"
-    table = document.add_table(rows=1, cols=len(first))
-    for index, (title, data) in enumerate(first):
-        cell = table.cell(0, index)
+    if is_lift:
+        table = document.add_table(rows=1, cols=len(first))
+        placements = [(table.cell(0, index), 78) for index in range(len(first))]
+    else:
+        table = document.add_table(rows=len(first), cols=1)
+        placements = [(table.cell(index, 0), 174) for index in range(len(first))]
+
+    for (title, data), (cell, width_mm) in zip(first, placements, strict=True):
         _set_cell_text(
             cell,
             title,
@@ -356,13 +361,7 @@ def _add_diagrams(document: Document, section: object, calc: object) -> None:
         paragraph.paragraph_format.space_after = Pt(0)
         paragraph.add_run().add_picture(
             io.BytesIO(data),
-            width=Mm(
-                76
-                if is_lift and len(first) == 2
-                else 74
-                if len(first) == 2
-                else 238
-            ),
+            width=Mm(width_mm),
         )
     table.style = "Table Grid"
 
@@ -377,7 +376,7 @@ def _add_diagrams(document: Document, section: object, calc: object) -> None:
         picture.alignment = WD_ALIGN_PARAGRAPH.CENTER
         picture.add_run().add_picture(
             io.BytesIO(data),
-            width=Mm(112 if is_lift else 238),
+            width=Mm(174),
         )
 
 
@@ -516,20 +515,24 @@ def _add_compact_cards(
         heading_run = paragraph.add_run(heading)
         heading_run.bold = True
         heading_run.font.name = "Arial"
-        heading_run.font.size = Pt(5.7)
+        heading_run.font.size = Pt(6.1)
         if details:
             details_run = paragraph.add_run(f"\n{details}")
+            details_run.bold = True
             details_run.font.name = "Arial"
-            details_run.font.size = Pt(5.3)
+            details_run.font.size = Pt(7.1)
         if note:
             note_run = paragraph.add_run(f"\n{note}")
             note_run.italic = True
             note_run.font.name = "Arial"
-            note_run.font.size = Pt(4.7)
-    for row in table.rows:
+            note_run.font.size = Pt(5.2)
+            note_run.font.color.rgb = RGBColor.from_string("555555")
+    for row_index, row in enumerate(table.rows):
         _prevent_row_split(row)
-        row.height = Mm(7.6)
-        row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
+        start = row_index * columns
+        has_note = any(card[3] for card in cards[start : start + columns])
+        row.height = Mm(12 if has_note else 9.5)
+        row.height_rule = WD_ROW_HEIGHT_RULE.AT_LEAST
 
 
 def _add_profiles(document: Document, calc: object, overrides: dict[str, Any]) -> None:
@@ -750,7 +753,7 @@ def _add_slide_drawings(document: Document, section: object) -> None:
 
 def build_section_docx(project: object, section: object, calc: object) -> bytes:
     document = Document()
-    _configure_document(document, landscape=True)
+    _configure_document(document, landscape=False)
     system = str(getattr(section, "system", "") or "").strip().upper()
     label = "ЛИФТ · ПРОИЗВОДСТВЕННЫЙ ЛИСТ" if system == "ЛИФТ" else "СЛАЙД · ПРОИЗВОДСТВЕННЫЙ ЛИСТ"
     overrides = load_overrides(section)

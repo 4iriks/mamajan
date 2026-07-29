@@ -8,11 +8,20 @@ stable in Word and Excel.
 from __future__ import annotations
 
 import io
+import re
+from types import SimpleNamespace
 
+import cairosvg
 from PIL import Image, ImageDraw
 
 from engine.office_common import load_font
-from engine.pdf import expand_glass_widths, glass_fill, glass_is_matte, glass_mm
+from engine.pdf import (
+    expand_glass_widths,
+    glass_fill,
+    glass_is_matte,
+    glass_mm,
+    render_pdf_html,
+)
 
 
 INK = "#123F47"
@@ -20,6 +29,39 @@ MUTED = "#77979D"
 GRID = "#A8BBC0"
 RED = "#D00000"
 BACKGROUND = "#FFFFFF"
+
+_OFFICE_SVG_RE = re.compile(
+    r'(<svg\b(?=[^>]*\bdata-office-diagram="([^"]+)")[^>]*>.*?</svg>)',
+    re.DOTALL,
+)
+_VIEWBOX_RE = re.compile(
+    r'\bviewBox="[-+0-9.eE]+\s+[-+0-9.eE]+\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)"'
+)
+_DIAGRAM_TITLES = {
+    "slide-room": "Вид из помещения",
+    "slide-top": "Схема · вид сверху",
+    "lift-front": "Вид из помещения",
+    "lift-kinematic": "Кинематическая схема",
+}
+
+
+def _reference_diagrams(section: object, calc: object) -> list[tuple[str, bytes]]:
+    """Rasterize the exact SVGs used by the PDF/HTML production sheet."""
+    html = render_pdf_html(SimpleNamespace(number=""), section, calc)
+    rendered: list[tuple[str, bytes]] = []
+    for svg, name in _OFFICE_SVG_RE.findall(html):
+        viewbox = _VIEWBOX_RE.search(svg)
+        source_width = float(viewbox.group(1)) if viewbox else 1
+        source_height = float(viewbox.group(2)) if viewbox else 1
+        output_width = 1800 if name.startswith("slide-") else 1200
+        output_height = max(1, round(output_width * source_height / source_width))
+        png = cairosvg.svg2png(
+            bytestring=svg.encode("utf-8"),
+            output_width=output_width,
+            output_height=output_height,
+        )
+        rendered.append((_DIAGRAM_TITLES[name], png))
+    return rendered
 
 
 def _png(image: Image.Image) -> bytes:
@@ -401,12 +443,20 @@ def render_lift_assembly(section: object, calc: object) -> bytes:
 
 def section_diagrams(section: object, calc: object) -> list[tuple[str, bytes]]:
     system = str(getattr(section, "system", "") or "").strip().upper()
+    reference = _reference_diagrams(section, calc)
     if system == "ЛИФТ":
+        if len(reference) >= 2:
+            return [
+                *reference[:2],
+                ("Панели при склейке", render_lift_assembly(section, calc)),
+            ]
         return [
             ("Вид из помещения", render_lift_front(section, calc)),
             ("Кинематическая схема", render_lift_kinematic(section, calc)),
             ("Панели при склейке", render_lift_assembly(section, calc)),
         ]
+    if len(reference) >= 2:
+        return reference[:2]
     return [
         ("Вид из помещения", render_slide_room(section, calc)),
         ("Схема · вид сверху", render_slide_top(section, calc)),
