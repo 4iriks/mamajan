@@ -12,6 +12,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Mm, Pt, RGBColor
+from PIL import Image
 
 from engine.office_common import (
     BLACK,
@@ -56,10 +57,10 @@ def _set_landscape(section) -> None:
     section.orientation = WD_ORIENT.LANDSCAPE
     section.page_width = Mm(297)
     section.page_height = Mm(210)
-    section.top_margin = Mm(7)
-    section.bottom_margin = Mm(7)
-    section.left_margin = Mm(7)
-    section.right_margin = Mm(7)
+    section.top_margin = Mm(2)
+    section.bottom_margin = Mm(2)
+    section.left_margin = Mm(4)
+    section.right_margin = Mm(4)
 
 
 def _set_portrait(section) -> None:
@@ -163,9 +164,8 @@ def _configure_document(document: Document, *, landscape: bool) -> None:
 def _add_bar(document: Document, text: str) -> None:
     table = document.add_table(rows=1, cols=1)
     cell = table.cell(0, 0)
-    _set_cell_text(cell, text.upper(), bold=True, size=9, color=WHITE)
+    _set_cell_text(cell, text.upper(), bold=True, size=7.5, color=WHITE)
     _set_cell_shading(cell, BRAND_DARK)
-    document.add_paragraph().paragraph_format.space_after = Pt(0)
 
 
 def _add_header(document: Document, project: object, section: object, label: str) -> None:
@@ -206,8 +206,8 @@ def _add_summary(document: Document, section: object, calc: object) -> None:
     for index, (label, value) in enumerate(rows):
         row = index // columns
         pair = index % columns
-        _set_cell_text(table.cell(row, pair * 2), label, bold=True, size=7.5)
-        _set_cell_text(table.cell(row, pair * 2 + 1), value, size=8)
+        _set_cell_text(table.cell(row, pair * 2), label, bold=True, size=6.5)
+        _set_cell_text(table.cell(row, pair * 2 + 1), value, size=7)
         _set_cell_shading(table.cell(row, pair * 2), HEADER_GRAY)
     table.style = "Table Grid"
 
@@ -219,6 +219,7 @@ def ceil_div(value: int, divisor: int) -> int:
 def _add_diagrams(document: Document, section: object, calc: object) -> None:
     diagrams = section_diagrams(section, calc)
     first = diagrams[:2]
+    is_lift = str(getattr(section, "system", "") or "").strip().upper() == "ЛИФТ"
     table = document.add_table(rows=1, cols=len(first))
     for index, (title, data) in enumerate(first):
         cell = table.cell(0, index)
@@ -231,9 +232,17 @@ def _add_diagrams(document: Document, section: object, calc: object) -> None:
         )
         paragraph = cell.add_paragraph()
         paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        paragraph.paragraph_format.space_before = Pt(0)
+        paragraph.paragraph_format.space_after = Pt(0)
         paragraph.add_run().add_picture(
             io.BytesIO(data),
-            width=Mm(128 if len(first) == 2 else 255),
+            width=Mm(
+                76
+                if is_lift and len(first) == 2
+                else 74
+                if len(first) == 2
+                else 238
+            ),
         )
     table.style = "Table Grid"
 
@@ -246,7 +255,10 @@ def _add_diagrams(document: Document, section: object, calc: object) -> None:
         run.font.size = Pt(8)
         picture = document.add_paragraph()
         picture.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        picture.add_run().add_picture(io.BytesIO(data), width=Mm(255))
+        picture.add_run().add_picture(
+            io.BytesIO(data),
+            width=Mm(112 if is_lift else 238),
+        )
 
 
 def _add_slide_glass(document: Document, calc: object, overrides: dict[str, Any]) -> None:
@@ -335,18 +347,62 @@ def _add_lift_panels(document: Document, calc: object, overrides: dict[str, Any]
     _style_table(table)
 
 
-def _add_profiles(document: Document, calc: object, overrides: dict[str, Any]) -> None:
-    _add_bar(document, "Нарезка профилей")
-    table = document.add_table(rows=1, cols=6)
-    headers = ("Сечение", "Артикул", "Наименование / операция", "Длина, мм", "Кол-во", "Примечание")
-    for index, header in enumerate(headers):
-        _set_cell_text(
-            table.cell(0, index),
-            header,
-            bold=True,
-            align=WD_ALIGN_PARAGRAPH.CENTER,
-        )
+def _add_compact_cards(
+    document: Document,
+    title: str,
+    cards: list[tuple[io.BytesIO | None, str, str, str]],
+) -> None:
+    if not cards:
+        return
+    _add_bar(document, title)
+    columns = 5
+    table = document.add_table(rows=ceil_div(len(cards), columns), cols=columns)
+    table.style = "Table Grid"
+    table.autofit = True
+    for index, (image, heading, details, note) in enumerate(cards):
+        cell = table.cell(index // columns, index % columns)
+        cell.text = ""
+        cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+        _set_cell_margins(cell, top=20, start=35, bottom=20, end=35)
+        paragraph = cell.paragraphs[0]
+        paragraph.paragraph_format.space_before = Pt(0)
+        paragraph.paragraph_format.space_after = Pt(0)
+        paragraph.paragraph_format.line_spacing = 1
+        if image:
+            try:
+                image.seek(0)
+                with Image.open(image) as source:
+                    scale = min(11 / source.width, 9 / source.height)
+                    width_mm = max(1, source.width * scale)
+                    height_mm = max(1, source.height * scale)
+                image.seek(0)
+                paragraph.add_run().add_picture(
+                    image,
+                    width=Mm(width_mm),
+                    height=Mm(height_mm),
+                )
+                paragraph.add_run(" ")
+            except Exception:
+                pass
+        heading_run = paragraph.add_run(heading)
+        heading_run.bold = True
+        heading_run.font.name = "Arial"
+        heading_run.font.size = Pt(5.9)
+        if details:
+            details_run = paragraph.add_run(f"\n{details}")
+            details_run.font.name = "Arial"
+            details_run.font.size = Pt(5.5)
+        if note:
+            note_run = paragraph.add_run(f"\n{note}")
+            note_run.italic = True
+            note_run.font.name = "Arial"
+            note_run.font.size = Pt(5)
+    for row in table.rows:
+        _prevent_row_split(row)
 
+
+def _add_profiles(document: Document, calc: object, overrides: dict[str, Any]) -> None:
+    cards: list[tuple[io.BytesIO | None, str, str, str]] = []
     for index, profile in enumerate(profile_rows(calc)):
         cuts = list(getattr(profile, "display_cuts", None) or [])
         if not cuts:
@@ -358,17 +414,8 @@ def _add_profiles(document: Document, calc: object, overrides: dict[str, Any]) -
                     "qty_field": (getattr(profile, "field_key", "") or f"profile_{index}") + "_qty",
                 }
             ]
-        for cut_index, cut in enumerate(cuts):
-            row = table.add_row()
-            if cut_index == 0:
-                _add_picture(
-                    row.cells[0],
-                    image_stream(getattr(profile, "image", None), max_size=(600, 260)),
-                    23,
-                )
-                _set_cell_text(row.cells[1], getattr(profile, "article", ""), bold=True)
-                _set_cell_text(row.cells[2], getattr(profile, "name", ""))
-                _set_cell_text(row.cells[5], getattr(profile, "note", ""), size=7)
+        cut_labels: list[str] = []
+        for cut in cuts:
             length = ""
             if str(getattr(profile, "article", "")).upper() != "RS3110":
                 length = override_value(
@@ -381,36 +428,36 @@ def _add_profiles(document: Document, calc: object, overrides: dict[str, Any]) -
                 str(cut.get("qty_field") or ""),
                 cut.get("qty", 0),
             )
-            _set_cell_text(row.cells[3], length, align=WD_ALIGN_PARAGRAPH.CENTER)
-            _set_cell_text(row.cells[4], qty, align=WD_ALIGN_PARAGRAPH.CENTER)
-    _style_table(table)
+            if length == "":
+                cut_labels.append(f"{qty} шт")
+            else:
+                cut_labels.append(f"{length} мм × {qty} шт")
+        article = str(getattr(profile, "article", "") or "")
+        name = str(getattr(profile, "name", "") or "")
+        cards.append(
+            (
+                image_stream(getattr(profile, "image", None), max_size=(600, 260)),
+                f"{article} · {name}",
+                "; ".join(cut_labels),
+                str(getattr(profile, "note", "") or ""),
+            )
+        )
+    _add_compact_cards(document, "Нарезка профилей", cards)
 
 
 def _add_hardware(document: Document, calc: object, overrides: dict[str, Any]) -> None:
-    _add_bar(document, "Фурнитура и крепеж")
-    table = document.add_table(rows=1, cols=6)
-    headers = ("Изображение", "Артикул", "Наименование", "Кол-во", "Ед.", "Примечание")
-    for index, header in enumerate(headers):
-        _set_cell_text(
-            table.cell(0, index),
-            header,
-            bold=True,
-            align=WD_ALIGN_PARAGRAPH.CENTER,
-        )
+    cards: list[tuple[io.BytesIO | None, str, str, str]] = []
     for article, name, value, unit, image, field_key, note in hardware_rows(calc):
-        row = table.add_row()
-        _add_picture(row.cells[0], image_stream(image, max_size=(500, 260)), 20)
-        _set_cell_text(row.cells[1], article, bold=True)
-        _set_cell_text(row.cells[2], name)
-        _set_cell_text(
-            row.cells[3],
-            override_value(overrides, field_key, format_number(value)),
-            bold=True,
-            align=WD_ALIGN_PARAGRAPH.CENTER,
+        quantity = override_value(overrides, field_key, format_number(value))
+        cards.append(
+            (
+                image_stream(image, max_size=(500, 260)),
+                f"{article} · {name}",
+                f"{quantity} {unit}".strip(),
+                str(note or ""),
+            )
         )
-        _set_cell_text(row.cells[4], unit, align=WD_ALIGN_PARAGRAPH.CENTER)
-        _set_cell_text(row.cells[5], note, size=7)
-    _style_table(table)
+    _add_compact_cards(document, "Фурнитура и крепеж", cards)
 
 
 def _add_extra_components(document: Document, section: object, overrides: dict[str, Any]) -> None:
@@ -421,11 +468,11 @@ def _add_extra_components(document: Document, section: object, overrides: dict[s
     table = document.add_table(rows=1, cols=5)
     headers = ("Артикул", "Название", "Размер", "Кол-во", "Цвет")
     for index, header in enumerate(headers):
-        _set_cell_text(table.cell(0, index), header, bold=True)
+        _set_cell_text(table.cell(0, index), header, bold=True, size=6.5)
     for item in rows:
         row = table.add_row()
         for index, key in enumerate(("art", "name", "size", "qty", "color")):
-            _set_cell_text(row.cells[index], item.get(key, ""))
+            _set_cell_text(row.cells[index], item.get(key, ""), size=6)
     _style_table(table)
 
 
@@ -444,7 +491,7 @@ def _add_slide_checklist(
     )
     run.bold = True
     run.font.name = "Arial"
-    run.font.size = Pt(15)
+    run.font.size = Pt(13)
     table = document.add_table(rows=1, cols=5)
     headers = ("№ п/п", "Отм. пр-ва", "Действие", "Примечание", "Отм. ОТК")
     for index, header in enumerate(headers):
@@ -469,7 +516,7 @@ def _add_slide_checklist(
     comments_table = document.add_table(rows=1, cols=1)
     comments = override_value(overrides, "section_comments", getattr(section, "comments", "") or "")
     _set_cell_text(comments_table.cell(0, 0), comments, bold=True, size=11)
-    comments_table.rows[0].height = Mm(38)
+    comments_table.rows[0].height = Mm(32)
     comments_table.style = "Table Grid"
 
     _add_bar(document, "Ответственные за заказ на производстве")
@@ -523,7 +570,7 @@ def build_section_docx(project: object, section: object, calc: object) -> bytes:
             bold=True,
             size=10,
         )
-        notes.rows[0].height = Mm(30)
+        notes.rows[0].height = Mm(20)
         notes.style = "Table Grid"
     else:
         _add_slide_checklist(document, project, section, overrides)

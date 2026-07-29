@@ -1625,6 +1625,12 @@ class TestOfficeDownloads:
                 if name.endswith(".xml")
             )
 
+    @staticmethod
+    def _xlsx_worksheet_count(content: bytes) -> int:
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            workbook_xml = archive.read("xl/workbook.xml").decode("utf-8")
+        return len(re.findall(r"<sheet\b", workbook_xml))
+
     @pytest.mark.parametrize(
         ("system", "file_format", "expected_text"),
         [
@@ -1679,6 +1685,8 @@ class TestOfficeDownloads:
         assert response.content.startswith(b"PK")
         assert expected_text in self._archive_text(response.content)
         assert "attachment;" in response.headers["content-disposition"]
+        if file_format == "xlsx":
+            assert self._xlsx_worksheet_count(response.content) == 1
 
     @pytest.mark.parametrize("file_format", ["docx", "xlsx"])
     def test_local_glass_office_download_contains_project_rows(

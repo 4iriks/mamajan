@@ -185,14 +185,16 @@ def _setup_sheet(
     worksheet: xlsxwriter.worksheet.Worksheet,
     *,
     landscape: bool = True,
+    paper: int = 9,
 ) -> None:
     worksheet.hide_gridlines(2)
-    worksheet.set_paper(9)
+    worksheet.set_paper(paper)
     if landscape:
         worksheet.set_landscape()
     else:
         worksheet.set_portrait()
-    worksheet.fit_to_pages(1, 0)
+    worksheet.fit_to_pages(1, 1)
+    worksheet.center_horizontally()
     worksheet.set_margins(0.25, 0.25, 0.35, 0.35)
     worksheet.set_header("&C&10&BRALUMA")
     worksheet.set_footer("&L&P / &N&C&D&R&T")
@@ -663,9 +665,27 @@ def _build_slide_checklist_sheet(
         f"{getattr(section, 'name', '')}",
         formats["title"],
     )
+    row = _write_slide_checklist_block(
+        worksheet,
+        formats,
+        2,
+        section,
+        overrides,
+    )
+    worksheet.print_area(0, 0, row, 11)
+
+
+def _write_slide_checklist_block(
+    worksheet: xlsxwriter.worksheet.Worksheet,
+    formats: dict[str, Any],
+    row: int,
+    section: object,
+    overrides: dict[str, Any],
+) -> int:
+    row = _write_bar(worksheet, formats, row, "Чек-лист")
     spans = ((0, 0), (1, 1), (2, 6), (7, 10), (11, 11))
     headers = ("№ п/п", "Отм. пр-ва", "Действие", "Примечание", "Отм. ОТК")
-    row = _write_headers(worksheet, formats, 2, headers, spans)
+    row = _write_headers(worksheet, formats, row, headers, spans)
     for number, action, note in CHECKLIST_ROWS:
         values = (number, "☐", action, note, "☐")
         for value, (first, last) in zip(values, spans, strict=True):
@@ -702,7 +722,7 @@ def _build_slide_checklist_sheet(
         worksheet.merge_range(line, start, line, start + 1, label, formats["cell"])
         worksheet.merge_range(line, start + 2, line, start + 5, "", formats["cell"])
         worksheet.set_row(line, 22)
-    worksheet.print_area(0, 0, row + 4, 11)
+    return row + 4
 
 
 def build_section_xlsx(project: object, section: object, calc: object) -> bytes:
@@ -720,7 +740,7 @@ def build_section_xlsx(project: object, section: object, calc: object) -> bytes:
     system = str(getattr(section, "system", "") or "").strip().upper()
 
     worksheet = workbook.add_worksheet("Производственный лист")
-    _setup_sheet(worksheet)
+    _setup_sheet(worksheet, paper=8)
     _section_sheet_columns(worksheet)
     row = _write_section_header(
         worksheet,
@@ -732,11 +752,52 @@ def build_section_xlsx(project: object, section: object, calc: object) -> bytes:
     row = _write_summary(worksheet, formats, row, section, calc)
     row = _write_diagrams(worksheet, formats, row, section, calc)
     row = _write_section_glass_or_panels(worksheet, formats, row, calc, overrides)
-    worksheet.print_area(0, 0, max(row, 1), 11)
-
-    _build_details_sheet(workbook, formats, project, section, calc, overrides)
+    row = _write_profiles(worksheet, formats, row, calc, overrides)
+    row = _write_hardware(worksheet, formats, row, calc, overrides)
+    row = _write_extra_components(worksheet, formats, row, section, overrides)
+    if hasattr(calc, "torque") and getattr(calc, "torque", None):
+        row = _write_bar(worksheet, formats, row, "Расчет привода")
+        torque = calc.torque
+        values = (
+            ("Вес подвижных панелей", f"{format_number(torque.moving_weight_kg)} кг"),
+            ("Крутящий момент", f"{format_number(torque.torque_nm)} Н·м"),
+            ("Количество приводов", f"{torque.drive_count} шт"),
+        )
+        for column, (label, value) in enumerate(values):
+            first = column * 4
+            worksheet.merge_range(row, first, row, first + 3, label, formats["label"])
+            worksheet.merge_range(
+                row + 1,
+                first,
+                row + 1,
+                first + 3,
+                value,
+                formats["center_bold"],
+            )
+        row += 2
+        row = _write_bar(worksheet, formats, row, "Примечания и особые отметки")
+        worksheet.merge_range(
+            row,
+            0,
+            row + 4,
+            11,
+            override_value(
+                overrides,
+                "lift_comments",
+                getattr(section, "comments", "") or "",
+            ),
+            formats["cell"],
+        )
+        row += 5
     if system == "СЛАЙД":
-        _build_slide_checklist_sheet(workbook, formats, project, section, overrides)
+        row = _write_slide_checklist_block(
+            worksheet,
+            formats,
+            row,
+            section,
+            overrides,
+        )
+    worksheet.print_area(0, 0, max(row, 1), 11)
 
     workbook.close()
     return output.getvalue()
