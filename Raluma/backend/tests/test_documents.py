@@ -1686,7 +1686,7 @@ class TestOfficeDownloads:
         assert expected_text in self._archive_text(response.content)
         assert "attachment;" in response.headers["content-disposition"]
         if file_format == "xlsx":
-            assert self._xlsx_worksheet_count(response.content) == 1
+            assert self._xlsx_worksheet_count(response.content) == 2
 
     @pytest.mark.parametrize("file_format", ["docx", "xlsx"])
     def test_local_glass_office_download_contains_project_rows(

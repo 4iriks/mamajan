@@ -12,7 +12,7 @@ from typing import Any
 
 from PIL import Image, ImageChops, ImageFont
 
-from engine.pdf import get_profile_asset_path
+from engine.pdf import get_profile_asset_path, glass_mm
 
 
 BRAND_DARK = "102833"
@@ -34,6 +34,45 @@ def format_number(value: Any, decimals: int = 1) -> str:
     if rounded == int(rounded):
         return str(int(rounded))
     return f"{rounded:.{decimals}f}".rstrip("0").rstrip(".").replace(".", ",")
+
+
+def format_dimension(value: Any) -> str:
+    """Format dimensions exactly as the PDF production sheets do."""
+    try:
+        return str(glass_mm(float(value or 0)))
+    except (TypeError, ValueError):
+        return str(value or "")
+
+
+def drawing_files_for_sections(sections: Any) -> list[str]:
+    """Return drawing appendices required by the selected section handles."""
+    files: list[str] = []
+    for section in sections:
+        values = [
+            getattr(section, "handle", ""),
+            getattr(section, "handle_left", ""),
+            getattr(section, "handle_right", ""),
+            getattr(section, "center_handle", ""),
+        ]
+        text = " ".join(str(value or "").lower() for value in values)
+        if ("rs3014" in text or "кноб" in text) and "knob.pdf" not in files:
+            files.append("knob.pdf")
+        if ("rs30201" in text or "скоб" in text) and "brace600.pdf" not in files:
+            files.append("brace600.pdf")
+    return files
+
+
+def drawing_image_streams_for_sections(
+    sections: Any,
+) -> list[tuple[str, io.BytesIO]]:
+    """Load printable PNG previews for the PDF drawing appendices."""
+    drawings_dir = Path(__file__).resolve().parent.parent / "assets" / "drawings"
+    result: list[tuple[str, io.BytesIO]] = []
+    for filename in drawing_files_for_sections(sections):
+        image_path = drawings_dir / f"{Path(filename).stem}.png"
+        if image_path.is_file():
+            result.append((image_path.stem, io.BytesIO(image_path.read_bytes())))
+    return result
 
 
 def safe_int(value: Any, default: int = 0) -> int:

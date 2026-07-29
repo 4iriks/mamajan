@@ -25,6 +25,7 @@ from engine.lift_calc import calculate_lift
 from engine.office_common import normalize_filename
 from engine.office_docx import build_project_docx, build_section_docx
 from engine.office_xlsx import build_project_xlsx, build_section_xlsx
+from engine.office_common import drawing_files_for_sections
 from engine.slide_calc import calculate_slide
 from engine.pdf import append_pdf_drawings, render_preview, render_pdf_html, generate_pdf
 from engine.project_documents import DOC_TITLES, render_project_document_html
@@ -207,23 +208,6 @@ def _build_project_office(
     return build_project_xlsx(project, sections, doc_type)
 
 
-def _drawing_files_for_sections(sections) -> list[str]:
-    files: list[str] = []
-    for section in sections:
-        values = [
-            getattr(section, "handle", ""),
-            getattr(section, "handle_left", ""),
-            getattr(section, "handle_right", ""),
-            getattr(section, "center_handle", ""),
-        ]
-        text = " ".join(str(value or "").lower() for value in values)
-        if ("rs3014" in text or "кноб" in text) and "knob.pdf" not in files:
-            files.append("knob.pdf")
-        if ("rs30201" in text or "скоба" in text) and "brace600.pdf" not in files:
-            files.append("brace600.pdf")
-    return files
-
-
 @router.post("/local/sections/preview", response_class=HTMLResponse)
 def preview_local_section(payload: LocalDocumentPayload):
     project, section = _build_local_document_objects(payload)
@@ -256,7 +240,7 @@ def download_local_pdf(payload: LocalDocumentPayload):
     calc = _calculate_section(section)
     html = render_pdf_html(project, section, calc)
     pdf_bytes = generate_pdf(html)
-    pdf_bytes = append_pdf_drawings(pdf_bytes, _drawing_files_for_sections([section]))
+    pdf_bytes = append_pdf_drawings(pdf_bytes, drawing_files_for_sections([section]))
     filename = f"ПЛ_{project.number}_{section.name}.pdf"
     from urllib.parse import quote
 
@@ -298,7 +282,7 @@ def download_local_project_document_pdf(
     html = render_project_document_html(project, sections, doc_type, is_pdf=True)
     pdf_bytes = generate_pdf(html)
     if doc_type == "glass":
-        pdf_bytes = append_pdf_drawings(pdf_bytes, _drawing_files_for_sections(sections))
+        pdf_bytes = append_pdf_drawings(pdf_bytes, drawing_files_for_sections(sections))
     filename = f"{DOC_TITLES[doc_type]}_{project.number}.pdf"
     from urllib.parse import quote
 
@@ -369,7 +353,7 @@ def download_project_document_pdf(
     html = render_project_document_html(project, project.sections, doc_type, is_pdf=True)
     pdf_bytes = generate_pdf(html)
     if doc_type == "glass":
-        pdf_bytes = append_pdf_drawings(pdf_bytes, _drawing_files_for_sections(project.sections))
+        pdf_bytes = append_pdf_drawings(pdf_bytes, drawing_files_for_sections(project.sections))
     filename = f"{DOC_TITLES[doc_type]}_{project.number}.pdf"
     from urllib.parse import quote
 
@@ -461,7 +445,7 @@ def download_pdf(
     calc = _calculate_section(section)
     html = render_pdf_html(project, section, calc)
     pdf_bytes = generate_pdf(html)
-    pdf_bytes = append_pdf_drawings(pdf_bytes, _drawing_files_for_sections([section]))
+    pdf_bytes = append_pdf_drawings(pdf_bytes, drawing_files_for_sections([section]))
     filename = f"ПЛ_{project.number}_сек{section.order}.pdf"
     from urllib.parse import quote
 

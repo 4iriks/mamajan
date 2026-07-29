@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from engine.office_common import format_number
+from engine.office_common import format_dimension
 from engine.pdf import display_hardware, display_profiles
 
 
 def section_summary_rows(section: object, calc: object) -> list[tuple[str, str]]:
     system = str(getattr(section, "system", "") or "").strip().upper()
     rows = [
-        ("Ширина секции, мм", format_number(getattr(section, "width", 0))),
-        ("Высота секции, мм", format_number(getattr(section, "height", 0))),
+        ("Ширина секции, мм", format_dimension(getattr(section, "width", 0))),
+        ("Высота секции, мм", format_dimension(getattr(section, "height", 0))),
         ("Количество панелей, шт", str(getattr(section, "panels", 0))),
         ("Количество секций, шт", str(getattr(section, "quantity", 0))),
         ("Цвет", str(getattr(calc, "color_text", "") or "")),

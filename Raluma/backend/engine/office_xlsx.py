@@ -15,6 +15,8 @@ from engine.office_common import (
     HEADER_GRAY,
     RED,
     WHITE,
+    drawing_image_streams_for_sections,
+    format_dimension,
     format_number,
     image_stream,
     load_overrides,
@@ -146,6 +148,14 @@ def _formats(workbook: xlsxwriter.Workbook) -> dict[str, Any]:
                 "text_wrap": True,
             }
         ),
+        "red_text": workbook.add_format(
+            {
+                "font_name": "Arial",
+                "font_size": 8,
+                "bold": True,
+                "font_color": f"#{RED}",
+            }
+        ),
         "red_center": workbook.add_format(
             {
                 "font_name": "Arial",
@@ -178,6 +188,16 @@ def _formats(workbook: xlsxwriter.Workbook) -> dict[str, Any]:
                 **border,
             }
         ),
+        "card": workbook.add_format(
+            {
+                "font_name": "Arial",
+                "font_size": 7,
+                "bold": True,
+                "valign": "vcenter",
+                "text_wrap": True,
+                **border,
+            }
+        ),
     }
 
 
@@ -202,7 +222,7 @@ def _setup_sheet(
 
 
 def _section_sheet_columns(worksheet: xlsxwriter.worksheet.Worksheet) -> None:
-    widths = (4, 11, 13, 17, 17, 14, 10, 10, 12, 12, 12, 12)
+    widths = (9, 11, 11, 11, 9, 11, 11, 11, 9, 11, 11, 11)
     for index, width in enumerate(widths):
         worksheet.set_column(index, index, width)
 
@@ -389,10 +409,10 @@ def _write_section_glass_or_panels(
                 continue
             values = (
                 glass.position,
-                override_value(overrides, f"glass_{index}_w", format_number(glass.width_mm)),
-                override_value(overrides, f"glass_{index}_h", format_number(glass.height_mm)),
+                override_value(overrides, f"glass_{index}_w", format_dimension(glass.width_mm)),
+                override_value(overrides, f"glass_{index}_h", format_dimension(glass.height_mm)),
                 override_value(overrides, f"glass_{index}_q", glass.qty),
-                format_number(glass.glass_profile_length),
+                format_dimension(glass.glass_profile_length),
             )
             for value, (first, last) in zip(values, spans, strict=True):
                 worksheet.merge_range(row, first, row, last, value, formats["center"])
@@ -412,18 +432,18 @@ def _write_section_glass_or_panels(
             override_value(
                 overrides,
                 f"lift_panel_{panel.panel}_width",
-                format_number(panel.width_mm),
+                format_dimension(panel.width_mm),
             ),
             override_value(
                 overrides,
                 f"lift_panel_{panel.panel}_height",
-                format_number(panel.height_mm),
+                format_dimension(panel.height_mm),
             ),
             override_value(
                 overrides,
                 f"lift_panel_{panel.panel}_glued_table",
-                f"{format_number(panel.glued_width_mm)} × "
-                f"{format_number(panel.glued_height_mm)}",
+                f"{format_dimension(panel.glued_width_mm)} × "
+                f"{format_dimension(panel.glued_height_mm)}",
             ),
             override_value(
                 overrides,
@@ -513,7 +533,7 @@ def _write_profiles(
                 length = override_value(
                     overrides,
                     str(cut.get("length_field") or ""),
-                    format_number(cut.get("length")),
+                    format_dimension(cut.get("length")),
                 )
             quantity = override_value(
                 overrides,
@@ -563,6 +583,123 @@ def _write_hardware(
     return row
 
 
+def _write_compact_cards(
+    worksheet: xlsxwriter.worksheet.Worksheet,
+    formats: dict[str, Any],
+    row: int,
+    title: str,
+    cards: list[tuple[io.BytesIO | None, str]],
+) -> int:
+    if not cards:
+        return row
+    row = _write_bar(worksheet, formats, row, title)
+    for offset in range(0, len(cards), 3):
+        for column in range(3):
+            start = column * 4
+            index = offset + column
+            worksheet.write(row, start, "", formats["cell"])
+            if index >= len(cards):
+                worksheet.merge_range(row, start + 1, row, start + 3, "", formats["cell"])
+                continue
+            image, text = cards[index]
+            worksheet.merge_range(row, start + 1, row, start + 3, text, formats["card"])
+            _insert_image(
+                worksheet,
+                row,
+                start,
+                image,
+                max_width_px=62,
+                max_height_px=36,
+                x_offset=2,
+                y_offset=2,
+                allow_enlarge=False,
+            )
+        worksheet.set_row(row, 38)
+        row += 1
+    return row
+
+
+def _write_compact_profiles(
+    worksheet: xlsxwriter.worksheet.Worksheet,
+    formats: dict[str, Any],
+    row: int,
+    calc: object,
+    overrides: dict[str, Any],
+) -> int:
+    cards: list[tuple[io.BytesIO | None, str]] = []
+    for index, profile in enumerate(profile_rows(calc)):
+        cuts = list(getattr(profile, "display_cuts", None) or [])
+        if not cuts:
+            key = getattr(profile, "field_key", "") or f"profile_{index}"
+            cuts = [
+                {
+                    "length": getattr(profile, "length_mm", 0),
+                    "qty": getattr(profile, "qty", 0),
+                    "length_field": f"{key}_length",
+                    "qty_field": f"{key}_qty",
+                }
+            ]
+        values: list[str] = []
+        for cut in cuts:
+            quantity = override_value(
+                overrides,
+                str(cut.get("qty_field") or ""),
+                cut.get("qty", 0),
+            )
+            if str(getattr(profile, "article", "")).upper() == "RS3110":
+                values.append(f"{quantity} шт")
+            else:
+                length = override_value(
+                    overrides,
+                    str(cut.get("length_field") or ""),
+                    format_dimension(cut.get("length")),
+                )
+                values.append(f"{length} мм × {quantity} шт")
+        text = (
+            f"{getattr(profile, 'article', '')} · {getattr(profile, 'name', '')}\n"
+            f"{'; '.join(values)}"
+        )
+        note = str(getattr(profile, "note", "") or "")
+        if note:
+            text += f"\n{note}"
+        cards.append(
+            (
+                image_stream(getattr(profile, "image", None), max_size=(600, 260)),
+                text,
+            )
+        )
+    return _write_compact_cards(
+        worksheet,
+        formats,
+        row,
+        "Нарезка профилей",
+        cards,
+    )
+
+
+def _write_compact_hardware(
+    worksheet: xlsxwriter.worksheet.Worksheet,
+    formats: dict[str, Any],
+    row: int,
+    calc: object,
+    overrides: dict[str, Any],
+) -> int:
+    cards: list[tuple[io.BytesIO | None, str]] = []
+    for article, name, value, unit, image, field_key, note in hardware_rows(calc):
+        quantity = override_value(overrides, field_key, format_number(value))
+        text = f"{article} · {name}\n{quantity} {unit}".strip()
+        if note:
+            text += f"\n{note}"
+        cards.append((image_stream(image, max_size=(500, 260)), text))
+    return _write_compact_cards(
+        worksheet,
+        formats,
+        row,
+        "Фурнитура и крепеж",
+        cards,
+    )
+
+
 def _write_extra_components(
     worksheet: xlsxwriter.worksheet.Worksheet,
     formats: dict[str, Any],
@@ -607,15 +744,21 @@ def _build_details_sheet(
         section,
         "НАРЕЗКА И КОМПЛЕКТАЦИЯ",
     )
-    row = _write_profiles(worksheet, formats, row, calc, overrides)
-    row = _write_hardware(worksheet, formats, row, calc, overrides)
+    row = _write_compact_profiles(worksheet, formats, row, calc, overrides)
+    row = _write_compact_hardware(worksheet, formats, row, calc, overrides)
     row = _write_extra_components(worksheet, formats, row, section, overrides)
     if hasattr(calc, "torque") and getattr(calc, "torque", None):
         row = _write_bar(worksheet, formats, row, "Расчет привода")
         torque = calc.torque
         values = (
-            ("Вес подвижных панелей", f"{format_number(torque.moving_weight_kg)} кг"),
-            ("Крутящий момент", f"{format_number(torque.torque_nm)} Н·м"),
+            (
+                "Вес подвижных панелей",
+                f"{format_dimension(torque.moving_weight_kg)} кг",
+            ),
+            (
+                "Крутящий момент",
+                f"{format_dimension(torque.torque_nm)} Н·м",
+            ),
             ("Количество приводов", f"{torque.drive_count} шт"),
         )
         for column, (label, value) in enumerate(values):
@@ -672,7 +815,41 @@ def _build_slide_checklist_sheet(
         section,
         overrides,
     )
-    worksheet.print_area(0, 0, row, 11)
+    drawings = drawing_image_streams_for_sections([section])
+    if drawings:
+        row = _write_bar(worksheet, formats, row, "Чертежи ручек")
+        for index, (name, stream) in enumerate(drawings):
+            start_col = index * 6
+            worksheet.merge_range(
+                row,
+                start_col,
+                row + 8,
+                start_col + 5,
+                "",
+                formats["cell"],
+            )
+            _insert_image(
+                worksheet,
+                row,
+                start_col,
+                stream,
+                max_width_px=300,
+                max_height_px=155,
+                x_offset=12,
+                y_offset=5,
+                allow_enlarge=False,
+            )
+            label = "Ручка-кноб" if name == "knob" else "Ручка-скоба 600 мм"
+            worksheet.merge_range(
+                row + 9,
+                start_col,
+                row + 9,
+                start_col + 5,
+                label,
+                formats["center_bold"],
+            )
+        row += 10
+    worksheet.print_area(0, 0, row - 1, 11)
 
 
 def _write_slide_checklist_block(
@@ -715,14 +892,59 @@ def _write_slide_checklist_block(
     )
     row += 8
     row = _write_bar(worksheet, formats, row, "Ответственные за заказ на производстве")
-    labels = ("Нарезка", "Поклейка", "Упаковка", "Сборка", "Поклейка", "Комплектация", "Упаковка", "")
+    labels = (
+        "Нарезка",
+        "Поклейка",
+        "Упаковка",
+        "Сборка",
+        "Поклейка",
+        "Комплектация",
+        "Упаковка",
+        "",
+    )
     for index, label in enumerate(labels):
         line = row + index % 4
         start = 0 if index < 4 else 6
-        worksheet.merge_range(line, start, line, start + 1, label, formats["cell"])
-        worksheet.merge_range(line, start + 2, line, start + 5, "", formats["cell"])
+        worksheet.write(line, start, index + 1, formats["center"])
+        worksheet.merge_range(line, start + 1, line, start + 2, label, formats["cell"])
+        worksheet.merge_range(line, start + 3, line, start + 5, "", formats["cell"])
         worksheet.set_row(line, 22)
-    return row + 4
+    row += 4
+
+    worksheet.merge_range(
+        row,
+        0,
+        row,
+        7,
+        'Дата фото профиля и панелей   "____"  ______________  202___ г.',
+        formats["cell"],
+    )
+    worksheet.merge_range(row, 8, row, 11, "Ответственный", formats["center"])
+    worksheet.set_row(row, 24)
+    row += 1
+    worksheet.merge_range(
+        row,
+        0,
+        row,
+        7,
+        'Дата фото фурнитуры           "____"  ______________  202___ г.',
+        formats["cell"],
+    )
+    worksheet.merge_range(row, 8, row, 11, "", formats["cell"])
+    worksheet.set_row(row, 24)
+    row += 1
+    worksheet.merge_range(row, 0, row, 7, "", formats["cell"])
+    worksheet.merge_range(row, 8, row, 11, "подпись", formats["center"])
+    worksheet.set_row(row, 18)
+    row += 1
+    worksheet.merge_range(row, 0, row, 7, "", formats["cell"])
+    worksheet.merge_range(row, 8, row, 11, "", formats["cell"])
+    worksheet.set_row(row, 24)
+    row += 1
+    worksheet.merge_range(row, 0, row, 7, "", formats["cell"])
+    worksheet.merge_range(row, 8, row, 11, "расшифровка", formats["center"])
+    worksheet.set_row(row, 18)
+    return row + 1
 
 
 def build_section_xlsx(project: object, section: object, calc: object) -> bytes:
@@ -752,52 +974,16 @@ def build_section_xlsx(project: object, section: object, calc: object) -> bytes:
     row = _write_summary(worksheet, formats, row, section, calc)
     row = _write_diagrams(worksheet, formats, row, section, calc)
     row = _write_section_glass_or_panels(worksheet, formats, row, calc, overrides)
-    row = _write_profiles(worksheet, formats, row, calc, overrides)
-    row = _write_hardware(worksheet, formats, row, calc, overrides)
-    row = _write_extra_components(worksheet, formats, row, section, overrides)
-    if hasattr(calc, "torque") and getattr(calc, "torque", None):
-        row = _write_bar(worksheet, formats, row, "Расчет привода")
-        torque = calc.torque
-        values = (
-            ("Вес подвижных панелей", f"{format_number(torque.moving_weight_kg)} кг"),
-            ("Крутящий момент", f"{format_number(torque.torque_nm)} Н·м"),
-            ("Количество приводов", f"{torque.drive_count} шт"),
-        )
-        for column, (label, value) in enumerate(values):
-            first = column * 4
-            worksheet.merge_range(row, first, row, first + 3, label, formats["label"])
-            worksheet.merge_range(
-                row + 1,
-                first,
-                row + 1,
-                first + 3,
-                value,
-                formats["center_bold"],
-            )
-        row += 2
-        row = _write_bar(worksheet, formats, row, "Примечания и особые отметки")
-        worksheet.merge_range(
-            row,
-            0,
-            row + 4,
-            11,
-            override_value(
-                overrides,
-                "lift_comments",
-                getattr(section, "comments", "") or "",
-            ),
-            formats["cell"],
-        )
-        row += 5
     if system == "СЛАЙД":
-        row = _write_slide_checklist_block(
-            worksheet,
-            formats,
-            row,
-            section,
-            overrides,
-        )
-    worksheet.print_area(0, 0, max(row, 1), 11)
+        row = _write_compact_profiles(worksheet, formats, row, calc, overrides)
+        row = _write_compact_hardware(worksheet, formats, row, calc, overrides)
+        row = _write_extra_components(worksheet, formats, row, section, overrides)
+    worksheet.print_area(0, 0, max(row - 1, 1), 11)
+
+    if system == "ЛИФТ":
+        _build_details_sheet(workbook, formats, project, section, calc, overrides)
+    else:
+        _build_slide_checklist_sheet(workbook, formats, project, section, overrides)
 
     workbook.close()
     return output.getvalue()
@@ -808,23 +994,26 @@ def _project_header(
     formats: dict[str, Any],
     title: str,
     project: object,
+    *,
+    last_col: int = 7,
 ) -> int:
-    worksheet.merge_range(0, 0, 2, 3, title.upper(), formats["title"])
-    worksheet.merge_range(0, 4, 0, 5, "Заявка", formats["label"])
+    info_start = max(3, last_col - 3)
+    worksheet.merge_range(0, 0, 2, info_start - 1, title.upper(), formats["title"])
+    worksheet.write(0, info_start, "Заявка", formats["label"])
     worksheet.merge_range(
         0,
-        6,
+        info_start + 1,
         0,
-        7,
+        last_col,
         str(getattr(project, "number", "") or ""),
         formats["cell"],
     )
-    worksheet.merge_range(1, 4, 1, 5, "Заказчик", formats["label"])
+    worksheet.write(1, info_start, "Заказчик", formats["label"])
     worksheet.merge_range(
         1,
-        6,
+        info_start + 1,
         1,
-        7,
+        last_col,
         str(getattr(project, "customer", "") or ""),
         formats["cell"],
     )
@@ -860,6 +1049,7 @@ def _build_glass_xlsx(context: dict) -> bytes:
         worksheet.write(row, column, header, formats["header"])
     worksheet.set_row(row, 30)
     row += 1
+    data_start_row = row
     for item in context["glass_rows"]:
         values = (
             item["index"],
@@ -868,21 +1058,47 @@ def _build_glass_xlsx(context: dict) -> bytes:
             item["width"],
             item["height"],
             item["qty"],
-            item["area"],
             item["note"],
         )
-        for column, value in enumerate(values):
+        for column, value in enumerate(values[:6]):
             worksheet.write(
                 row,
                 column,
                 value,
                 formats["cell"] if column in {1, 2, 7} else formats["center"],
             )
+        excel_row = row + 1
+        worksheet.write_formula(
+            row,
+            6,
+            f"=ROUND(D{excel_row}*E{excel_row}*F{excel_row}/1000000,3)",
+            formats["center"],
+            item["area"],
+        )
+        worksheet.write(row, 7, item["note"], formats["cell"])
         worksheet.set_row(row, 34)
         row += 1
     worksheet.merge_range(row, 0, row, 4, "Итого", formats["total"])
-    worksheet.write(row, 5, context["glass_total_qty"], formats["total"])
-    worksheet.write(row, 6, context["glass_total_area"], formats["total"])
+    first_excel_row = data_start_row + 1
+    last_excel_row = row
+    if row > data_start_row:
+        worksheet.write_formula(
+            row,
+            5,
+            f"=SUM(F{first_excel_row}:F{last_excel_row})",
+            formats["total"],
+            context["glass_total_qty"],
+        )
+        worksheet.write_formula(
+            row,
+            6,
+            f"=ROUND(SUM(G{first_excel_row}:G{last_excel_row}),3)",
+            formats["total"],
+            context["glass_total_area"],
+        )
+    else:
+        worksheet.write_number(row, 5, 0, formats["total"])
+        worksheet.write_number(row, 6, 0, formats["total"])
     worksheet.write_blank(row, 7, None, formats["total"])
     row += 2
     worksheet.merge_range(
@@ -941,6 +1157,7 @@ def _build_paint_xlsx(context: dict) -> bytes:
             formats,
             "Заявка на покраску",
             context["project"],
+            last_col=5,
         )
         worksheet.merge_range(
             row,
@@ -966,6 +1183,7 @@ def _build_paint_xlsx(context: dict) -> bytes:
         worksheet.set_row(row, 30)
         row += 1
 
+        data_start_row = row
         for group in page["groups"]:
             rows = list(group["rows"])
             if not rows:
@@ -974,15 +1192,35 @@ def _build_paint_xlsx(context: dict) -> bytes:
             end = row + len(rows) - 1
             if end > start:
                 worksheet.merge_range(start, 0, end, 0, group["article"], formats["center_bold"])
-                worksheet.merge_range(start, 1, end, 1, group["name"], formats["cell_bottom"])
+                worksheet.merge_range(start, 1, end, 1, "", formats["cell_bottom"])
             else:
                 worksheet.write(start, 0, group["article"], formats["center_bold"])
+                worksheet.write(start, 1, "", formats["cell_bottom"])
+            note = str(group.get("note") or "").strip()
+            if note:
+                worksheet.write_rich_string(
+                    start,
+                    1,
+                    str(group["name"]),
+                    "\n",
+                    formats["red_text"],
+                    note,
+                    formats["cell_bottom"],
+                )
+            else:
                 worksheet.write(start, 1, group["name"], formats["cell_bottom"])
             for item in rows:
                 worksheet.write(row, 2, item["qty"], formats["center"])
                 worksheet.write(row, 3, item["clean"], formats["center"])
                 worksheet.write(row, 4, item["allowance"], formats["center"])
-                worksheet.write(row, 5, item["total_m"], formats["center"])
+                excel_row = row + 1
+                worksheet.write_formula(
+                    row,
+                    5,
+                    f"=ROUND(C{excel_row}*E{excel_row}/1000,1)",
+                    formats["center"],
+                    item["total_m"],
+                )
                 worksheet.set_row(row, 58)
                 row += 1
             source = image_stream(
@@ -1001,18 +1239,31 @@ def _build_paint_xlsx(context: dict) -> bytes:
                 y_offset=3,
                 allow_enlarge=False,
             )
-            if group.get("note"):
-                worksheet.write_comment(
-                    start,
-                    1,
-                    str(group["note"]),
-                    {"author": "Raluma"},
-                )
         worksheet.merge_range(row, 0, row, 1, "Итого", formats["total"])
-        worksheet.write(row, 2, page["total_qty"], formats["total"])
+        first_excel_row = data_start_row + 1
+        last_excel_row = row
+        if row > data_start_row:
+            worksheet.write_formula(
+                row,
+                2,
+                f"=SUM(C{first_excel_row}:C{last_excel_row})",
+                formats["total"],
+                page["total_qty"],
+            )
+        else:
+            worksheet.write_number(row, 2, 0, formats["total"])
         worksheet.write_blank(row, 3, None, formats["total"])
         worksheet.write_blank(row, 4, None, formats["total"])
-        worksheet.write(row, 5, page["total_m"], formats["total"])
+        if row > data_start_row:
+            worksheet.write_formula(
+                row,
+                5,
+                f"=ROUND(SUM(F{first_excel_row}:F{last_excel_row}),1)",
+                formats["total"],
+                page["total_m"],
+            )
+        else:
+            worksheet.write_number(row, 5, 0, formats["total"])
         worksheet.print_area(0, 0, row, 5)
     workbook.close()
     return output.getvalue()
