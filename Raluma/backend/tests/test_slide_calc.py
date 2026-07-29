@@ -2227,5 +2227,30 @@ class TestInterGlassProfileDefaults:
             )
         )
 
-        assert _ceil_panel_widths(result) == [850, 834, 834, 834, 950]
-        assert _ceil_panel_profile_lengths(result) == [850, 831, 831, 831, 947]
+        assert _ceil_panel_widths(result) == [850, 834, 834, 834, 934]
+        assert _ceil_panel_profile_lengths(result) == [850, 831, 831, 831, 931]
+
+    def test_two_rows_keep_handle_offset_separate_from_fixed_edge_recovery(self):
+        result = calculate_slide(
+            _make_section(
+                width=5000,
+                height=2620,
+                panels=6,
+                rails=5,
+                slide_rows=2,
+                inter_glass_profile="Алюминиевый RS2061",
+                profile_left_p_bar=True,
+                profile_right_p_bar=True,
+                profile_left_bubble=True,
+                profile_right_bubble=True,
+                handle_left="Без ручки (глухая)",
+                handle_right="Ручка-скоба 600мм RS30201",
+                handle_offset_right=100,
+                lock_left=None,
+                lock_right=None,
+            )
+        )
+
+        widths = [panel.width_mm for panel in result.panel_glass]
+        assert round(widths[0] - widths[1], 1) == 16
+        assert round(widths[-1] - widths[1], 1) == 100

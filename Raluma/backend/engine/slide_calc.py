@@ -767,8 +767,12 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         - center_offset * 2
         + inter_glass_overlap * (P - 2)
     ) / P
-    left_W = edge_base_W + a + krlr + krlp
-    right_W = edge_base_W + b + krrr + krrp
+    # An explicit handle offset replaces the standard 16 mm P-profile/bubble
+    # recovery on that side; the two values must not be added together.
+    left_edge_recovery = 0 if a else krlp
+    right_edge_recovery = 0 if b else krrp
+    left_W = edge_base_W + a + krlr + left_edge_recovery
+    right_W = edge_base_W + b + krrr + right_edge_recovery
     center_W = edge_base_W + center_offset + centr2
 
     result.glass.append(GlassItem("Левое", round(left_W, 1), round(glass_H, 1), Q))
@@ -1537,8 +1541,12 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
             - b
             + inter_glass_overlap * (P - 1)
         ) / P
-        left_W = edge_base_W + a + krlr + krlp
-        right_W = edge_base_W + b + krrr + krrp
+        # An explicit handle offset replaces the standard 16 mm P-profile/bubble
+        # recovery on that side; the two values must not be added together.
+        left_edge_recovery = 0 if a else krlp
+        right_edge_recovery = 0 if b else krrp
+        left_W = edge_base_W + a + krlr + left_edge_recovery
+        right_W = edge_base_W + b + krrr + right_edge_recovery
 
         middle_profile_length = round(middle_W - (3 if ig_article else 0), 1)
         panel_rows: list[PanelGlassItem] = [
