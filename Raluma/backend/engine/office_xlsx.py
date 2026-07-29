@@ -227,7 +227,7 @@ def _formats(workbook: xlsxwriter.Workbook) -> dict[str, Any]:
         "card_note": workbook.add_format(
             {
                 "font_name": "Arial",
-                "font_size": 6.2,
+                "font_size": 7,
                 "italic": True,
                 "font_color": "#5F696E",
             }
@@ -757,7 +757,7 @@ def _write_compact_profiles(
                     str(cut.get("length_field") or ""),
                     format_dimension(cut.get("length")),
                 )
-                values.append(f"{length} мм × {quantity} шт")
+                values.append(f"{length} мм {quantity} шт")
         heading = f"{getattr(profile, 'article', '')} · {getattr(profile, 'name', '')}"
         quantity = "; ".join(values)
         note = str(getattr(profile, "note", "") or "")

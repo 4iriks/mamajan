@@ -585,7 +585,7 @@ def _add_compact_cards(
             note_run = note_paragraph.add_run(note)
             note_run.italic = True
             note_run.font.name = "Arial"
-            note_run.font.size = Pt(6.2)
+            note_run.font.size = Pt(7)
             note_run.font.color.rgb = RGBColor.from_string("555555")
     for row_index, row in enumerate(table.rows):
         _prevent_row_split(row)
@@ -625,7 +625,7 @@ def _add_profiles(document: Document, calc: object, overrides: dict[str, Any]) -
             if length == "":
                 cut_labels.append(f"{qty} шт")
             else:
-                cut_labels.append(f"{length} мм × {qty} шт")
+                cut_labels.append(f"{length} мм {qty} шт")
         article = str(getattr(profile, "article", "") or "")
         name = str(getattr(profile, "name", "") or "")
         cards.append(
