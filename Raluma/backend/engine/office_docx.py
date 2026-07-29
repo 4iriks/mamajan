@@ -99,6 +99,30 @@ def _set_cell_margins(cell, top=60, start=80, bottom=60, end=80) -> None:
         node.set(qn("w:type"), "dxa")
 
 
+def _set_cell_width(cell, width_mm: float) -> None:
+    properties = cell._tc.get_or_add_tcPr()
+    width = properties.find(qn("w:tcW"))
+    if width is None:
+        width = OxmlElement("w:tcW")
+        properties.append(width)
+    width.set(qn("w:w"), str(int(width_mm * 56.6929)))
+    width.set(qn("w:type"), "dxa")
+
+
+def _hide_table_borders(table) -> None:
+    properties = table._tbl.tblPr
+    borders = properties.find(qn("w:tblBorders"))
+    if borders is None:
+        borders = OxmlElement("w:tblBorders")
+        properties.append(borders)
+    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        node = borders.find(qn(f"w:{edge}"))
+        if node is None:
+            node = OxmlElement(f"w:{edge}")
+            borders.append(node)
+        node.set(qn("w:val"), "nil")
+
+
 def _set_repeat_header(row) -> None:
     properties = row._tr.get_or_add_trPr()
     repeat = OxmlElement("w:tblHeader")
@@ -340,12 +364,16 @@ def _add_diagrams(document: Document, section: object, calc: object) -> None:
     diagrams = section_diagrams(section, calc)
     first = diagrams[:2]
     is_lift = str(getattr(section, "system", "") or "").strip().upper() == "ЛИФТ"
-    if is_lift:
-        table = document.add_table(rows=1, cols=len(first))
-        placements = [(table.cell(0, index), 78) for index in range(len(first))]
-    else:
-        table = document.add_table(rows=len(first), cols=1)
-        placements = [(table.cell(index, 0), 174) for index in range(len(first))]
+    table = document.add_table(rows=1, cols=len(first))
+    table.autofit = False
+    picture_width = 78 if is_lift else 90
+    cell_width = 96 if not is_lift else 88
+    placements = []
+    for index in range(len(first)):
+        cell = table.cell(0, index)
+        _set_cell_width(cell, cell_width)
+        _set_cell_margins(cell, top=20, start=20, bottom=20, end=20)
+        placements.append((cell, picture_width))
 
     for (title, data), (cell, width_mm) in zip(first, placements, strict=True):
         _set_cell_text(
@@ -486,52 +514,84 @@ def _add_compact_cards(
     columns = 3
     table = document.add_table(rows=ceil_div(len(cards), columns), cols=columns)
     table.style = "Table Grid"
-    table.autofit = True
+    table.autofit = False
     for index, (image, heading, details, note) in enumerate(cards):
         cell = table.cell(index // columns, index % columns)
         cell.text = ""
         cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
-        _set_cell_margins(cell, top=8, start=20, bottom=8, end=20)
-        paragraph = cell.paragraphs[0]
-        paragraph.paragraph_format.space_before = Pt(0)
-        paragraph.paragraph_format.space_after = Pt(0)
-        paragraph.paragraph_format.line_spacing = 1
+        _set_cell_margins(cell, top=12, start=20, bottom=12, end=20)
+        for paragraph in cell.paragraphs:
+            paragraph.paragraph_format.space_before = Pt(0)
+            paragraph.paragraph_format.space_after = Pt(0)
+            paragraph.paragraph_format.line_spacing = 1
+            paragraph.add_run().font.size = Pt(1)
+
+        nested = cell.add_table(rows=2 if note else 1, cols=3)
+        nested.autofit = False
+        _hide_table_borders(nested)
+        for nested_cell, width in zip(
+            nested.rows[0].cells,
+            (15, 34, 14),
+            strict=True,
+        ):
+            _set_cell_width(nested_cell, width)
+            _set_cell_margins(nested_cell, top=0, start=25, bottom=0, end=25)
+            nested_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+
         if image:
             try:
                 image.seek(0)
                 with Image.open(image) as source:
-                    scale = min(12 / source.width, 6.5 / source.height)
+                    scale = min(13.5 / source.width, 8.5 / source.height)
                     width_mm = max(1, source.width * scale)
                     height_mm = max(1, source.height * scale)
                 image.seek(0)
-                paragraph.add_run().add_picture(
+                image_paragraph = nested.cell(0, 0).paragraphs[0]
+                image_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                image_paragraph.paragraph_format.space_before = Pt(0)
+                image_paragraph.paragraph_format.space_after = Pt(0)
+                image_paragraph.add_run().add_picture(
                     image,
                     width=Mm(width_mm),
                     height=Mm(height_mm),
                 )
-                paragraph.add_run(" ")
             except Exception:
                 pass
-        heading_run = paragraph.add_run(heading)
+
+        heading_paragraph = nested.cell(0, 1).paragraphs[0]
+        heading_paragraph.paragraph_format.space_before = Pt(0)
+        heading_paragraph.paragraph_format.space_after = Pt(0)
+        heading_run = heading_paragraph.add_run(heading)
         heading_run.bold = True
         heading_run.font.name = "Arial"
-        heading_run.font.size = Pt(6.1)
+        heading_run.font.size = Pt(7.2)
+
         if details:
-            details_run = paragraph.add_run(f"\n{details}")
+            details_paragraph = nested.cell(0, 2).paragraphs[0]
+            details_paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            details_paragraph.paragraph_format.space_before = Pt(0)
+            details_paragraph.paragraph_format.space_after = Pt(0)
+            details_run = details_paragraph.add_run(details)
             details_run.bold = True
             details_run.font.name = "Arial"
-            details_run.font.size = Pt(7.1)
+            details_run.font.size = Pt(8.2)
+
         if note:
-            note_run = paragraph.add_run(f"\n{note}")
+            note_cell = nested.cell(1, 0).merge(nested.cell(1, 2))
+            _set_cell_margins(note_cell, top=0, start=25, bottom=0, end=25)
+            note_paragraph = note_cell.paragraphs[0]
+            note_paragraph.paragraph_format.space_before = Pt(0)
+            note_paragraph.paragraph_format.space_after = Pt(0)
+            note_run = note_paragraph.add_run(note)
             note_run.italic = True
             note_run.font.name = "Arial"
-            note_run.font.size = Pt(5.2)
+            note_run.font.size = Pt(6.2)
             note_run.font.color.rgb = RGBColor.from_string("555555")
     for row_index, row in enumerate(table.rows):
         _prevent_row_split(row)
         start = row_index * columns
         has_note = any(card[3] for card in cards[start : start + columns])
-        row.height = Mm(12 if has_note else 9.5)
+        row.height = Mm(16 if has_note else 13)
         row.height_rule = WD_ROW_HEIGHT_RULE.AT_LEAST
 
 
@@ -624,32 +684,41 @@ def _add_slide_checklist(
     )
     run.bold = True
     run.font.name = "Arial"
-    run.font.size = Pt(13)
+    run.font.size = Pt(14)
     table = document.add_table(rows=1, cols=5)
+    table.autofit = False
+    column_widths = (13, 19, 78, 64, 19)
     headers = ("№ п/п", "Отм. пр-ва", "Действие", "Примечание", "Отм. ОТК")
     for index, header in enumerate(headers):
+        _set_cell_width(table.cell(0, index), column_widths[index])
         _set_cell_text(
             table.cell(0, index),
             header,
             bold=True,
+            size=7.4,
             align=WD_ALIGN_PARAGRAPH.CENTER,
         )
+    table.rows[0].height = Mm(8)
+    table.rows[0].height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
     for number, action, note in CHECKLIST_ROWS:
         row = table.add_row()
         values = (number, "☐", action, note, "☐")
         for index, value in enumerate(values):
+            _set_cell_width(row.cells[index], column_widths[index])
             _set_cell_text(
                 row.cells[index],
                 value,
-                size=6.4,
+                size=7.2,
                 align=WD_ALIGN_PARAGRAPH.CENTER if index in {0, 1, 4} else None,
             )
+        row.height = Mm(8)
+        row.height_rule = WD_ROW_HEIGHT_RULE.AT_LEAST
     _style_table(table)
     _add_bar(document, "Примечания и особые отметки при производстве или проверке ОТК")
     comments_table = document.add_table(rows=1, cols=1)
     comments = override_value(overrides, "section_comments", getattr(section, "comments", "") or "")
     _set_cell_text(comments_table.cell(0, 0), comments, bold=True, size=9)
-    comments_table.rows[0].height = Mm(21)
+    comments_table.rows[0].height = Mm(29)
     comments_table.rows[0].height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
     comments_table.style = "Table Grid"
 
@@ -671,12 +740,12 @@ def _add_slide_checklist(
         _set_cell_text(
             people.cell(row, start),
             index + 1,
-            size=6.5,
+            size=7.3,
             align=WD_ALIGN_PARAGRAPH.CENTER,
         )
-        _set_cell_text(people.cell(row, start + 1), label, size=6.5)
-        _set_cell_text(people.cell(row, start + 2), " - ____________________", size=6.5)
-        people.rows[row].height = Mm(5.2)
+        _set_cell_text(people.cell(row, start + 1), label, size=7.3)
+        _set_cell_text(people.cell(row, start + 2), " - ____________________", size=7.3)
+        people.rows[row].height = Mm(6.2)
         people.rows[row].height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
     people.style = "Table Grid"
 
@@ -726,7 +795,7 @@ def _add_slide_checklist(
         align=WD_ALIGN_PARAGRAPH.CENTER,
     )
     for footer_row in footer.rows:
-        footer_row.height = Mm(3.8)
+        footer_row.height = Mm(5.2)
         footer_row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
 
 

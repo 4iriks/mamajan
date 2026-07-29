@@ -191,8 +191,8 @@ def _formats(workbook: xlsxwriter.Workbook) -> dict[str, Any]:
         "card": workbook.add_format(
             {
                 "font_name": "Arial",
-                "font_size": 6.2,
-                "valign": "top",
+                "font_size": 7,
+                "valign": "vcenter",
                 "text_wrap": True,
                 **border,
             }
@@ -200,15 +200,26 @@ def _formats(workbook: xlsxwriter.Workbook) -> dict[str, Any]:
         "card_heading": workbook.add_format(
             {
                 "font_name": "Arial",
-                "font_size": 6.4,
+                "font_size": 7.3,
                 "bold": True,
                 "font_color": "#162D37",
+            }
+        ),
+        "card_heading_cell": workbook.add_format(
+            {
+                "font_name": "Arial",
+                "font_size": 7.3,
+                "bold": True,
+                "font_color": "#162D37",
+                "valign": "vcenter",
+                "text_wrap": True,
+                **border,
             }
         ),
         "card_quantity": workbook.add_format(
             {
                 "font_name": "Arial",
-                "font_size": 7.4,
+                "font_size": 8.4,
                 "bold": True,
                 "font_color": "#000000",
             }
@@ -216,9 +227,20 @@ def _formats(workbook: xlsxwriter.Workbook) -> dict[str, Any]:
         "card_note": workbook.add_format(
             {
                 "font_name": "Arial",
-                "font_size": 5.4,
+                "font_size": 6.2,
                 "italic": True,
                 "font_color": "#5F696E",
+            }
+        ),
+        "card_quantity_cell": workbook.add_format(
+            {
+                "font_name": "Arial",
+                "font_size": 8.4,
+                "bold": True,
+                "align": "right",
+                "valign": "vcenter",
+                "text_wrap": True,
+                **border,
             }
         ),
     }
@@ -664,30 +686,38 @@ def _write_compact_cards(
                 worksheet.merge_range(row, start + 1, row, start + 3, "", formats["cell"])
                 continue
             image, heading, quantity, note = cards[index]
-            worksheet.merge_range(row, start + 1, row, start + 3, "", formats["card"])
-            rich_parts: list[Any] = [
-                formats["card_heading"],
-                heading,
-                "\n",
-                formats["card_quantity"],
-                quantity,
-            ]
+            worksheet.merge_range(row, start + 1, row, start + 2, "", formats["card"])
             if note:
-                rich_parts.extend(("\n", formats["card_note"], note))
-            rich_parts.append(formats["card"])
-            worksheet.write_rich_string(row, start + 1, *rich_parts)
+                worksheet.write_rich_string(
+                    row,
+                    start + 1,
+                    formats["card_heading"],
+                    heading,
+                    "\n",
+                    formats["card_note"],
+                    note,
+                    formats["card"],
+                )
+            else:
+                worksheet.write(
+                    row,
+                    start + 1,
+                    heading,
+                    formats["card_heading_cell"],
+                )
+            worksheet.write(row, start + 3, quantity, formats["card_quantity_cell"])
             _insert_image(
                 worksheet,
                 row,
                 start,
                 image,
-                max_width_px=62,
-                max_height_px=36,
+                max_width_px=68,
+                max_height_px=43,
                 x_offset=2,
                 y_offset=2,
                 allow_enlarge=False,
             )
-        worksheet.set_row(row, 52)
+        worksheet.set_row(row, 62)
         row += 1
     return row
 
