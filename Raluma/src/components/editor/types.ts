@@ -75,6 +75,20 @@ export interface Section {
   angleLeft?: number;
   angleRight?: number;
   bookSystem?: string;
+  bookLeftDoorHardware?: string;
+  bookRightDoorHardware?: string;
+  bookLeftDoorOpening?: string;
+  bookRightDoorOpening?: string;
+  bookObstacleDistance?: number;
+  bookLeftStackPanels?: number;
+  bookHandleHeight?: number;
+  bookExtraFixedEnabled?: boolean;
+  bookExtraFixedWidth?: number;
+  bookExtraFixedSide?: string;
+  bookExtraDoorEnabled?: boolean;
+  bookExtraDoorPanel?: number;
+  bookExtraDoorWidth?: number;
+  bookExtraDoorOpening?: string;
   // ЛИФТ
   liftFillingType?: string;
   liftFillingCustom?: string;

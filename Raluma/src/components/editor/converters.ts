@@ -87,10 +87,55 @@ function centerHandleSupportsOffset(value?: string): boolean {
   return handle.includes('rs3017') || handle.includes('ручка-скоба');
 }
 
+function normalizeBookDoorLayout(side?: string, doors?: number): 'none' | 'left' | 'right' | 'both' {
+  const value = (side || '').trim().toLowerCase().replace('ё', 'е');
+  if (
+    (doors ?? 0) >= 2
+    || ['both', 'обе', 'оба', 'левая и правая', 'слева и справа', 'с обеих сторон'].includes(value)
+  ) return 'both';
+  if (['left', 'левая', 'лев', 'слева'].includes(value)) return 'left';
+  if (['right', 'правая', 'прав', 'справа'].includes(value)) return 'right';
+  if (['none', 'без', 'без дверей'].includes(value) || doors === 0) return 'none';
+  return (doors ?? 0) > 0 ? 'right' : 'none';
+}
+
+function normalizeBookHardware(value?: string): 'handle' | 'lock' {
+  const normalized = (value || '').trim().toLowerCase();
+  return normalized.includes('зам') || normalized.includes('тип 4') || normalized === 'lock'
+    ? 'lock'
+    : 'handle';
+}
+
+function normalizeBookOpening(value?: string): 'inside_in' | 'inside_out' | 'outside_out' | 'outside_in' {
+  const normalized = (value || '')
+    .trim()
+    .toLowerCase()
+    .replace('ё', 'е')
+    .replaceAll('_', ' ')
+    .replaceAll('/', ' ')
+    .replace(/\s+/g, ' ');
+  const openings: Record<string, 'inside_in' | 'inside_out' | 'outside_out' | 'outside_in'> = {
+    'inside in': 'inside_in',
+    'inside out': 'inside_out',
+    'outside out': 'outside_out',
+    'outside in': 'outside_in',
+    'изнутри внутрь': 'inside_in',
+    'изнутри наружу': 'inside_out',
+    'снаружи наружу': 'outside_out',
+    'снаружи внутрь': 'outside_in',
+    'внутрь': 'inside_in',
+    'наружу': 'inside_out',
+  };
+  return openings[normalized] ?? 'inside_in';
+}
+
 export function apiToLocal(s: SectionOut): Section {
   // Backwards compat: migrate legacy 'ДВЕРЬ' value
   const rawSystem = s.system === 'ДВЕРЬ' ? 'КОМПЛЕКТАЦИЯ' : s.system;
   const centerHandle = normalizeLegacyValue('centerHandle', s.center_handle);
+  const bookDoorLayout = normalizeBookDoorLayout(s.door_side, s.doors);
+  const legacyBookHardware = normalizeBookHardware(s.door_type);
+  const legacyBookOpening = normalizeBookOpening(s.door_opening);
   return {
     id: String(s.id),
     name: s.name,
@@ -142,14 +187,32 @@ export function apiToLocal(s: SectionOut): Section {
     bookSubtype: s.book_subtype,
     handleLeft: normalizeLegacyValue('handleLeft', s.handle_left),
     handleRight: normalizeLegacyValue('handleRight', s.handle_right),
-    doors: s.doors,
-    doorSide: s.door_side,
+    doors: bookDoorLayout === 'both' ? 2 : bookDoorLayout === 'none' ? 0 : 1,
+    doorSide: bookDoorLayout,
     doorType: s.door_type,
     doorOpening: s.door_opening,
     compensator: s.compensator,
     angleLeft: s.angle_left,
     angleRight: s.angle_right,
     bookSystem: s.book_system,
+    bookLeftDoorHardware: s.book_left_door_hardware
+      ?? (bookDoorLayout === 'left' || bookDoorLayout === 'both' ? legacyBookHardware : undefined),
+    bookRightDoorHardware: s.book_right_door_hardware
+      ?? (bookDoorLayout === 'right' || bookDoorLayout === 'both' ? legacyBookHardware : undefined),
+    bookLeftDoorOpening: s.book_left_door_opening
+      ?? (bookDoorLayout === 'left' || bookDoorLayout === 'both' ? legacyBookOpening : undefined),
+    bookRightDoorOpening: s.book_right_door_opening
+      ?? (bookDoorLayout === 'right' || bookDoorLayout === 'both' ? legacyBookOpening : undefined),
+    bookObstacleDistance: s.book_obstacle_distance,
+    bookLeftStackPanels: s.book_left_stack_panels,
+    bookHandleHeight: s.book_handle_height,
+    bookExtraFixedEnabled: s.book_extra_fixed_enabled ?? false,
+    bookExtraFixedWidth: s.book_extra_fixed_width,
+    bookExtraFixedSide: s.book_extra_fixed_side,
+    bookExtraDoorEnabled: s.book_extra_door_enabled ?? false,
+    bookExtraDoorPanel: s.book_extra_door_panel,
+    bookExtraDoorWidth: s.book_extra_door_width,
+    bookExtraDoorOpening: s.book_extra_door_opening,
     liftFillingType: s.lift_filling_type,
     liftFillingCustom: s.lift_filling_custom,
     liftControlType: s.lift_control_type,
@@ -209,6 +272,20 @@ export function localToApi(s: Section, order: number): Omit<SectionOut, 'id' | '
     doors: s.doors, door_side: s.doorSide, door_type: s.doorType,
     door_opening: s.doorOpening, compensator: s.compensator,
     angle_left: s.angleLeft, angle_right: s.angleRight, book_system: s.bookSystem,
+    book_left_door_hardware: s.bookLeftDoorHardware,
+    book_right_door_hardware: s.bookRightDoorHardware,
+    book_left_door_opening: s.bookLeftDoorOpening,
+    book_right_door_opening: s.bookRightDoorOpening,
+    book_obstacle_distance: s.bookObstacleDistance,
+    book_left_stack_panels: s.bookLeftStackPanels,
+    book_handle_height: s.bookHandleHeight,
+    book_extra_fixed_enabled: s.bookExtraFixedEnabled ?? false,
+    book_extra_fixed_width: s.bookExtraFixedWidth,
+    book_extra_fixed_side: s.bookExtraFixedSide,
+    book_extra_door_enabled: s.bookExtraDoorEnabled ?? false,
+    book_extra_door_panel: s.bookExtraDoorPanel,
+    book_extra_door_width: s.bookExtraDoorWidth,
+    book_extra_door_opening: s.bookExtraDoorOpening,
     lift_filling_type: s.liftFillingType,
     lift_filling_custom: s.liftFillingCustom,
     lift_control_type: s.liftControlType,

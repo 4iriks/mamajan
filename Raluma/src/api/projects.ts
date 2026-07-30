@@ -106,6 +106,20 @@ export interface SectionOut {
   angle_left?: number;
   angle_right?: number;
   book_system?: string;
+  book_left_door_hardware?: string;
+  book_right_door_hardware?: string;
+  book_left_door_opening?: string;
+  book_right_door_opening?: string;
+  book_obstacle_distance?: number;
+  book_left_stack_panels?: number;
+  book_handle_height?: number;
+  book_extra_fixed_enabled?: boolean;
+  book_extra_fixed_width?: number;
+  book_extra_fixed_side?: string;
+  book_extra_door_enabled?: boolean;
+  book_extra_door_panel?: number;
+  book_extra_door_width?: number;
+  book_extra_door_opening?: string;
   lift_filling_type?: string;
   lift_filling_custom?: string;
   lift_control_type?: string;
@@ -179,6 +193,103 @@ export interface SlideCalcPreview {
   warnings?: string[];
 }
 
+export type BookFormulaSource = 'tz' | 'excel' | 'legacy';
+export type BookFormulaStatus = 'confirmed' | 'preliminary';
+
+export interface BookCalcPanel {
+  number: number;
+  position: 'left' | 'middle' | 'right' | 'single';
+  role: 'standard' | 'door' | 'fixed' | 'moving_door';
+  movement_direction: 'left' | 'right' | 'none';
+  door_side?: 'left' | 'right' | null;
+  door_hardware?: 'handle' | 'lock' | null;
+  door_opening?: 'inside_in' | 'inside_out' | 'outside_out' | 'outside_in' | null;
+  door_opening_label?: string | null;
+  glass_type: string;
+  glass_width_mm: number;
+  glass_height_mm: number;
+  glass_profile_article: string;
+  glass_profile_width_mm: number;
+  panel_width_mm: number;
+  panel_height_mm: number;
+  qty: number;
+  hardware_articles: string[];
+  source: BookFormulaSource;
+  status: BookFormulaStatus;
+  dimension_sources: Record<string, { source: BookFormulaSource; status: BookFormulaStatus }>;
+}
+
+export interface BookCalcProfile {
+  article: string;
+  name: string;
+  length_mm: number;
+  qty: number;
+  unit: string;
+  position: string;
+  panel_number?: number | null;
+  source: BookFormulaSource;
+  status: BookFormulaStatus;
+  formula: string;
+}
+
+export interface BookCalcHardware {
+  article: string;
+  name: string;
+  qty: number;
+  unit: string;
+  shipment_stage: number;
+  formula: string;
+  note: string;
+  source: BookFormulaSource;
+  status: BookFormulaStatus;
+  included: boolean;
+}
+
+export interface BookCalcFormula {
+  key: string;
+  name: string;
+  value: number | string;
+  unit: string;
+  expression: string;
+  scope: string;
+  source: BookFormulaSource;
+  status: BookFormulaStatus;
+  source_reference: string;
+}
+
+export interface BookCalcPreview {
+  panels: BookCalcPanel[];
+  profiles: BookCalcProfile[];
+  hardware: BookCalcHardware[];
+  formulas: BookCalcFormula[];
+  warnings: string[];
+  normalized_config: {
+    width_mm: number;
+    height_mm: number;
+    base_panel_count: number;
+    physical_panel_count: number;
+    quantity: number;
+    door_layout: 'none' | 'left' | 'right' | 'both';
+    compensator: 'none' | 'lower' | 'upper' | 'both';
+    obstacle_distance_mm: number;
+    left_stack_panels?: number | null;
+    handle_height_mm?: number | null;
+    [key: string]: unknown;
+  };
+  source_priority: BookFormulaSource[];
+  configuration_status: BookFormulaStatus;
+  calculation_status: BookFormulaStatus;
+  documents_allowed: boolean;
+  documents_implemented: boolean;
+  document_block_reasons: string[];
+}
+
+export type SectionCalcPreview = SlideCalcPreview | BookCalcPreview;
+
+export const isBookCalcPreview = (
+  calc?: SectionCalcPreview | null,
+): calc is BookCalcPreview => Boolean(calc && 'normalized_config' in calc && 'panels' in calc);
+
 // Documents
 export const getPreviewUrl = (projectId: number, sectionId: number) =>
   `/api/projects/${projectId}/sections/${sectionId}/preview`;
@@ -205,6 +316,14 @@ export const getLocalPreviewHtml = async (projectId: number, sectionId: number) 
 };
 
 export const calculateLocalSection = async (section: Partial<SectionOut>) => {
+  if (section.system === 'КНИЖКА') {
+    const url = hasAuthToken() ? '/api/calculate/book' : '/api/calculate/local/book';
+    const resp = await client.post<BookCalcPreview>(url, {
+      name: 'Секция',
+      ...section,
+    });
+    return resp.data;
+  }
   const resp = await client.post<SlideCalcPreview>('/api/projects/local/sections/calc', {
     project: { number: 'preview', customer: '' },
     section: {

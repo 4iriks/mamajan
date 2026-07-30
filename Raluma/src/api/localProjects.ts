@@ -34,6 +34,28 @@ function normalizeSection(
   projectId: number,
   section: Partial<SectionOut> & Pick<SectionOut, 'name'>
 ): SectionOut {
+  const rawBookSide = (section.door_side || '').trim().toLowerCase().replace('ё', 'е');
+  const legacyDoors = section.doors ?? 0;
+  const bookDoorLayout = (
+    legacyDoors >= 2
+    || ['both', 'обе', 'оба', 'левая и правая', 'слева и справа', 'с обеих сторон'].includes(rawBookSide)
+  )
+    ? 'both'
+    : ['left', 'левая', 'лев', 'слева'].includes(rawBookSide)
+      ? 'left'
+      : ['right', 'правая', 'прав', 'справа'].includes(rawBookSide)
+        ? 'right'
+        : legacyDoors > 0 ? 'right' : 'none';
+  const legacyHardware = (
+    (section.door_type || '').toLowerCase().includes('зам')
+    || (section.door_type || '').toLowerCase().includes('тип 4')
+  ) ? 'lock' : 'handle';
+  const rawOpening = (section.door_opening || '').trim().toLowerCase().replace('ё', 'е');
+  const legacyOpening = rawOpening.includes('снаружи') && rawOpening.includes('наружу')
+    ? 'outside_out'
+    : rawOpening.includes('снаружи') && rawOpening.includes('внутрь')
+      ? 'outside_in'
+      : rawOpening.includes('наружу') ? 'inside_out' : 'inside_in';
   return {
     id: section.id ?? makeId(),
     project_id: projectId,
@@ -93,6 +115,24 @@ function normalizeSection(
     angle_left: section.angle_left,
     angle_right: section.angle_right,
     book_system: section.book_system,
+    book_left_door_hardware: section.book_left_door_hardware
+      ?? (bookDoorLayout === 'left' || bookDoorLayout === 'both' ? legacyHardware : undefined),
+    book_right_door_hardware: section.book_right_door_hardware
+      ?? (bookDoorLayout === 'right' || bookDoorLayout === 'both' ? legacyHardware : undefined),
+    book_left_door_opening: section.book_left_door_opening
+      ?? (bookDoorLayout === 'left' || bookDoorLayout === 'both' ? legacyOpening : undefined),
+    book_right_door_opening: section.book_right_door_opening
+      ?? (bookDoorLayout === 'right' || bookDoorLayout === 'both' ? legacyOpening : undefined),
+    book_obstacle_distance: section.book_obstacle_distance,
+    book_left_stack_panels: section.book_left_stack_panels,
+    book_handle_height: section.book_handle_height,
+    book_extra_fixed_enabled: section.book_extra_fixed_enabled ?? false,
+    book_extra_fixed_width: section.book_extra_fixed_width,
+    book_extra_fixed_side: section.book_extra_fixed_side,
+    book_extra_door_enabled: section.book_extra_door_enabled ?? false,
+    book_extra_door_panel: section.book_extra_door_panel,
+    book_extra_door_width: section.book_extra_door_width,
+    book_extra_door_opening: section.book_extra_door_opening,
     lift_filling_type: section.lift_filling_type ?? 'СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ',
     lift_filling_custom: section.lift_filling_custom,
     lift_control_type: section.lift_control_type ?? 'Пульт ДУ',

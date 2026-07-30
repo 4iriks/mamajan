@@ -159,6 +159,20 @@ class Section(Base):
     angle_left = Column(Float, nullable=True)
     angle_right = Column(Float, nullable=True)
     book_system = Column(String, nullable=True)  # B25 | B16 | B17 | C16 | C17
+    book_left_door_hardware = Column(String, nullable=True)  # handle | lock
+    book_right_door_hardware = Column(String, nullable=True)  # handle | lock
+    book_left_door_opening = Column(String, nullable=True)
+    book_right_door_opening = Column(String, nullable=True)
+    book_obstacle_distance = Column(Float, nullable=True)
+    book_left_stack_panels = Column(Integer, nullable=True)
+    book_handle_height = Column(Float, nullable=True)
+    book_extra_fixed_enabled = Column(Boolean, default=False)
+    book_extra_fixed_width = Column(Float, nullable=True)
+    book_extra_fixed_side = Column(String, nullable=True)  # left | right
+    book_extra_door_enabled = Column(Boolean, default=False)
+    book_extra_door_panel = Column(Integer, nullable=True)
+    book_extra_door_width = Column(Float, nullable=True)
+    book_extra_door_opening = Column(String, nullable=True)
 
     # ЛИФТ
     lift_filling_type = Column(

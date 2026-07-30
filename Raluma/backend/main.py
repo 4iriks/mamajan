@@ -10,7 +10,16 @@ from database import engine, Base
 import models  # noqa: F401 — нужен для создания таблиц
 from auth import hash_password
 from database import SessionLocal
-from api import auth, users, projects, sections, documents, catalog, section_templates
+from api import (
+    auth,
+    calculations,
+    catalog,
+    documents,
+    projects,
+    section_templates,
+    sections,
+    users,
+)
 from migrations import run_migrations
 
 
@@ -73,6 +82,7 @@ app.include_router(sections.router)
 app.include_router(documents.router)
 app.include_router(catalog.router)
 app.include_router(section_templates.router)
+app.include_router(calculations.router)
 
 
 @app.get("/health")

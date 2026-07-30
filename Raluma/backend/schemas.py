@@ -189,6 +189,20 @@ class SectionBase(BaseModel):
     angle_left: Optional[float] = None
     angle_right: Optional[float] = None
     book_system: Optional[str] = None
+    book_left_door_hardware: Optional[str] = None
+    book_right_door_hardware: Optional[str] = None
+    book_left_door_opening: Optional[str] = None
+    book_right_door_opening: Optional[str] = None
+    book_obstacle_distance: Optional[float] = None
+    book_left_stack_panels: Optional[int] = None
+    book_handle_height: Optional[float] = None
+    book_extra_fixed_enabled: bool = False
+    book_extra_fixed_width: Optional[float] = None
+    book_extra_fixed_side: Optional[str] = None
+    book_extra_door_enabled: bool = False
+    book_extra_door_panel: Optional[int] = None
+    book_extra_door_width: Optional[float] = None
+    book_extra_door_opening: Optional[str] = None
     # ЛИФТ
     lift_filling_type: str = "СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
     lift_filling_custom: Optional[str] = None

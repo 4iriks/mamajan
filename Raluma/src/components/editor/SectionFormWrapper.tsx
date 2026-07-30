@@ -5,16 +5,22 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, ArrowLeft, Save, FileText, ClipboardList, Map } from 'lucide-react';
-import { calculateLocalSection, SlideCalcPreview } from '../../api/projects';
+import {
+  calculateLocalSection,
+  isBookCalcPreview,
+  SectionCalcPreview,
+} from '../../api/projects';
 import type { SectionTemplate } from '../../api/sectionTemplates';
 import { Section, LBL, SYSTEM_COLORS } from './types';
 import { localToApi } from './converters';
 import { SectionDivider } from './FormInputs';
-import { MainTab, SlideSystemTab, BookSystemTab, CsShapeTab, DoorSystemTab } from './FormTabs';
+import { MainTab, SlideSystemTab, CsShapeTab, DoorSystemTab } from './FormTabs';
+import { BookSystemTab } from './BookForm';
 import { LiftMainTab, LiftSystemTab } from './LiftForm';
 import { EditorVisualizer } from './EditorVisualizer';
 import { SectionTemplatesPanel } from './SectionTemplatesPanel';
 import { ExtraComponentsEditor } from './ExtraComponentsEditor';
+import { BookCalcResults } from './BookCalcResults';
 
 export interface SectionFormWrapperProps {
   section: Section;
@@ -45,7 +51,10 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
   onRefreshTemplate,
   onDeleteTemplate,
 }) => {
-  const [slideCalc, setSlideCalc] = useState<SlideCalcPreview | null>(null);
+  const [sectionCalc, setSectionCalc] = useState<SectionCalcPreview | null>(null);
+  const [calcError, setCalcError] = useState<string | null>(null);
+  const bookCalc = isBookCalcPreview(sectionCalc) ? sectionCalc : null;
+  const slideCalc = sectionCalc && !isBookCalcPreview(sectionCalc) ? sectionCalc : null;
   const glassWidths = (slideCalc?.glass || [])
     .filter(glass => glass.qty > 0)
     .map(glass => glass.width_mm);
@@ -75,8 +84,9 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
   }, [isDirty]);
 
   useEffect(() => {
-    if (section.system !== 'СЛАЙД' && section.system !== 'ЛИФТ') {
-      setSlideCalc(null);
+    if (!['СЛАЙД', 'ЛИФТ', 'КНИЖКА'].includes(section.system)) {
+      setSectionCalc(null);
+      setCalcError(null);
       return;
     }
 
@@ -84,10 +94,16 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
     const timer = window.setTimeout(() => {
       calculateLocalSection(localToApi(section, 0))
         .then(calc => {
-          if (!cancelled) setSlideCalc(calc);
+          if (!cancelled) {
+            setSectionCalc(calc);
+            setCalcError(null);
+          }
         })
-        .catch(() => {
-          if (!cancelled) setSlideCalc(null);
+        .catch((error: { response?: { data?: { detail?: string } }; message?: string }) => {
+          if (!cancelled) {
+            setSectionCalc(null);
+            setCalcError(error.response?.data?.detail || error.message || 'Не удалось выполнить расчёт');
+          }
         });
     }, 180);
 
@@ -145,9 +161,9 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
       />
 
       {/* Flex-контейнер: форма слева, схема справа (на xl) */}
-      <div className={section.system === 'СЛАЙД' || section.system === 'ЛИФТ' ? 'xl:flex xl:gap-5 xl:items-start' : ''}>
+      <div className={['СЛАЙД', 'ЛИФТ', 'КНИЖКА'].includes(section.system) ? 'xl:flex xl:gap-5 xl:items-start' : ''}>
 
-        <div className={section.system === 'СЛАЙД' || section.system === 'ЛИФТ' ? 'xl:flex-1 xl:min-w-0' : ''}>
+        <div className={['СЛАЙД', 'ЛИФТ', 'КНИЖКА'].includes(section.system) ? 'xl:flex-1 xl:min-w-0' : ''}>
           {/* Карточка формы */}
           <div className="bg-surface/40 border border-tint/35 rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 mb-4">
             <div className="space-y-5">
@@ -176,11 +192,13 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
               )}
 
               {section.system === 'КНИЖКА' && (
-                <div>
-                  <SectionDivider label="Система" />
+                <div className="space-y-5">
+                  <SectionDivider label="Параметры КНИЖКИ" />
                   <div className="mt-3">
                     <BookSystemTab s={section} update={onUpdate} />
                   </div>
+                  <SectionDivider label="Результаты расчёта" />
+                  <BookCalcResults calc={bookCalc} error={calcError} />
                 </div>
               )}
 
@@ -249,7 +267,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
           </div>
 
           {/* Мобильный визуализатор */}
-          <EditorVisualizer section={section} variant="mobile" calc={slideCalc} />
+          <EditorVisualizer section={section} variant="mobile" calc={sectionCalc} />
 
           {/* Нижняя панель: сохранить + кнопки документов */}
           <div className="flex flex-wrap gap-2 sm:gap-3 items-stretch">
@@ -265,7 +283,9 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
                 <><Save className="w-4 h-4" /> Сохранить изменения</>
               ) : 'Сохранить секцию'}
             </button>
-            {(section.system === 'ЛИФТ'
+            {(section.system === 'КНИЖКА'
+              ? []
+              : section.system === 'ЛИФТ'
               ? [{ name: 'Производственный лист', icon: ClipboardList }]
               : [
                   { name: 'Спецификация', icon: FileText },
@@ -283,7 +303,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
         </div>
 
         {/* Десктопный визуализатор (sticky) */}
-        <EditorVisualizer section={section} variant="desktop" calc={slideCalc} />
+        <EditorVisualizer section={section} variant="desktop" calc={sectionCalc} />
 
       </div>
     </>

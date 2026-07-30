@@ -21,6 +21,7 @@ from database import get_db
 import models
 import schemas
 from auth import get_current_user, decode_token
+from engine.book_calc import BookCalculationError, calculate_book
 from engine.lift_calc import calculate_lift
 from engine.office_common import normalize_filename
 from engine.office_docx import build_project_docx, build_section_docx
@@ -35,6 +36,7 @@ router = APIRouter(prefix="/api/projects", tags=["documents"])
 ADMIN_ROLES = ("admin", "superadmin")
 PRODUCTION_SHEET_SYSTEMS = {"СЛАЙД", "ЛИФТ"}
 OFFICE_PROJECT_DOCUMENTS = {"glass", "paint", "hardware_order"}
+PRODUCTION_PROJECT_DOCUMENTS = {"glass", "paint", "delivery", "hardware_order"}
 OFFICE_MEDIA_TYPES = {
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -43,13 +45,84 @@ OFFICE_MEDIA_TYPES = {
 
 def _calculate_section(section):
     system = str(getattr(section, "system", "") or "").strip().upper()
-    if system == "СЛАЙД":
-        return calculate_slide(section)
-    if system == "ЛИФТ":
-        return calculate_lift(section)
+    try:
+        if system == "СЛАЙД":
+            return calculate_slide(section)
+        if system == "ЛИФТ":
+            return calculate_lift(section)
+        if system == "КНИЖКА":
+            return calculate_book(section)
+    except BookCalculationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     raise HTTPException(
         status_code=400,
         detail="Производственный лист для этой системы пока не реализован",
+    )
+
+
+def _ensure_book_section_documents_supported(section) -> None:
+    if str(getattr(section, "system", "") or "").strip().upper() != "КНИЖКА":
+        return
+    calc = _calculate_section(section)
+    if not calc.documents_allowed:
+        reasons = " ".join(calc.document_block_reasons)
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Производственные документы КНИЖКИ заблокированы. {reasons}"
+            ).strip(),
+        )
+    raise HTTPException(
+        status_code=501,
+        detail=(
+            "ПЛ, заказ стекла, покраска и накладная КНИЖКИ будут реализованы "
+            "следующим пакетом после согласования калькулятора"
+        ),
+    )
+
+
+def _ensure_book_project_documents_supported(
+    doc_type: str,
+    sections,
+) -> None:
+    if doc_type not in PRODUCTION_PROJECT_DOCUMENTS:
+        return
+    book_sections = [
+        section
+        for section in sections
+        if str(getattr(section, "system", "") or "").strip().upper() == "КНИЖКА"
+    ]
+    if not book_sections:
+        return
+    preliminary_reasons: list[str] = []
+    for section in book_sections:
+        calc = _calculate_section(section)
+        if not calc.documents_allowed:
+            label = getattr(section, "name", None) or f"Секция {getattr(section, 'order', '')}"
+            preliminary_reasons.append(
+                f"{label}: {' '.join(calc.document_block_reasons)}"
+            )
+    if preliminary_reasons:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Производственные документы КНИЖКИ заблокированы для "
+                "предварительных конфигураций. "
+                + " ".join(preliminary_reasons)
+            ),
+        )
+    # The existing project delivery note is a generic shipping summary and already
+    # renders BOOK rows without manufacturing calculations. Keep that legacy
+    # document available for confirmed straight sections; the dedicated BOOK
+    # delivery document remains part of the next package.
+    if doc_type == "delivery":
+        return
+    raise HTTPException(
+        status_code=501,
+        detail=(
+            "Производственные документы КНИЖКИ будут реализованы следующим "
+            "пакетом после согласования калькулятора"
+        ),
     )
 
 
@@ -218,6 +291,7 @@ def _build_project_office(
 @router.post("/local/sections/preview", response_class=HTMLResponse)
 def preview_local_section(payload: LocalDocumentPayload):
     project, section = _build_local_document_objects(payload)
+    _ensure_book_section_documents_supported(section)
     if str(section.system or "").strip().upper() not in PRODUCTION_SHEET_SYSTEMS:
         return HTMLResponse(
             "<p style='padding:20px;font-family:sans-serif'>Производственный лист для этой системы пока не реализован</p>"
@@ -237,6 +311,7 @@ def calculate_local_section(payload: LocalDocumentPayload):
 def preview_local_project_document(doc_type: str, payload: LocalProjectDocumentPayload):
     doc_type = _validate_project_doc_type(doc_type)
     project, sections = _build_local_project_document_objects(payload)
+    _ensure_book_project_documents_supported(doc_type, sections)
     html = render_project_document_html(project, sections, doc_type)
     return HTMLResponse(html)
 
@@ -244,6 +319,7 @@ def preview_local_project_document(doc_type: str, payload: LocalProjectDocumentP
 @router.post("/local/sections/pdf")
 def download_local_pdf(payload: LocalDocumentPayload):
     project, section = _build_local_document_objects(payload)
+    _ensure_book_section_documents_supported(section)
     calc = _calculate_section(section)
     html = render_pdf_html(project, section, calc)
     pdf_bytes = generate_pdf(html)
@@ -264,6 +340,7 @@ def _download_local_section_office(
     file_format: str,
 ):
     project, section = _build_local_document_objects(payload)
+    _ensure_book_section_documents_supported(section)
     content = _build_section_office(project, section, file_format)
     filename = f"ПЛ_{project.number}_{section.name}.{file_format}"
     return _office_response(content, filename, file_format)
@@ -286,6 +363,7 @@ def download_local_project_document_pdf(
 ):
     doc_type = _validate_project_doc_type(doc_type)
     project, sections = _build_local_project_document_objects(payload)
+    _ensure_book_project_documents_supported(doc_type, sections)
     html = render_project_document_html(project, sections, doc_type, is_pdf=True)
     pdf_bytes = generate_pdf(html)
     if doc_type == "glass":
@@ -308,6 +386,7 @@ def _download_local_project_office(
 ):
     doc_type = _validate_office_project_doc_type(doc_type)
     project, sections = _build_local_project_document_objects(payload)
+    _ensure_book_project_documents_supported(doc_type, sections)
     content = _build_project_office(
         project,
         sections,
@@ -344,6 +423,7 @@ def preview_project_document(
     doc_type = _validate_project_doc_type(doc_type)
     current_user = _get_user_by_token(token, db)
     project = _get_project_or_404(project_id, db, current_user)
+    _ensure_book_project_documents_supported(doc_type, project.sections)
     html = render_project_document_html(project, project.sections, doc_type)
     return HTMLResponse(html)
 
@@ -357,6 +437,7 @@ def download_project_document_pdf(
 ):
     doc_type = _validate_project_doc_type(doc_type)
     project = _get_project_or_404(project_id, db, current_user)
+    _ensure_book_project_documents_supported(doc_type, project.sections)
     html = render_project_document_html(project, project.sections, doc_type, is_pdf=True)
     pdf_bytes = generate_pdf(html)
     if doc_type == "glass":
@@ -381,6 +462,7 @@ def _download_project_office(
 ):
     doc_type = _validate_office_project_doc_type(doc_type)
     project = _get_project_or_404(project_id, db, current_user)
+    _ensure_book_project_documents_supported(doc_type, project.sections)
     content = _build_project_office(
         project,
         project.sections,
@@ -432,6 +514,7 @@ def preview_section(
 ):
     current_user = _get_user_by_token(token, db)
     project, section = _get_section_or_404(project_id, section_id, db, current_user)
+    _ensure_book_section_documents_supported(section)
     if str(section.system or "").strip().upper() not in PRODUCTION_SHEET_SYSTEMS:
         return HTMLResponse(
             "<p style='padding:20px;font-family:sans-serif'>Производственный лист для этой системы пока не реализован</p>"
@@ -449,6 +532,7 @@ def download_pdf(
     current_user: models.User = Depends(get_current_user),
 ):
     project, section = _get_section_or_404(project_id, section_id, db, current_user)
+    _ensure_book_section_documents_supported(section)
     calc = _calculate_section(section)
     html = render_pdf_html(project, section, calc)
     pdf_bytes = generate_pdf(html)
@@ -477,6 +561,7 @@ def _download_section_office(
         db,
         current_user,
     )
+    _ensure_book_section_documents_supported(section)
     content = _build_section_office(project, section, file_format)
     section_number = getattr(section, "order", None) or getattr(section, "name", "")
     filename = f"ПЛ_{project.number}_сек{section_number}.{file_format}"
