@@ -56,7 +56,6 @@ interface DeliveryNoteData {
   note: string;
   contact: string;
   delivery: string;
-  includeGlass: boolean;
   places: Record<string, string>;
 }
 
@@ -98,14 +97,13 @@ function projectPaintColors(sections: SectionOut[]): string[] {
   return [...colors].sort((a, b) => a.localeCompare(b, 'ru'));
 }
 
-function parseDeliveryData(raw: string | undefined, includeGlass: boolean): DeliveryNoteData {
+function parseDeliveryData(raw?: string): DeliveryNoteData {
   const fallback: DeliveryNoteData = {
     dateMode: 'blank',
     date: new Date().toISOString().slice(0, 10),
     note: '',
     contact: '',
     delivery: '',
-    includeGlass,
     places: {},
   };
   if (!raw) return fallback;
@@ -118,7 +116,6 @@ function parseDeliveryData(raw: string | undefined, includeGlass: boolean): Deli
       ...fallback,
       ...parsed,
       dateMode,
-      includeGlass: typeof parsed.includeGlass === 'boolean' ? parsed.includeGlass : includeGlass,
       places: parsed.places && typeof parsed.places === 'object' ? parsed.places : {},
     };
   } catch {
@@ -144,7 +141,7 @@ export default function ProjectDocumentModal({
   const [paintColors, setPaintColors] = useState<string[]>([]);
   const [catalog, setCatalog] = useState<HardwareCatalogOption[]>([]);
   const [isSavingPaintRows, setIsSavingPaintRows] = useState(false);
-  const [deliveryData, setDeliveryData] = useState<DeliveryNoteData>(() => parseDeliveryData(undefined, true));
+  const [deliveryData, setDeliveryData] = useState<DeliveryNoteData>(() => parseDeliveryData());
   const [isSavingDelivery, setIsSavingDelivery] = useState(false);
 
   const token = localStorage.getItem('access_token') ?? '';
@@ -176,7 +173,7 @@ export default function ProjectDocumentModal({
       setIsDirty(false);
       setPaintRows([]);
       setPaintColors([]);
-      setDeliveryData(parseDeliveryData(undefined, true));
+      setDeliveryData(parseDeliveryData());
       return;
     }
     loadGuestPreview();
@@ -221,8 +218,7 @@ export default function ProjectDocumentModal({
     getProject(projectId)
       .then(project => {
         if (cancelled) return;
-        const includeGlass = (project.glass_status || '').trim().toLowerCase() !== 'без стекла';
-        setDeliveryData(parseDeliveryData(project.delivery_note_data, includeGlass));
+        setDeliveryData(parseDeliveryData(project.delivery_note_data));
       })
       .catch(() => {
         if (!cancelled) toast.error('Не удалось загрузить реквизиты накладной');
@@ -612,15 +608,6 @@ export default function ProjectDocumentModal({
                       className="w-full h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50"
                     />
                   </label>
-                  <label className="h-9 self-end lg:col-start-4 rounded-lg bg-black/15 border border-tint/20 px-3 flex items-center gap-2 text-xs cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={deliveryData.includeGlass}
-                      onChange={event => updateDeliveryData({ includeGlass: event.target.checked })}
-                      className="accent-[var(--theme-accent)]"
-                    />
-                    Включить стекла
-                  </label>
                 </div>
               </div>
             )}
@@ -645,7 +632,7 @@ export default function ProjectDocumentModal({
               <div className="flex items-center gap-2 flex-wrap justify-end">
                 {([
                   ['pdf', 'PDF', Download],
-                  ...(isPaintDocument || docType === 'glass'
+                  ...(isPaintDocument || docType === 'glass' || docType === 'hardware_order'
                     ? [
                       ['docx', 'Word', FileText],
                       ['xlsx', 'Excel', FileSpreadsheet],

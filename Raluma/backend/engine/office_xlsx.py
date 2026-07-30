@@ -1374,6 +1374,110 @@ def _build_paint_xlsx(context: dict) -> bytes:
     return output.getvalue()
 
 
+def _build_hardware_order_xlsx(context: dict) -> bytes:
+    output = io.BytesIO()
+    workbook = xlsxwriter.Workbook(output, {"in_memory": True})
+    formats = _formats(workbook)
+    pages = context["hardware_order_pages"]
+    if not pages:
+        pages = [{"system": "Фурнитура", "rows": [], "warning": ""}]
+
+    used_names: set[str] = set()
+    for page in pages:
+        worksheet = workbook.add_worksheet(
+            _safe_sheet_name(page["system"] or "Фурнитура", used_names)
+        )
+        _setup_sheet(worksheet, landscape=False)
+        worksheet.set_header("")
+        worksheet.fit_to_pages(1, 1)
+        widths = (15, 18, 49, 16, 16)
+        for column, width in enumerate(widths):
+            worksheet.set_column(column, column, width)
+
+        project_number = str(getattr(context["project"], "number", "") or "")
+        worksheet.merge_range(
+            0,
+            0,
+            0,
+            4,
+            f"НАРЯД-ЗАКАЗ НА ФУРНИТУРУ — {project_number}",
+            formats["title"],
+        )
+        worksheet.set_row(0, 22)
+        worksheet.merge_range(
+            1,
+            0,
+            1,
+            4,
+            page["system"] or "БЕЗ СИСТЕМЫ",
+            formats["bar"],
+        )
+        worksheet.set_row(1, 18)
+        row = 2
+        if page.get("warning"):
+            worksheet.merge_range(
+                row,
+                0,
+                row,
+                4,
+                page["warning"],
+                formats["red_center"],
+            )
+            worksheet.set_row(row, 24)
+            row += 1
+
+        headers = (
+            "Артикул",
+            "Эскиз",
+            "Название",
+            "Кол-во\n(общее в проекте)",
+            "Единицы измерения",
+        )
+        header_row = row
+        for column, header in enumerate(headers):
+            worksheet.write(row, column, header, formats["header"])
+        worksheet.set_row(row, 24)
+        worksheet.repeat_rows(0, row)
+        worksheet.freeze_panes(row + 1, 0)
+        row += 1
+
+        for row_data in page["rows"]:
+            worksheet.write(row, 0, row_data["article"], formats["center_bold"])
+            worksheet.write_blank(row, 1, None, formats["center"])
+            worksheet.write(row, 2, row_data["name"], formats["cell"])
+            worksheet.write_number(row, 3, row_data["qty"], formats["center_bold"])
+            worksheet.write(row, 4, row_data["unit"], formats["center"])
+            worksheet.set_row(row, 22)
+            _insert_image(
+                worksheet,
+                row,
+                1,
+                image_stream(row_data.get("image"), max_size=(700, 420)),
+                max_width_px=72,
+                max_height_px=18,
+                x_offset=4,
+                y_offset=2,
+                allow_enlarge=False,
+            )
+            row += 1
+        if not page["rows"]:
+            worksheet.merge_range(
+                row,
+                0,
+                row + 1,
+                4,
+                "Позиции не найдены",
+                formats["center"],
+            )
+            row += 2
+
+        worksheet.autofilter(header_row, 0, max(header_row, row - 1), 4)
+        worksheet.print_area(0, 0, max(header_row, row - 1), 4)
+
+    workbook.close()
+    return output.getvalue()
+
+
 def build_project_xlsx(
     project: object,
     sections: Iterable[object],
@@ -1384,4 +1488,8 @@ def build_project_xlsx(
         return _build_glass_xlsx(context)
     if doc_type == "paint":
         return _build_paint_xlsx(context)
-    raise ValueError("Excel export is available only for glass and paint documents")
+    if doc_type == "hardware_order":
+        return _build_hardware_order_xlsx(context)
+    raise ValueError(
+        "Excel export is available only for glass, paint and hardware order documents"
+    )

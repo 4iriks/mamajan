@@ -225,6 +225,32 @@ def _add_picture(cell, data: bytes | io.BytesIO | None, width_mm: float) -> None
         return
 
 
+def _add_picture_fitted(
+    cell,
+    data: bytes | io.BytesIO | None,
+    *,
+    max_width_mm: float,
+    max_height_mm: float,
+) -> None:
+    if not data:
+        return
+    payload = data.getvalue() if isinstance(data, io.BytesIO) else data
+    stream = io.BytesIO(payload)
+    try:
+        with Image.open(stream) as source:
+            width_px, height_px = source.size
+        stream.seek(0)
+        paragraph = cell.paragraphs[0]
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        paragraph.paragraph_format.space_after = Pt(0)
+        if width_px / max(height_px, 1) >= max_width_mm / max_height_mm:
+            paragraph.add_run().add_picture(stream, width=Mm(max_width_mm))
+        else:
+            paragraph.add_run().add_picture(stream, height=Mm(max_height_mm))
+    except Exception:
+        return
+
+
 def _add_summary(document: Document, section: object, calc: object) -> None:
     rows = section_summary_rows(section, calc)
     columns = 2
@@ -1052,6 +1078,140 @@ def _build_paint_docx(context: dict) -> bytes:
     return output.getvalue()
 
 
+def _build_hardware_order_docx(context: dict) -> bytes:
+    document = Document()
+    _configure_document(document, landscape=False)
+    section = document.sections[0]
+    section.top_margin = Mm(6)
+    section.bottom_margin = Mm(6)
+    pages = context["hardware_order_pages"]
+    if not pages:
+        pages = [{"system": "", "rows": [], "warning": ""}]
+
+    for page_index, page in enumerate(pages):
+        if page_index:
+            document.add_page_break()
+
+        dense_page = len(page["rows"]) > 24
+        row_height_mm = 6.15 if dense_page else 7
+        image_height_mm = 4.35 if dense_page else 5.2
+        body_font_size = 6.2 if dense_page else 6.8
+        compact_margin = 18 if dense_page else 45
+
+        heading = document.add_paragraph()
+        heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        heading.paragraph_format.space_after = Pt(0)
+        run = heading.add_run(
+            f"НАРЯД-ЗАКАЗ НА ФУРНИТУРУ — "
+            f"{getattr(context['project'], 'number', '')}"
+        )
+        run.bold = True
+        run.font.name = "Arial"
+        run.font.size = Pt(12)
+
+        system_heading = document.add_paragraph()
+        system_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        system_heading.paragraph_format.space_after = Pt(1)
+        system_run = system_heading.add_run(str(page["system"] or "БЕЗ СИСТЕМЫ"))
+        system_run.bold = True
+        system_run.font.name = "Arial"
+        system_run.font.size = Pt(9)
+
+        if page.get("warning"):
+            warning = document.add_paragraph()
+            warning.paragraph_format.space_after = Pt(1)
+            warning_run = warning.add_run(str(page["warning"]))
+            warning_run.bold = True
+            warning_run.font.name = "Arial"
+            warning_run.font.size = Pt(7)
+            warning_run.font.color.rgb = RGBColor.from_string(RED)
+
+        table = document.add_table(rows=1, cols=5)
+        table.autofit = False
+        widths = (24, 25, 100, 25, 20)
+        headers = (
+            "Артикул",
+            "Эскиз",
+            "Название",
+            "Кол-во\n(общее в проекте)",
+            "Единицы измерения",
+        )
+        for column, (header, width) in enumerate(zip(headers, widths)):
+            cell = table.cell(0, column)
+            _set_cell_width(cell, width)
+            _set_cell_text(
+                cell,
+                header,
+                bold=True,
+                size=6.1 if dense_page else 6.5,
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+            )
+            _set_cell_margins(
+                cell,
+                top=compact_margin,
+                start=50,
+                bottom=compact_margin,
+                end=50,
+            )
+
+        for row_data in page["rows"]:
+            row = table.add_row()
+            row.height = Mm(row_height_mm)
+            row.height_rule = WD_ROW_HEIGHT_RULE.AT_LEAST
+            for column, width in enumerate(widths):
+                _set_cell_width(row.cells[column], width)
+            _set_cell_text(
+                row.cells[0],
+                row_data["article"],
+                bold=True,
+                size=6.1 if dense_page else 6.5,
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+            )
+            _set_cell_text(row.cells[1], "", size=body_font_size)
+            _add_picture_fitted(
+                row.cells[1],
+                image_stream(row_data.get("image"), max_size=(700, 420)),
+                max_width_mm=19,
+                max_height_mm=image_height_mm,
+            )
+            _set_cell_text(row.cells[2], row_data["name"], size=body_font_size)
+            _set_cell_text(
+                row.cells[3],
+                row_data["qty_text"],
+                bold=True,
+                size=6.4 if dense_page else 7,
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+            )
+            _set_cell_text(
+                row.cells[4],
+                row_data["unit"],
+                size=body_font_size,
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+            )
+            for cell in row.cells:
+                _set_cell_margins(
+                    cell,
+                    top=compact_margin,
+                    start=50,
+                    bottom=compact_margin,
+                    end=50,
+                )
+        if not page["rows"]:
+            row = table.add_row()
+            cell = row.cells[0].merge(row.cells[4])
+            _set_cell_text(
+                cell,
+                "Позиции не найдены",
+                size=9,
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+            )
+        _style_table(table)
+
+    output = io.BytesIO()
+    document.save(output)
+    return output.getvalue()
+
+
 def build_project_docx(
     project: object,
     sections: Iterable[object],
@@ -1062,4 +1222,8 @@ def build_project_docx(
         return _build_glass_docx(context)
     if doc_type == "paint":
         return _build_paint_docx(context)
-    raise ValueError("Word export is available only for glass and paint documents")
+    if doc_type == "hardware_order":
+        return _build_hardware_order_docx(context)
+    raise ValueError(
+        "Word export is available only for glass, paint and hardware order documents"
+    )

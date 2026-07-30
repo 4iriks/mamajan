@@ -22,6 +22,7 @@ DOC_TITLES = {
     "paint": "Заявка на покраску",
     "glass": "Заказ стекла",
     "delivery": "Накладная",
+    "hardware_order": "Наряд-заказ на фурнитуру",
 }
 
 
@@ -649,16 +650,12 @@ def _delivery_settings(project: object) -> dict:
         if isinstance(raw_places, dict)
         else {}
     )
-    default_glass = str(getattr(project, "glass_status", "") or "").strip().lower()
-    include_glass = raw.get("includeGlass", default_glass != "без стекла")
-
     return {
         "dateMode": date_mode,
         "date": str(raw.get("date") or ""),
         "note": str(raw.get("note") or ""),
         "contact": str(raw.get("contact") or ""),
         "delivery": str(raw.get("delivery") or ""),
-        "includeGlass": bool(include_glass),
         "places": places,
     }
 
@@ -679,6 +676,27 @@ def _delivery_date_text(settings: dict) -> str:
     return value.strftime("%d.%m.%Y")
 
 
+def _project_delivery_stage(project: object) -> tuple[int, int]:
+    stages = 2 if _positive_int(getattr(project, "production_stages", 1), 1) == 2 else 1
+    if stages == 1:
+        return 1, 1
+    current = (
+        2 if _positive_int(getattr(project, "current_stage", 1), 1) == 2 else 1
+    )
+    return stages, current
+
+
+def _extra_delivery_stage(extra: dict) -> str:
+    stage = str(extra.get("deliveryStage") or extra.get("delivery_stage") or "both")
+    return stage if stage in {"1", "2"} else "both"
+
+
+def _extra_matches_delivery_stage(extra: dict, stage: int | None) -> bool:
+    if stage is None:
+        return True
+    return _extra_delivery_stage(extra) in {"both", str(stage)}
+
+
 def _delivery_key(prefix: str, *parts: object) -> str:
     payload = json.dumps(parts, ensure_ascii=False, sort_keys=True, default=str)
     digest = hashlib.sha1(payload.encode("utf-8")).hexdigest()[:14]
@@ -697,6 +715,12 @@ def _format_quantity(value: float) -> str:
 
 
 def _section_color(section: object, calc: object | None = None) -> str:
+    def normalize(value: str) -> str:
+        value = value.strip()
+        if re.match(r"^\d{4}(?:\s|$)", value):
+            return f"RAL {value}"
+        return value
+
     painting = str(getattr(section, "painting_type", "") or "").strip()
     if "анод" in painting.lower():
         return "Анодированный"
@@ -704,11 +728,11 @@ def _section_color(section: object, calc: object | None = None) -> str:
     if calc is not None:
         color = str(getattr(calc, "color_text", "") or "").strip()
         if color:
-            return color
+            return normalize(color)
 
     ral = str(getattr(section, "ral_color", "") or "").strip()
     if ral:
-        return ral if ral.upper().startswith("RAL") else f"RAL {ral}"
+        return normalize(ral)
     return painting or "Без цвета"
 
 
@@ -746,10 +770,7 @@ def _construction_name(section: object) -> str:
         return f"Raluma КНИЖКА{f' {variant}' if variant else ''}"
     if system == "ЛИФТ":
         panels = _positive_int(getattr(section, "panels", 2), 2)
-        opening = str(
-            getattr(section, "lift_opening_type", "") or "Сдвиг вниз"
-        ).strip()
-        return f"Raluma ЛИФТ, {panels} пан., {opening.lower()}"
+        return f"Raluma ЛИФТ, {panels} панели"
     if system == "ЦС":
         variant = str(getattr(section, "cs_shape", "") or "").strip()
         return f"Raluma ЦС{f', {variant}' if variant else ''}"
@@ -779,6 +800,7 @@ def _build_delivery_construction_rows(
         group = grouped.setdefault(
             key,
             {
+                "system": system,
                 "name": _construction_name(section),
                 "color": color,
                 "thresholds": [],
@@ -1048,10 +1070,14 @@ def _add_raw_special_hardware(
 
 
 def _build_delivery_hardware_rows(
-    sections: list[object], places: dict[str, str]
+    sections: list[object],
+    places: dict[str, str],
+    *,
+    include_calculated_specials: bool,
+    extra_stage: int | None,
 ) -> list[dict]:
     grouped: dict[tuple, dict] = {}
-    bubble_seal_lengths: set[float] = set()
+    bubble_seal_qty = 0.0
     lift_remote_controls: dict[str, dict] = {}
     special_articles = {"RS3014", "RS3017", "RS30201", "RS205"}
     excluded_locks = {"RS3018", "RS3020"}
@@ -1059,7 +1085,7 @@ def _build_delivery_hardware_rows(
     for section in sections:
         section_qty = max(1, _positive_int(getattr(section, "quantity", 1), 1))
         system = str(getattr(section, "system", "") or "").strip().upper()
-        if system == "СЛАЙД":
+        if system == "СЛАЙД" and include_calculated_specials:
             calc = calculate_slide(section)
             for item in calc.hardware:
                 article = str(getattr(item, "article", "") or "").strip().upper()
@@ -1082,7 +1108,9 @@ def _build_delivery_hardware_rows(
                 length = _safe_float(getattr(profile, "length_mm", 0))
                 if article == "RS1002":
                     if length > 0:
-                        bubble_seal_lengths.add(round(length, 1))
+                        bubble_seal_qty += _safe_float(
+                            getattr(profile, "qty", 0)
+                        )
                     continue
                 _add_delivery_component(
                     grouped,
@@ -1092,7 +1120,7 @@ def _build_delivery_hardware_rows(
                     size="",
                     qty=_safe_float(getattr(profile, "qty", 0)),
                 )
-        elif system == "ЛИФТ":
+        elif system == "ЛИФТ" and include_calculated_specials:
             calc = calculate_lift(section)
             for item in calc.hardware:
                 article = str(getattr(item, "article", "") or "").strip().upper()
@@ -1117,12 +1145,14 @@ def _build_delivery_hardware_rows(
                         name=str(getattr(item, "name", "") or article).strip(),
                         qty=_safe_float(getattr(item, "value", 0)),
                     )
-        else:
+        elif include_calculated_specials:
             _add_raw_special_hardware(grouped, section, section_qty)
 
         for extra in _parse_extra_components(
             getattr(section, "extra_components", None)
         ):
+            if not _extra_matches_delivery_stage(extra, extra_stage):
+                continue
             qty = _safe_float(extra.get("qty") or extra.get("quantity"), 0)
             _add_delivery_component(
                 grouped,
@@ -1133,12 +1163,12 @@ def _build_delivery_hardware_rows(
                 qty=qty * section_qty,
             )
 
-    if bubble_seal_lengths:
+    if bubble_seal_qty > 0:
         _add_delivery_component(
             grouped,
             article="RS1002",
             name="Пузырьковый уплотнитель",
-            qty=len(bubble_seal_lengths),
+            qty=bubble_seal_qty,
         )
     for remote in lift_remote_controls.values():
         _add_delivery_component(
@@ -1184,13 +1214,27 @@ def _build_delivery_context(project: object, sections: Iterable[object]) -> dict
     )
     settings = _delivery_settings(project)
     places = settings["places"]
-    construction_rows = _build_delivery_construction_rows(sorted_sections, places)
-    glass_rows = (
-        _build_delivery_glass_rows(project, sorted_sections, places)
-        if settings["includeGlass"]
+    stages, current_stage = _project_delivery_stage(project)
+    include_constructions = stages == 1 or current_stage == 1
+    include_glass = stages == 1 or current_stage == 2
+    include_calculated_specials = stages == 1 or current_stage == 2
+    extra_stage = None if stages == 1 else current_stage
+    construction_rows = (
+        _build_delivery_construction_rows(sorted_sections, places)
+        if include_constructions
         else []
     )
-    hardware_rows = _build_delivery_hardware_rows(sorted_sections, places)
+    glass_rows = (
+        _build_delivery_glass_rows(project, sorted_sections, places)
+        if include_glass
+        else []
+    )
+    hardware_rows = _build_delivery_hardware_rows(
+        sorted_sections,
+        places,
+        include_calculated_specials=include_calculated_specials,
+        extra_stage=extra_stage,
+    )
     item1_rows = [
         *(
             {**row, "kind": "construction", "qty_text": str(row["qty"])}
@@ -1209,11 +1253,192 @@ def _build_delivery_context(project: object, sections: Iterable[object]) -> dict
         "delivery": {
             **settings,
             "dateText": _delivery_date_text(settings),
+            "productionStages": stages,
+            "currentStage": current_stage,
+            "includeConstructions": include_constructions,
+            "includeGlass": include_glass,
         },
         "delivery_item1_rows": item1_rows,
         "delivery_item2_rows": hardware_rows,
         "delivery_total_qty": _format_quantity(total_qty),
         "delivery_names_count": 2,
+    }
+
+
+HARDWARE_ORDER_SYSTEMS = ("СЛАЙД", "ЛИФТ", "КНИЖКА", "ЦС")
+
+
+def _add_hardware_order_row(
+    grouped: dict[tuple[str, str, str, str], dict],
+    *,
+    article: object,
+    name: object,
+    qty: object,
+    unit: object = "шт",
+    image: object = "",
+    aggregate: str = "sum",
+) -> None:
+    numeric_qty = _safe_float(qty, 0)
+    article_text = str(article or "").strip()
+    name_text = str(name or article_text).strip()
+    if numeric_qty <= 0 or not (article_text or name_text):
+        return
+
+    unit_text = str(unit or "шт").strip() or "шт"
+    image_text = str(image or "").strip()
+    key = (article_text, name_text, unit_text, image_text)
+    row = grouped.setdefault(
+        key,
+        {
+            "article": article_text,
+            "name": name_text,
+            "qty": 0.0,
+            "unit": unit_text,
+            "image": image_text,
+        },
+    )
+    if aggregate == "max":
+        row["qty"] = max(float(row["qty"]), numeric_qty)
+    elif aggregate == "once":
+        row["qty"] = 1.0
+    else:
+        row["qty"] += numeric_qty
+
+
+def _add_hardware_order_extras(
+    grouped: dict[tuple[str, str, str, str], dict],
+    section: object,
+) -> None:
+    section_qty = max(1, _positive_int(getattr(section, "quantity", 1), 1))
+    for extra in _parse_extra_components(getattr(section, "extra_components", None)):
+        qty = _safe_float(extra.get("qty") or extra.get("quantity"), 0)
+        _add_hardware_order_row(
+            grouped,
+            article=extra.get("sku") or extra.get("article"),
+            name=extra.get("name") or "Дополнительная комплектующая",
+            qty=qty * section_qty,
+            unit=extra.get("unit") or "шт",
+            image=(
+                extra.get("imageFile")
+                or extra.get("image_file")
+                or extra.get("image")
+                or ""
+            ),
+        )
+
+
+def _build_hardware_order_page(system: str, sections: list[object]) -> dict:
+    grouped: dict[tuple[str, str, str, str], dict] = {}
+    warning = ""
+
+    if system == "СЛАЙД":
+        for section in sections:
+            calc = calculate_slide(section)
+            for item in calc.hardware:
+                sub_items = getattr(item, "sub_items", None) or []
+                if sub_items:
+                    for sub_item in sub_items:
+                        _add_hardware_order_row(
+                            grouped,
+                            article=getattr(sub_item, "article", ""),
+                            name=f"{getattr(item, 'name', '')} {getattr(sub_item, 'label', '')}".strip(),
+                            qty=getattr(sub_item, "value", 0),
+                            unit=getattr(item, "unit", "шт"),
+                            image=getattr(item, "image", ""),
+                        )
+                    continue
+                _add_hardware_order_row(
+                    grouped,
+                    article=getattr(item, "article", ""),
+                    name=getattr(item, "name", ""),
+                    qty=getattr(item, "value", 0),
+                    unit=getattr(item, "unit", "шт"),
+                    image=getattr(item, "image", ""),
+                )
+            for item in calc.screws:
+                _add_hardware_order_row(
+                    grouped,
+                    article=getattr(item, "article", ""),
+                    name=getattr(item, "name", ""),
+                    qty=getattr(item, "qty", 0),
+                    unit="шт",
+                    image=getattr(item, "image", ""),
+                )
+            _add_hardware_order_extras(grouped, section)
+    elif system == "ЛИФТ":
+        for section in sections:
+            calc = calculate_lift(section)
+            for item in [*calc.hardware, *calc.fasteners]:
+                article = str(getattr(item, "article", "") or "").strip().upper()
+                aggregate = (
+                    "max"
+                    if article in {"RL2087", "RL2088"}
+                    else "once"
+                    if article == "RL150"
+                    else "sum"
+                )
+                _add_hardware_order_row(
+                    grouped,
+                    article=article,
+                    name=getattr(item, "name", ""),
+                    qty=getattr(item, "value", 0),
+                    unit=getattr(item, "unit", "шт"),
+                    image=getattr(item, "image", ""),
+                    aggregate=aggregate,
+                )
+            _add_hardware_order_extras(grouped, section)
+    else:
+        warning = (
+            f"Расчёт фурнитуры для системы {system} пока не реализован. "
+            "Позиции из дополнительных комплектующих показаны ниже."
+        )
+        for section in sections:
+            _add_hardware_order_extras(grouped, section)
+
+    rows = sorted(
+        grouped.values(),
+        key=lambda row: (row["article"], row["name"], row["unit"]),
+    )
+    for index, row in enumerate(rows, start=1):
+        row["index"] = index
+        row["qty_text"] = _format_quantity(row["qty"])
+    return {
+        "system": system,
+        "rows": rows,
+        "warning": warning,
+    }
+
+
+def _build_hardware_order_context(
+    project: object,
+    sections: Iterable[object],
+) -> dict:
+    section_rows = list(sections)
+    grouped_sections: dict[str, list[object]] = defaultdict(list)
+    for section in sorted(
+        section_rows,
+        key=lambda section: _section_sort_key(section, 999999),
+    ):
+        system = str(getattr(section, "system", "") or "").strip().upper()
+        if not system or system == "КОМПЛЕКТАЦИЯ":
+            continue
+        grouped_sections[system].append(section)
+
+    ordered_systems = [
+        system for system in HARDWARE_ORDER_SYSTEMS if system in grouped_sections
+    ]
+    ordered_systems.extend(
+        sorted(system for system in grouped_sections if system not in ordered_systems)
+    )
+    return {
+        "doc_type": "hardware_order",
+        "title": DOC_TITLES["hardware_order"],
+        "project": project,
+        "sections": section_rows,
+        "hardware_order_pages": [
+            _build_hardware_order_page(system, grouped_sections[system])
+            for system in ordered_systems
+        ],
     }
 
 
@@ -1227,6 +1452,8 @@ def build_project_document_context(
 
     if doc_type == "delivery":
         return _build_delivery_context(project, sections)
+    if doc_type == "hardware_order":
+        return _build_hardware_order_context(project, sections)
 
     section_rows = list(sections)
     slide_calculated = _iter_slide_sections(section_rows)
@@ -1262,8 +1489,9 @@ def render_project_document_html(
 ) -> str:
     context = build_project_document_context(project, sections, doc_type)
     context["is_pdf"] = is_pdf
-    template_name = (
-        "delivery_note.html" if doc_type == "delivery" else "project_document.html"
-    )
+    template_name = {
+        "delivery": "delivery_note.html",
+        "hardware_order": "hardware_order.html",
+    }.get(doc_type, "project_document.html")
     template = _get_env().get_template(template_name)
     return template.render(**context)

@@ -34,7 +34,7 @@ router = APIRouter(prefix="/api/projects", tags=["documents"])
 
 ADMIN_ROLES = ("admin", "superadmin")
 PRODUCTION_SHEET_SYSTEMS = {"СЛАЙД", "ЛИФТ"}
-OFFICE_PROJECT_DOCUMENTS = {"glass", "paint"}
+OFFICE_PROJECT_DOCUMENTS = {"glass", "paint", "hardware_order"}
 OFFICE_MEDIA_TYPES = {
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -127,6 +127,8 @@ def _build_local_document_objects(payload: LocalDocumentPayload):
         paint_manual_rows=project_data.get("paint_manual_rows") or "[]",
         glass_status=project_data.get("glass_status") or "",
         delivery_note_data=project_data.get("delivery_note_data") or "{}",
+        production_stages=project_data.get("production_stages") or 1,
+        current_stage=project_data.get("current_stage") or 1,
     )
     section = SimpleNamespace(**section_values)
     return project, section
@@ -141,6 +143,8 @@ def _build_local_project_document_objects(payload: LocalProjectDocumentPayload):
         paint_manual_rows=project_data.get("paint_manual_rows") or "[]",
         glass_status=project_data.get("glass_status") or "",
         delivery_note_data=project_data.get("delivery_note_data") or "{}",
+        production_stages=project_data.get("production_stages") or 1,
+        current_stage=project_data.get("current_stage") or 1,
     )
     sections = []
     for section_data in payload.sections or []:
@@ -170,7 +174,10 @@ def _validate_office_project_doc_type(doc_type: str) -> str:
     if doc_type not in OFFICE_PROJECT_DOCUMENTS:
         raise HTTPException(
             status_code=400,
-            detail="Word и Excel доступны для заказа стекла и заявки на покраску",
+            detail=(
+                "Word и Excel доступны для заказа стекла, заявки на покраску "
+                "и наряда-заказа на фурнитуру"
+            ),
         )
     return doc_type
 

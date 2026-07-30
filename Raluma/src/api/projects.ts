@@ -124,7 +124,12 @@ export interface SectionOut {
 
 const hasAuthToken = () => Boolean(localStorage.getItem('access_token'));
 
-export type ProjectDocumentType = 'commercial' | 'paint' | 'glass' | 'delivery';
+export type ProjectDocumentType =
+  | 'commercial'
+  | 'paint'
+  | 'glass'
+  | 'delivery'
+  | 'hardware_order';
 export type DocumentFileFormat = 'pdf' | 'docx' | 'xlsx';
 export type ProjectDocumentOverrides = Partial<{
   project_number: string;

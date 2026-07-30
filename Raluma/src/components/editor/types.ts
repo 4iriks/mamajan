@@ -9,6 +9,9 @@ export interface ExtraComponent {
   color: string;
   size: string;
   qty: string;
+  unit?: string;
+  imageFile?: string;
+  deliveryStage?: '1' | '2' | 'both';
 }
 
 export interface Section {

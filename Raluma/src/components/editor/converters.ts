@@ -14,6 +14,13 @@ function parseExtraComponents(raw?: string): ExtraComponent[] {
         color: String(row?.color ?? ''),
         size: String(row?.size ?? ''),
         qty: String(row?.qty ?? row?.quantity ?? ''),
+        unit: String(row?.unit ?? 'шт'),
+        imageFile: String(row?.imageFile ?? row?.image_file ?? ''),
+        deliveryStage: (
+          row?.deliveryStage === '1' || row?.deliveryStage === '2'
+            ? row.deliveryStage
+            : 'both'
+        ) as ExtraComponent['deliveryStage'],
       }))
       .filter(row => row.sku || row.name || row.color || row.size || row.qty);
   } catch {
@@ -29,6 +36,9 @@ function stringifyExtraComponents(rows?: ExtraComponent[]): string {
       color: row.color.trim(),
       size: row.size.trim(),
       qty: row.qty.trim(),
+      unit: (row.unit || 'шт').trim() || 'шт',
+      imageFile: (row.imageFile || '').trim(),
+      deliveryStage: row.deliveryStage || 'both',
     }))
     .filter(row => row.sku || row.name || row.color || row.size || row.qty);
   return JSON.stringify(normalized);

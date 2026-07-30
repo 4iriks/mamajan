@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Наряд-заказ на фурнитуру {{ project.number|e }}</title>
+  <style>
+    @page { size: A4 portrait; margin: 7mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #eceff1;
+      color: #111;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 7.5pt;
+    }
+    .page {
+      width: 196mm;
+      min-height: 283mm;
+      margin: 0 auto 7mm;
+      padding: 4mm;
+      background: #fff;
+      page-break-after: always;
+    }
+    .page:last-child { page-break-after: auto; }
+    h1 {
+      margin: 0;
+      text-align: center;
+      font-size: 12.5pt;
+      line-height: 1.05;
+      text-transform: uppercase;
+    }
+    h2 {
+      margin: 1mm 0 2mm;
+      text-align: center;
+      font-size: 9.5pt;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    thead { display: table-header-group; }
+    tr { break-inside: avoid; page-break-inside: avoid; }
+    th, td {
+      border: 1px solid #111;
+      padding: 0.45mm 0.7mm;
+      vertical-align: middle;
+      line-height: 1.05;
+    }
+    th {
+      background: #e7ecef;
+      font-weight: 700;
+      text-align: center;
+    }
+    .article { width: 24mm; text-align: center; font-weight: 700; }
+    .sketch { width: 27mm; text-align: center; }
+    .quantity { width: 24mm; text-align: center; font-weight: 700; }
+    .unit { width: 22mm; text-align: center; }
+    .sketch img {
+      display: block;
+      width: auto;
+      max-width: 23mm;
+      height: auto;
+      max-height: 5.5mm;
+      margin: 0 auto;
+      object-fit: contain;
+    }
+    .empty-sketch {
+      display: block;
+      height: 4.5mm;
+    }
+    .warning {
+      margin-bottom: 1.5mm;
+      padding: 1.5mm;
+      border: 1px solid #c52a2a;
+      color: #b00000;
+      font-weight: 700;
+      line-height: 1.15;
+    }
+    .empty {
+      padding: 10mm;
+      text-align: center;
+      color: #555;
+    }
+    @media print {
+      body { background: #fff; }
+      .page { width: auto; min-height: 0; margin: 0; padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  {% for page in hardware_order_pages %}
+  <section class="page">
+    <h1>Наряд-заказ на фурнитуру — {{ project.number|e }}</h1>
+    <h2>{{ page.system|e }}</h2>
+    {% if page.warning %}
+      <div class="warning">{{ page.warning|e }}</div>
+    {% endif %}
+    <table>
+      <thead>
+        <tr>
+          <th class="article">Артикул</th>
+          <th class="sketch">Эскиз</th>
+          <th>Название</th>
+          <th class="quantity">Кол-во<br>(общее в проекте)</th>
+          <th class="unit">Единицы измерения</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in page.rows %}
+        <tr>
+          <td class="article">{{ row.article|e }}</td>
+          <td class="sketch">
+            {% if row.image %}
+              <img src="{{ row.image|img_b64 }}" alt="">
+            {% else %}
+              <span class="empty-sketch"></span>
+            {% endif %}
+          </td>
+          <td>{{ row.name|e }}</td>
+          <td class="quantity">{{ row.qty_text|e }}</td>
+          <td class="unit">{{ row.unit|e }}</td>
+        </tr>
+        {% else %}
+        <tr><td class="empty" colspan="5">Позиции не найдены</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% else %}
+  <section class="page">
+    <h1>Наряд-заказ на фурнитуру — {{ project.number|e }}</h1>
+    <div class="empty">В проекте нет секций для формирования наряд-заказа.</div>
+  </section>
+  {% endfor %}
+</body>
+</html>

@@ -30,6 +30,7 @@ export interface HardwareCatalogOption {
   id: number;
   sku: string;
   name: string;
+  unit: string;
   imageFile?: string;
   isActive: boolean;
 }

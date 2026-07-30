@@ -140,7 +140,7 @@
               <div class="row-title">{{ row.name|e }}</div>
               {% if row.kind == 'construction' %}
                 <div class="row-meta">
-                  Комплект профилей, {{ row.color|e }}{% if row.threshold and row.threshold != 'Пороги согласно ТЗ' %}, {{ row.threshold|e }}{% endif %}, размеры согласно ТЗ, размеры конструкции:
+                  {% if row.system == 'СЛАЙД' %}Комплект направляющих и пристеночных профилей{% else %}Комплект профилей{% endif %}, {{ row.color|e }}{% if row.threshold and row.threshold != 'Пороги согласно ТЗ' %}, {{ row.threshold|e }}{% endif %}, размеры согласно ТЗ, размеры конструкции:
                 </div>
                 {% if row.threshold == 'Пороги согласно ТЗ' %}<div class="row-meta">Пороги указаны отдельно для каждого размера.</div>{% endif %}
                 <div class="dimensions">

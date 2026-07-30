@@ -673,7 +673,11 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         <div className="hidden sm:flex items-center gap-1 px-4 sm:px-8 py-2 border-b border-tint/20 bg-surface/20 flex-shrink-0">
           {[
             { name: 'Коммерческое предложение', icon: FileText, projectDoc: 'commercial' as const },
-            { name: 'Спецификация', icon: FileText },
+            {
+              name: 'Наряд-заказ на фурнитуру',
+              icon: FileText,
+              projectDoc: 'hardware_order' as const,
+            },
             { name: 'Накладная', icon: ClipboardList, projectDoc: 'delivery' as const },
             { name: 'Заказ стекла', icon: WindowIcon, projectDoc: 'glass' as const },
             { name: 'Заявка на покраску', icon: Palette, projectDoc: 'paint' as const },

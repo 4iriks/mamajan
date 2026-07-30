@@ -17,6 +17,7 @@ def test_hardware_catalog_options_are_public(client):
     assert "RS123" in skus
     assert "RL101" in skus
     assert "RL2085" in skus
+    assert all(item["unit"] for item in data)
     assert "purchasePrice" not in data[0]
 
 

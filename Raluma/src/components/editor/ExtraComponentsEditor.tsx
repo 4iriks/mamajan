@@ -20,6 +20,9 @@ function normalizeItem(item?: Partial<ExtraComponent>): ExtraComponent {
     color: item?.color ?? '',
     size: item?.size ?? '',
     qty: item?.qty ?? '',
+    unit: item?.unit ?? 'шт',
+    imageFile: item?.imageFile ?? '',
+    deliveryStage: item?.deliveryStage ?? 'both',
   };
 }
 
@@ -69,14 +72,16 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
     updateRow(row.id!, {
       sku,
       name: item?.name ?? '',
+      unit: item?.unit ?? 'шт',
+      imageFile: item?.imageFile ?? '',
     });
   };
 
   return (
     <div className="space-y-3">
       {rows.length > 0 && (
-        <div className="hidden lg:grid grid-cols-[minmax(180px,1.4fr)_120px_minmax(120px,0.8fr)_120px_90px_36px] gap-2 px-1">
-          {['Название', 'Артикул', 'Цвет', 'Размер, мм', 'Кол-во', ''].map(label => (
+        <div className="hidden lg:grid grid-cols-[minmax(180px,1.4fr)_110px_minmax(110px,0.8fr)_105px_80px_72px_130px_36px] gap-2 px-1">
+          {['Название', 'Артикул', 'Цвет', 'Размер, мм', 'Кол-во', 'Ед.', 'Этап отгрузки', ''].map(label => (
             <span key={label} className="text-[9px] font-bold uppercase tracking-widest text-fg/25">
               {label}
             </span>
@@ -88,7 +93,7 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
         {rows.map(row => (
           <div
             key={row.id}
-            className="grid grid-cols-1 lg:grid-cols-[minmax(180px,1.4fr)_120px_minmax(120px,0.8fr)_120px_90px_36px] gap-2 items-end"
+            className="grid grid-cols-1 lg:grid-cols-[minmax(180px,1.4fr)_110px_minmax(110px,0.8fr)_105px_80px_72px_130px_36px] gap-2 items-end"
           >
             <div className="space-y-1 lg:space-y-0">
               <label className={`${LBL} lg:hidden`}>Название</label>
@@ -144,6 +149,31 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
                 className={INP}
                 placeholder="шт"
               />
+            </div>
+
+            <div className="space-y-1 lg:space-y-0">
+              <label className={`${LBL} lg:hidden`}>Единица</label>
+              <input
+                value={row.unit || 'шт'}
+                onChange={e => updateRow(row.id!, { unit: e.target.value })}
+                className={INP}
+                placeholder="шт"
+              />
+            </div>
+
+            <div className="space-y-1 lg:space-y-0">
+              <label className={`${LBL} lg:hidden`}>Этап отгрузки</label>
+              <select
+                value={row.deliveryStage || 'both'}
+                onChange={e => updateRow(row.id!, {
+                  deliveryStage: e.target.value as ExtraComponent['deliveryStage'],
+                })}
+                className={SEL}
+              >
+                <option value="both">Оба этапа</option>
+                <option value="1">Этап 1</option>
+                <option value="2">Этап 2</option>
+              </select>
             </div>
 
             <button
