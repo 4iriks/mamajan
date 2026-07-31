@@ -1108,8 +1108,8 @@ def _build_hardware_order_docx(context: dict) -> bytes:
             document.add_page_break()
 
         dense_page = len(page["rows"]) > 24
-        row_height_mm = 6.15 if dense_page else 7
-        image_height_mm = 4.35 if dense_page else 5.2
+        row_height_mm = 7 if dense_page else 8.2
+        image_height_mm = 5.4 if dense_page else 6.8
         body_font_size = 6.2 if dense_page else 6.8
         compact_margin = 18 if dense_page else 45
 
@@ -1141,13 +1141,14 @@ def _build_hardware_order_docx(context: dict) -> bytes:
             warning_run.font.size = Pt(7)
             warning_run.font.color.rgb = RGBColor.from_string(RED)
 
-        table = document.add_table(rows=1, cols=5)
+        table = document.add_table(rows=1, cols=6)
         table.autofit = False
-        widths = (24, 25, 100, 25, 20)
+        widths = (21, 29, 84, 14, 24, 22)
         headers = (
             "Артикул",
             "Эскиз",
             "Название",
+            "Этап",
             "Кол-во\n(общее в проекте)",
             "Единицы измерения",
         )
@@ -1186,19 +1187,26 @@ def _build_hardware_order_docx(context: dict) -> bytes:
             _add_picture_fitted(
                 row.cells[1],
                 image_stream(row_data.get("image"), max_size=(700, 420)),
-                max_width_mm=19,
+                max_width_mm=24,
                 max_height_mm=image_height_mm,
             )
             _set_cell_text(row.cells[2], row_data["name"], size=body_font_size)
             _set_cell_text(
                 row.cells[3],
+                row_data["stage_text"],
+                bold=True,
+                size=body_font_size,
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+            )
+            _set_cell_text(
+                row.cells[4],
                 row_data["qty_text"],
                 bold=True,
                 size=6.4 if dense_page else 7,
                 align=WD_ALIGN_PARAGRAPH.CENTER,
             )
             _set_cell_text(
-                row.cells[4],
+                row.cells[5],
                 row_data["unit"],
                 size=body_font_size,
                 align=WD_ALIGN_PARAGRAPH.CENTER,
@@ -1213,7 +1221,7 @@ def _build_hardware_order_docx(context: dict) -> bytes:
                 )
         if not page["rows"]:
             row = table.add_row()
-            cell = row.cells[0].merge(row.cells[4])
+            cell = row.cells[0].merge(row.cells[5])
             _set_cell_text(
                 cell,
                 "Позиции не найдены",

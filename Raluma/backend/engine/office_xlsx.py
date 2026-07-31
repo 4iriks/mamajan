@@ -1398,7 +1398,7 @@ def _build_hardware_order_xlsx(context: dict) -> bytes:
         _setup_sheet(worksheet, landscape=False)
         worksheet.set_header("")
         worksheet.fit_to_pages(1, 1)
-        widths = (15, 18, 49, 16, 16)
+        widths = (14, 22, 43, 10, 16, 15)
         for column, width in enumerate(widths):
             worksheet.set_column(column, column, width)
 
@@ -1407,7 +1407,7 @@ def _build_hardware_order_xlsx(context: dict) -> bytes:
             0,
             0,
             0,
-            4,
+            5,
             f"НАРЯД-ЗАКАЗ НА ФУРНИТУРУ — {project_number}",
             formats["title"],
         )
@@ -1416,7 +1416,7 @@ def _build_hardware_order_xlsx(context: dict) -> bytes:
             1,
             0,
             1,
-            4,
+            5,
             page["system"] or "БЕЗ СИСТЕМЫ",
             formats["bar"],
         )
@@ -1427,7 +1427,7 @@ def _build_hardware_order_xlsx(context: dict) -> bytes:
                 row,
                 0,
                 row,
-                4,
+                5,
                 page["warning"],
                 formats["red_center"],
             )
@@ -1438,6 +1438,7 @@ def _build_hardware_order_xlsx(context: dict) -> bytes:
             "Артикул",
             "Эскиз",
             "Название",
+            "Этап",
             "Кол-во\n(общее в проекте)",
             "Единицы измерения",
         )
@@ -1453,16 +1454,17 @@ def _build_hardware_order_xlsx(context: dict) -> bytes:
             worksheet.write(row, 0, row_data["article"], formats["center_bold"])
             worksheet.write_blank(row, 1, None, formats["center"])
             worksheet.write(row, 2, row_data["name"], formats["cell"])
-            worksheet.write_number(row, 3, row_data["qty"], formats["center_bold"])
-            worksheet.write(row, 4, row_data["unit"], formats["center"])
-            worksheet.set_row(row, 22)
+            worksheet.write(row, 3, row_data["stage_text"], formats["center_bold"])
+            worksheet.write_number(row, 4, row_data["qty"], formats["center_bold"])
+            worksheet.write(row, 5, row_data["unit"], formats["center"])
+            worksheet.set_row(row, 28)
             _insert_image(
                 worksheet,
                 row,
                 1,
                 image_stream(row_data.get("image"), max_size=(700, 420)),
-                max_width_px=72,
-                max_height_px=18,
+                max_width_px=92,
+                max_height_px=25,
                 x_offset=4,
                 y_offset=2,
                 allow_enlarge=False,
@@ -1473,14 +1475,14 @@ def _build_hardware_order_xlsx(context: dict) -> bytes:
                 row,
                 0,
                 row + 1,
-                4,
+                5,
                 "Позиции не найдены",
                 formats["center"],
             )
             row += 2
 
-        worksheet.autofilter(header_row, 0, max(header_row, row - 1), 4)
-        worksheet.print_area(0, 0, max(header_row, row - 1), 4)
+        worksheet.autofilter(header_row, 0, max(header_row, row - 1), 5)
+        worksheet.print_area(0, 0, max(header_row, row - 1), 5)
 
     workbook.close()
     return output.getvalue()

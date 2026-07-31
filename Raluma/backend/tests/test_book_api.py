@@ -265,7 +265,7 @@ def test_book_does_not_block_supported_parts_of_mixed_project_documents(client):
         assert expected_token in preview.text
 
 
-def test_book_hardware_order_keeps_existing_warning_page_and_manual_rows(client):
+def test_book_hardware_order_contains_calculated_and_manual_rows(client):
     book = book_payload(
         extra_components=(
             '[{"sku":"BOOK-MANUAL","name":"Ручная позиция","qty":2}]'
@@ -280,5 +280,7 @@ def test_book_hardware_order_keeps_existing_warning_page_and_manual_rows(client)
     )
 
     assert response.status_code == 200
-    assert "Расчёт фурнитуры для системы КНИЖКА пока не реализован" in response.text
+    assert "Расчёт фурнитуры для системы КНИЖКА пока не реализован" not in response.text
+    assert "RBP0004" in response.text
+    assert ">1</td>" in response.text
     assert "BOOK-MANUAL" in response.text

@@ -11,6 +11,7 @@ from typing import Iterable
 
 from jinja2 import Environment, FileSystemLoader
 
+from engine.book_calc import calculate_book
 from engine.glass_types import default_glass_type
 from engine.lift_calc import PENOPLEX_20MM, calculate_lift
 from engine.pdf import TEMPLATES_DIR, _img_b64, glass_mm
@@ -1101,16 +1102,15 @@ def _build_delivery_hardware_rows(
                     name=name,
                     qty=_safe_float(getattr(item, "value", 0)),
                 )
+            bubble_seal_qty += (
+                int(bool(getattr(section, "profile_left_bubble", False)))
+                + int(bool(getattr(section, "profile_right_bubble", False)))
+            ) * section_qty
             for profile in calc.profiles:
                 article = str(getattr(profile, "article", "") or "").strip().upper()
                 if article not in {"RS1002", "RS3110"}:
                     continue
-                length = _safe_float(getattr(profile, "length_mm", 0))
                 if article == "RS1002":
-                    if length > 0:
-                        bubble_seal_qty += _safe_float(
-                            getattr(profile, "qty", 0)
-                        )
                     continue
                 _add_delivery_component(
                     grouped,
@@ -1268,6 +1268,96 @@ def _build_delivery_context(project: object, sections: Iterable[object]) -> dict
 HARDWARE_ORDER_SYSTEMS = ("СЛАЙД", "ЛИФТ", "КНИЖКА", "ЦС")
 
 
+SLIDE_HARDWARE_STAGES = {
+    "RU008": "1",
+    "RU007": "2",
+    "RU010": "1",
+    "RSD1": "2",
+    "RSD2": "2",
+    "RU005": "2",
+    "RS105": "2",
+    "RS106": "2",
+    "RS107": "2",
+    "RS107L": "2",
+    "RS107R": "2",
+    "RS108": "2",
+    "RS122": "2",
+    "RS123": "2",
+    "RS205": "2",
+    "RS3110": "2",
+    "RS3014": "2",
+    "RS3017": "2",
+    "RS3018": "2",
+    "RS3020": "2",
+    "RS30201": "2",
+    "RU1039": "2",
+    "RS150": "1",
+}
+
+
+LIFT_HARDWARE_STAGES = {
+    "RL201": "1",
+    "RL203": "1",
+    "RL20901": "1",
+    "RL20902": "1",
+    "RL20903": "1",
+    "RL20904": "1",
+    "RL206": "1",
+    "RL2095": "1",
+    "RL2085": "1",
+    "RL2098": "1",
+    "RL2096": "1",
+    "RL2097": "1",
+    "RL207": "1",
+    "RU004": "1, 2",
+    "RU006": "1",
+    "RL001": "2",
+    "RL011": "2",
+    "RL210": "2",
+    "RL2087": "2",
+    "RL2088": "2",
+    "RL2092": "2",
+    "RL005": "2",
+    "RL002": "2",
+    "RU1039": "2",
+    "RL150": "1",
+}
+
+
+def _hardware_order_stage(system: str, article: str, name: str) -> str:
+    article_upper = article.strip().upper()
+    if system == "СЛАЙД":
+        if article_upper == "DIN7982":
+            return "1" if "4,8×38" in name else "2"
+        if article_upper in {"DIN7504M", "DIN7504O"}:
+            return "2" if "3,5×13" in name else "1"
+        if article_upper == "DIN912SW":
+            return "2"
+        return SLIDE_HARDWARE_STAGES.get(article_upper, "2")
+    if system == "ЛИФТ":
+        if article_upper in {"DIN7982", "DIN7504O"}:
+            return "1"
+        if article_upper.startswith("DIN"):
+            return "2"
+        return LIFT_HARDWARE_STAGES.get(article_upper, "2")
+    return ""
+
+
+def _stage_tokens(stage: object) -> set[str]:
+    text = str(stage or "").strip().lower()
+    if not text:
+        return set()
+    if text in {"both", "оба", "1, 2", "1/2"}:
+        return {"1", "2"}
+    return {token for token in re.findall(r"[12]", text)}
+
+
+def _canonical_hardware_order_name(article: str, name: str) -> str:
+    if article.upper() == "RS3018":
+        return "Замок-защёлка 1-сторонний RS3018"
+    return name
+
+
 def _add_hardware_order_row(
     grouped: dict[tuple[str, str, str, str], dict],
     *,
@@ -1276,11 +1366,14 @@ def _add_hardware_order_row(
     qty: object,
     unit: object = "шт",
     image: object = "",
+    stage: object = "",
     aggregate: str = "sum",
 ) -> None:
     numeric_qty = _safe_float(qty, 0)
     article_text = str(article or "").strip()
-    name_text = str(name or article_text).strip()
+    name_text = _canonical_hardware_order_name(
+        article_text, str(name or article_text).strip()
+    )
     if numeric_qty <= 0 or not (article_text or name_text):
         return
 
@@ -1295,8 +1388,10 @@ def _add_hardware_order_row(
             "qty": 0.0,
             "unit": unit_text,
             "image": image_text,
+            "stages": set(),
         },
     )
+    row["stages"].update(_stage_tokens(stage))
     if aggregate == "max":
         row["qty"] = max(float(row["qty"]), numeric_qty)
     elif aggregate == "once":
@@ -1324,6 +1419,7 @@ def _add_hardware_order_extras(
                 or extra.get("image")
                 or ""
             ),
+            stage=_extra_delivery_stage(extra),
         )
 
 
@@ -1345,6 +1441,11 @@ def _build_hardware_order_page(system: str, sections: list[object]) -> dict:
                             qty=getattr(sub_item, "value", 0),
                             unit=getattr(item, "unit", "шт"),
                             image=getattr(item, "image", ""),
+                            stage=_hardware_order_stage(
+                                system,
+                                str(getattr(sub_item, "article", "") or ""),
+                                f"{getattr(item, 'name', '')} {getattr(sub_item, 'label', '')}".strip(),
+                            ),
                         )
                     continue
                 _add_hardware_order_row(
@@ -1354,6 +1455,11 @@ def _build_hardware_order_page(system: str, sections: list[object]) -> dict:
                     qty=getattr(item, "value", 0),
                     unit=getattr(item, "unit", "шт"),
                     image=getattr(item, "image", ""),
+                    stage=_hardware_order_stage(
+                        system,
+                        str(getattr(item, "article", "") or ""),
+                        str(getattr(item, "name", "") or ""),
+                    ),
                 )
             for item in calc.screws:
                 _add_hardware_order_row(
@@ -1363,6 +1469,11 @@ def _build_hardware_order_page(system: str, sections: list[object]) -> dict:
                     qty=getattr(item, "qty", 0),
                     unit="шт",
                     image=getattr(item, "image", ""),
+                    stage=_hardware_order_stage(
+                        system,
+                        str(getattr(item, "article", "") or ""),
+                        str(getattr(item, "name", "") or ""),
+                    ),
                 )
             _add_hardware_order_extras(grouped, section)
     elif system == "ЛИФТ":
@@ -1384,7 +1495,29 @@ def _build_hardware_order_page(system: str, sections: list[object]) -> dict:
                     qty=getattr(item, "value", 0),
                     unit=getattr(item, "unit", "шт"),
                     image=getattr(item, "image", ""),
+                    stage=_hardware_order_stage(
+                        system,
+                        article,
+                        str(getattr(item, "name", "") or ""),
+                    ),
                     aggregate=aggregate,
+                )
+            _add_hardware_order_extras(grouped, section)
+    elif system == "КНИЖКА":
+        for section in sections:
+            calc = calculate_book(section)
+            for item in calc.hardware:
+                if not getattr(item, "included", False):
+                    continue
+                article = str(getattr(item, "article", "") or "").strip().upper()
+                _add_hardware_order_row(
+                    grouped,
+                    article=article,
+                    name=getattr(item, "name", ""),
+                    qty=getattr(item, "qty", 0),
+                    unit=getattr(item, "unit", "шт"),
+                    image=f"{article}.png",
+                    stage=getattr(item, "shipment_stage", ""),
                 )
             _add_hardware_order_extras(grouped, section)
     else:
@@ -1400,8 +1533,14 @@ def _build_hardware_order_page(system: str, sections: list[object]) -> dict:
         key=lambda row: (row["article"], row["name"], row["unit"]),
     )
     for index, row in enumerate(rows, start=1):
+        article = str(row["article"] or "").upper()
+        if article in {"RU004", "RU006", "RU007", "RU008"} and str(
+            row["unit"]
+        ).lower() == "м":
+            row["qty"] = ceil(float(row["qty"]) * 10 - 1e-9) / 10
         row["index"] = index
         row["qty_text"] = _format_quantity(row["qty"])
+        row["stage_text"] = ", ".join(sorted(row.pop("stages", set()))) or "—"
     return {
         "system": system,
         "rows": rows,

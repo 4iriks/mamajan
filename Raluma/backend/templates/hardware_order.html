@@ -52,16 +52,17 @@
       font-weight: 700;
       text-align: center;
     }
-    .article { width: 24mm; text-align: center; font-weight: 700; }
-    .sketch { width: 27mm; text-align: center; }
-    .quantity { width: 24mm; text-align: center; font-weight: 700; }
-    .unit { width: 22mm; text-align: center; }
+    .article { width: 22mm; text-align: center; font-weight: 700; }
+    .sketch { width: 31mm; text-align: center; }
+    .stage { width: 14mm; text-align: center; font-weight: 700; }
+    .quantity { width: 22mm; text-align: center; font-weight: 700; }
+    .unit { width: 19mm; text-align: center; }
     .sketch img {
       display: block;
       width: auto;
-      max-width: 23mm;
+      max-width: 28mm;
       height: auto;
-      max-height: 5.5mm;
+      max-height: 8mm;
       margin: 0 auto;
       object-fit: contain;
     }
@@ -102,6 +103,7 @@
           <th class="article">Артикул</th>
           <th class="sketch">Эскиз</th>
           <th>Название</th>
+          <th class="stage">Этап</th>
           <th class="quantity">Кол-во<br>(общее в проекте)</th>
           <th class="unit">Единицы измерения</th>
         </tr>
@@ -118,11 +120,12 @@
             {% endif %}
           </td>
           <td>{{ row.name|e }}</td>
+          <td class="stage">{{ row.stage_text|e }}</td>
           <td class="quantity">{{ row.qty_text|e }}</td>
           <td class="unit">{{ row.unit|e }}</td>
         </tr>
         {% else %}
-        <tr><td class="empty" colspan="5">Позиции не найдены</td></tr>
+        <tr><td class="empty" colspan="6">Позиции не найдены</td></tr>
         {% endfor %}
       </tbody>
     </table>

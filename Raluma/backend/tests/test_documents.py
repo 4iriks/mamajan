@@ -2049,6 +2049,7 @@ class TestOfficeDownloads:
                 (
                     self._normalized_cell(row["article"]),
                     self._normalized_cell(row["name"]),
+                    self._normalized_cell(row["stage_text"]),
                     self._normalized_cell(row["qty_text"]),
                     self._normalized_cell(row["unit"]),
                 )
@@ -2061,7 +2062,7 @@ class TestOfficeDownloads:
         for table in self._docx_table_rows(responses["docx"].content):
             docx_pages.append(
                 [
-                    (row[0], row[2], row[3], row[4])
+                    (row[0], row[2], row[3], row[4], row[5])
                     for row in table[1:]
                     if row[0] and row[0] != "Позиции не найдены"
                 ]
@@ -2083,6 +2084,7 @@ class TestOfficeDownloads:
                         row.get("C", ""),
                         row.get("D", ""),
                         row.get("E", ""),
+                        row.get("F", ""),
                     )
                 )
             xlsx_pages.append(page_rows)
@@ -3931,20 +3933,29 @@ class TestHardwareOrder:
         assert slide_rows["EXTRA-1"]["qty"] == 5
         assert slide_rows["EXTRA-1"]["unit"] == "компл."
         assert slide_rows["EXTRA-1"]["image"] == "RS112.png"
+        assert slide_rows["EXTRA-1"]["stage_text"] == "1, 2"
         assert any(row["image"] for row in slide_rows.values())
         assert lift_rows["RL2087"]["qty"] == 3
+        assert lift_rows["RL2087"]["stage_text"] == "2"
         assert lift_rows["RL2088"]["qty"] == 1
+        assert lift_rows["RU004"]["stage_text"] == "1, 2"
+        assert lift_rows["RU006"]["stage_text"] == "1"
+        assert lift_rows["DIN7982"]["stage_text"] == "1"
+        assert lift_rows["DIN7504O"]["stage_text"] == "1"
         assert lift_rows["RL150"]["qty"] == 1
+        assert lift_rows["RL150"]["stage_text"] == "1"
 
-    def test_unimplemented_system_has_explicit_warning_and_keeps_extras(self):
+    def test_book_hardware_and_extras_include_shipment_stages(self):
         section = _delivery_section(
             system="КНИЖКА",
+            panels=4,
             extra_components=json.dumps(
                 [
                     {
                         "sku": "BOOK-EXTRA",
                         "name": "Комплектующая КНИЖКА",
                         "qty": 2,
+                        "deliveryStage": "both",
                     }
                 ],
                 ensure_ascii=False,
@@ -3955,8 +3966,30 @@ class TestHardwareOrder:
         page = context["hardware_order_pages"][0]
 
         assert page["system"] == "КНИЖКА"
-        assert "пока не реализован" in page["warning"]
-        assert page["rows"][0]["article"] == "BOOK-EXTRA"
+        assert page["warning"] == ""
+        rows = {row["article"]: row for row in page["rows"]}
+        assert rows["BOOK-EXTRA"]["stage_text"] == "1, 2"
+        assert rows["RBP0004"]["stage_text"] == "1"
+        assert rows["RBA0040"]["stage_text"] == "2"
+
+    def test_merges_left_and_right_rs3018_into_one_article(self):
+        section = _delivery_section(
+            profile_left_lock_bar=True,
+            profile_right_lock_bar=True,
+            lock_left="ЗАМОК-ЗАЩЕЛКА 1стор RS3018",
+            lock_right="ЗАМОК-ЗАЩЕЛКА 1стор RS3018",
+        )
+
+        context = _build_hardware_order_context(self.project(), [section])
+        rows = [
+            row
+            for row in context["hardware_order_pages"][0]["rows"]
+            if row["article"] == "RS3018"
+        ]
+
+        assert len(rows) == 1
+        assert rows[0]["qty"] == 2
+        assert rows[0]["stage_text"] == "2"
 
     def test_guest_preview_and_authenticated_preview_are_available(
         self, client, admin_headers, project
