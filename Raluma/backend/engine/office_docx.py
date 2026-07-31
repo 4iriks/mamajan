@@ -925,10 +925,23 @@ def _project_header(document: Document, title: str, project: object) -> None:
     table.style = "Table Grid"
 
 
+def _add_project_document_warnings(document: Document, context: dict) -> None:
+    for text in context.get("document_warnings", []):
+        paragraph = document.add_paragraph()
+        paragraph.paragraph_format.space_before = Pt(3)
+        paragraph.paragraph_format.space_after = Pt(3)
+        run = paragraph.add_run(str(text))
+        run.bold = True
+        run.font.name = "Arial"
+        run.font.size = Pt(8)
+        run.font.color.rgb = RGBColor.from_string(RED)
+
+
 def _build_glass_docx(context: dict) -> bytes:
     document = Document()
     _configure_document(document, landscape=False)
     _project_header(document, "Заказ стекла", context["project"])
+    _add_project_document_warnings(document, context)
     paragraph = document.add_paragraph()
     run = paragraph.add_run("КРОМКИ ПОЛИРОВАННЫЕ. Печать закалки не ставить")
     run.bold = True
@@ -995,11 +1008,13 @@ def _build_paint_docx(context: dict) -> bytes:
     pages = context["paint_pages"]
     if not pages:
         _project_header(document, "Заявка на покраску", context["project"])
+        _add_project_document_warnings(document, context)
         document.add_paragraph("В проекте нет окрашиваемых профилей.")
     for page_index, page in enumerate(pages):
         if page_index:
             document.add_page_break()
         _project_header(document, "Заявка на покраску", context["project"])
+        _add_project_document_warnings(document, context)
         color = document.add_paragraph()
         color.alignment = WD_ALIGN_PARAGRAPH.RIGHT
         run = color.add_run(f"Цвет: {page['color']}")

@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from math import ceil
 
 from engine.glass_types import SLIDE_DEFAULT_GLASS_TYPE
-from engine.legacy_values import normalize_center_handle_offset
+from engine.legacy_values import normalize_center_handle_offset, normalize_handle_offset
 from engine.profile_catalog import apply_profile_catalog
 
 
@@ -674,13 +674,18 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     pl = _p_bar_bubble_gap_mm(p_bar_l, bubble_l)
     pr = _p_bar_bubble_gap_mm(p_bar_r, bubble_r)
 
-    a = int(_get(section, "handle_offset_left", 0) or 0)
-    b = int(_get(section, "handle_offset_right", 0) or 0)
-
     handle_l_raw = _get(section, "handle_left", None)
     handle_r_raw = _get(section, "handle_right", None)
     handle_l = handle_l_raw or "Без"
     handle_r = handle_r_raw or "Без"
+    a = normalize_handle_offset(
+        handle_l_raw,
+        _get(section, "handle_offset_left", 0),
+    ) or 0
+    b = normalize_handle_offset(
+        handle_r_raw,
+        _get(section, "handle_offset_right", 0),
+    ) or 0
     lock_l = _get(section, "lock_left", None) or "Без"
     lock_r = _get(section, "lock_right", None) or "Без"
 
@@ -1455,13 +1460,12 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     pl = _p_bar_bubble_gap_mm(p_bar_l, bubble_l)
     pr = _p_bar_bubble_gap_mm(p_bar_r, bubble_r)
 
-    a = int(section.handle_offset_left or 0)
-    b = int(section.handle_offset_right or 0)
-
     # ── Определяем глухие панели ─────────────────────────────────────────────
 
     handle_l = section.handle_left or "Без"
     handle_r = section.handle_right or "Без"
+    a = normalize_handle_offset(handle_l, section.handle_offset_left) or 0
+    b = normalize_handle_offset(handle_r, section.handle_offset_right) or 0
     lock_l = section.lock_left or "Без"
     lock_r = section.lock_right or "Без"
 

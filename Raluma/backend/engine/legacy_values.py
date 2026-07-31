@@ -7,15 +7,15 @@
 from typing import Any
 
 
-def center_handle_supports_offset(value: Any) -> bool:
-    """Отступ C применяется только к стеклянной ручке и ручке-скобе."""
+def handle_supports_offset(value: Any) -> bool:
+    """Отступ применяется только к стеклянной ручке и ручке-скобе."""
     handle = str(value or "").strip().lower()
-    return "rs3017" in handle or "ручка-скоба" in handle
+    return "rs3017" in handle or "стеклян" in handle or "скоб" in handle
 
 
-def normalize_center_handle_offset(handle: Any, offset: Any) -> int | None:
-    """Нормализовать сохраненный отступ C с учетом выбранной ручки."""
-    if not center_handle_supports_offset(handle):
+def normalize_handle_offset(handle: Any, offset: Any) -> int | None:
+    """Игнорировать сохранённый отступ, если выбранная ручка его не использует."""
+    if not handle_supports_offset(handle):
         return None
     if offset in (None, ""):
         return None
@@ -23,6 +23,16 @@ def normalize_center_handle_offset(handle: Any, offset: Any) -> int | None:
         return max(0, int(float(offset)))
     except (TypeError, ValueError):
         return None
+
+
+def center_handle_supports_offset(value: Any) -> bool:
+    """Совместимый alias для старого имени проверки центральной ручки."""
+    return handle_supports_offset(value)
+
+
+def normalize_center_handle_offset(handle: Any, offset: Any) -> int | None:
+    """Нормализовать сохраненный отступ C с учетом выбранной ручки."""
+    return normalize_handle_offset(handle, offset)
 
 
 _LEGACY_VALUE_REPLACEMENTS: dict[str, dict[str, str]] = {
@@ -46,12 +56,15 @@ _LEGACY_VALUE_REPLACEMENTS: dict[str, dict[str, str]] = {
         "ЗАМОК-ЗАЩЕЛКА 2стор с ключом": "ЗАМОК двухсторонний с ключом RS3020",
     },
     "handle_left": {
+        "Стеклянная ручка": "Стеклянная ручка RS3017",
         "Ручка-скоба": "Ручка-скоба 600мм RS30201",
     },
     "handle_right": {
+        "Стеклянная ручка": "Стеклянная ручка RS3017",
         "Ручка-скоба": "Ручка-скоба 600мм RS30201",
     },
     "center_handle": {
+        "Стеклянная ручка": "Стеклянная ручка RS3017",
         "Ручка-скоба": "Ручка-скоба 600мм RS30201",
     },
     "handle": {
@@ -72,6 +85,13 @@ def normalize_section_data_values(data: dict[str, Any]) -> dict[str, Any]:
             normalized.get("center_handle"),
             normalized.get("center_handle_offset"),
         )
+    for side in ("left", "right"):
+        offset_field = f"handle_offset_{side}"
+        if offset_field in normalized:
+            normalized[offset_field] = normalize_handle_offset(
+                normalized.get(f"handle_{side}"),
+                normalized.get(offset_field),
+            )
     if str(normalized.get("system") or "").strip().upper() == "КНИЖКА":
         _populate_book_compatibility_fields(normalized)
     return normalized
@@ -125,6 +145,17 @@ def _book_opening(value: Any) -> str:
 
 def _populate_book_compatibility_fields(data: dict[str, Any]) -> None:
     """Дополнить старые поля КНИЖКИ новой структурой, не удаляя оригиналы."""
+    raw_system = str(data.get("book_system") or "").strip().upper().replace("Ё", "Е")
+    data["book_system"] = {
+        "": "B25",
+        "В25": "B25",
+        "В16": "B16",
+        "В17": "B17",
+        "С16": "C16",
+        "С17": "C17",
+        "С КАРЕТКОЙ": "B25",
+        "БЕЗ КАРЕТКИ": "B25",
+    }.get(raw_system, raw_system)
     layout = _book_door_layout(data)
     legacy_hardware = _book_hardware(data.get("door_type"))
     legacy_opening = _book_opening(data.get("door_opening"))

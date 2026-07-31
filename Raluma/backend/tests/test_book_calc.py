@@ -14,6 +14,7 @@ def book_section(**overrides):
         "panels": 4,
         "quantity": 1,
         "glass_type": "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
+        "book_system": "B25",
         "door_side": "right",
         "doors": 1,
         "book_right_door_hardware": "handle",
@@ -50,6 +51,79 @@ def test_tz_formula_has_priority_over_conflicting_excel_width_formula():
     trace = next(item for item in result.formulas if item.key == "glass_width")
     assert trace.source == "tz"
     assert result.source_priority == ["tz", "excel", "legacy"]
+
+
+@pytest.mark.parametrize(
+    ("compensator", "expected_height"),
+    [
+        ("lower", 2365.0),
+        ("both", 2385.0),
+        ("upper", 2370.0),
+        ("none", 2383.0),
+    ],
+)
+def test_b25_height_depends_on_compensator(compensator, expected_height):
+    result = calculate_book(book_section(compensator=compensator))
+
+    assert {panel.glass_height_mm for panel in result.panels} == {expected_height}
+    assert result.normalized_config["book_system"] == "B25"
+    assert result.normalized_config["height_family"] == "B25"
+
+
+@pytest.mark.parametrize("book_system", ["B16", "B17", "C16", "C17"])
+def test_legacy_profile_systems_use_explicit_preliminary_height_family(book_system):
+    result = calculate_book(book_section(book_system=book_system))
+    standard = result.panels[0]
+    door = result.panels[-1]
+
+    assert standard.glass_height_mm == 2398.0
+    assert door.glass_height_mm == 2365.0
+    assert standard.panel_height_mm == 2365.0
+    assert result.normalized_config["book_system"] == book_system
+    assert result.normalized_config["height_family"] == "B16"
+    assert result.configuration_status == "preliminary"
+    assert result.documents_allowed is False
+    assert any(book_system in reason for reason in result.document_block_reasons)
+    height_formula = next(
+        item for item in result.formulas if item.key == "glass_height"
+    )
+    assert height_formula.source == "legacy"
+
+
+@pytest.mark.parametrize(
+    ("compensator", "standard_height", "door_height"),
+    [
+        ("lower", 2398.0, 2365.0),
+        ("both", 2385.0, 2352.0),
+        ("upper", 2370.0, 2337.0),
+        ("none", 2383.0, 2350.0),
+    ],
+)
+def test_b16_height_matrix_depends_on_compensator(
+    compensator,
+    standard_height,
+    door_height,
+):
+    result = calculate_book(
+        book_section(book_system="B16", compensator=compensator)
+    )
+
+    assert result.panels[0].glass_height_mm == standard_height
+    assert result.panels[-1].glass_height_mm == door_height
+    assert {panel.panel_height_mm for panel in result.panels} == {door_height}
+
+
+def test_first_form_legacy_system_value_preserves_previous_b25_result_with_warning():
+    result = calculate_book(book_section(book_system="Без каретки"))
+
+    assert result.normalized_config["book_system"] == "B25"
+    assert result.panels[0].glass_height_mm == 2365.0
+    assert any("перенесено в B25" in warning for warning in result.warnings)
+
+
+def test_unknown_book_profile_system_is_rejected():
+    with pytest.raises(BookCalculationError, match="B25, B16, B17, C16 или C17"):
+        calculate_book(book_section(book_system="UNKNOWN"))
 
 
 @pytest.mark.parametrize(
@@ -150,6 +224,32 @@ def test_unconfirmed_configurations_are_preliminary_and_block_documents(feature)
     assert result.documents_allowed is False
     assert result.document_block_reasons
     assert any("заблокированы" in warning for warning in result.warnings)
+
+
+def test_left_fixed_panel_keeps_physical_numbering_for_extra_door():
+    result = calculate_book(
+        book_section(
+            door_side="left",
+            doors=1,
+            book_left_door_hardware="handle",
+            book_extra_fixed_enabled=True,
+            book_extra_fixed_width=500,
+            book_extra_fixed_side="left",
+            book_extra_door_enabled=True,
+            book_extra_door_panel=5,
+            book_extra_door_width=700,
+        )
+    )
+
+    assert [(panel.number, panel.role) for panel in result.panels] == [
+        (1, "fixed"),
+        (2, "door"),
+        (3, "standard"),
+        (4, "standard"),
+        (5, "moving_door"),
+    ]
+    assert result.normalized_config["extra_fixed_panel_number"] == 1
+    assert result.normalized_config["extra_door_panel_number"] == 5
 
 
 def test_result_is_serializable_and_contains_physical_panel_sources():

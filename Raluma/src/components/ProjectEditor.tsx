@@ -197,6 +197,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         const hasDoors = sub === 'doors' || sub === 'doors_and_angle';
         return {
           bookSubtype: sub,
+          bookSystem: 'B25',
           doors: hasDoors ? 1 : undefined,
           doorSide: hasDoors ? 'right' : 'none',
           doorType: hasDoors ? 'Ручка' : undefined,

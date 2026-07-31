@@ -6,6 +6,9 @@
 from dataclasses import asdict
 from math import ceil
 from types import SimpleNamespace
+
+import pytest
+
 from engine.slide_calc import (
     PanelGlassItem,
     SlideCalcResult,
@@ -272,14 +275,50 @@ class TestProfileVariables:
         assert left.width_mm == round(edge_base + 16, 1)
         assert mid.width_mm == expected_mid
 
-    def test_handle_offset_left(self):
+    @pytest.mark.parametrize(
+        "handle",
+        ["Стеклянная ручка RS3017", "Стеклянная ручка"],
+    )
+    def test_handle_offset_left(self, handle):
         """Отступ a влияет на middle_W и left_W."""
-        s = _make_section(handle_offset_left=100)
+        s = _make_section(
+            handle_left=handle,
+            handle_offset_left=100,
+        )
         r = calculate_slide(s)
         left = _find_glass(r, "Левое")[0]
         mid = _find_glass(r, "Промежуточные")[0]
         # left_W = mid_W + a + krlr + krlp = mid_W + 100
         assert left.width_mm == round(mid.width_mm + 100, 1)
+
+    @pytest.mark.parametrize("slide_rows", [1, 2])
+    @pytest.mark.parametrize("side", ["left", "right"])
+    def test_hidden_offset_is_ignored_for_handle_without_offset(self, slide_rows, side):
+        """Старый скрытый отступ не меняет стекло и не подавляет возврат 16 мм."""
+        common = {
+            "slide_rows": slide_rows,
+            "panels": 4 if slide_rows == 2 else 3,
+            f"profile_{side}_p_bar": True,
+            f"profile_{side}_bubble": True,
+            f"handle_{side}": "Ручка-кноб RS3014",
+        }
+        offset_field = f"handle_offset_{side}"
+        clean = calculate_slide(_make_section(**common, **{offset_field: 0}))
+        stale = calculate_slide(_make_section(**common, **{offset_field: 100}))
+
+        assert [panel.width_mm for panel in stale.panel_glass] == [
+            panel.width_mm for panel in clean.panel_glass
+        ]
+        edge = 0 if side == "left" else -1
+        neighbor = 1 if side == "left" else -2
+        assert (
+            round(
+                stale.panel_glass[edge].width_mm
+                - stale.panel_glass[neighbor].width_mm,
+                1,
+            )
+            == 16
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -8,8 +8,10 @@ import json
 import re
 import zipfile
 from types import SimpleNamespace
+from xml.etree import ElementTree
 
 import pytest
+from docx import Document as DocxDocument
 from pypdf import PdfReader
 
 from engine.pdf import (
@@ -34,6 +36,7 @@ from engine.project_documents import (
     _build_paint_pages,
     _iter_calculated_sections,
     _iter_slide_sections,
+    build_project_document_context,
     render_project_document_html,
 )
 from schemas import SectionCreate
@@ -1637,6 +1640,93 @@ class TestOfficeDownloads:
             workbook_xml = archive.read("xl/workbook.xml").decode("utf-8")
         return len(re.findall(r"<sheet\b", workbook_xml))
 
+    @staticmethod
+    def _normalized_cell(value: object) -> str:
+        text = " ".join(str(value or "").replace("\xa0", " ").split())
+        numeric = text.replace(",", ".")
+        try:
+            number = float(numeric)
+        except ValueError:
+            return text
+        return f"{number:g}"
+
+    @staticmethod
+    def _compact_contract_text(value: object) -> str:
+        """Нормализует пробелы и десятичный разделитель без потери значения."""
+        return re.sub(r"\s+", "", str(value or "")).replace(",", ".")
+
+    @classmethod
+    def _docx_table_rows(cls, content: bytes) -> list[list[list[str]]]:
+        document = DocxDocument(io.BytesIO(content))
+        return [
+            [
+                [cls._normalized_cell(cell.text) for cell in row.cells]
+                for row in table.rows
+            ]
+            for table in document.tables
+        ]
+
+    @classmethod
+    def _xlsx_sheet_rows(cls, content: bytes) -> list[list[dict[str, str]]]:
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            shared: list[str] = []
+            if "xl/sharedStrings.xml" in archive.namelist():
+                root = ElementTree.fromstring(archive.read("xl/sharedStrings.xml"))
+                for item in root:
+                    shared.append(
+                        "".join(
+                            node.text or ""
+                            for node in item.iter()
+                            if node.tag.rsplit("}", 1)[-1] == "t"
+                        )
+                    )
+
+            sheets: list[list[dict[str, str]]] = []
+            sheet_index = 1
+            while f"xl/worksheets/sheet{sheet_index}.xml" in archive.namelist():
+                root = ElementTree.fromstring(
+                    archive.read(f"xl/worksheets/sheet{sheet_index}.xml")
+                )
+                rows: list[dict[str, str]] = []
+                for row in (
+                    node for node in root.iter() if node.tag.rsplit("}", 1)[-1] == "row"
+                ):
+                    values: dict[str, str] = {}
+                    for cell in (
+                        node
+                        for node in row
+                        if node.tag.rsplit("}", 1)[-1] == "c"
+                    ):
+                        reference = cell.attrib.get("r", "")
+                        column_match = re.match(r"[A-Z]+", reference)
+                        if not column_match:
+                            continue
+                        column = column_match.group(0)
+                        cell_type = cell.attrib.get("t", "")
+                        value_node = next(
+                            (
+                                node
+                                for node in cell
+                                if node.tag.rsplit("}", 1)[-1] == "v"
+                            ),
+                            None,
+                        )
+                        if cell_type == "s" and value_node is not None:
+                            value = shared[int(value_node.text or "0")]
+                        elif cell_type == "inlineStr":
+                            value = "".join(
+                                node.text or ""
+                                for node in cell.iter()
+                                if node.tag.rsplit("}", 1)[-1] == "t"
+                            )
+                        else:
+                            value = value_node.text if value_node is not None else ""
+                        values[column] = cls._normalized_cell(value)
+                    rows.append(values)
+                sheets.append(rows)
+                sheet_index += 1
+        return sheets
+
     @pytest.mark.parametrize(
         ("system", "file_format", "expected_text"),
         [
@@ -1882,6 +1972,397 @@ class TestOfficeDownloads:
         text_by_page = [page.extract_text() or "" for page in reader.pages]
         assert "СЛАЙД" in text_by_page[0]
         assert "ЛИФТ" in text_by_page[1]
+
+    def test_hardware_order_word_excel_and_pdf_share_complete_contract(self, client):
+        pytest.importorskip("weasyprint")
+        sections = [
+            {
+                "name": "Секция 1",
+                "system": "СЛАЙД",
+                "width": 2000,
+                "height": 2400,
+                "panels": 3,
+                "quantity": 1,
+                "rails": 3,
+                "threshold": "Стандартный анод",
+                "first_panel_inside": "Справа",
+            },
+            {
+                "name": "Секция 2",
+                "system": "ЛИФТ",
+                "width": 2400,
+                "height": 2600,
+                "panels": 2,
+                "quantity": 1,
+                "lift_filling_type": "СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
+                "lift_control_type": "Пульт ДУ",
+                "lift_remote_1ch_qty": 2,
+                "lift_remote_6ch_qty": 1,
+                "lift_cable_side": "Слева",
+                "lift_opening_type": "Сдвиг вниз",
+            },
+            {
+                "name": "Секция 3",
+                "system": "КНИЖКА",
+                "width": 3000,
+                "height": 2500,
+                "panels": 4,
+                "quantity": 1,
+                "book_system": "B25",
+                "doors": 1,
+                "door_side": "right",
+                "compensator": "lower",
+                "extra_components": json.dumps(
+                    [
+                        {
+                            "sku": "BOOK-CONTRACT",
+                            "name": "Контрольная позиция КНИЖКИ",
+                            "qty": 7,
+                            "unit": "компл.",
+                        }
+                    ],
+                    ensure_ascii=False,
+                ),
+            },
+        ]
+        payload = {
+            "project": {"number": "FORMAT-CONTRACT", "customer": "Контроль"},
+            "sections": sections,
+        }
+        responses = {
+            extension: client.post(
+                f"/api/projects/local/documents/hardware_order/{extension}",
+                json=payload,
+            )
+            for extension in ("preview", "pdf", "docx", "xlsx")
+        }
+        assert {response.status_code for response in responses.values()} == {200}
+
+        project = SimpleNamespace(number="FORMAT-CONTRACT", customer="Контроль")
+        context = build_project_document_context(
+            project,
+            [SectionCreate(**section) for section in sections],
+            "hardware_order",
+        )
+        expected_pages = [
+            [
+                (
+                    self._normalized_cell(row["article"]),
+                    self._normalized_cell(row["name"]),
+                    self._normalized_cell(row["qty_text"]),
+                    self._normalized_cell(row["unit"]),
+                )
+                for row in page["rows"]
+            ]
+            for page in context["hardware_order_pages"]
+        ]
+
+        docx_pages = []
+        for table in self._docx_table_rows(responses["docx"].content):
+            docx_pages.append(
+                [
+                    (row[0], row[2], row[3], row[4])
+                    for row in table[1:]
+                    if row[0] and row[0] != "Позиции не найдены"
+                ]
+            )
+        assert docx_pages == expected_pages
+
+        xlsx_pages = []
+        for sheet in self._xlsx_sheet_rows(responses["xlsx"].content):
+            header_index = next(
+                index for index, row in enumerate(sheet) if row.get("A") == "Артикул"
+            )
+            page_rows = []
+            for row in sheet[header_index + 1 :]:
+                if not row.get("A"):
+                    continue
+                page_rows.append(
+                    (
+                        row.get("A", ""),
+                        row.get("C", ""),
+                        row.get("D", ""),
+                        row.get("E", ""),
+                    )
+                )
+            xlsx_pages.append(page_rows)
+        assert xlsx_pages == expected_pages
+
+        pdf = PdfReader(io.BytesIO(responses["pdf"].content))
+        assert len(pdf.pages) == len(expected_pages)
+        assert self._xlsx_worksheet_count(responses["xlsx"].content) == len(
+            expected_pages
+        )
+        assert len(docx_pages) == len(expected_pages)
+        html_compact = self._compact_contract_text(responses["preview"].text)
+        for page_index, (page, expected_rows) in enumerate(
+            zip(pdf.pages, expected_pages, strict=True)
+        ):
+            pdf_compact = self._compact_contract_text(page.extract_text() or "")
+            for row in expected_rows:
+                for value in row:
+                    compact_value = self._compact_contract_text(value)
+                    assert compact_value in pdf_compact
+                    assert compact_value in html_compact
+
+    def test_glass_word_excel_and_pdf_share_all_rows_and_values(self, client):
+        pytest.importorskip("weasyprint")
+        sections = [
+            {
+                "name": "Секция 1",
+                "system": "СЛАЙД",
+                "width": 2000,
+                "height": 2400,
+                "panels": 3,
+                "quantity": 1,
+                "rails": 3,
+                "threshold": "Стандартный анод",
+                "first_panel_inside": "Справа",
+            },
+            {
+                "name": "Секция 2",
+                "system": "ЛИФТ",
+                "width": 2200,
+                "height": 2500,
+                "panels": 2,
+                "quantity": 1,
+                "lift_filling_type": "СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
+                "lift_control_type": "Пульт ДУ",
+                "lift_cable_side": "Справа",
+                "lift_opening_type": "Сдвиг вниз",
+            },
+        ]
+        payload = {
+            "project": {"number": "GLASS-CONTRACT", "customer": "Контроль"},
+            "sections": sections,
+        }
+        responses = {
+            extension: client.post(
+                f"/api/projects/local/documents/glass/{extension}",
+                json=payload,
+            )
+            for extension in ("preview", "pdf", "docx", "xlsx")
+        }
+        assert {response.status_code for response in responses.values()} == {200}
+
+        context = build_project_document_context(
+            SimpleNamespace(
+                number="GLASS-CONTRACT",
+                customer="Контроль",
+                glass_manual_rows="[]",
+            ),
+            [SectionCreate(**section) for section in sections],
+            "glass",
+        )
+        expected_rows = [
+            [
+                self._normalized_cell(row["index"]),
+                self._normalized_cell(row["marking"]),
+                self._normalized_cell(row["glass_type"]),
+                self._normalized_cell(row["width"]),
+                self._normalized_cell(row["height"]),
+                self._normalized_cell(row["qty"]),
+                self._normalized_cell(f"{row['area']:.3f}"),
+                self._normalized_cell(row["note"]),
+            ]
+            for row in context["glass_rows"]
+        ]
+
+        docx_table = self._docx_table_rows(responses["docx"].content)[-1]
+        docx_rows = docx_table[1:-1]
+        assert docx_rows == expected_rows
+
+        sheet = self._xlsx_sheet_rows(responses["xlsx"].content)[0]
+        header_index = next(
+            index for index, row in enumerate(sheet) if row.get("A") == "№"
+        )
+        xlsx_rows = []
+        for row in sheet[header_index + 1 :]:
+            if row.get("A") == "Итого":
+                break
+            if row.get("A"):
+                xlsx_rows.append(
+                    [row.get(column, "") for column in "ABCDEFGH"]
+                )
+        assert xlsx_rows == expected_rows
+
+        pdf = PdfReader(io.BytesIO(responses["pdf"].content))
+        assert len(pdf.pages) == 1
+        assert self._xlsx_worksheet_count(responses["xlsx"].content) == 1
+        pdf_compact = self._compact_contract_text(
+            "".join(page.extract_text() or "" for page in pdf.pages),
+        )
+        html_compact = self._compact_contract_text(responses["preview"].text)
+        for row in expected_rows:
+            for value in row:
+                if not value:
+                    continue
+                compact_value = self._compact_contract_text(value)
+                assert compact_value in pdf_compact
+                assert compact_value in html_compact
+
+    def test_paint_word_excel_and_pdf_share_pages_rows_and_values(self, client):
+        pytest.importorskip("weasyprint")
+        sections = [
+            {
+                "name": "Секция 1",
+                "system": "СЛАЙД",
+                "width": 2000,
+                "height": 2400,
+                "panels": 3,
+                "quantity": 1,
+                "rails": 3,
+                "threshold": "Стандартный окраш",
+                "painting_type": "RAL стандарт",
+                "ral_color": "9016 МАТОВЫЙ",
+                "first_panel_inside": "Справа",
+            },
+            {
+                "name": "Секция 2",
+                "system": "СЛАЙД",
+                "width": 2200,
+                "height": 2500,
+                "panels": 3,
+                "quantity": 1,
+                "rails": 3,
+                "threshold": "Стандартный окраш",
+                "painting_type": "RAL стандарт",
+                "ral_color": "9005 МАТОВЫЙ",
+                "first_panel_inside": "Слева",
+            },
+        ]
+        payload = {
+            "project": {"number": "PAINT-CONTRACT", "customer": "Контроль"},
+            "sections": sections,
+        }
+        responses = {
+            extension: client.post(
+                f"/api/projects/local/documents/paint/{extension}",
+                json=payload,
+            )
+            for extension in ("preview", "pdf", "docx", "xlsx")
+        }
+        assert {response.status_code for response in responses.values()} == {200}
+
+        context = build_project_document_context(
+            SimpleNamespace(
+                number="PAINT-CONTRACT",
+                customer="Контроль",
+                paint_manual_rows="[]",
+            ),
+            [SectionCreate(**section) for section in sections],
+            "paint",
+        )
+        expected_pages = []
+        for page in context["paint_pages"]:
+            rows = []
+            for group in page["groups"]:
+                descriptor = self._normalized_cell(
+                    " ".join(
+                        value
+                        for value in (group["name"], group.get("note", ""))
+                        if value
+                    )
+                )
+                for item in group["rows"]:
+                    rows.append(
+                        (
+                            self._normalized_cell(group["article"]),
+                            descriptor,
+                            self._normalized_cell(item["qty"]),
+                            self._normalized_cell(item["clean"]),
+                            self._normalized_cell(item["allowance"]),
+                            self._normalized_cell(f"{item['total_m']:.1f}"),
+                        )
+                    )
+            expected_pages.append((page["color"], rows))
+
+        docx_tables = [
+            table
+            for table in self._docx_table_rows(responses["docx"].content)
+            if table and table[0][0] == "Артикул"
+        ]
+        docx_pages = [
+            [
+                tuple(row[:6])
+                for row in table[1:]
+                if row[0] and row[0] != "Итого"
+            ]
+            for table in docx_tables
+        ]
+        assert docx_pages == [rows for _, rows in expected_pages]
+
+        xlsx_sheets = self._xlsx_sheet_rows(responses["xlsx"].content)
+        xlsx_pages = []
+        for sheet in xlsx_sheets:
+            header_index = next(
+                index for index, row in enumerate(sheet) if row.get("A") == "Артикул"
+            )
+            current_article = ""
+            current_descriptor = ""
+            rows = []
+            for row in sheet[header_index + 1 :]:
+                if row.get("A") == "Итого":
+                    break
+                if row.get("A"):
+                    current_article = row["A"]
+                if row.get("B"):
+                    current_descriptor = row["B"]
+                if not row.get("C"):
+                    continue
+                rows.append(
+                    (
+                        current_article,
+                        current_descriptor,
+                        row.get("C", ""),
+                        row.get("D", ""),
+                        row.get("E", ""),
+                        row.get("F", ""),
+                    )
+                )
+            xlsx_pages.append(rows)
+        assert xlsx_pages == [rows for _, rows in expected_pages]
+
+        pdf = PdfReader(io.BytesIO(responses["pdf"].content))
+        assert len(pdf.pages) == len(expected_pages)
+        assert len(docx_tables) == len(expected_pages)
+        assert self._xlsx_worksheet_count(responses["xlsx"].content) == len(
+            expected_pages
+        )
+        html_compact = self._compact_contract_text(responses["preview"].text)
+        docx_text = self._compact_contract_text(
+            "\n".join(
+                paragraph.text
+                for paragraph in DocxDocument(
+                    io.BytesIO(responses["docx"].content)
+                ).paragraphs
+            )
+        )
+        for page, (color, expected_rows), context_page in zip(
+            pdf.pages,
+            expected_pages,
+            context["paint_pages"],
+            strict=True,
+        ):
+            pdf_compact = self._compact_contract_text(page.extract_text() or "")
+            compact_color = self._compact_contract_text(color)
+            assert compact_color in pdf_compact
+            assert compact_color in html_compact
+            assert compact_color in docx_text
+            for group in context_page["groups"]:
+                for value in (group["name"], group.get("note", "")):
+                    if not value:
+                        continue
+                    compact_value = self._compact_contract_text(value)
+                    assert compact_value in pdf_compact
+                    assert compact_value in html_compact
+            for row in expected_rows:
+                for index, value in enumerate(row):
+                    if index == 1:
+                        continue
+                    compact_value = self._compact_contract_text(value)
+                    assert compact_value in pdf_compact
+                    assert compact_value in html_compact
 
     @pytest.mark.parametrize("file_format", ["docx", "xlsx"])
     def test_local_unsupported_project_office_download_is_rejected(

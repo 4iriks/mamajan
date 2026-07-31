@@ -1,5 +1,6 @@
 import type { ExtraComponent, Section, SystemType } from './types';
 import type { SectionOut } from '../../api/projects';
+import { bookExtraDoorPanelOptions, normalizeBookSystem } from '../../constants/book';
 
 function parseExtraComponents(raw?: string): ExtraComponent[] {
   if (!raw) return [];
@@ -67,12 +68,15 @@ function normalizeLegacyValue(field: string, value?: string): string | undefined
       'ЗАМОК-ЗАЩЕЛКА 2стор с ключом': 'ЗАМОК двухсторонний с ключом RS3020',
     },
     handleLeft: {
+      'Стеклянная ручка': 'Стеклянная ручка RS3017',
       'Ручка-скоба': 'Ручка-скоба 600мм RS30201',
     },
     handleRight: {
+      'Стеклянная ручка': 'Стеклянная ручка RS3017',
       'Ручка-скоба': 'Ручка-скоба 600мм RS30201',
     },
     centerHandle: {
+      'Стеклянная ручка': 'Стеклянная ручка RS3017',
       'Ручка-скоба': 'Ручка-скоба 600мм RS30201',
     },
     handle: {
@@ -82,9 +86,9 @@ function normalizeLegacyValue(field: string, value?: string): string | undefined
   return replacements[field]?.[value] ?? value;
 }
 
-function centerHandleSupportsOffset(value?: string): boolean {
+function handleSupportsOffset(value?: string): boolean {
   const handle = (value || '').toLowerCase();
-  return handle.includes('rs3017') || handle.includes('ручка-скоба');
+  return handle.includes('rs3017') || handle.includes('стеклян') || handle.includes('скоб');
 }
 
 function normalizeBookDoorLayout(side?: string, doors?: number): 'none' | 'left' | 'right' | 'both' {
@@ -133,6 +137,8 @@ export function apiToLocal(s: SectionOut): Section {
   // Backwards compat: migrate legacy 'ДВЕРЬ' value
   const rawSystem = s.system === 'ДВЕРЬ' ? 'КОМПЛЕКТАЦИЯ' : s.system;
   const centerHandle = normalizeLegacyValue('centerHandle', s.center_handle);
+  const handleLeft = normalizeLegacyValue('handleLeft', s.handle_left);
+  const handleRight = normalizeLegacyValue('handleRight', s.handle_right);
   const bookDoorLayout = normalizeBookDoorLayout(s.door_side, s.doors);
   const legacyBookHardware = normalizeBookHardware(s.door_type);
   const legacyBookOpening = normalizeBookOpening(s.door_opening);
@@ -162,8 +168,8 @@ export function apiToLocal(s: SectionOut): Section {
     floorLatchesLeft: s.floor_latches_left,
     floorLatchesRight: s.floor_latches_right,
     handleOffset: s.handle_offset,
-    handleOffsetLeft: s.handle_offset_left,
-    handleOffsetRight: s.handle_offset_right,
+    handleOffsetLeft: handleSupportsOffset(handleLeft) ? s.handle_offset_left : undefined,
+    handleOffsetRight: handleSupportsOffset(handleRight) ? s.handle_offset_right : undefined,
     profileLeftWall: s.profile_left_wall ?? false,
     profileLeftLockBar: s.profile_left_lock_bar ?? false,
     profileLeftPBar: s.profile_left_p_bar ?? false,
@@ -179,14 +185,14 @@ export function apiToLocal(s: SectionOut): Section {
     slideRows: s.slide_rows ?? 1,
     centerHandle,
     centerLock: s.center_lock,
-    centerHandleOffset: centerHandleSupportsOffset(centerHandle)
+    centerHandleOffset: handleSupportsOffset(centerHandle)
       ? s.center_handle_offset
       : undefined,
     centerFloorLatchesLeft: s.center_floor_latches_left ?? false,
     centerFloorLatchesRight: s.center_floor_latches_right ?? false,
     bookSubtype: s.book_subtype,
-    handleLeft: normalizeLegacyValue('handleLeft', s.handle_left),
-    handleRight: normalizeLegacyValue('handleRight', s.handle_right),
+    handleLeft,
+    handleRight,
     doors: bookDoorLayout === 'both' ? 2 : bookDoorLayout === 'none' ? 0 : 1,
     doorSide: bookDoorLayout,
     doorType: s.door_type,
@@ -194,7 +200,7 @@ export function apiToLocal(s: SectionOut): Section {
     compensator: s.compensator,
     angleLeft: s.angle_left,
     angleRight: s.angle_right,
-    bookSystem: s.book_system,
+    bookSystem: normalizeBookSystem(s.book_system),
     bookLeftDoorHardware: s.book_left_door_hardware
       ?? (bookDoorLayout === 'left' || bookDoorLayout === 'both' ? legacyBookHardware : undefined),
     bookRightDoorHardware: s.book_right_door_hardware
@@ -231,6 +237,20 @@ export function apiToLocal(s: SectionOut): Section {
 }
 
 export function localToApi(s: Section, order: number): Omit<SectionOut, 'id' | 'project_id'> {
+  const extraDoorOptions = bookExtraDoorPanelOptions({
+    panelCount: s.panels,
+    doorLayout: s.doorSide,
+    extraFixedEnabled: s.bookExtraFixedEnabled,
+    extraFixedSide: s.bookExtraFixedSide,
+  });
+  const extraDoorPanel = extraDoorOptions.includes(s.bookExtraDoorPanel || 0)
+    ? s.bookExtraDoorPanel
+    : extraDoorOptions[0];
+  const physicalBookPanels = s.panels + (s.bookExtraFixedEnabled ? 1 : 0);
+  const leftBookStackPanels = Math.max(
+    1,
+    Math.min(s.bookLeftStackPanels || Math.floor(physicalBookPanels / 2), physicalBookPanels - 1),
+  );
   return {
     name: s.name, order,
     system: s.system,
@@ -244,8 +264,8 @@ export function localToApi(s: Section, order: number): Omit<SectionOut, 'id' | '
     lock: s.lock, handle: s.handle,
     floor_latches_left: s.floorLatchesLeft, floor_latches_right: s.floorLatchesRight,
     handle_offset: s.handleOffset,
-    handle_offset_left: s.handleOffsetLeft,
-    handle_offset_right: s.handleOffsetRight,
+    handle_offset_left: handleSupportsOffset(s.handleLeft) ? s.handleOffsetLeft : undefined,
+    handle_offset_right: handleSupportsOffset(s.handleRight) ? s.handleOffsetRight : undefined,
     profile_left_wall: s.profileLeftWall,
     profile_left_lock_bar: s.profileLeftLockBar,
     profile_left_p_bar: s.profileLeftPBar,
@@ -261,7 +281,7 @@ export function localToApi(s: Section, order: number): Omit<SectionOut, 'id' | '
     slide_rows: s.slideRows,
     center_handle: s.centerHandle,
     center_lock: s.centerLock,
-    center_handle_offset: centerHandleSupportsOffset(s.centerHandle)
+    center_handle_offset: handleSupportsOffset(s.centerHandle)
       ? s.centerHandleOffset
       : undefined,
     center_floor_latches_left: s.centerFloorLatchesLeft,
@@ -271,19 +291,23 @@ export function localToApi(s: Section, order: number): Omit<SectionOut, 'id' | '
     handle_right: s.handleRight,
     doors: s.doors, door_side: s.doorSide, door_type: s.doorType,
     door_opening: s.doorOpening, compensator: s.compensator,
-    angle_left: s.angleLeft, angle_right: s.angleRight, book_system: s.bookSystem,
+    angle_left: s.angleLeft,
+    angle_right: s.angleRight,
+    book_system: normalizeBookSystem(s.bookSystem),
     book_left_door_hardware: s.bookLeftDoorHardware,
     book_right_door_hardware: s.bookRightDoorHardware,
     book_left_door_opening: s.bookLeftDoorOpening,
     book_right_door_opening: s.bookRightDoorOpening,
     book_obstacle_distance: s.bookObstacleDistance,
-    book_left_stack_panels: s.bookLeftStackPanels,
+    book_left_stack_panels: s.doorSide === 'both'
+      ? leftBookStackPanels
+      : s.bookLeftStackPanels,
     book_handle_height: s.bookHandleHeight,
     book_extra_fixed_enabled: s.bookExtraFixedEnabled ?? false,
     book_extra_fixed_width: s.bookExtraFixedWidth,
     book_extra_fixed_side: s.bookExtraFixedSide,
     book_extra_door_enabled: s.bookExtraDoorEnabled ?? false,
-    book_extra_door_panel: s.bookExtraDoorPanel,
+    book_extra_door_panel: s.bookExtraDoorEnabled ? extraDoorPanel : undefined,
     book_extra_door_width: s.bookExtraDoorWidth,
     book_extra_door_opening: s.bookExtraDoorOpening,
     lift_filling_type: s.liftFillingType,

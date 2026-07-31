@@ -45,6 +45,13 @@ export function BookRoomViewSVG({
   const panels = panelLayout(calc, 44, 372);
   const glassFill = diagramGlassFillColor(section.glassType);
   const drawingHeight = 196;
+  const handleHeightMm = Number(
+    calc.normalized_config.handle_height_mm ?? section.bookHandleHeight ?? 1000,
+  );
+  const handleY = 232 - Math.max(
+    0,
+    Math.min(1, handleHeightMm / Math.max(section.height, 1)),
+  ) * drawingHeight;
 
   return (
     <svg
@@ -148,12 +155,14 @@ export function BookRoomViewSVG({
                 />
                 <circle
                   cx={panel.x + panel.width * (panel.door_side === 'left' ? 0.72 : 0.28)}
-                  cy="148"
+                  cy={handleY}
                   r={panel.door_hardware === 'lock' ? 4.5 : 3}
                   fill="none"
                   stroke="var(--diagram-symbol)"
                   strokeWidth="1.6"
                   data-book-door-hardware={panel.door_hardware || 'lock'}
+                  data-book-handle-height-mm={handleHeightMm.toFixed(1)}
+                  data-book-handle-y={handleY.toFixed(2)}
                 />
               </>
             )}
@@ -203,6 +212,10 @@ export function BookTopViewSVG({
   const rightArrowId = `${prefix}-book-top-right`;
   const panels = panelLayout(calc, 44, 372);
   const obstacle = calc.normalized_config.obstacle_distance_mm || 0;
+  const leftAngle = Number(calc.normalized_config.angle_left_deg || 0);
+  const rightAngle = Number(calc.normalized_config.angle_right_deg || 0);
+  const millimetreScale = 372 / Math.max(section.width, 1);
+  const obstacleY = Math.min(218, 38 + obstacle * millimetreScale);
 
   return (
     <svg
@@ -212,6 +225,8 @@ export function BookTopViewSVG({
       aria-label="КНИЖКА, вид сверху"
       data-book-top-view
       data-book-panel-total={calc.panels.length}
+      data-book-angle-left={leftAngle || undefined}
+      data-book-angle-right={rightAngle || undefined}
     >
       <defs>
         <marker id={leftArrowId} markerWidth="8" markerHeight="8" refX="1" refY="3" orient="auto">
@@ -227,18 +242,29 @@ export function BookTopViewSVG({
         ПРОЁМ / НАПРАВЛЯЮЩАЯ
       </text>
 
-      {panels.map(panel => {
+      {panels.map((panel, index) => {
         const isDoor = panel.role === 'door' || panel.role === 'moving_door';
         const center = panel.x + panel.width / 2;
         const isLeft = panel.movement_direction === 'left';
         const arrowX1 = isLeft ? center + Math.min(28, panel.width * 0.25) : center - Math.min(28, panel.width * 0.25);
         const arrowX2 = isLeft ? center - Math.min(28, panel.width * 0.25) : center + Math.min(28, panel.width * 0.25);
+        let rotation = 0;
+        let pivotX = center;
+        if (index === 0 && leftAngle > 0) {
+          rotation = -Math.max(-140, Math.min(140, 180 - leftAngle));
+          pivotX = panel.x + panel.width;
+        } else if (index === panels.length - 1 && rightAngle > 0) {
+          rotation = Math.max(-140, Math.min(140, 180 - rightAngle));
+          pivotX = panel.x;
+        }
         return (
           <g
             key={panel.number}
+            transform={rotation ? `rotate(${rotation} ${pivotX} 79)` : undefined}
             data-book-top-panel={panel.number}
             data-book-panel-role={panel.role}
             data-book-panel-movement={panel.movement_direction}
+            data-book-panel-angle={rotation || undefined}
           >
             <rect
               x={panel.x + 1}
@@ -307,10 +333,12 @@ export function BookTopViewSVG({
       </text>
 
       {obstacle > 0 && (
-        <g data-book-obstacle>
-          <line x1="44" y1="211" x2="416" y2="211" stroke="#ef4444" strokeWidth="2" strokeDasharray="6 4" />
-          <line x1="32" y1="38" x2="32" y2="211" stroke="#ef4444" strokeWidth="1" />
-          <text x="230" y="230" textAnchor="middle" fill="#ef4444" fontSize="10" fontWeight="700">
+        <g data-book-obstacle data-book-obstacle-y={obstacleY.toFixed(2)}>
+          <line x1="44" y1={obstacleY} x2="416" y2={obstacleY} stroke="#ef4444" strokeWidth="2" strokeDasharray="6 4" />
+          <line x1="32" y1="38" x2="32" y2={obstacleY} stroke="#ef4444" strokeWidth="1" />
+          <line x1="27" y1="38" x2="37" y2="38" stroke="#ef4444" strokeWidth="1" />
+          <line x1="27" y1={obstacleY} x2="37" y2={obstacleY} stroke="#ef4444" strokeWidth="1" />
+          <text x="230" y={Math.min(238, obstacleY + 17)} textAnchor="middle" fill="#ef4444" fontSize="10" fontWeight="700">
             Препятствие · {obstacle.toFixed(1)} мм
           </text>
         </g>

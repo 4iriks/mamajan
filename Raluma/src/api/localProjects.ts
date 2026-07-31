@@ -1,10 +1,16 @@
 import type { ProjectFull, ProjectList, SectionOut } from './projects';
 import { defaultGlassType } from '../constants/glass';
+import { normalizeBookSystem } from '../constants/book';
 
 export const LOCAL_PROJECTS_KEY = 'raluma-local-projects-v1';
 
 const makeId = () => Date.now() + Math.floor(Math.random() * 100000);
 const nowIso = () => new Date().toISOString();
+
+function handleSupportsOffset(value?: string): boolean {
+  const handle = (value || '').toLowerCase();
+  return handle.includes('rs3017') || handle.includes('стеклян') || handle.includes('скоб');
+}
 
 function read(): ProjectFull[] {
   try {
@@ -84,8 +90,12 @@ function normalizeSection(
     floor_latches_left: section.floor_latches_left ?? false,
     floor_latches_right: section.floor_latches_right ?? false,
     handle_offset: section.handle_offset,
-    handle_offset_left: section.handle_offset_left,
-    handle_offset_right: section.handle_offset_right,
+    handle_offset_left: handleSupportsOffset(section.handle_left)
+      ? section.handle_offset_left
+      : undefined,
+    handle_offset_right: handleSupportsOffset(section.handle_right)
+      ? section.handle_offset_right
+      : undefined,
     profile_left_wall: section.profile_left_wall ?? false,
     profile_left_lock_bar: section.profile_left_lock_bar ?? false,
     profile_left_p_bar: section.profile_left_p_bar ?? false,
@@ -114,7 +124,7 @@ function normalizeSection(
     compensator: section.compensator,
     angle_left: section.angle_left,
     angle_right: section.angle_right,
-    book_system: section.book_system,
+    book_system: normalizeBookSystem(section.book_system),
     book_left_door_hardware: section.book_left_door_hardware
       ?? (bookDoorLayout === 'left' || bookDoorLayout === 'both' ? legacyHardware : undefined),
     book_right_door_hardware: section.book_right_door_hardware

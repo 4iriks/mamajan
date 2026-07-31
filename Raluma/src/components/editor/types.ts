@@ -1,5 +1,7 @@
 // ── Types & constants for ProjectEditor ──────────────────────────────────────
 
+import type { BookProfileSystem } from '../../constants/book';
+
 export type SystemType = 'СЛАЙД' | 'КНИЖКА' | 'ЛИФТ' | 'ЦС' | 'КОМПЛЕКТАЦИЯ';
 
 export interface ExtraComponent {
@@ -74,7 +76,7 @@ export interface Section {
   compensator?: string;
   angleLeft?: number;
   angleRight?: number;
-  bookSystem?: string;
+  bookSystem?: BookProfileSystem;
   bookLeftDoorHardware?: string;
   bookRightDoorHardware?: string;
   bookLeftDoorOpening?: string;

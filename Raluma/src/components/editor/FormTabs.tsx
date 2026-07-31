@@ -266,10 +266,10 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
           <label className={LBL}>Профили слева</label>
           <div className="space-y-0.5">
             <ProfileCheckbox checked={s.profileLeftWall} onChange={() => update({ profileLeftWall: !s.profileLeftWall })} label="Пристеночный RS2333/2335" />
-            <ProfileCheckbox checked={s.profileLeftLockBar} onChange={() => { if (!s.profileLeftLockBar) update({ profileLeftLockBar: true, profileLeftPBar: false, profileLeftHandleBar: true, profileLeftBubble: false, handleLeft: undefined }); else update({ profileLeftLockBar: false, ...(!s.profileLeftHandleBar ? { lockLeft: undefined } : {}) }); }} label="Боковой профиль-замок RS2081" indent />
-            <ProfileCheckbox checked={s.profileLeftPBar} onChange={() => { if (!s.profileLeftPBar) update({ profileLeftPBar: true, profileLeftLockBar: false, ...(s.profileLeftHandleBar ? { lockLeft: undefined } : {}) }); else update({ profileLeftPBar: false, ...((s.profileLeftLockBar || s.profileLeftHandleBar) ? { handleLeft: undefined } : {}) }); }} label="Боковой П-профиль RS1082" indent />
-            <ProfileCheckbox checked={s.profileLeftHandleBar} onChange={() => { if (!s.profileLeftHandleBar) update({ profileLeftHandleBar: true, profileLeftBubble: false, handleLeft: undefined }); else update({ profileLeftHandleBar: false, ...(!s.profileLeftLockBar ? { lockLeft: undefined } : {}) }); }} label="Ручка-профиль RS112" />
-            <ProfileCheckbox checked={s.profileLeftBubble} onChange={() => { if (!s.profileLeftBubble) update({ profileLeftBubble: true, profileLeftHandleBar: false, ...(!s.profileLeftLockBar ? { lockLeft: undefined } : {}) }); else update({ profileLeftBubble: false, handleLeft: undefined }); }} label="Пузырьковый уплотнитель RS1002" disabled={s.profileLeftLockBar} />
+            <ProfileCheckbox checked={s.profileLeftLockBar} onChange={() => { if (!s.profileLeftLockBar) update({ profileLeftLockBar: true, profileLeftPBar: false, profileLeftHandleBar: true, profileLeftBubble: false, handleLeft: undefined, handleOffsetLeft: undefined }); else update({ profileLeftLockBar: false, ...(!s.profileLeftHandleBar ? { lockLeft: undefined } : {}) }); }} label="Боковой профиль-замок RS2081" indent />
+            <ProfileCheckbox checked={s.profileLeftPBar} onChange={() => { if (!s.profileLeftPBar) update({ profileLeftPBar: true, profileLeftLockBar: false, ...(s.profileLeftHandleBar ? { lockLeft: undefined } : {}) }); else update({ profileLeftPBar: false, ...((s.profileLeftLockBar || s.profileLeftHandleBar) ? { handleLeft: undefined, handleOffsetLeft: undefined } : {}) }); }} label="Боковой П-профиль RS1082" indent />
+            <ProfileCheckbox checked={s.profileLeftHandleBar} onChange={() => { if (!s.profileLeftHandleBar) update({ profileLeftHandleBar: true, profileLeftBubble: false, handleLeft: undefined, handleOffsetLeft: undefined }); else update({ profileLeftHandleBar: false, ...(!s.profileLeftLockBar ? { lockLeft: undefined } : {}) }); }} label="Ручка-профиль RS112" />
+            <ProfileCheckbox checked={s.profileLeftBubble} onChange={() => { if (!s.profileLeftBubble) update({ profileLeftBubble: true, profileLeftHandleBar: false, ...(!s.profileLeftLockBar ? { lockLeft: undefined } : {}) }); else update({ profileLeftBubble: false, handleLeft: undefined, handleOffsetLeft: undefined }); }} label="Пузырьковый уплотнитель RS1002" disabled={s.profileLeftLockBar} />
           </div>
           {showLockLeft && (
             <div className="mt-2 space-y-1">
@@ -291,7 +291,12 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
                 options={is2row
                   ? ['Без ручки (глухая)', 'Без ручки (подвижная)', 'Ручка-кноб RS3014', 'Стеклянная ручка RS3017', 'Ручка-скоба 600мм RS30201']
                   : ['Без ручки (подвижная)', 'Ручка-кноб RS3014', 'Стеклянная ручка RS3017', 'Ручка-скоба 600мм RS30201']}
-                onChange={v => update({ handleLeft: v })} />
+                onChange={v => update({
+                  handleLeft: v,
+                  handleOffsetLeft: v === 'Стеклянная ручка RS3017' || isBraceHandle(v)
+                    ? s.handleOffsetLeft
+                    : undefined,
+                })} />
             </div>
           )}
         </div>
@@ -301,10 +306,10 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
           <label className={LBL}>Профили справа</label>
           <div className="space-y-0.5">
             <ProfileCheckbox checked={s.profileRightWall} onChange={() => update({ profileRightWall: !s.profileRightWall })} label="Пристеночный RS2333/2335" />
-            <ProfileCheckbox checked={s.profileRightLockBar} onChange={() => { if (!s.profileRightLockBar) update({ profileRightLockBar: true, profileRightPBar: false, profileRightHandleBar: true, profileRightBubble: false, handleRight: undefined }); else update({ profileRightLockBar: false, ...(!s.profileRightHandleBar ? { lockRight: undefined } : {}) }); }} label="Боковой профиль-замок RS2081" indent />
-            <ProfileCheckbox checked={s.profileRightPBar} onChange={() => { if (!s.profileRightPBar) update({ profileRightPBar: true, profileRightLockBar: false, ...(s.profileRightHandleBar ? { lockRight: undefined } : {}) }); else update({ profileRightPBar: false, ...((s.profileRightLockBar || s.profileRightHandleBar) ? { handleRight: undefined } : {}) }); }} label="Боковой П-профиль RS1082" indent />
-            <ProfileCheckbox checked={s.profileRightHandleBar} onChange={() => { if (!s.profileRightHandleBar) update({ profileRightHandleBar: true, profileRightBubble: false, handleRight: undefined }); else update({ profileRightHandleBar: false, ...(!s.profileRightLockBar ? { lockRight: undefined } : {}) }); }} label="Ручка-профиль RS112" />
-            <ProfileCheckbox checked={s.profileRightBubble} onChange={() => { if (!s.profileRightBubble) update({ profileRightBubble: true, profileRightHandleBar: false, ...(!s.profileRightLockBar ? { lockRight: undefined } : {}) }); else update({ profileRightBubble: false, handleRight: undefined }); }} label="Пузырьковый уплотнитель RS1002" disabled={s.profileRightLockBar} />
+            <ProfileCheckbox checked={s.profileRightLockBar} onChange={() => { if (!s.profileRightLockBar) update({ profileRightLockBar: true, profileRightPBar: false, profileRightHandleBar: true, profileRightBubble: false, handleRight: undefined, handleOffsetRight: undefined }); else update({ profileRightLockBar: false, ...(!s.profileRightHandleBar ? { lockRight: undefined } : {}) }); }} label="Боковой профиль-замок RS2081" indent />
+            <ProfileCheckbox checked={s.profileRightPBar} onChange={() => { if (!s.profileRightPBar) update({ profileRightPBar: true, profileRightLockBar: false, ...(s.profileRightHandleBar ? { lockRight: undefined } : {}) }); else update({ profileRightPBar: false, ...((s.profileRightLockBar || s.profileRightHandleBar) ? { handleRight: undefined, handleOffsetRight: undefined } : {}) }); }} label="Боковой П-профиль RS1082" indent />
+            <ProfileCheckbox checked={s.profileRightHandleBar} onChange={() => { if (!s.profileRightHandleBar) update({ profileRightHandleBar: true, profileRightBubble: false, handleRight: undefined, handleOffsetRight: undefined }); else update({ profileRightHandleBar: false, ...(!s.profileRightLockBar ? { lockRight: undefined } : {}) }); }} label="Ручка-профиль RS112" />
+            <ProfileCheckbox checked={s.profileRightBubble} onChange={() => { if (!s.profileRightBubble) update({ profileRightBubble: true, profileRightHandleBar: false, ...(!s.profileRightLockBar ? { lockRight: undefined } : {}) }); else update({ profileRightBubble: false, handleRight: undefined, handleOffsetRight: undefined }); }} label="Пузырьковый уплотнитель RS1002" disabled={s.profileRightLockBar} />
           </div>
           {showLockRight && (
             <div className="mt-2 space-y-1">
@@ -326,7 +331,12 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
                 options={is2row
                   ? ['Без ручки (глухая)', 'Без ручки (подвижная)', 'Ручка-кноб RS3014', 'Стеклянная ручка RS3017', 'Ручка-скоба 600мм RS30201']
                   : ['Без ручки (подвижная)', 'Ручка-кноб RS3014', 'Стеклянная ручка RS3017', 'Ручка-скоба 600мм RS30201']}
-                onChange={v => update({ handleRight: v })} />
+                onChange={v => update({
+                  handleRight: v,
+                  handleOffsetRight: v === 'Стеклянная ручка RS3017' || isBraceHandle(v)
+                    ? s.handleOffsetRight
+                    : undefined,
+                })} />
             </div>
           )}
         </div>

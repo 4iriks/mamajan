@@ -42,6 +42,7 @@ export function BookCalcResults({
   }
 
   const includedHardware = calc.hardware.filter(item => item.included);
+  const bookSystem = String(calc.normalized_config.book_system || 'B25');
   return (
     <div className="space-y-4" data-book-calc-results data-book-configuration-status={calc.configuration_status}>
       <div className="grid gap-3 sm:grid-cols-3">
@@ -55,6 +56,12 @@ export function BookCalcResults({
             calc.configuration_status === 'confirmed' ? 'text-emerald-300' : 'text-amber-300'
           }`}>
             {calc.configuration_status === 'confirmed' ? 'Подтверждена' : 'Предварительная'}
+          </div>
+          <div
+            className="mt-1 font-mono text-[10px] font-bold text-fg/55"
+            data-book-calculated-system={bookSystem}
+          >
+            Система {bookSystem}
           </div>
         </div>
         <div className="rounded-xl border border-tint/25 bg-black/5 p-3">

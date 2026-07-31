@@ -1,6 +1,7 @@
 import { AlertTriangle } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { BOOK_PROFILE_SYSTEMS, bookExtraDoorPanelOptions } from '../../constants/book';
 import { Checkbox } from './FormInputs';
 import { INP, LBL, SEL, Section } from './types';
 
@@ -146,11 +147,24 @@ export function BookSystemTab({
   const doorLayout = s.doorSide || (s.doors === 2 ? 'both' : s.doors === 1 ? 'right' : 'none');
   const hasLeftDoor = doorLayout === 'left' || doorLayout === 'both';
   const hasRightDoor = doorLayout === 'right' || doorLayout === 'both';
+  const extraDoorPanelOptions = bookExtraDoorPanelOptions({
+    panelCount: s.panels,
+    doorLayout,
+    extraFixedEnabled: s.bookExtraFixedEnabled,
+    extraFixedSide: s.bookExtraFixedSide,
+  });
+  const physicalPanelCount = s.panels + (s.bookExtraFixedEnabled ? 1 : 0);
+  const selectedExtraDoorPanel = extraDoorPanelOptions.includes(
+    s.bookExtraDoorPanel || 0,
+  )
+    ? s.bookExtraDoorPanel
+    : extraDoorPanelOptions[0];
   const hasPreliminaryFeatures = Boolean(
     s.angleLeft
     || s.angleRight
     || s.bookExtraFixedEnabled
-    || s.bookExtraDoorEnabled,
+    || s.bookExtraDoorEnabled
+    || (s.bookSystem && s.bookSystem !== 'B25'),
   );
 
   const changeDoorLayout = (layout: string) => {
@@ -193,13 +207,16 @@ export function BookSystemTab({
           <div className="space-y-1.5">
             <label className={LBL}>Система книжки</label>
             <select
-              value={s.bookSystem || ''}
-              onChange={event => update({ bookSystem: event.target.value || undefined })}
+              value={s.bookSystem || 'B25'}
+              onChange={event => update({
+                bookSystem: event.target.value as Section['bookSystem'],
+              })}
               className={SEL}
+              data-book-profile-system
             >
-              <option value="">Стандарт</option>
-              <option value="С кареткой">С кареткой</option>
-              <option value="Без каретки">Без каретки</option>
+              {BOOK_PROFILE_SYSTEMS.map(system => (
+                <option key={system.value} value={system.value}>{system.label}</option>
+              ))}
             </select>
           </div>
           <div className="space-y-1.5">
@@ -264,14 +281,14 @@ export function BookSystemTab({
           )}
           {doorLayout === 'both' && (
             <div className="space-y-1.5">
-              <label className={LBL}>Панелей в левом сборе</label>
+              <label className={LBL}>Физических панелей в левом сборе</label>
               <select
                 value={s.bookLeftStackPanels ?? Math.max(1, Math.floor(s.panels / 2))}
                 onChange={event => update({ bookLeftStackPanels: Number(event.target.value) })}
                 className={SEL}
                 data-book-left-stack
               >
-                {Array.from({ length: Math.max(1, s.panels - 1) }, (_, index) => index + 1).map(count => (
+                {Array.from({ length: Math.max(1, physicalPanelCount - 1) }, (_, index) => index + 1).map(count => (
                   <option key={count} value={count}>{count}</option>
                 ))}
               </select>
@@ -374,22 +391,30 @@ export function BookSystemTab({
               checked={Boolean(s.bookExtraDoorEnabled)}
               onChange={() => update({
                 bookExtraDoorEnabled: !s.bookExtraDoorEnabled,
-                bookExtraDoorPanel: s.bookExtraDoorPanel || Math.min(2, s.panels),
+                bookExtraDoorPanel: selectedExtraDoorPanel,
                 bookExtraDoorWidth: s.bookExtraDoorWidth || 700,
                 bookExtraDoorOpening: s.bookExtraDoorOpening || 'inside_in',
               })}
               label="Дополнительная двигающаяся дверь"
+              disabled={!s.bookExtraDoorEnabled && extraDoorPanelOptions.length === 0}
             />
-            {s.bookExtraDoorEnabled && (
+            {extraDoorPanelOptions.length === 0 && (
+              <div className="pl-7 text-[10px] font-bold text-amber-300">
+                Нет обычной подвижной панели: отключите дополнительную дверь
+                или освободите панель, занятую крайней дверью.
+              </div>
+            )}
+            {s.bookExtraDoorEnabled && extraDoorPanelOptions.length > 0 && (
               <div className="grid grid-cols-1 gap-3 pl-7 sm:grid-cols-3">
                 <div className="space-y-1.5">
                   <label className={LBL}>Панель №</label>
                   <select
-                    value={s.bookExtraDoorPanel || Math.min(2, s.panels)}
+                    value={selectedExtraDoorPanel}
                     onChange={event => update({ bookExtraDoorPanel: Number(event.target.value) })}
                     className={SEL}
+                    data-book-extra-door-panels={extraDoorPanelOptions.join(',')}
                   >
-                    {Array.from({ length: s.panels }, (_, index) => index + 1).map(number => (
+                    {extraDoorPanelOptions.map(number => (
                       <option key={number} value={number}>{number}</option>
                     ))}
                   </select>

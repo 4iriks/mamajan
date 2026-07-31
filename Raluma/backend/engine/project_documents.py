@@ -1456,6 +1456,21 @@ def build_project_document_context(
         return _build_hardware_order_context(project, sections)
 
     section_rows = list(sections)
+    excluded_book_sections = [
+        section
+        for section in section_rows
+        if str(getattr(section, "system", "") or "").strip().upper() == "КНИЖКА"
+    ]
+    document_warnings = []
+    if doc_type in {"glass", "paint"} and excluded_book_sections:
+        labels = ", ".join(
+            str(getattr(section, "name", "") or f"Секция {index}")
+            for index, section in enumerate(excluded_book_sections, start=1)
+        )
+        document_warnings.append(
+            f"КНИЖКА не включена в документ первого этапа: {labels}. "
+            "Документ сформирован только для поддерживаемых секций СЛАЙД/ЛИФТ."
+        )
     slide_calculated = _iter_slide_sections(section_rows)
     calculated = (
         slide_calculated
@@ -1478,6 +1493,7 @@ def build_project_document_context(
         "glass_rows": glass_rows,
         "glass_total_qty": sum(row["qty"] for row in glass_rows),
         "glass_total_area": round(sum(row["area"] for row in glass_rows), 3),
+        "document_warnings": document_warnings,
     }
 
 

@@ -87,12 +87,26 @@ def _ensure_book_project_documents_supported(
 ) -> None:
     if doc_type not in PRODUCTION_PROJECT_DOCUMENTS:
         return
+    # Наряд-заказ уже умеет выводить отдельную страницу КНИЖКИ с явным
+    # предупреждением и ручными позициями.
+    if doc_type == "hardware_order":
+        return
     book_sections = [
         section
         for section in sections
         if str(getattr(section, "system", "") or "").strip().upper() == "КНИЖКА"
     ]
     if not book_sections:
+        return
+    supported_sections = [
+        section
+        for section in sections
+        if str(getattr(section, "system", "") or "").strip().upper()
+        in {"СЛАЙД", "ЛИФТ"}
+    ]
+    # В смешанном проекте заказ стекла/покраска формируются для поддерживаемых
+    # секций. КНИЖКА остаётся в документе как явное предупреждение об исключении.
+    if doc_type in {"glass", "paint"} and supported_sections:
         return
     preliminary_reasons: list[str] = []
     for section in book_sections:
@@ -111,10 +125,8 @@ def _ensure_book_project_documents_supported(
                 + " ".join(preliminary_reasons)
             ),
         )
-    # The existing project delivery note is a generic shipping summary and already
-    # renders BOOK rows without manufacturing calculations. Keep that legacy
-    # document available for confirmed straight sections; the dedicated BOOK
-    # delivery document remains part of the next package.
+    # Накладная является общей сводкой и не требует производственного расчёта
+    # КНИЖКИ, но неподтверждённые конфигурации выше по-прежнему блокируются.
     if doc_type == "delivery":
         return
     raise HTTPException(

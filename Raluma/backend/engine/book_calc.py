@@ -32,6 +32,25 @@ OPENING_LABELS = {
     "outside_in": "снаружи внутрь",
 }
 
+BOOK_SYSTEMS = {"B25", "B16", "B17", "C16", "C17"}
+BOOK_SYSTEM_ALIASES = {
+    "В25": "B25",
+    "В16": "B16",
+    "В17": "B17",
+    "С16": "C16",
+    "С17": "C17",
+    # Эти два значения ошибочно сохраняла первая версия формы. Оба
+    # рассчитывались по текущей B25-геометрии, поэтому миграция сохраняет
+    # прежний результат и просит пользователя проверить систему.
+    "С КАРЕТКОЙ": "B25",
+    "БЕЗ КАРЕТКИ": "B25",
+}
+LEGACY_HEIGHT_FAMILY_SYSTEMS = {"B16", "B17", "C16", "C17"}
+HEIGHT_DEDUCTIONS_MM = {
+    "B25": {"lower": 135.0, "both": 115.0, "upper": 130.0, "none": 117.0},
+    "B16": {"lower": 102.0, "both": 115.0, "upper": 130.0, "none": 117.0},
+}
+
 
 class BookCalculationError(ValueError):
     """Понятная пользователю ошибка геометрии КНИЖКИ."""
@@ -229,9 +248,54 @@ def _normalize_compensator(value: Any, warnings: list[str]) -> str:
     return "lower"
 
 
-def _has_angle(section: object, side: str) -> bool:
-    value = _number(_get(section, f"angle_{side}"), 0.0)
-    return value > 0 or bool(_get(section, f"corner_{side}", False))
+def _normalize_book_system(value: Any, warnings: list[str]) -> str:
+    raw = _text(value).upper().replace("Ё", "Е")
+    if not raw:
+        return "B25"
+    normalized = BOOK_SYSTEM_ALIASES.get(raw, raw)
+    if normalized not in BOOK_SYSTEMS:
+        raise BookCalculationError(
+            "Система КНИЖКИ должна быть одной из B25, B16, B17, C16 или C17"
+        )
+    if raw in {"С КАРЕТКОЙ", "БЕЗ КАРЕТКИ"}:
+        warnings.append(
+            f"Старое значение системы «{value}» перенесено в B25, чтобы сохранить "
+            "результат прежнего калькулятора. Проверьте систему профиля."
+        )
+    return normalized
+
+
+def _book_height_rules(
+    book_system: str,
+    compensator: str,
+) -> tuple[float, float, float, FormulaSource, str]:
+    family = "B16" if book_system in LEGACY_HEIGHT_FAMILY_SYSTEMS else "B25"
+    deduction = HEIGHT_DEDUCTIONS_MM[family][compensator]
+    if family == "B25":
+        door_adjustment = 0.0
+        assembly_adjustment = 33.0
+    else:
+        door_adjustment = -33.0
+        assembly_adjustment = -33.0
+
+    if book_system == "B25" and compensator == "lower":
+        source: FormulaSource = "excel"
+        reference = (
+            "Расчет_книжки_29_07_26_прямые_секции.xlsx, C24/C25, C27/C28"
+        )
+    else:
+        source = "legacy"
+        reference = (
+            "Восстановленная старая программа: appglass/engine/glass_calc.py; "
+            "матрица высот по системе и компенсатору"
+        )
+    return (
+        deduction,
+        door_adjustment,
+        assembly_adjustment,
+        source,
+        reference,
+    )
 
 
 def _position(index: int, count: int) -> str:
@@ -725,6 +789,7 @@ def calculate_book(section: object) -> BookCalcResult:
         raise BookCalculationError("Количество одинаковых секций должно быть больше нуля")
 
     result = BookCalcResult()
+    book_system = _normalize_book_system(_get(section, "book_system"), result.warnings)
     door_layout = _normalize_door_layout(section)
     left_hardware = _normalize_hardware(
         _get(section, "book_left_door_hardware"),
@@ -744,8 +809,16 @@ def calculate_book(section: object) -> BookCalcResult:
     )
     compensator = _normalize_compensator(_get(section, "compensator"), result.warnings)
 
-    angle_left = _has_angle(section, "left")
-    angle_right = _has_angle(section, "right")
+    angle_left_deg = _number(_get(section, "angle_left"), 0.0)
+    angle_right_deg = _number(_get(section, "angle_right"), 0.0)
+    if not 0 <= angle_left_deg <= 180 or not 0 <= angle_right_deg <= 180:
+        raise BookCalculationError("Угол КНИЖКИ должен быть от 0 до 180°")
+    if angle_left_deg <= 0 and bool(_get(section, "corner_left", False)):
+        angle_left_deg = 90.0
+    if angle_right_deg <= 0 and bool(_get(section, "corner_right", False)):
+        angle_right_deg = 90.0
+    angle_left = 0 < angle_left_deg < 180
+    angle_right = 0 < angle_right_deg < 180
     extra_fixed_enabled = bool(_get(section, "book_extra_fixed_enabled", False))
     extra_door_enabled = bool(_get(section, "book_extra_door_enabled", False))
     preliminary_features: list[str] = []
@@ -768,6 +841,18 @@ def calculate_book(section: object) -> BookCalcResult:
             "Расчёт содержит неподтверждённые элементы: "
             + ", ".join(preliminary_features)
             + ". Производственные документы заблокированы."
+        )
+    if book_system != "B25":
+        result.configuration_status = "preliminary"
+        result.documents_allowed = False
+        result.document_block_reasons.append(
+            f"Система {book_system}: геометрия высот восстановлена из старой "
+            "программы, а состав фурнитуры нового Excel ещё не подтверждён."
+        )
+        result.warnings.append(
+            f"Для системы {book_system} применено предварительное семейство "
+            "высот B16. До контрольного проекта производственные документы "
+            "этой системы заблокированы."
         )
 
     physical_count = base_panel_count + int(extra_fixed_enabled)
@@ -841,8 +926,25 @@ def calculate_book(section: object) -> BookCalcResult:
         remaining_glass / uniform_count,
         "Ширина стекла стандартной панели",
     )
-    glass_height = _require_positive(height - 135.0, "Высота стекла")
-    panel_height = _require_positive(glass_height + 33.0, "Высота панели при склейке")
+    (
+        height_deduction,
+        door_height_adjustment,
+        assembly_height_adjustment,
+        height_source,
+        height_reference,
+    ) = _book_height_rules(book_system, compensator)
+    glass_height = _require_positive(
+        height - height_deduction,
+        "Высота стекла",
+    )
+    door_glass_height = _require_positive(
+        glass_height + door_height_adjustment,
+        "Высота дверного стекла",
+    )
+    panel_height = _require_positive(
+        glass_height + assembly_height_adjustment,
+        "Высота панели при склейке",
+    )
 
     width_status: FormulaStatus = "preliminary" if preliminary_features else "confirmed"
     width_expression = (
@@ -880,23 +982,40 @@ def calculate_book(section: object) -> BookCalcResult:
         name="Высота стекла",
         value=_mm(glass_height),
         unit="мм",
-        expression="H − 135",
-        scope="Прямые листы Excel; высотный вычет ожидает согласования",
-        source="excel",
+        expression=f"H − {_mm(height_deduction):g}",
+        scope=f"Система {book_system}; компенсатор {compensator}",
+        source=height_source,
         status="preliminary",
-        reference="Расчет_книжки_29_07_26_прямые_секции.xlsx, C24/C25 и C25/C26",
+        reference=height_reference,
     )
+    if door_height_adjustment:
+        _add_formula(
+            result,
+            key="door_glass_height",
+            name="Высота дверного стекла",
+            value=_mm(door_glass_height),
+            unit="мм",
+            expression="Hстекла − 33",
+            scope=f"Двери систем семейства B16; выбрана {book_system}",
+            source="legacy",
+            status="preliminary",
+            reference="Восстановленная старая программа: appglass/engine/glass_calc.py",
+        )
     _add_formula(
         result,
         key="panel_assembly_height",
         name="Высота панели при склейке",
         value=_mm(panel_height),
         unit="мм",
-        expression="Hстекла + 33",
-        scope="Прямые листы Excel",
-        source="excel",
+        expression=(
+            "Hстекла + 33"
+            if assembly_height_adjustment > 0
+            else "Hстекла − 33"
+        ),
+        scope=f"Система {book_system}",
+        source=height_source,
         status="preliminary",
-        reference="Расчет_книжки_29_07_26_прямые_секции.xlsx, C27/C28 и C29/C30",
+        reference=height_reference,
     )
 
     extra_door_opening = _normalize_opening(_get(section, "book_extra_door_opening"))
@@ -919,11 +1038,18 @@ def calculate_book(section: object) -> BookCalcResult:
 
         movement = _movement_direction(index, role, door_layout, left_stack)
         glass_width = specified_glass.get(index, uniform_glass_width)
+        panel_glass_height = (
+            door_glass_height if role in {"door", "moving_door"} else glass_height
+        )
         profile_addition = 23.0 if (role == "door" and (angle_left or angle_right)) else 3.0
         profile_width = glass_width + profile_addition
         panel_status: FormulaStatus = (
             "preliminary"
-            if preliminary_features or role in {"fixed", "moving_door"}
+            if (
+                preliminary_features
+                or book_system != "B25"
+                or role in {"fixed", "moving_door"}
+            )
             else "confirmed"
         )
         panel_source: FormulaSource = "tz"
@@ -933,7 +1059,7 @@ def calculate_book(section: object) -> BookCalcResult:
                 "status": panel_status,
             },
             "glass_height_mm": {
-                "source": "excel",
+                "source": height_source,
                 "status": "preliminary",
             },
             "glass_profile_width_mm": {
@@ -941,7 +1067,7 @@ def calculate_book(section: object) -> BookCalcResult:
                 "status": panel_status,
             },
             "panel_height_mm": {
-                "source": "excel",
+                "source": height_source,
                 "status": "preliminary",
             },
         }
@@ -957,7 +1083,7 @@ def calculate_book(section: object) -> BookCalcResult:
                 door_opening_label=OPENING_LABELS.get(opening) if opening else None,
                 glass_type=_text(_get(section, "glass_type")) or "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
                 glass_width_mm=_mm(glass_width),
-                glass_height_mm=_mm(glass_height),
+                glass_height_mm=_mm(panel_glass_height),
                 glass_profile_article="RBP002",
                 glass_profile_width_mm=_mm(profile_width),
                 panel_width_mm=_mm(profile_width),
@@ -1054,6 +1180,14 @@ def calculate_book(section: object) -> BookCalcResult:
         angular_joints=angular_joints,
         joints_90=joints_90,
     )
+    if book_system != "B25":
+        for item in result.hardware:
+            if item.source == "excel":
+                item.status = "preliminary"
+                item.note = (
+                    f"{item.note} Формула нового Excel не подтверждена для "
+                    f"системы {book_system}."
+                ).strip()
 
     if any(item.status == "preliminary" for item in result.formulas):
         result.calculation_status = "preliminary"
@@ -1076,6 +1210,10 @@ def calculate_book(section: object) -> BookCalcResult:
     result.normalized_config = {
         "width_mm": _mm(width),
         "height_mm": _mm(height),
+        "book_system": book_system,
+        "height_family": (
+            "B16" if book_system in LEGACY_HEIGHT_FAMILY_SYSTEMS else "B25"
+        ),
         "base_panel_count": base_panel_count,
         "physical_panel_count": physical_count,
         "quantity": quantity,
@@ -1088,8 +1226,12 @@ def calculate_book(section: object) -> BookCalcResult:
         "obstacle_distance_mm": _mm(obstacle_distance),
         "left_stack_panels": left_stack if door_layout == "both" else None,
         "handle_height_mm": _mm(handle_height) if handle_height else None,
-        "angle_left_deg": _number(_get(section, "angle_left"), 0.0),
-        "angle_right_deg": _number(_get(section, "angle_right"), 0.0),
+        "angle_left_deg": _mm(angle_left_deg) if angle_left else None,
+        "angle_right_deg": _mm(angle_right_deg) if angle_right else None,
+        "extra_fixed_panel_number": fixed_index + 1 if fixed_index is not None else None,
+        "extra_door_panel_number": (
+            extra_door_index + 1 if extra_door_index is not None else None
+        ),
         "extra_fixed_panel": extra_fixed_enabled,
         "extra_moving_door": extra_door_enabled,
     }

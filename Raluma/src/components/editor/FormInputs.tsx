@@ -2,9 +2,23 @@ import { Section } from './types';
 
 // ── Checkbox ──────────────────────────────────────────────────────────────────
 
-export function Checkbox({ checked, onChange, label }: { checked: boolean; onChange: () => void; label: string }) {
+export function Checkbox({
+  checked,
+  onChange,
+  label,
+  disabled = false,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+  disabled?: boolean;
+}) {
   return (
-    <label className="flex items-center gap-2 cursor-pointer" onClick={onChange}>
+    <label
+      className={`flex items-center gap-2 ${disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}`}
+      onClick={disabled ? undefined : onChange}
+      aria-disabled={disabled}
+    >
       <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all flex-shrink-0 ${checked ? 'bg-accent border-accent' : 'border-tint/40 bg-black/20'}`}>
         {checked && <div className="w-2.5 h-2.5 bg-[var(--theme-check)] rounded-sm" />}
       </div>

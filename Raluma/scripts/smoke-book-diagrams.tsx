@@ -3,6 +3,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import type { BookCalcPanel, BookCalcPreview } from '../src/api/projects';
+import { bookExtraDoorPanelOptions } from '../src/constants/book';
 import { BookCalcResults } from '../src/components/editor/BookCalcResults';
 import { BookRoomViewSVG, BookTopViewSVG } from '../src/components/editor/BookDiagrams';
 import { BookSystemTab } from '../src/components/editor/BookForm';
@@ -39,6 +40,7 @@ const section: Section = {
   doors: 2,
   doorSide: 'both',
   compensator: 'both',
+  bookSystem: 'B25',
   bookLeftDoorHardware: 'handle',
   bookRightDoorHardware: 'lock',
   bookLeftDoorOpening: 'inside_in',
@@ -135,6 +137,7 @@ const calc: BookCalcPreview = {
   normalized_config: {
     width_mm: 3000,
     height_mm: 2500,
+    book_system: 'B25',
     base_panel_count: 4,
     physical_panel_count: 4,
     quantity: 1,
@@ -142,6 +145,8 @@ const calc: BookCalcPreview = {
     compensator: 'both',
     obstacle_distance_mm: 500,
     left_stack_panels: 2,
+    handle_height_mm: 1000,
+    angle_left_deg: 90,
   },
   source_priority: ['tz', 'excel', 'legacy'],
   configuration_status: 'confirmed',
@@ -169,8 +174,51 @@ assert.match(roomMarkup, /data-book-panel-movement="left"/);
 assert.match(roomMarkup, /data-book-panel-movement="right"/);
 assert.match(topMarkup, /data-book-stack-split="true"/);
 assert.match(topMarkup, /data-book-obstacle="true"/);
+assert.match(topMarkup, /data-book-angle-left="90"/);
+assert.match(topMarkup, /data-book-panel-angle="-90"/);
+assert.match(roomMarkup, /data-book-handle-height-mm="1000\.0"/);
 assert.match(visualizerMarkup, /Вид из помещения/);
 assert.match(visualizerMarkup, /Вид сверху/);
+
+const obstacleY = Number(
+  topMarkup.match(/data-book-obstacle-y="([^"]+)"/)?.[1],
+);
+const nearerTopMarkup = renderToStaticMarkup(
+  <BookTopViewSVG
+    section={section}
+    calc={{
+      ...calc,
+      normalized_config: {
+        ...calc.normalized_config,
+        obstacle_distance_mm: 250,
+      },
+    }}
+  />,
+);
+const nearerObstacleY = Number(
+  nearerTopMarkup.match(/data-book-obstacle-y="([^"]+)"/)?.[1],
+);
+assert.ok(obstacleY > nearerObstacleY);
+
+const handleY = Number(
+  roomMarkup.match(/data-book-handle-y="([^"]+)"/)?.[1],
+);
+const lowerHandleMarkup = renderToStaticMarkup(
+  <BookRoomViewSVG
+    section={section}
+    calc={{
+      ...calc,
+      normalized_config: {
+        ...calc.normalized_config,
+        handle_height_mm: 500,
+      },
+    }}
+  />,
+);
+const lowerHandleY = Number(
+  lowerHandleMarkup.match(/data-book-handle-y="([^"]+)"/)?.[1],
+);
+assert.ok(lowerHandleY > handleY);
 
 const roomPanelWidths = [...roomMarkup.matchAll(/<rect x="[^"]+" y="36" width="([^"]+)"/g)]
   .map(match => Number(match[1]));
@@ -185,8 +233,13 @@ assert.equal((formMarkup.match(/data-book-opening=/g) ?? []).length, 2);
 for (const label of ['Изнутри внутрь', 'Изнутри наружу', 'Снаружи наружу', 'Снаружи внутрь']) {
   assert.match(formMarkup, new RegExp(label));
 }
+for (const system of ['B25', 'B16', 'B17', 'C16', 'C17']) {
+  assert.match(formMarkup, new RegExp(`value="${system}"`));
+}
+assert.doesNotMatch(formMarkup, /С кареткой|Без каретки/);
 assert.match(resultsMarkup, /data-book-calc-results="true"/);
 assert.equal((resultsMarkup.match(/data-book-result-panel=/g) ?? []).length, 4);
+assert.match(resultsMarkup, /data-book-calculated-system="B25"/);
 assert.match(resultsMarkup, /TZ → EXCEL → LEGACY/i);
 
 const api = localToApi(section, 2);
@@ -196,9 +249,51 @@ assert.equal(api.book_left_door_opening, 'inside_in');
 assert.equal(api.book_right_door_opening, 'outside_out');
 assert.equal(api.book_left_stack_panels, 2);
 assert.equal(api.book_obstacle_distance, 500);
+assert.equal(api.book_system, 'B25');
+assert.equal(localToApi({ ...section, bookSystem: 'B17' }, 2).book_system, 'B17');
+
+assert.deepEqual(
+  bookExtraDoorPanelOptions({
+    panelCount: 4,
+    doorLayout: 'right',
+    extraFixedEnabled: true,
+    extraFixedSide: 'left',
+  }),
+  [2, 3, 4],
+);
+assert.deepEqual(
+  bookExtraDoorPanelOptions({
+    panelCount: 4,
+    doorLayout: 'left',
+    extraFixedEnabled: true,
+    extraFixedSide: 'left',
+  }),
+  [3, 4, 5],
+);
+
+const leftFixedSection: Section = {
+  ...section,
+  doorSide: 'right',
+  doors: 1,
+  bookExtraFixedEnabled: true,
+  bookExtraFixedSide: 'left',
+  bookExtraDoorEnabled: true,
+  bookExtraDoorPanel: 1,
+};
+const leftFixedApi = localToApi(leftFixedSection, 1);
+assert.equal(leftFixedApi.book_extra_door_panel, 2);
 
 const roundTrip = apiToLocal({ ...api, id: 1, project_id: 2 });
 assert.equal(roundTrip.doorSide, 'both');
+const legacyGlassHandle = apiToLocal({
+  ...api,
+  id: 1,
+  project_id: 2,
+  handle_left: 'Стеклянная ручка',
+  handle_offset_left: 100,
+});
+assert.equal(legacyGlassHandle.handleLeft, 'Стеклянная ручка RS3017');
+assert.equal(legacyGlassHandle.handleOffsetLeft, 100);
 assert.equal(roundTrip.bookLeftDoorHardware, 'handle');
 assert.equal(roundTrip.bookRightDoorOpening, 'outside_out');
 

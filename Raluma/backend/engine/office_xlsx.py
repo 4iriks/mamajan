@@ -1140,6 +1140,10 @@ def _build_glass_xlsx(context: dict) -> bytes:
         "Заказ стекла",
         context["project"],
     )
+    for warning in context.get("document_warnings", []):
+        worksheet.merge_range(row, 0, row, 7, warning, formats["red_center"])
+        worksheet.set_row(row, 26)
+        row += 1
     worksheet.merge_range(
         row,
         0,
@@ -1264,6 +1268,10 @@ def _build_paint_xlsx(context: dict) -> bytes:
             context["project"],
             last_col=5,
         )
+        for warning in context.get("document_warnings", []):
+            worksheet.merge_range(row, 0, row, 5, warning, formats["red_center"])
+            worksheet.set_row(row, 26)
+            row += 1
         worksheet.merge_range(
             row,
             0,

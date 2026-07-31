@@ -1,3 +1,9 @@
+from types import SimpleNamespace
+
+from engine.project_documents import build_project_document_context
+from schemas import SectionCreate
+
+
 def book_payload(**overrides):
     payload = {
         "name": "Секция КНИЖКА",
@@ -6,6 +12,7 @@ def book_payload(**overrides):
         "height": 2500,
         "panels": 4,
         "quantity": 1,
+        "book_system": "B25",
         "door_side": "both",
         "doors": 2,
         "book_left_door_hardware": "handle",
@@ -83,6 +90,7 @@ def test_book_fields_save_copy_and_legacy_mapping(
     assert data["book_obstacle_distance"] == 500
     assert data["book_left_stack_panels"] == 2
     assert data["book_handle_height"] == 1000
+    assert data["book_system"] == "B25"
 
     copied = client.post(
         f"/api/projects/{project['id']}/copy",
@@ -100,6 +108,7 @@ def test_book_fields_save_copy_and_legacy_mapping(
         "book_obstacle_distance",
         "book_left_stack_panels",
         "book_handle_height",
+        "book_system",
     ):
         assert copied_book[field] == data[field]
     client.delete(
@@ -116,6 +125,7 @@ def test_book_fields_save_copy_and_legacy_mapping(
             door_side="Левая",
             door_type="Тип 4",
             door_opening="Наружу",
+            book_system="Без каретки",
             book_left_door_hardware=None,
             book_right_door_hardware=None,
             book_left_door_opening=None,
@@ -126,6 +136,7 @@ def test_book_fields_save_copy_and_legacy_mapping(
     assert legacy.json()["door_side"] == "Левая"
     assert legacy.json()["book_left_door_hardware"] == "lock"
     assert legacy.json()["book_left_door_opening"] == "inside_out"
+    assert legacy.json()["book_system"] == "B25"
 
 
 def test_book_template_preserves_new_fields(client, admin_headers):
@@ -143,6 +154,7 @@ def test_book_template_preserves_new_fields(client, admin_headers):
     assert template["template_data"]["book_left_door_hardware"] == "handle"
     assert template["template_data"]["book_right_door_opening"] == "outside_out"
     assert template["template_data"]["book_left_stack_panels"] == 2
+    assert template["template_data"]["book_system"] == "B25"
 
     client.delete(
         f"/api/section-templates/{template['id']}",
@@ -175,3 +187,98 @@ def test_book_production_documents_are_deferred_and_preliminary_are_blocked(clie
         },
     )
     assert project_doc.status_code == 501
+
+    preliminary_project_doc = client.post(
+        "/api/projects/local/documents/glass/preview",
+        json={
+            "project": {"number": "Гость", "customer": ""},
+            "sections": [book_payload(angle_left=90)],
+        },
+    )
+    assert preliminary_project_doc.status_code == 409
+
+    confirmed_delivery = client.post(
+        "/api/projects/local/documents/delivery/preview",
+        json={
+            "project": {"number": "Гость", "customer": ""},
+            "sections": [book_payload()],
+        },
+    )
+    assert confirmed_delivery.status_code == 200
+
+    preliminary_delivery = client.post(
+        "/api/projects/local/documents/delivery/preview",
+        json={
+            "project": {"number": "Гость", "customer": ""},
+            "sections": [book_payload(angle_left=90)],
+        },
+    )
+    assert preliminary_delivery.status_code == 409
+
+
+def test_book_does_not_block_supported_parts_of_mixed_project_documents(client):
+    slide = {
+        "name": "Секция СЛАЙД",
+        "system": "СЛАЙД",
+        "width": 2000,
+        "height": 2400,
+        "panels": 3,
+        "quantity": 1,
+        "rails": 3,
+        "threshold": "Стандартный окраш",
+        "painting_type": "RAL стандарт",
+        "ral_color": "9016 МАТОВЫЙ",
+        "first_panel_inside": "Справа",
+    }
+    payload = {
+        "project": {"number": "MIXED-BOOK", "customer": "Тест"},
+        "sections": [slide, book_payload(angle_left=90)],
+    }
+    project = SimpleNamespace(
+        number="MIXED-BOOK",
+        customer="Тест",
+        glass_manual_rows="[]",
+    )
+    sections = [SectionCreate(**section) for section in payload["sections"]]
+
+    for doc_type in ("glass", "paint"):
+        responses = {
+            extension: client.post(
+                f"/api/projects/local/documents/{doc_type}/{extension}",
+                json=payload,
+            )
+            for extension in ("preview", "pdf", "docx", "xlsx")
+        }
+        assert {response.status_code for response in responses.values()} == {200}
+        preview = responses["preview"]
+        assert "КНИЖКА не включена" in preview.text
+        context = build_project_document_context(project, sections, doc_type)
+        if doc_type == "glass":
+            assert context["glass_rows"]
+            expected_token = str(context["glass_rows"][0]["width"])
+        else:
+            paint_rows = [
+                row for page in context["paint_pages"] for row in page["rows"]
+            ]
+            assert paint_rows
+            expected_token = paint_rows[0]["article"]
+        assert expected_token in preview.text
+
+
+def test_book_hardware_order_keeps_existing_warning_page_and_manual_rows(client):
+    book = book_payload(
+        extra_components=(
+            '[{"sku":"BOOK-MANUAL","name":"Ручная позиция","qty":2}]'
+        )
+    )
+    response = client.post(
+        "/api/projects/local/documents/hardware_order/preview",
+        json={
+            "project": {"number": "BOOK-HARDWARE", "customer": "Тест"},
+            "sections": [book],
+        },
+    )
+
+    assert response.status_code == 200
+    assert "Расчёт фурнитуры для системы КНИЖКА пока не реализован" in response.text
+    assert "BOOK-MANUAL" in response.text
