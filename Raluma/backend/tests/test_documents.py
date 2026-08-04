@@ -3423,6 +3423,24 @@ class TestDeliveryNote:
         assert kinds == {"construction", "glass"}
         assert {"ONLY-1", "ONLY-2", "RL2092"} <= hardware
 
+    def test_one_stage_slide_uses_generic_profile_set_label(self):
+        section = _delivery_section()
+
+        one_stage_html = render_project_document_html(
+            self.project(production_stages=1, current_stage=1),
+            [section],
+            "delivery",
+        )
+        two_stage_html = render_project_document_html(
+            self.project(production_stages=2, current_stage=1),
+            [section],
+            "delivery",
+        )
+
+        assert "КОМПЛЕКТ ПРОФИЛЕЙ" in one_stage_html
+        assert "Комплект направляющих и пристеночных профилей" not in one_stage_html
+        assert "Комплект направляющих и пристеночных профилей" in two_stage_html
+
     def test_two_stage_mixed_slide_and_lift_delivery_has_strict_stage_content(self):
         sections = [
             _delivery_section(

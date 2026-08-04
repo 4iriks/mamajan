@@ -622,9 +622,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
 
     result.color_text = _format_color_text(painting_type, ral_color, threshold)
 
-    result.glass_type = (
-        _get(section, "glass_type", None) or DEFAULT_GLASS_TYPE
-    )
+    result.glass_type = _get(section, "glass_type", None) or DEFAULT_GLASS_TYPE
     result.threshold_text = _threshold_display_name(
         rails, std, threshold, painting_type
     )
@@ -667,25 +665,33 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     pzr = 6 if bubble_r else 0
     krlr = 8 if handle_bar_l else 0
     krrr = 8 if handle_bar_r else 0
-    # П-профиль с пузырьковым уплотнителем образует крайний нахлест 16 мм.
-    # Он влияет на конкретное крайнее стекло и не заменяет зазор pl/pr = 2 мм.
-    krlp = 16 if (p_bar_l and bubble_l) else 0
-    krrp = 16 if (p_bar_r and bubble_r) else 0
-    pl = _p_bar_bubble_gap_mm(p_bar_l, bubble_l)
-    pr = _p_bar_bubble_gap_mm(p_bar_r, bubble_r)
 
     handle_l_raw = _get(section, "handle_left", None)
     handle_r_raw = _get(section, "handle_right", None)
     handle_l = handle_l_raw or "Без"
     handle_r = handle_r_raw or "Без"
-    a = normalize_handle_offset(
-        handle_l_raw,
-        _get(section, "handle_offset_left", 0),
-    ) or 0
-    b = normalize_handle_offset(
-        handle_r_raw,
-        _get(section, "handle_offset_right", 0),
-    ) or 0
+    a = (
+        normalize_handle_offset(
+            handle_l_raw,
+            _get(section, "handle_offset_left", 0),
+        )
+        or 0
+    )
+    b = (
+        normalize_handle_offset(
+            handle_r_raw,
+            _get(section, "handle_offset_right", 0),
+        )
+        or 0
+    )
+
+    # П-профиль с пузырьковым уплотнителем образует крайний нахлест 16 мм.
+    # Ручной отступ на той же стороне заменяет эту компенсацию.
+    krlp = 16 if (p_bar_l and bubble_l and not a) else 0
+    krrp = 16 if (p_bar_r and bubble_r and not b) else 0
+    pl = _p_bar_bubble_gap_mm(p_bar_l, bubble_l)
+    pr = _p_bar_bubble_gap_mm(p_bar_r, bubble_r)
+
     lock_l = _get(section, "lock_left", None) or "Без"
     lock_r = _get(section, "lock_right", None) or "Без"
 
@@ -728,28 +734,6 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     ig_article = _inter_glass_article(inter_glass_type)
     inter_glass_overlap = _inter_glass_overlap_mm(ig_article)
 
-    edge_base_W = (
-        W
-        - 3
-        - ppr
-        - ppl
-        - rpr
-        - rpl
-        - pzl
-        - pzr
-        - krlr
-        - krlp
-        - krrr
-        - krrp
-        - pl
-        - pr
-        - centr1
-        - centr2
-        - a
-        - b
-        - center_offset * 2
-        + inter_glass_overlap * (P - 2)
-    ) / P
     middle_W = (
         W
         - 3
@@ -772,13 +756,9 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         - center_offset * 2
         + inter_glass_overlap * (P - 2)
     ) / P
-    # An explicit handle offset replaces the standard 16 mm P-profile/bubble
-    # recovery on that side; the two values must not be added together.
-    left_edge_recovery = 0 if a else krlp
-    right_edge_recovery = 0 if b else krrp
-    left_W = edge_base_W + a + krlr + left_edge_recovery
-    right_W = edge_base_W + b + krrr + right_edge_recovery
-    center_W = edge_base_W + center_offset + centr2
+    left_W = middle_W + a + krlr + krlp
+    right_W = middle_W + b + krrr + krrp
+    center_W = middle_W + center_offset + centr2
 
     result.glass.append(GlassItem("Левое", round(left_W, 1), round(glass_H, 1), Q))
     middle_qty = max(P - 4, 0) * Q
@@ -1453,19 +1433,21 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     pzr = 6 if bubble_r else 0
     krlr = 8 if handle_bar_l else 0
     krrr = 8 if handle_bar_r else 0
-    # П-профиль с пузырьковым уплотнителем образует крайний нахлест 16 мм.
-    # Он влияет на конкретное крайнее стекло и не заменяет зазор pl/pr = 2 мм.
-    krlp = 16 if (p_bar_l and bubble_l) else 0
-    krrp = 16 if (p_bar_r and bubble_r) else 0
-    pl = _p_bar_bubble_gap_mm(p_bar_l, bubble_l)
-    pr = _p_bar_bubble_gap_mm(p_bar_r, bubble_r)
-
-    # ── Определяем глухие панели ─────────────────────────────────────────────
 
     handle_l = section.handle_left or "Без"
     handle_r = section.handle_right or "Без"
     a = normalize_handle_offset(handle_l, section.handle_offset_left) or 0
     b = normalize_handle_offset(handle_r, section.handle_offset_right) or 0
+
+    # П-профиль с пузырьковым уплотнителем образует крайний нахлест 16 мм.
+    # Ручной отступ на той же стороне заменяет эту компенсацию.
+    krlp = 16 if (p_bar_l and bubble_l and not a) else 0
+    krrp = 16 if (p_bar_r and bubble_r and not b) else 0
+    pl = _p_bar_bubble_gap_mm(p_bar_l, bubble_l)
+    pr = _p_bar_bubble_gap_mm(p_bar_r, bubble_r)
+
+    # ── Определяем глухие панели ─────────────────────────────────────────────
+
     lock_l = section.lock_left or "Без"
     lock_r = section.lock_right or "Без"
 
@@ -1509,24 +1491,6 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
             )
         ]
     else:
-        edge_base_W = (
-            W
-            - ppr
-            - ppl
-            - rpr
-            - rpl
-            - pzl
-            - pzr
-            - krlr
-            - krlp
-            - krrr
-            - krrp
-            - pl
-            - pr
-            - a
-            - b
-            + inter_glass_overlap * (P - 1)
-        ) / P
         middle_W = (
             W
             - ppr
@@ -1545,12 +1509,8 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
             - b
             + inter_glass_overlap * (P - 1)
         ) / P
-        # An explicit handle offset replaces the standard 16 mm P-profile/bubble
-        # recovery on that side; the two values must not be added together.
-        left_edge_recovery = 0 if a else krlp
-        right_edge_recovery = 0 if b else krrp
-        left_W = edge_base_W + a + krlr + left_edge_recovery
-        right_W = edge_base_W + b + krrr + right_edge_recovery
+        left_W = middle_W + a + krlr + krlp
+        right_W = middle_W + b + krrr + krrp
 
         middle_profile_length = round(middle_W - (3 if ig_article else 0), 1)
         panel_rows: list[PanelGlassItem] = [

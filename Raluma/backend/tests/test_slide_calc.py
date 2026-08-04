@@ -291,6 +291,58 @@ class TestProfileVariables:
         # left_W = mid_W + a + krlr + krlp = mid_W + 100
         assert left.width_mm == round(mid.width_mm + 100, 1)
 
+    @pytest.mark.parametrize(
+        (
+            "slide_rows",
+            "panels",
+            "offset_left",
+            "offset_right",
+            "expected_middle",
+            "expected_left",
+            "expected_right",
+        ),
+        [
+            pytest.param(1, 3, 0, 0, 979.7, 995.7, 995.7, id="one-row-zero"),
+            pytest.param(1, 3, 100, 0, 951.7, 1051.7, 967.7, id="one-row-left"),
+            pytest.param(1, 3, 0, 100, 951.7, 967.7, 1051.7, id="one-row-right"),
+            pytest.param(1, 3, 100, 100, 923.7, 1023.7, 1023.7, id="one-row-both"),
+            pytest.param(2, 6, 0, 0, 492.5, 508.5, 508.5, id="two-row-zero"),
+            pytest.param(2, 6, 100, 0, 478.5, 578.5, 494.5, id="two-row-left"),
+            pytest.param(2, 6, 0, 100, 478.5, 494.5, 578.5, id="two-row-right"),
+            pytest.param(2, 6, 100, 100, 464.5, 564.5, 564.5, id="two-row-both"),
+        ],
+    )
+    def test_side_offsets_replace_only_their_own_edge_compensation(
+        self,
+        slide_rows,
+        panels,
+        offset_left,
+        offset_right,
+        expected_middle,
+        expected_left,
+        expected_right,
+    ):
+        """a/b independently replace only their side's RS1082 + RS1002 16 mm."""
+        result = calculate_slide(
+            _make_section(
+                width=3000,
+                slide_rows=slide_rows,
+                panels=panels,
+                profile_left_p_bar=True,
+                profile_right_p_bar=True,
+                profile_left_bubble=True,
+                profile_right_bubble=True,
+                handle_left="Стеклянная ручка RS3017",
+                handle_right="Стеклянная ручка RS3017",
+                handle_offset_left=offset_left,
+                handle_offset_right=offset_right,
+            )
+        )
+
+        assert result.panel_glass[1].width_mm == expected_middle
+        assert result.panel_glass[0].width_mm == expected_left
+        assert result.panel_glass[-1].width_mm == expected_right
+
     @pytest.mark.parametrize("slide_rows", [1, 2])
     @pytest.mark.parametrize("side", ["left", "right"])
     def test_hidden_offset_is_ignored_for_handle_without_offset(self, slide_rows, side):
@@ -313,8 +365,7 @@ class TestProfileVariables:
         neighbor = 1 if side == "left" else -2
         assert (
             round(
-                stale.panel_glass[edge].width_mm
-                - stale.panel_glass[neighbor].width_mm,
+                stale.panel_glass[edge].width_mm - stale.panel_glass[neighbor].width_mm,
                 1,
             )
             == 16
@@ -2266,8 +2317,8 @@ class TestInterGlassProfileDefaults:
             )
         )
 
-        assert _ceil_panel_widths(result) == [850, 834, 834, 834, 934]
-        assert _ceil_panel_profile_lengths(result) == [850, 831, 831, 831, 931]
+        assert _ceil_panel_widths(result) == [853, 837, 837, 837, 937]
+        assert _ceil_panel_profile_lengths(result) == [853, 834, 834, 834, 934]
 
     def test_reference_4186_keeps_right_offset_and_left_deaf_recovery(self):
         result = calculate_slide(
@@ -2294,8 +2345,8 @@ class TestInterGlassProfileDefaults:
             )
         )
 
-        assert _ceil_panel_widths(result) == [955, 939, 1039]
-        assert _ceil_panel_profile_lengths(result) == [955, 936, 1036]
+        assert _ceil_panel_widths(result) == [960, 944, 1044]
+        assert _ceil_panel_profile_lengths(result) == [960, 941, 1041]
 
     def test_two_rows_keep_handle_offset_separate_from_fixed_edge_recovery(self):
         result = calculate_slide(
