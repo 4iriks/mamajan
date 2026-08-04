@@ -154,6 +154,9 @@ _ADD_COLUMNS = [
 # ── Миграции данных ────────────────────────────────────────────────────────────
 
 _DATA_MIGRATIONS = [
+    # Старые проекты без корректно сохранённой этапности считаются одноэтапными.
+    "UPDATE projects SET production_stages = 1 WHERE production_stages IS NULL OR production_stages NOT IN (1, 2)",
+    "UPDATE projects SET current_stage = 1 WHERE current_stage IS NULL OR current_stage NOT IN (1, 2)",
     # Перенос system из project в sections для старых данных
     (
         "UPDATE sections SET system = "

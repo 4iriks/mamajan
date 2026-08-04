@@ -787,6 +787,15 @@ def _delivery_threshold_text(value: object) -> str:
     return f"Порог {threshold[:1].lower()}{threshold[1:]}"
 
 
+def _delivery_profile_set_name(system: object, stages: int) -> str:
+    """Return the profile-set label after normalizing legacy stage data."""
+    if stages == 1:
+        return "КОМПЛЕКТ ПРОФИЛЕЙ"
+    if str(system or "").strip().upper() == "СЛАЙД":
+        return "Комплект направляющих и пристеночных профилей"
+    return "Комплект профилей"
+
+
 def _build_delivery_construction_rows(
     sections: list[object], places: dict[str, str]
 ) -> list[dict]:
@@ -1237,7 +1246,14 @@ def _build_delivery_context(project: object, sections: Iterable[object]) -> dict
     )
     item1_rows = [
         *(
-            {**row, "kind": "construction", "qty_text": str(row["qty"])}
+            {
+                **row,
+                "kind": "construction",
+                "qty_text": str(row["qty"]),
+                "profile_set_name": _delivery_profile_set_name(
+                    row.get("system"), stages
+                ),
+            }
             for row in construction_rows
         ),
         *({**row, "kind": "glass", "qty_text": str(row["qty"])} for row in glass_rows),
