@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 import models
 import schemas
 from api.catalog import _ensure_catalog_seed
-from auth import get_current_user, require_price_manager
+from auth import require_price_manager
 from database import get_db
 from engine.quote_pricing import (
     MANUAL_SERVICE_UNITS,
@@ -714,18 +714,13 @@ def update_settings(
 def get_internal_project_quote(
     project_id: int,
     db: Session = Depends(get_db),
-    actor: models.User = Depends(get_current_user),
+    actor: models.User = Depends(require_price_manager),
 ):
     project = db.query(models.Project).filter_by(id=project_id).first()
     if project is None:
         raise HTTPException(status_code=404, detail="Проект не найден")
     if actor.role not in {"admin", "superadmin"} and project.created_by != actor.id:
         raise HTTPException(status_code=403, detail="Нет доступа к проекту")
-    if actor.role == "dealer":
-        raise HTTPException(
-            status_code=403,
-            detail="Дилер не может получать внутренний расчёт",
-        )
     result = internal_quote_state(db, project)
     db.commit()
     return result

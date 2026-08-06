@@ -463,14 +463,14 @@ export default function PricingPage() {
             </div>
             <div className="rounded-2xl border border-tint/25 bg-surface/25 p-5 sm:p-7">
               <h2 className="text-xl font-bold">Условия дилера</h2>
-              <p className="mt-1 text-sm text-fg/45">Наценка скрыта. В КП показываются только категорийные скидки.</p>
+              <p className="mt-1 text-sm text-fg/45">Наценка скрыта. Для готовой конструкции SLIDE применяется скидка конструкции; скидка услуг действует только на добавленные вручную услуги.</p>
               {dealerTerms ? (
                 <div className="mt-6 grid gap-4 sm:grid-cols-2">
                   {([
                     ['dealer_markup_percent', 'Скрытая общая наценка'],
-                    ['profile_discount_percent', 'Скидка: профиль'],
+                    ['profile_discount_percent', 'Скидка: профиль (резерв для отдельной продажи)'],
                     ['construction_discount_percent', 'Скидка: изделие / конструкция'],
-                    ['component_discount_percent', 'Скидка: комплектующие'],
+                    ['component_discount_percent', 'Скидка: комплектующие (резерв для отдельной продажи)'],
                     ['service_discount_percent', 'Скидка: услуги'],
                   ] as const).map(([field, label]) => <label key={field} className="space-y-1"><span className="text-xs font-bold text-fg/55">{label}, %</span><input type="number" min="0" step="0.1" value={dealerTerms[field]} onChange={event => setDealerTerms(current => current ? { ...current, [field]: event.target.value } : current)} className={INPUT} /></label>)}
                   <div className="sm:col-span-2"><button onClick={() => void saveDealerTerms()} className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 font-bold text-white"><Save className="h-4 w-4" /> Сохранить</button></div>

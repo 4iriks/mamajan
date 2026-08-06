@@ -117,6 +117,17 @@ export interface QuoteConfig {
   margin_override_comment: string;
 }
 
+export interface MarginApprovalState {
+  required: boolean;
+  valid: boolean;
+  context_signature: string;
+  target_revision: number;
+  approved_revision: number | null;
+  comment: string;
+  approved_by: number | null;
+  approved_at: string | null;
+}
+
 export interface InternalQuoteState {
   revision: number;
   status: 'draft' | 'fixed';
@@ -124,6 +135,7 @@ export interface InternalQuoteState {
   config: QuoteConfig;
   missing_prices: Array<{ sku: string; name: string; unit: string; reason: string }>;
   pending_warnings: string[];
+  margin_approval: MarginApprovalState;
   calculation: Record<string, unknown>;
 }
 

@@ -83,6 +83,40 @@ def test_dealer_markup_then_visible_category_discount():
     assert exact["total"] == Decimal("1080.00")
 
 
+def test_ready_slide_uses_only_construction_discount_and_manual_service_uses_service():
+    terms = {
+        "dealer_markup_percent": Decimal("20"),
+        "profile_discount_percent": Decimal("99"),
+        "construction_discount_percent": Decimal("10"),
+        "component_discount_percent": Decimal("88"),
+        "service_discount_percent": Decimal("3"),
+    }
+    construction, _ = _public_line(
+        line_id="section-1",
+        name="Секция 1",
+        category="construction",
+        quantity=Decimal("1"),
+        unit="изд.",
+        internal_total=Decimal("1000"),
+        terms=terms,
+    )
+    assert construction["line_total_before_discount"] == "1200.00"
+    assert construction["discount_percent"] == "10"
+    assert construction["line_total"] == "1080.00"
+
+    service, _ = _public_line(
+        line_id="delivery",
+        name="Доставка",
+        category="service",
+        quantity=Decimal("1"),
+        unit="шт.",
+        internal_total=Decimal("1000"),
+        terms=terms,
+    )
+    assert service["discount_percent"] == "3"
+    assert service["line_total"] == "1164.00"
+
+
 def test_vat_modes_and_whole_ruble_distribution_are_exact():
     included = _vat_values(Decimal("120.00"), "included", Decimal("20"))
     assert included == (Decimal("20.00"), Decimal("120.00"), Decimal("1"))

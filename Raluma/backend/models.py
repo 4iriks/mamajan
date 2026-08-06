@@ -342,6 +342,12 @@ class ProjectQuoteState(Base):
     manufacturing_term = Column(String, default="", nullable=False)
     payment_terms = Column(String, default="", nullable=False)
     margin_override_comment = Column(Text, nullable=True)
+    margin_override_context_signature = Column(String, nullable=True)
+    margin_override_target_revision = Column(Integer, nullable=True)
+    margin_override_approved_by = Column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    margin_override_approved_at = Column(DateTime, nullable=True)
     source_signature = Column(String, default="", nullable=False)
     source_project_updated_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

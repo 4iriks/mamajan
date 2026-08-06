@@ -178,6 +178,7 @@ export default function ProjectDocumentModal({
   const [internalQuote, setInternalQuote] = useState<InternalQuoteState | null>(null);
   const [isQuoteLoading, setIsQuoteLoading] = useState(false);
   const [isQuoteSaving, setIsQuoteSaving] = useState(false);
+  const [isMarginApprovalDirty, setIsMarginApprovalDirty] = useState(false);
   const { user, canManagePrices } = useAuthStore();
 
   const token = localStorage.getItem('access_token') ?? '';
@@ -185,8 +186,8 @@ export default function ProjectDocumentModal({
   const isPaintDocument = docType === 'paint';
   const isDeliveryDocument = docType === 'delivery';
   const isCommercialDocument = docType === 'commercial';
-  const canEditCommercial = Boolean(user && user.role !== 'dealer');
-  const canOverrideCommercial = canManagePrices();
+  const canEditCommercial = canManagePrices();
+  const canOverrideCommercial = canEditCommercial;
   const canOverrideMargin = user?.role === 'admin' || user?.role === 'superadmin';
   const missingPrices = internalQuote?.missing_prices ?? [];
   const commercialWarnings: string[] = Array.from(new Set<string>(
@@ -219,6 +220,7 @@ export default function ProjectDocumentModal({
       setQuote(publicState);
       if (canEditCommercial) {
         setInternalQuote(await getInternalQuote(projectId));
+        setIsMarginApprovalDirty(false);
       } else {
         setInternalQuote(null);
       }
@@ -238,6 +240,7 @@ export default function ProjectDocumentModal({
       setDeliveryData(parseDeliveryData());
       setQuote(null);
       setInternalQuote(null);
+      setIsMarginApprovalDirty(false);
       return;
     }
     loadGuestPreview();
@@ -429,6 +432,9 @@ export default function ProjectDocumentModal({
   const patchCommercialConfig = (
     updates: Partial<InternalQuoteState['config']>,
   ) => {
+    if (Object.prototype.hasOwnProperty.call(updates, 'margin_override_comment')) {
+      setIsMarginApprovalDirty(true);
+    }
     setInternalQuote(current => current ? {
       ...current,
       config: { ...current.config, ...updates },
@@ -493,7 +499,9 @@ export default function ProjectDocumentModal({
         await updateQuoteOverrides(
           projectId,
           config.overrides.filter(row => row.sku && row.cost && row.comment.trim()),
-          canOverrideMargin ? config.margin_override_comment : undefined,
+          canOverrideMargin && isMarginApprovalDirty
+            ? config.margin_override_comment
+            : undefined,
         );
       }
       await loadCommercialQuote();
@@ -513,7 +521,10 @@ export default function ProjectDocumentModal({
     setIsQuoteSaving(true);
     try {
       setQuote(await refreshQuote(projectId));
-      if (canEditCommercial) setInternalQuote(await getInternalQuote(projectId));
+      if (canEditCommercial) {
+        setInternalQuote(await getInternalQuote(projectId));
+        setIsMarginApprovalDirty(false);
+      }
       setPreviewVersion(value => value + 1);
       setIsDirty(false);
       toast.success('Цены и редакция коммерческого предложения обновлены');
@@ -816,13 +827,13 @@ export default function ProjectDocumentModal({
                         Сохранить
                       </button>
                     )}
-                    {canEditCommercial && (
+                    {canEditCommercial && quote?.status === 'fixed' && quote.stale && (
                       <button
                         type="button"
                         onClick={handleRefreshQuote}
                         disabled={isQuoteSaving || !quote?.export_allowed}
                         className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-tint/30 bg-tint/10 text-fg/70 text-xs font-bold uppercase tracking-wider hover:bg-tint/20 disabled:opacity-40"
-                        title="Пересчитать по актуальному каталогу и увеличить номер редакции"
+                        title="Проверить актуальный расчёт и зафиксировать следующую редакцию"
                       >
                         <RefreshCw className={`w-4 h-4 ${isQuoteSaving ? 'animate-spin' : ''}`} />
                         Обновить цены
@@ -973,16 +984,29 @@ export default function ProjectDocumentModal({
                           </div>
                         )}
 
-                        {canOverrideMargin && commercialWarnings.some(warning => warning.toLowerCase().includes('минималь')) && (
-                          <label className="block space-y-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-red-300">Обоснование исключения по минимальной цене</span>
-                            <input
-                              value={internalQuote.config.margin_override_comment}
-                              onChange={event => patchCommercialConfig({ margin_override_comment: event.target.value })}
-                              placeholder="Комментарий обязателен для разрешения экспорта"
-                              className="w-full h-9 rounded-lg bg-black/15 border border-red-500/25 px-2 text-xs outline-none focus:border-red-400/60"
-                            />
-                          </label>
+                        {canOverrideMargin && internalQuote.margin_approval.required && (
+                          <div className="space-y-1">
+                            <label className="block space-y-1">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-red-300">Обоснование исключения по минимальной цене</span>
+                              <input
+                                value={internalQuote.config.margin_override_comment}
+                                onChange={event => patchCommercialConfig({ margin_override_comment: event.target.value })}
+                                placeholder="Комментарий обязателен для согласования этой редакции"
+                                className="w-full h-9 rounded-lg bg-black/15 border border-red-500/25 px-2 text-xs outline-none focus:border-red-400/60"
+                              />
+                            </label>
+                            {internalQuote.margin_approval.valid ? (
+                              <div className="text-[10px] text-emerald-300/80">
+                                Согласовано для редакции {internalQuote.margin_approval.approved_revision}
+                                {internalQuote.margin_approval.approved_by ? ` · пользователь #${internalQuote.margin_approval.approved_by}` : ''}
+                                {internalQuote.margin_approval.approved_at ? ` · ${new Date(internalQuote.margin_approval.approved_at).toLocaleString('ru-RU')}` : ''}
+                              </div>
+                            ) : internalQuote.margin_approval.comment ? (
+                              <div className="text-[10px] text-yellow-200/80">
+                                Предыдущее согласование недействительно после изменения ценового контекста. Введите новое обоснование.
+                              </div>
+                            ) : null}
+                          </div>
                         )}
                       </div>
                     )}

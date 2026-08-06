@@ -33,7 +33,7 @@ MANUAL_SERVICE_UNITS = (
     "шт.",
     "кв.м.",
 )
-QUOTE_SNAPSHOT_VERSION = 2
+QUOTE_SNAPSHOT_VERSION = 3
 
 PUBLIC_QUOTE_FIELDS = {
     "project",
@@ -133,6 +133,10 @@ class QuoteExportBlocked(QuotePricingError):
     def __init__(self, public_payload: dict[str, Any]):
         super().__init__("Коммерческое предложение нельзя экспортировать")
         self.public_payload = public_payload
+
+
+class MarginOverrideNotRequired(QuotePricingError):
+    pass
 
 
 def safe_public_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -893,68 +897,266 @@ def _public_line(
     return public, exact
 
 
+def _signature_value(value: Any) -> Any:
+    if isinstance(value, datetime):
+        return _normalize_datetime(value).isoformat()
+    if isinstance(value, Decimal):
+        return decimal_text(value)
+    return value
+
+
+def _canonical_services(raw: str | None) -> list[dict[str, Any]]:
+    rows = _json_load(raw, [])
+    return [
+        {
+            "id": str(row.get("id") or ""),
+            "name": str(row.get("name") or "").strip(),
+            "quantity": decimal_text(decimal_value(row.get("quantity"))),
+            "unit": str(row.get("unit") or "").strip(),
+            "base_cost": money_text(decimal_value(row.get("base_cost"))),
+        }
+        for row in rows
+        if isinstance(row, dict)
+    ]
+
+
+def _canonical_overrides(raw: str | None) -> list[dict[str, Any]]:
+    rows = _json_load(raw, [])
+    result = [
+        {
+            "sku": str(row.get("sku") or "").strip(),
+            "cost": money_text(decimal_value(row.get("cost"))),
+            "comment": str(row.get("comment") or "").strip(),
+        }
+        for row in rows
+        if isinstance(row, dict) and str(row.get("sku") or "").strip()
+    ]
+    return sorted(result, key=lambda row: row["sku"])
+
+
+def _pricing_context_payload(
+    db: Session,
+    project: models.Project,
+    state: models.ProjectQuoteState,
+    at: datetime,
+) -> dict[str, Any]:
+    active = _active_price_versions(db, at)
+    catalog_rows = db.query(models.CatalogItem).order_by(models.CatalogItem.id).all()
+    settings = get_pricing_settings(db)
+    terms = _dealer_terms(db, project.owner)
+    price_fields = (
+        "cost",
+        "profile_markup_percent",
+        "profile_discount_percent",
+        "waste_markup_percent",
+        "construction_markup_percent",
+        "construction_discount_percent",
+        "category",
+        "unit",
+        "min_margin_percent",
+        "effective_from",
+    )
+    section_fields = [
+        column.name
+        for column in models.Section.__table__.columns
+        if column.name != "document_overrides"
+    ]
+    catalog = []
+    for item in catalog_rows:
+        pair = active.get(item.sku)
+        version = pair[1] if pair is not None else None
+        catalog.append(
+            {
+                "id": item.id,
+                "sku": item.sku,
+                "name": item.name,
+                "unit": item.unit,
+                "active": bool(item.is_active),
+                "updated_at": _signature_value(item.updated_at),
+                "price_version": (
+                    {
+                        "id": version.id,
+                        **{
+                            field: _signature_value(getattr(version, field))
+                            for field in price_fields
+                        },
+                    }
+                    if version is not None
+                    else None
+                ),
+            }
+        )
+    return {
+        "engine_version": QUOTE_SNAPSHOT_VERSION,
+        "project": {
+            "id": project.id,
+            "number": project.number,
+            "customer": project.customer,
+            "created_by": project.created_by,
+            "updated_at": _signature_value(project.updated_at),
+            "sections": [
+                {
+                    field: _signature_value(getattr(section, field))
+                    for field in section_fields
+                }
+                for section in sorted(
+                    project.sections,
+                    key=lambda row: (int(row.order or 0), int(row.id or 0)),
+                )
+            ],
+        },
+        "catalog": catalog,
+        "dealer_terms": {
+            "user_id": project.owner.id
+            if project.owner is not None and project.owner.role == "dealer"
+            else None,
+            **{key: decimal_text(value) for key, value in terms.items()},
+        },
+        "settings": {
+            "include_waste_markup": bool(settings.include_waste_markup),
+        },
+        "services": _canonical_services(state.services_payload),
+        "overrides": _canonical_overrides(state.overrides_payload),
+    }
+
+
+def _hash_signature_payload(payload: dict[str, Any]) -> str:
+    encoded = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _margin_context_signature(
+    db: Session,
+    project: models.Project,
+    state: models.ProjectQuoteState,
+    at: datetime,
+) -> str:
+    return _hash_signature_payload(_pricing_context_payload(db, project, state, at))
+
+
 def _quote_signature(
     db: Session,
     project: models.Project,
     state: models.ProjectQuoteState,
     at: datetime,
 ) -> str:
-    active = _active_price_versions(db, at)
-    catalog_rows = (
-        db.query(models.CatalogItem)
-        .order_by(models.CatalogItem.id)
-        .all()
-    )
-    settings = get_pricing_settings(db)
-    owner = project.owner
-    terms_row = None
-    if owner is not None and owner.role == "dealer":
-        terms_row = (
-            db.query(models.DealerPricingTerms)
-            .filter(models.DealerPricingTerms.user_id == owner.id)
-            .first()
-        )
     payload = {
-        "snapshot_version": QUOTE_SNAPSHOT_VERSION,
-        "project_updated_at": project.updated_at.isoformat()
-        if project.updated_at
-        else "",
-        "catalog": [
-            {
-                "id": item.id,
-                "sku": item.sku,
-                "active": bool(item.is_active),
-                "updated_at": item.updated_at.isoformat() if item.updated_at else "",
-                "price_version_id": active[item.sku][1].id if item.sku in active else None,
-            }
-            for item in catalog_rows
-        ],
-        "settings": {
-            "include_waste_markup": bool(settings.include_waste_markup),
-            "default_vat_rate": decimal_text(decimal_value(settings.default_vat_rate)),
-            "updated_at": settings.updated_at.isoformat() if settings.updated_at else "",
-        },
-        "dealer_terms": {
-            "user_id": terms_row.user_id,
-            "updated_at": terms_row.updated_at.isoformat(),
-        }
-        if terms_row
-        else None,
+        "pricing_context": _pricing_context_payload(db, project, state, at),
         "quote_config": {
-            "services": state.services_payload,
-            "overrides": state.overrides_payload,
             "vat_mode": state.vat_mode,
             "vat_rate": decimal_text(decimal_value(state.vat_rate)),
             "validity_days": state.validity_days,
             "manufacturing_term": state.manufacturing_term,
             "payment_terms": state.payment_terms,
-            "margin_override_comment": state.margin_override_comment or "",
+        },
+        "margin_approval": {
+            "comment": state.margin_override_comment or "",
+            "context_signature": state.margin_override_context_signature or "",
+            "target_revision": state.margin_override_target_revision,
+            "approved_by": state.margin_override_approved_by,
+            "approved_at": _signature_value(state.margin_override_approved_at),
         },
     }
-    encoded = json.dumps(
-        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+    return _hash_signature_payload(payload)
+
+
+def quote_target_revision(
+    db: Session,
+    project: models.Project,
+    state: models.ProjectQuoteState,
+    *,
+    at: datetime,
+) -> int:
+    current_revision = max(1, int(state.revision or 1))
+    if state.status != "fixed":
+        return 1
+    if state.source_signature != _quote_signature(db, project, state, at):
+        return current_revision + 1
+    return current_revision
+
+
+def _margin_approval_details(
+    db: Session,
+    project: models.Project,
+    state: models.ProjectQuoteState,
+    issues: list[dict[str, Any]],
+    *,
+    at: datetime,
+) -> dict[str, Any]:
+    required = any(issue.get("code") == "below_minimum_margin" for issue in issues)
+    context_signature = _margin_context_signature(db, project, state, at)
+    target_revision = quote_target_revision(db, project, state, at=at)
+    comment = str(state.margin_override_comment or "").strip()
+    valid = bool(
+        required
+        and comment
+        and state.margin_override_context_signature == context_signature
+        and state.margin_override_target_revision == target_revision
+        and state.margin_override_approved_by is not None
+        and state.margin_override_approved_at is not None
+    )
+    return {
+        "required": required,
+        "valid": valid,
+        "context_signature": context_signature,
+        "target_revision": target_revision,
+        "approved_revision": state.margin_override_target_revision,
+        "comment": comment,
+        "approved_by": state.margin_override_approved_by,
+        "approved_at": (
+            state.margin_override_approved_at.isoformat()
+            if state.margin_override_approved_at
+            else None
+        ),
+    }
+
+
+def invalidate_margin_override(
+    state: models.ProjectQuoteState,
+    *,
+    clear_comment: bool = False,
+) -> None:
+    if clear_comment:
+        state.margin_override_comment = None
+    state.margin_override_context_signature = None
+    state.margin_override_target_revision = None
+    state.margin_override_approved_by = None
+    state.margin_override_approved_at = None
+
+
+def approve_margin_override(
+    db: Session,
+    project: models.Project,
+    state: models.ProjectQuoteState,
+    actor: models.User,
+    comment: str,
+    *,
+    at: datetime | None = None,
+) -> dict[str, Any]:
+    now = _normalize_datetime(at or datetime.utcnow())
+    clean_comment = str(comment or "").strip()
+    _, current_internal, _ = calculate_quote(db, project, state, at=now)
+    current = current_internal["margin_approval"]
+    if not current["required"]:
+        raise MarginOverrideNotRequired(
+            "Исключение можно согласовать только при нарушении минимальной маржи"
+        )
+    if current["valid"] and current["comment"] == clean_comment:
+        return current
+
+    state.margin_override_comment = clean_comment
+    invalidate_margin_override(state)
+    context_signature = _margin_context_signature(db, project, state, now)
+    target_revision = quote_target_revision(db, project, state, at=now)
+    state.margin_override_context_signature = context_signature
+    state.margin_override_target_revision = target_revision
+    state.margin_override_approved_by = actor.id
+    state.margin_override_approved_at = now
+    state.updated_at = datetime.utcnow()
+    _, approved_internal, _ = calculate_quote(db, project, state, at=now)
+    return approved_internal["margin_approval"]
 
 
 def get_or_create_quote_state(
@@ -1216,7 +1418,14 @@ def calculate_quote(
         else:
             public_line["breakdown"] = []
 
-    margin_override = bool(str(state.margin_override_comment or "").strip())
+    margin_approval = _margin_approval_details(
+        db,
+        project,
+        state,
+        issues,
+        at=now,
+    )
+    margin_override = bool(margin_approval["valid"])
     blocking_issues = [
         issue
         for issue in issues
@@ -1303,6 +1512,7 @@ def calculate_quote(
             key: decimal_text(value) for key, value in terms.items()
         },
         "include_waste_markup": bool(settings.include_waste_markup),
+        "margin_approval": margin_approval,
         "calculated_at": now.isoformat(),
     }
     signature = _quote_signature(db, project, state, now)
@@ -1316,7 +1526,23 @@ def refresh_draft_quote(
     *,
     at: datetime | None = None,
 ) -> dict[str, Any]:
+    state.revision = 1
+    state.status = "draft"
+    state.fixed_at = None
+    state.fixed_by = None
     public, internal, signature = calculate_quote(db, project, state, at=at)
+    public["revision"] = 1
+    public["status"] = "draft"
+    public["fixed_at"] = None
+    internal_public = internal.get("public")
+    if isinstance(internal_public, dict):
+        internal_public.update(
+            {
+                "revision": 1,
+                "status": "draft",
+                "fixed_at": None,
+            }
+        )
     state.public_payload = json.dumps(public, ensure_ascii=False)
     state.internal_payload = json.dumps(internal, ensure_ascii=False)
     state.source_signature = signature
@@ -1368,20 +1594,47 @@ def freeze_quote(
         payload = safe_public_payload(_json_load(state.public_payload, {}))
         payload["stale"] = quote_is_stale(db, project, state, at=at)
         return payload
-    payload = safe_public_payload(refresh_draft_quote(db, project, state, at=at))
+    evaluation_at = _normalize_datetime(at or datetime.utcnow())
+    state.revision = 1
+    state.status = "draft"
+    state.fixed_at = None
+    state.fixed_by = None
+    public, internal, signature = calculate_quote(
+        db,
+        project,
+        state,
+        at=evaluation_at,
+    )
+    payload = safe_public_payload(public)
     if not payload.get("export_allowed"):
         raise QuoteExportBlocked(payload)
-    fixed_at = _normalize_datetime(at or datetime.utcnow())
+    fixed_at = evaluation_at
     state.status = "fixed"
+    state.revision = 1
     state.fixed_at = fixed_at
     state.fixed_by = actor.id
     state.updated_at = datetime.utcnow()
+    state.source_signature = signature
+    state.source_project_updated_at = project.updated_at
     payload["status"] = "fixed"
+    payload["revision"] = 1
     payload["fixed_at"] = fixed_at.isoformat()
     payload["valid_until"] = (
         fixed_at.date() + timedelta(days=state.validity_days)
     ).isoformat()
+    public.update(
+        {
+            "status": "fixed",
+            "revision": 1,
+            "fixed_at": fixed_at.isoformat(),
+            "valid_until": payload["valid_until"],
+        }
+    )
+    internal_public = internal.get("public")
+    if isinstance(internal_public, dict):
+        internal_public.update(public)
     state.public_payload = json.dumps(payload, ensure_ascii=False)
+    state.internal_payload = json.dumps(internal, ensure_ascii=False)
     db.flush()
     return payload
 
@@ -1394,26 +1647,64 @@ def refresh_quote_revision(
     at: datetime | None = None,
 ) -> dict[str, Any]:
     state = get_or_create_quote_state(db, project)
-    was_fixed = state.status == "fixed"
-    state.revision = max(1, int(state.revision or 1)) + 1
-    if was_fixed:
-        state.status = "draft"
-        state.fixed_at = None
-        state.fixed_by = None
-    payload = safe_public_payload(refresh_draft_quote(db, project, state, at=at))
-    if was_fixed:
-        if not payload.get("export_allowed"):
-            raise QuoteExportBlocked(payload)
-        fixed_at = _normalize_datetime(at or datetime.utcnow())
-        state.status = "fixed"
-        state.fixed_at = fixed_at
-        state.fixed_by = actor.id
+    evaluation_at = _normalize_datetime(at or datetime.utcnow())
+    if state.status != "fixed":
+        return safe_public_payload(
+            refresh_draft_quote(db, project, state, at=evaluation_at)
+        )
+    if not quote_is_stale(db, project, state, at=evaluation_at):
+        payload = safe_public_payload(_json_load(state.public_payload, {}))
+        payload["revision"] = max(1, int(state.revision or 1))
         payload["status"] = "fixed"
-        payload["fixed_at"] = fixed_at.isoformat()
-        payload["valid_until"] = (
-            fixed_at.date() + timedelta(days=state.validity_days)
-        ).isoformat()
-        state.public_payload = json.dumps(payload, ensure_ascii=False)
+        payload["fixed_at"] = state.fixed_at.isoformat() if state.fixed_at else None
+        payload["stale"] = False
+        return payload
+
+    next_revision = max(1, int(state.revision or 1)) + 1
+    public, internal, signature = calculate_quote(
+        db,
+        project,
+        state,
+        at=evaluation_at,
+    )
+    payload = safe_public_payload(public)
+    if not payload.get("export_allowed"):
+        raise QuoteExportBlocked(payload)
+
+    fixed_at = evaluation_at
+    valid_until = (
+        fixed_at.date() + timedelta(days=state.validity_days)
+    ).isoformat()
+    public.update(
+        {
+            "revision": next_revision,
+            "status": "fixed",
+            "fixed_at": fixed_at.isoformat(),
+            "valid_until": valid_until,
+            "stale": False,
+        }
+    )
+    payload.update(
+        {
+            "revision": next_revision,
+            "status": "fixed",
+            "fixed_at": fixed_at.isoformat(),
+            "valid_until": valid_until,
+            "stale": False,
+        }
+    )
+    internal_public = internal.get("public")
+    if isinstance(internal_public, dict):
+        internal_public.update(public)
+    state.revision = next_revision
+    state.status = "fixed"
+    state.fixed_at = fixed_at
+    state.fixed_by = actor.id
+    state.public_payload = json.dumps(payload, ensure_ascii=False)
+    state.internal_payload = json.dumps(internal, ensure_ascii=False)
+    state.source_signature = signature
+    state.source_project_updated_at = project.updated_at
+    state.updated_at = datetime.utcnow()
     db.flush()
     return payload
 
@@ -1462,6 +1753,15 @@ def internal_quote_state(
             at=evaluation_at,
         )
         pending_warnings = list(pending_public.get("warnings") or [])
+    margin_approval = pending_internal.get("margin_approval")
+    if not isinstance(margin_approval, dict):
+        margin_approval = _margin_approval_details(
+            db,
+            project,
+            state,
+            list(pending_internal.get("issues") or []),
+            at=evaluation_at,
+        )
     return {
         "revision": state.revision,
         "status": state.status,
@@ -1474,9 +1774,14 @@ def internal_quote_state(
             "payment_terms": state.payment_terms,
             "services": _json_load(state.services_payload, []),
             "overrides": _json_load(state.overrides_payload, []),
-            "margin_override_comment": state.margin_override_comment or "",
+            "margin_override_comment": (
+                (state.margin_override_comment or "")
+                if margin_approval.get("valid")
+                else ""
+            ),
         },
         "missing_prices": list(pending_internal.get("missing_prices") or []),
         "pending_warnings": pending_warnings,
-        "calculation": internal,
+        "margin_approval": margin_approval,
+        "calculation": pending_internal,
     }

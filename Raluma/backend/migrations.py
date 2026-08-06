@@ -125,6 +125,10 @@ _CREATE_TABLES = [
         manufacturing_term VARCHAR NOT NULL DEFAULT '',
         payment_terms VARCHAR NOT NULL DEFAULT '',
         margin_override_comment TEXT,
+        margin_override_context_signature VARCHAR,
+        margin_override_target_revision INTEGER,
+        margin_override_approved_by INTEGER,
+        margin_override_approved_at DATETIME,
         source_signature VARCHAR NOT NULL DEFAULT '',
         source_project_updated_at DATETIME,
         created_at DATETIME NOT NULL,
@@ -132,7 +136,8 @@ _CREATE_TABLES = [
         fixed_at DATETIME,
         fixed_by INTEGER,
         FOREIGN KEY(project_id) REFERENCES projects(id),
-        FOREIGN KEY(fixed_by) REFERENCES users(id)
+        FOREIGN KEY(fixed_by) REFERENCES users(id),
+        FOREIGN KEY(margin_override_approved_by) REFERENCES users(id)
     )
     """,
 ]
@@ -154,6 +159,12 @@ _ADD_COLUMNS = [
     "ALTER TABLE users ADD COLUMN dealer_discount_percent FLOAT",
     "ALTER TABLE users ADD COLUMN dealer_notes TEXT",
     "ALTER TABLE users ADD COLUMN can_manage_prices BOOLEAN NOT NULL DEFAULT 0",
+    # project_quote_states: context-bound minimum-margin approvals. Existing
+    # comments intentionally keep NULL approval metadata and are therefore invalid.
+    "ALTER TABLE project_quote_states ADD COLUMN margin_override_context_signature VARCHAR",
+    "ALTER TABLE project_quote_states ADD COLUMN margin_override_target_revision INTEGER",
+    "ALTER TABLE project_quote_states ADD COLUMN margin_override_approved_by INTEGER",
+    "ALTER TABLE project_quote_states ADD COLUMN margin_override_approved_at DATETIME",
     # projects
     "ALTER TABLE projects ADD COLUMN subtype VARCHAR",
     "ALTER TABLE projects ADD COLUMN extra_parts VARCHAR",

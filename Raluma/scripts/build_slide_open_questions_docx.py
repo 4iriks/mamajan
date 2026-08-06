@@ -276,7 +276,7 @@ def add_masthead(document: Document) -> None:
         ("От", "Рабочей группы SLIDE"),
         ("Дата", date(2026, 8, 6).strftime("%d.%m.%Y")),
         ("Тема", "Решения, необходимые для завершения первой версии ценообразования и КП"),
-        ("Статус", "Требуется ответ по 8 вопросам"),
+        ("Статус", "Требуется ответ по 9 вопросам"),
     )
     for label, value in rows:
         paragraph = document.add_paragraph()
@@ -384,7 +384,7 @@ def add_defaults_question(document: Document) -> None:
     shade_cell(title, NAVY)
     set_cell_text(
         title,
-        "7. Каковы начальные значения НДС, срока действия, изготовления и оплаты?",
+        "8. Каковы начальные значения НДС, срока действия, изготовления и оплаты?",
         bold=True,
         color=WHITE,
         size=10,
@@ -438,7 +438,7 @@ def add_scope_question(document: Document) -> None:
     shade_cell(title, NAVY)
     set_cell_text(
         title,
-        "8. Нужны ли в первой версии гарантия, условия доставки/монтажа, реквизиты и подписи?",
+        "9. Нужны ли в первой версии гарантия, условия доставки/монтажа, реквизиты и подписи?",
         bold=True,
         color=WHITE,
         size=10,
@@ -491,6 +491,23 @@ def build() -> Path:
     add_approved_callout(document)
 
     questions = (
+        (
+            "Какую формулу использовать для последовательности наценок и скидок в расчёте цены?",
+            (
+                (
+                    "Последовательное применение коэффициентов — 1 254 руб. (текущий временный вариант)",
+                    "Код использует этот вариант до ответа",
+                ),
+                (
+                    "Сложение наценок перед применением скидок — 1 235 руб.",
+                    "",
+                ),
+                (
+                    "Другая формула",
+                    "Формула: __________________",
+                ),
+            ),
+        ),
         (
             "Активировать ли наценку на отходы в первой версии?",
             (
@@ -545,6 +562,11 @@ def build() -> Path:
             document.add_page_break()
         add_question(document, number, question, options)
     add_defaults_question(document)
+    scope_lead = document.add_paragraph()
+    scope_lead.paragraph_format.page_break_before = True
+    set_paragraph(scope_lead, after=6, line=1.0, keep_with_next=True)
+    run = scope_lead.add_run("ЗАКЛЮЧИТЕЛЬНЫЙ ВОПРОС")
+    set_run_font(run, size=8.5, color=MUTED, bold=True)
     add_scope_question(document)
 
     closing = document.add_paragraph()

@@ -10,7 +10,7 @@ from pypdf import PdfReader
 
 import models
 from database import SessionLocal
-from engine.quote_pricing import _section_requirements
+from engine.quote_pricing import _section_requirements, freeze_quote
 
 
 def _unique(prefix: str) -> str:
@@ -251,6 +251,7 @@ def test_pricing_permission_and_dealer_quote_access(client, admin_headers):
     manager_headers = _login_headers(client, manager["username"], manager_password)
     price_headers = _login_headers(client, price_manager["username"], price_password)
     project_id = None
+    manager_project_id = None
     price_manager_project_id = None
     try:
         dealer_me = client.get("/api/auth/me", headers=dealer_headers)
@@ -278,6 +279,40 @@ def test_pricing_permission_and_dealer_quote_access(client, admin_headers):
             ).status_code
             == 403
         )
+        manager_project = client.post(
+            "/api/projects",
+            headers=manager_headers,
+            json={"number": _unique("USER-Q"), "customer": "Клиент"},
+        )
+        assert manager_project.status_code == 201
+        manager_project_id = manager_project.json()["id"]
+        public_only = client.get(
+            f"/api/projects/{manager_project_id}/quote",
+            headers=manager_headers,
+        )
+        assert public_only.status_code == 200
+        _assert_no_internal_pricing(public_only.json())
+        assert client.get(
+            f"/api/pricing/projects/{manager_project_id}",
+            headers=manager_headers,
+        ).status_code == 403
+        config = {
+            "vat_mode": "none",
+            "vat_rate": "20",
+            "validity_days": 14,
+            "manufacturing_term": "",
+            "payment_terms": "",
+            "services": [],
+        }
+        assert client.put(
+            f"/api/projects/{manager_project_id}/quote/config",
+            headers=manager_headers,
+            json=config,
+        ).status_code == 403
+        assert client.post(
+            f"/api/projects/{manager_project_id}/quote/refresh",
+            headers=manager_headers,
+        ).status_code == 403
         price_manager_project = client.post(
             "/api/projects",
             headers=price_headers,
@@ -285,6 +320,10 @@ def test_pricing_permission_and_dealer_quote_access(client, admin_headers):
         )
         assert price_manager_project.status_code == 201
         price_manager_project_id = price_manager_project.json()["id"]
+        assert client.get(
+            f"/api/pricing/projects/{price_manager_project_id}",
+            headers=price_headers,
+        ).status_code == 200
         one_time_price = client.put(
             f"/api/projects/{price_manager_project_id}/quote/overrides",
             headers=price_headers,
@@ -299,6 +338,13 @@ def test_pricing_permission_and_dealer_quote_access(client, admin_headers):
             },
         )
         assert one_time_price.status_code == 200, one_time_price.text
+        refreshed_draft = client.post(
+            f"/api/projects/{price_manager_project_id}/quote/refresh",
+            headers=price_headers,
+        )
+        assert refreshed_draft.status_code == 200
+        assert refreshed_draft.json()["revision"] == 1
+        assert refreshed_draft.json()["status"] == "draft"
         margin_override = client.put(
             f"/api/projects/{price_manager_project_id}/quote/overrides",
             headers=price_headers,
@@ -323,14 +369,6 @@ def test_pricing_permission_and_dealer_quote_access(client, admin_headers):
             ).status_code
             == 403
         )
-        config = {
-            "vat_mode": "none",
-            "vat_rate": "20",
-            "validity_days": 14,
-            "manufacturing_term": "",
-            "payment_terms": "",
-            "services": [],
-        }
         assert (
             client.put(
                 f"/api/projects/{project_id}/quote/config",
@@ -340,6 +378,10 @@ def test_pricing_permission_and_dealer_quote_access(client, admin_headers):
             == 403
         )
     finally:
+        if manager_project_id is not None:
+            client.delete(
+                f"/api/projects/{manager_project_id}", headers=manager_headers
+            )
         if project_id is not None:
             client.delete(f"/api/projects/{project_id}", headers=dealer_headers)
         if price_manager_project_id is not None:
@@ -361,6 +403,7 @@ def test_pricing_permission_and_dealer_quote_access(client, admin_headers):
 def _seed_quote_prices(project_id: int, actor_id: int):
     db = SessionLocal()
     created_versions = []
+    version_by_sku = {}
     created_items = []
     try:
         project = db.get(models.Project, project_id)
@@ -410,11 +453,13 @@ def _seed_quote_prices(project_id: int, actor_id: int):
             db.add(version)
             db.flush()
             created_versions.append(version.id)
+            version_by_sku[sku] = version.id
         db.commit()
         return {
             "skipped_sku": skipped_sku,
             "margin_sku": margin_sku,
             "versions": created_versions,
+            "version_by_sku": version_by_sku,
             "items": created_items,
             "requirements": by_sku,
         }
@@ -449,6 +494,9 @@ def _assert_no_internal_pricing(payload):
         "price_version",
         '"bom"',
         "override_comment",
+        "margin_approval",
+        "context_signature",
+        "approved_by",
     ):
         assert forbidden not in serialized
 
@@ -467,6 +515,15 @@ def test_quote_missing_override_margin_vat_snapshot_and_safe_exports(
     assert initial.json()["export_allowed"] is False
     assert initial.json()["missing_price_count"] > 0
     assert "missing_prices" not in initial.json()
+    premature_approval = client.put(
+        f"/api/projects/{project['id']}/quote/overrides",
+        headers=admin_headers,
+        json={
+            "overrides": [],
+            "margin_override_comment": "Согласование до появления нарушения",
+        },
+    )
+    assert premature_approval.status_code == 400
     blocked_pdf = client.get(
         f"/api/projects/{project['id']}/documents/commercial/pdf",
         headers=admin_headers,
@@ -619,6 +676,26 @@ def test_quote_missing_override_margin_vat_snapshot_and_safe_exports(
             row["line_total"] for row in construction_line["breakdown"]
         ) == construction_line["document_line_total"]
         _assert_no_internal_pricing(quote)
+        assert "margin_approval" not in quote
+        approved_internal = client.get(
+            f"/api/pricing/projects/{project['id']}", headers=admin_headers
+        ).json()
+        approval = approved_internal["margin_approval"]
+        assert approval["required"] is True
+        assert approval["valid"] is True
+        assert approval["target_revision"] == 1
+        assert approval["approved_revision"] == 1
+        assert approval["approved_by"] == admin_id
+        assert approval["approved_at"]
+
+        for _ in range(2):
+            draft_refresh = client.post(
+                f"/api/projects/{project['id']}/quote/refresh",
+                headers=admin_headers,
+            )
+            assert draft_refresh.status_code == 200, draft_refresh.text
+            assert draft_refresh.json()["revision"] == 1
+            assert draft_refresh.json()["status"] == "draft"
 
         preview = client.get(
             f"/api/projects/{project['id']}/documents/commercial/preview",
@@ -627,6 +704,8 @@ def test_quote_missing_override_margin_vat_snapshot_and_safe_exports(
         assert preview.status_code == 200, preview.text
         assert "Себестоимость" not in preview.text
         assert "Разовая согласованная цена" not in preview.text
+        assert "Разрешено руководителем для тендера" not in preview.text
+        assert "margin_approval" not in preview.text
         assert "70% аванс" in preview.text
         assert "Технические характеристики" in preview.text
         assert "Масштабный вид из помещения" in preview.text
@@ -649,6 +728,8 @@ def test_quote_missing_override_margin_vat_snapshot_and_safe_exports(
             ]
         assert "Себестоимость" not in word_xml
         assert "Разовая согласованная цена" not in word_xml
+        assert "Разрешено руководителем для тендера" not in word_xml
+        assert "margin_approval" not in word_xml
         assert "Тип стекла" in word_xml
         assert "ПРОФИЛИ И ФУРНИТУРА" in word_xml
         assert "Стекло, покраска и изготовление" in word_xml
@@ -666,12 +747,21 @@ def test_quote_missing_override_margin_vat_snapshot_and_safe_exports(
         )
         assert "ТЕХНИЧЕСКИЕ ХАРАКТЕРИСТИКИ" in pdf_text.upper()
         assert "СТЕКЛО, ПОКРАСКА И ИЗГОТОВЛЕНИЕ" in pdf_text.upper()
+        assert "РАЗРЕШЕНО РУКОВОДИТЕЛЕМ ДЛЯ ТЕНДЕРА" not in pdf_text.upper()
         fixed = client.get(
             f"/api/projects/{project['id']}/quote", headers=admin_headers
         ).json()
         assert fixed["status"] == "fixed"
         assert fixed["revision"] == 1
         original_total = fixed["totals"]["grand_total"]
+        unchanged_refresh = client.post(
+            f"/api/projects/{project['id']}/quote/refresh",
+            headers=admin_headers,
+        )
+        assert unchanged_refresh.status_code == 200, unchanged_refresh.text
+        assert unchanged_refresh.json()["revision"] == 1
+        assert unchanged_refresh.json()["status"] == "fixed"
+        assert unchanged_refresh.json()["totals"]["grand_total"] == original_total
         fixed_details = next(
             row["section_details"]
             for row in fixed["lines"]
@@ -681,7 +771,10 @@ def test_quote_missing_override_margin_vat_snapshot_and_safe_exports(
 
         db = SessionLocal()
         try:
-            changed = db.get(models.CatalogPriceVersion, seed["versions"][0])
+            changed = db.get(
+                models.CatalogPriceVersion,
+                seed["version_by_sku"][seed["margin_sku"]],
+            )
             replacement = models.CatalogPriceVersion(
                 catalog_item_id=changed.catalog_item_id,
                 cost=Decimal("999.00"),
@@ -692,7 +785,7 @@ def test_quote_missing_override_margin_vat_snapshot_and_safe_exports(
                 construction_discount_percent=changed.construction_discount_percent,
                 category=changed.category,
                 unit=changed.unit,
-                min_margin_percent=Decimal("0"),
+                min_margin_percent=changed.min_margin_percent,
                 effective_from=datetime.utcnow(),
                 created_at=datetime.utcnow(),
                 created_by=admin_id,
@@ -725,6 +818,42 @@ def test_quote_missing_override_margin_vat_snapshot_and_safe_exports(
         assert "2000 × 2400" in stale_word_xml
         assert "2100 × 2400" not in stale_word_xml
 
+        blocked_refresh = client.post(
+            f"/api/projects/{project['id']}/quote/refresh",
+            headers=admin_headers,
+        )
+        assert blocked_refresh.status_code == 409
+        invalid_internal = client.get(
+            f"/api/pricing/projects/{project['id']}", headers=admin_headers
+        ).json()
+        invalid_approval = invalid_internal["margin_approval"]
+        assert invalid_approval["required"] is True
+        assert invalid_approval["valid"] is False
+        assert invalid_approval["target_revision"] == 2
+        assert invalid_approval["approved_revision"] == 1
+        assert invalid_internal["config"]["margin_override_comment"] == ""
+
+        reapproved = client.put(
+            f"/api/projects/{project['id']}/quote/overrides",
+            headers=admin_headers,
+            json={
+                "overrides": [
+                    {
+                        "sku": seed["skipped_sku"],
+                        "cost": "12",
+                        "comment": "Разовая согласованная цена",
+                    }
+                ],
+                "margin_override_comment": "Повторно согласовано для редакции 2",
+            },
+        )
+        assert reapproved.status_code == 200, reapproved.text
+        reapproved_internal = client.get(
+            f"/api/pricing/projects/{project['id']}", headers=admin_headers
+        ).json()
+        assert reapproved_internal["margin_approval"]["valid"] is True
+        assert reapproved_internal["margin_approval"]["target_revision"] == 2
+
         refreshed = client.post(
             f"/api/projects/{project['id']}/quote/refresh",
             headers=admin_headers,
@@ -749,3 +878,246 @@ def test_quote_missing_override_margin_vat_snapshot_and_safe_exports(
         assert "2100 × 2400" in refreshed_word_xml
     finally:
         _cleanup_quote_prices(seed)
+
+
+def test_margin_approval_is_bound_to_every_pricing_input(client, admin_headers):
+    admin_id = client.get("/api/auth/me", headers=admin_headers).json()["id"]
+    dealer, dealer_password = _create_user(
+        client,
+        admin_headers,
+        role="dealer",
+    )
+    dealer_headers = _login_headers(client, dealer["username"], dealer_password)
+    project_id = None
+    seed = None
+    original_settings = client.get(
+        "/api/pricing/settings", headers=admin_headers
+    ).json()
+    override_cost = "12"
+    expected_revision = 1
+
+    try:
+        created = client.post(
+            "/api/projects",
+            headers=dealer_headers,
+            json={"number": _unique("MARGIN-CONTEXT"), "customer": "Дилер"},
+        )
+        assert created.status_code == 201, created.text
+        project_id = created.json()["id"]
+        created_section = client.post(
+            f"/api/projects/{project_id}/sections",
+            headers=dealer_headers,
+            json={
+                "name": "Секция 1",
+                "system": "СЛАЙД",
+                "width": 2000,
+                "height": 2400,
+                "panels": 3,
+                "quantity": 1,
+                "rails": 3,
+                "first_panel_inside": "Справа",
+            },
+        )
+        assert created_section.status_code == 201, created_section.text
+        section_id = created_section.json()["id"]
+        seed = _seed_quote_prices(project_id, admin_id)
+
+        def override_payload(comment: str | None = None):
+            payload = {
+                "overrides": [
+                    {
+                        "sku": seed["skipped_sku"],
+                        "cost": override_cost,
+                        "comment": "Разовая согласованная цена",
+                    }
+                ]
+            }
+            if comment is not None:
+                payload["margin_override_comment"] = comment
+            return payload
+
+        approved = client.put(
+            f"/api/projects/{project_id}/quote/overrides",
+            headers=admin_headers,
+            json=override_payload("Первичное согласование"),
+        )
+        assert approved.status_code == 200, approved.text
+
+        db = SessionLocal()
+        try:
+            fixed = freeze_quote(
+                db,
+                db.get(models.Project, project_id),
+                db.get(models.User, admin_id),
+            )
+            db.commit()
+            assert fixed["revision"] == 1
+            assert fixed["status"] == "fixed"
+        finally:
+            db.close()
+
+        def require_reapproval(reason: str):
+            nonlocal expected_revision
+            internal = client.get(
+                f"/api/pricing/projects/{project_id}", headers=admin_headers
+            )
+            assert internal.status_code == 200, internal.text
+            approval = internal.json()["margin_approval"]
+            assert approval["required"] is True, reason
+            assert approval["valid"] is False, reason
+            assert approval["target_revision"] == expected_revision + 1, reason
+            assert internal.json()["config"]["margin_override_comment"] == ""
+
+            blocked = client.post(
+                f"/api/projects/{project_id}/quote/refresh",
+                headers=admin_headers,
+            )
+            assert blocked.status_code == 409, (reason, blocked.text)
+            still_fixed = client.get(
+                f"/api/projects/{project_id}/quote", headers=admin_headers
+            ).json()
+            assert still_fixed["revision"] == expected_revision
+            assert still_fixed["status"] == "fixed"
+
+            reapproved = client.put(
+                f"/api/projects/{project_id}/quote/overrides",
+                headers=admin_headers,
+                json=override_payload(f"Повторное согласование: {reason}"),
+            )
+            assert reapproved.status_code == 200, (reason, reapproved.text)
+            approved_state = client.get(
+                f"/api/pricing/projects/{project_id}", headers=admin_headers
+            ).json()["margin_approval"]
+            assert approved_state["valid"] is True, reason
+            assert approved_state["target_revision"] == expected_revision + 1
+
+            refreshed = client.post(
+                f"/api/projects/{project_id}/quote/refresh",
+                headers=admin_headers,
+            )
+            assert refreshed.status_code == 200, (reason, refreshed.text)
+            expected_revision += 1
+            assert refreshed.json()["revision"] == expected_revision
+            assert refreshed.json()["status"] == "fixed"
+
+        db = SessionLocal()
+        try:
+            current = db.get(
+                models.CatalogPriceVersion,
+                seed["version_by_sku"][seed["margin_sku"]],
+            )
+            replacement = models.CatalogPriceVersion(
+                catalog_item_id=current.catalog_item_id,
+                cost=Decimal(current.cost) + Decimal("1"),
+                profile_markup_percent=current.profile_markup_percent,
+                profile_discount_percent=current.profile_discount_percent,
+                waste_markup_percent=current.waste_markup_percent,
+                construction_markup_percent=current.construction_markup_percent,
+                construction_discount_percent=current.construction_discount_percent,
+                category=current.category,
+                unit=current.unit,
+                min_margin_percent=current.min_margin_percent,
+                effective_from=datetime.utcnow(),
+                created_at=datetime.utcnow(),
+                created_by=admin_id,
+                reason="Изменение цены для проверки контекста",
+            )
+            db.add(replacement)
+            db.commit()
+            db.refresh(replacement)
+            seed["versions"].append(replacement.id)
+        finally:
+            db.close()
+        require_reapproval("цена")
+
+        dealer_terms = client.put(
+            f"/api/pricing/dealers/{dealer['id']}",
+            headers=admin_headers,
+            json={
+                "dealer_markup_percent": "5",
+                "profile_discount_percent": "6",
+                "construction_discount_percent": "1",
+                "component_discount_percent": "7",
+                "service_discount_percent": "2",
+            },
+        )
+        assert dealer_terms.status_code == 200, dealer_terms.text
+        require_reapproval("дилерские условия")
+
+        settings_change = client.put(
+            "/api/pricing/settings",
+            headers=admin_headers,
+            json={
+                "include_waste_markup": not original_settings[
+                    "include_waste_markup"
+                ],
+                "default_vat_rate": original_settings["default_vat_rate"],
+            },
+        )
+        assert settings_change.status_code == 200, settings_change.text
+        require_reapproval("настройка отходов")
+
+        db = SessionLocal()
+        try:
+            db.get(models.Section, section_id).width = 2100
+            db.get(models.Project, project_id).updated_at = datetime.utcnow()
+            db.commit()
+        finally:
+            db.close()
+        require_reapproval("проект")
+
+        service_change = client.put(
+            f"/api/projects/{project_id}/quote/config",
+            headers=admin_headers,
+            json={
+                "vat_mode": "none",
+                "vat_rate": "20",
+                "validity_days": 14,
+                "manufacturing_term": "",
+                "payment_terms": "",
+                "services": [
+                    {
+                        "id": "delivery",
+                        "name": "Доставка",
+                        "quantity": "1",
+                        "unit": "шт.",
+                        "base_cost": "100",
+                    }
+                ],
+            },
+        )
+        assert service_change.status_code == 200, service_change.text
+        require_reapproval("услуга")
+
+        override_cost = "13"
+        override_change = client.put(
+            f"/api/projects/{project_id}/quote/overrides",
+            headers=admin_headers,
+            json=override_payload(),
+        )
+        assert override_change.status_code == 200, override_change.text
+        require_reapproval("разовая цена")
+    finally:
+        client.put(
+            "/api/pricing/settings",
+            headers=admin_headers,
+            json={
+                "include_waste_markup": original_settings[
+                    "include_waste_markup"
+                ],
+                "default_vat_rate": original_settings["default_vat_rate"],
+            },
+        )
+        if project_id is not None:
+            client.delete(f"/api/projects/{project_id}", headers=dealer_headers)
+        if seed is not None:
+            _cleanup_quote_prices(seed)
+        db = SessionLocal()
+        try:
+            db.query(models.DealerPricingTerms).filter_by(
+                user_id=dealer["id"]
+            ).delete()
+            db.commit()
+        finally:
+            db.close()
+        client.delete(f"/api/users/{dealer['id']}", headers=admin_headers)
