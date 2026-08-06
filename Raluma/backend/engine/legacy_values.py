@@ -6,6 +6,8 @@
 
 from typing import Any
 
+from engine.glass_types import normalize_glass_type
+
 
 def handle_supports_offset(value: Any) -> bool:
     """Отступ применяется только к стеклянной ручке и ручке-скобе."""
@@ -76,6 +78,10 @@ _LEGACY_VALUE_REPLACEMENTS: dict[str, dict[str, str]] = {
 def normalize_section_data_values(data: dict[str, Any]) -> dict[str, Any]:
     """Вернуть копию данных секции с актуальными строковыми значениями."""
     normalized = dict(data or {})
+    normalized["glass_type"] = normalize_glass_type(
+        normalized.get("glass_type"),
+        normalized.get("system"),
+    )
     for field, replacements in _LEGACY_VALUE_REPLACEMENTS.items():
         value = normalized.get(field)
         if isinstance(value, str) and value in replacements:

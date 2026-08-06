@@ -1,8 +1,13 @@
 from datetime import datetime
-from typing import Any, Optional, List
+from decimal import Decimal
+from typing import Any, Literal, Optional, List
 from pydantic import BaseModel, Field, model_validator
 
-from engine.glass_types import NON_SLIDE_DEFAULT_GLASS_TYPE, default_glass_type
+from engine.glass_types import (
+    NON_SLIDE_DEFAULT_GLASS_TYPE,
+    default_glass_type,
+    normalize_glass_type,
+)
 from engine.lift_config import (
     LIFT_CABLE_SIDES,
     LIFT_CONTROL_TYPES,
@@ -52,6 +57,7 @@ class UserBase(BaseModel):
     dealer_inn: Optional[str] = None
     dealer_discount_percent: Optional[float] = None
     dealer_notes: Optional[str] = None
+    can_manage_prices: bool = False
     is_active: bool = True
 
 
@@ -74,6 +80,7 @@ class UserUpdate(BaseModel):
     dealer_inn: Optional[str] = None
     dealer_discount_percent: Optional[float] = None
     dealer_notes: Optional[str] = None
+    can_manage_prices: Optional[bool] = None
     is_active: Optional[bool] = None
     password: Optional[str] = None
 
@@ -86,8 +93,20 @@ class UserOut(UserBase):
     model_config = {"from_attributes": True}
 
 
-class UserMe(UserOut):
-    pass
+class UserMe(BaseModel):
+    """Safe self-profile; pricing conditions are never returned to a dealer."""
+
+    id: int
+    username: str
+    display_name: str
+    role: str
+    customer: Optional[str] = None
+    can_manage_prices: bool = False
+    is_active: bool
+    created_at: datetime
+    last_login: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
 
 
 class ResetPasswordResponse(BaseModel):
@@ -123,6 +142,126 @@ class CatalogItemCreate(CatalogItemBase):
 
 class CatalogItemUpdate(CatalogItemBase):
     pass
+
+
+# ── Версионируемые цены ──────────────────────────────────────────────────────
+
+PriceCategory = Literal["profile", "construction", "component", "service"]
+VatMode = Literal["none", "included", "on_top"]
+
+
+class CatalogPriceVersionBase(BaseModel):
+    cost: Decimal = Field(ge=0)
+    profile_markup_percent: Decimal = Field(default=Decimal("0"), ge=0)
+    profile_discount_percent: Decimal = Field(
+        default=Decimal("0"), ge=0, le=100
+    )
+    waste_markup_percent: Decimal = Field(default=Decimal("0"), ge=0)
+    construction_markup_percent: Decimal = Field(default=Decimal("0"), ge=0)
+    construction_discount_percent: Decimal = Field(
+        default=Decimal("0"), ge=0, le=100
+    )
+    category: PriceCategory
+    unit: str
+    min_margin_percent: Decimal = Field(default=Decimal("0"), ge=0)
+    effective_from: datetime
+    reason: str = Field(min_length=1, max_length=1000)
+
+
+class CatalogPriceVersionCreate(CatalogPriceVersionBase):
+    pass
+
+
+class CatalogPriceVersionOut(CatalogPriceVersionBase):
+    id: int
+    catalog_item_id: int
+    created_at: datetime
+    created_by: int
+    rollback_of_id: Optional[int] = None
+
+    model_config = {"from_attributes": True}
+
+
+class CatalogPriceBulkRequest(BaseModel):
+    item_ids: list[int] = Field(min_length=1)
+    percent: Decimal = Field(gt=-100)
+    effective_from: datetime
+    reason: str = Field(min_length=1, max_length=1000)
+
+
+class CatalogPriceRollback(BaseModel):
+    effective_from: datetime
+    reason: str = Field(min_length=1, max_length=1000)
+
+
+class CatalogPriceImportApply(BaseModel):
+    rows: list[dict[str, Any]] = Field(min_length=1)
+    reason: str = Field(min_length=1, max_length=1000)
+
+
+class DealerPricingTermsUpdate(BaseModel):
+    dealer_markup_percent: Decimal = Field(default=Decimal("0"), ge=0)
+    profile_discount_percent: Decimal = Field(
+        default=Decimal("0"), ge=0, le=100
+    )
+    construction_discount_percent: Decimal = Field(
+        default=Decimal("0"), ge=0, le=100
+    )
+    component_discount_percent: Decimal = Field(
+        default=Decimal("0"), ge=0, le=100
+    )
+    service_discount_percent: Decimal = Field(
+        default=Decimal("0"), ge=0, le=100
+    )
+
+
+class DealerPricingTermsOut(DealerPricingTermsUpdate):
+    user_id: int
+    updated_at: datetime
+    updated_by: int
+
+    model_config = {"from_attributes": True}
+
+
+class PricingSettingsUpdate(BaseModel):
+    include_waste_markup: bool
+    default_vat_rate: Decimal = Field(ge=0, le=100)
+
+
+class PricingSettingsOut(PricingSettingsUpdate):
+    id: int
+    updated_at: datetime
+    updated_by: Optional[int] = None
+
+    model_config = {"from_attributes": True}
+
+
+class QuoteManualService(BaseModel):
+    id: str
+    name: str = Field(min_length=1, max_length=300)
+    quantity: Decimal = Field(gt=0)
+    unit: str = Field(min_length=1, max_length=40)
+    base_cost: Decimal = Field(ge=0)
+
+
+class QuotePriceOverride(BaseModel):
+    sku: str = Field(min_length=1, max_length=120)
+    cost: Decimal = Field(ge=0)
+    comment: str = Field(min_length=1, max_length=1000)
+
+
+class QuoteConfigUpdate(BaseModel):
+    vat_mode: VatMode = "none"
+    vat_rate: Decimal = Field(default=Decimal("20"), ge=0, le=100)
+    validity_days: int = Field(default=14, ge=1, le=365)
+    manufacturing_term: str = Field(default="", max_length=500)
+    payment_terms: str = Field(default="", max_length=1000)
+    services: list[QuoteManualService] = Field(default_factory=list)
+
+
+class QuoteOverridesUpdate(BaseModel):
+    overrides: list[QuotePriceOverride] = Field(default_factory=list)
+    margin_override_comment: Optional[str] = Field(default=None, max_length=1000)
 
 
 # ── Section ───────────────────────────────────────────────────────────────────
@@ -225,17 +364,19 @@ class SectionBase(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def set_system_glass_default(cls, values):
+    def normalize_system_glass_type(cls, values):
         if not isinstance(values, dict):
             return values
-        if str(values.get("glass_type") or "").strip():
-            return values
         normalized = dict(values)
-        normalized["glass_type"] = default_glass_type(values.get("system"))
+        normalized["glass_type"] = normalize_glass_type(
+            values.get("glass_type") or default_glass_type(values.get("system")),
+            values.get("system"),
+        )
         return normalized
 
     @model_validator(mode="after")
     def validate_lift_fields(self):
+        self.glass_type = normalize_glass_type(self.glass_type, self.system)
         if str(self.system or "").strip().upper() != "ЛИФТ":
             return self
         if self.panels not in {2, 3, 4}:

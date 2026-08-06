@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   User, ArrowRight, Search, Plus,
   Edit2, Copy, Trash2,
-  LogOut, LogIn, X, LayoutGrid, List, Shield, Check, Sun, Moon
+  LogOut, LogIn, X, LayoutGrid, List, Shield, Check, Sun, Moon, BadgePercent
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
@@ -74,7 +74,7 @@ function SkeletonRow() {
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
-  const { user, token, clearAuth, isAdmin } = useAuthStore();
+  const { user, token, clearAuth, isAdmin, canManagePrices } = useAuthStore();
   const { theme, toggle: toggleTheme } = useThemeStore();
 
   const [projects, setProjects] = useState<ProjectList[]>([]);
@@ -274,6 +274,15 @@ export default function ProjectsPage() {
               >
                 <Shield className="w-4 h-4" />
                 <span className="hidden sm:inline text-sm font-bold">Администрирование</span>
+              </button>
+            )}
+            {user && canManagePrices() && (
+              <button onClick={() => navigate('/admin/pricing')}
+                className="flex items-center gap-2 px-2.5 sm:px-4 py-2.5 rounded-xl bg-tint/10 hover:bg-tint/20 text-accent transition-all border border-tint/20"
+                title="Ценообразование"
+              >
+                <BadgePercent className="w-4 h-4" />
+                <span className="hidden xl:inline text-sm font-bold">Цены</span>
               </button>
             )}
             {user ? (

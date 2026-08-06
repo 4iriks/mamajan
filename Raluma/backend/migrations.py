@@ -11,6 +11,7 @@ import json
 
 from sqlalchemy import text
 from database import engine
+from engine.glass_types import normalize_slide_glass_type
 from engine.legacy_values import (
     normalize_center_handle_offset,
     normalize_section_data_values,
@@ -57,6 +58,83 @@ _CREATE_TABLES = [
         FOREIGN KEY(created_by) REFERENCES users(id)
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS catalog_price_versions (
+        id INTEGER PRIMARY KEY,
+        catalog_item_id INTEGER NOT NULL,
+        cost NUMERIC(14, 2) NOT NULL,
+        profile_markup_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
+        profile_discount_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
+        waste_markup_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
+        construction_markup_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
+        construction_discount_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
+        category VARCHAR NOT NULL,
+        unit VARCHAR NOT NULL,
+        min_margin_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
+        effective_from DATETIME NOT NULL,
+        created_at DATETIME NOT NULL,
+        created_by INTEGER NOT NULL,
+        reason TEXT NOT NULL,
+        rollback_of_id INTEGER,
+        FOREIGN KEY(catalog_item_id) REFERENCES catalog_items(id),
+        FOREIGN KEY(created_by) REFERENCES users(id),
+        FOREIGN KEY(rollback_of_id) REFERENCES catalog_price_versions(id)
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS ix_catalog_price_versions_item_date
+    ON catalog_price_versions (catalog_item_id, effective_from)
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS dealer_pricing_terms (
+        user_id INTEGER PRIMARY KEY,
+        dealer_markup_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
+        profile_discount_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
+        construction_discount_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
+        component_discount_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
+        service_discount_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
+        updated_at DATETIME NOT NULL,
+        updated_by INTEGER NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id),
+        FOREIGN KEY(updated_by) REFERENCES users(id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS pricing_settings (
+        id INTEGER PRIMARY KEY,
+        include_waste_markup BOOLEAN NOT NULL DEFAULT 0,
+        default_vat_rate NUMERIC(6, 3) NOT NULL DEFAULT 20,
+        updated_at DATETIME NOT NULL,
+        updated_by INTEGER,
+        FOREIGN KEY(updated_by) REFERENCES users(id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS project_quote_states (
+        id INTEGER PRIMARY KEY,
+        project_id INTEGER NOT NULL UNIQUE,
+        revision INTEGER NOT NULL DEFAULT 1,
+        status VARCHAR NOT NULL DEFAULT 'draft',
+        public_payload TEXT NOT NULL DEFAULT '{}',
+        internal_payload TEXT NOT NULL DEFAULT '{}',
+        services_payload TEXT NOT NULL DEFAULT '[]',
+        overrides_payload TEXT NOT NULL DEFAULT '[]',
+        vat_mode VARCHAR NOT NULL DEFAULT 'none',
+        vat_rate NUMERIC(6, 3) NOT NULL DEFAULT 20,
+        validity_days INTEGER NOT NULL DEFAULT 14,
+        manufacturing_term VARCHAR NOT NULL DEFAULT '',
+        payment_terms VARCHAR NOT NULL DEFAULT '',
+        margin_override_comment TEXT,
+        source_signature VARCHAR NOT NULL DEFAULT '',
+        source_project_updated_at DATETIME,
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME NOT NULL,
+        fixed_at DATETIME,
+        fixed_by INTEGER,
+        FOREIGN KEY(project_id) REFERENCES projects(id),
+        FOREIGN KEY(fixed_by) REFERENCES users(id)
+    )
+    """,
 ]
 
 
@@ -75,6 +153,7 @@ _ADD_COLUMNS = [
     "ALTER TABLE users ADD COLUMN dealer_inn VARCHAR",
     "ALTER TABLE users ADD COLUMN dealer_discount_percent FLOAT",
     "ALTER TABLE users ADD COLUMN dealer_notes TEXT",
+    "ALTER TABLE users ADD COLUMN can_manage_prices BOOLEAN NOT NULL DEFAULT 0",
     # projects
     "ALTER TABLE projects ADD COLUMN subtype VARCHAR",
     "ALTER TABLE projects ADD COLUMN extra_parts VARCHAR",
@@ -154,6 +233,7 @@ _ADD_COLUMNS = [
 # ── Миграции данных ────────────────────────────────────────────────────────────
 
 _DATA_MIGRATIONS = [
+    "INSERT OR IGNORE INTO pricing_settings (id, include_waste_markup, default_vat_rate, updated_at) VALUES (1, 0, 20, CURRENT_TIMESTAMP)",
     # Старые проекты без корректно сохранённой этапности считаются одноэтапными.
     "UPDATE projects SET production_stages = 1 WHERE production_stages IS NULL OR production_stages NOT IN (1, 2)",
     "UPDATE projects SET current_stage = 1 WHERE current_stage IS NULL OR current_stage NOT IN (1, 2)",
@@ -175,6 +255,12 @@ _DATA_MIGRATIONS = [
     "UPDATE sections SET handle = 'Ручка-скоба 600мм RS30201' WHERE handle = 'Ручка-скоба'",
     "UPDATE sections SET inter_glass_profile = 'Профиль с зацепом RS3061' WHERE inter_glass_profile = 'h-профиль RS1004'",
     "UPDATE sections SET inter_glass_profile = 'Алюминиевый RS2061' WHERE system = 'СЛАЙД' AND inter_glass_profile IS NULL",
+    "UPDATE sections SET glass_type = '10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ' WHERE system = 'СЛАЙД' AND glass_type IN ('10ММ ПРОЗРАЧНОЕ', '10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ')",
+    "UPDATE sections SET glass_type = '10ММ ЗАКАЛЕННОЕ БРОНЗА В МАССЕ' WHERE system = 'СЛАЙД' AND glass_type IN ('10ММ БРОНЗА В МАССЕ', '10ММ ЗАКАЛЕННОЕ БРОНЗА В МАССЕ')",
+    "UPDATE sections SET glass_type = '10ММ ЗАКАЛЕННОЕ СЕРОЕ В МАССЕ' WHERE system = 'СЛАЙД' AND glass_type IN ('10ММ СЕРОЕ В МАССЕ', '10ММ ЗАКАЛЕННОЕ СЕРОЕ В МАССЕ')",
+    "UPDATE sections SET glass_type = '10ММ ЗАКАЛЕННОЕ МАТОВОЕ' WHERE system = 'СЛАЙД' AND glass_type IN ('10ММ МАТОВОЕ', '10ММ ЗАКАЛЕННОЕ МАТОВОЕ')",
+    "UPDATE sections SET glass_type = '10ММ ЗАКАЛЕННОЕ ПРОСВЕТЛЕННОЕ' WHERE system = 'СЛАЙД' AND glass_type IN ('10ММ ПРОСВЕТЛЕННОЕ', '10ММ ЗАКАЛЕННОЕ ПРОСВЕТЛЕННОЕ')",
+    "UPDATE sections SET glass_type = 'ТРИПЛЕКС 4.1.4 ЗАКАЛЕННЫЙ' WHERE system = 'СЛАЙД' AND glass_type IN ('ТРИПЛЕКС 4.1.4', 'ТРИПЛЕКС 4.1.4 ЗАКАЛЕННЫЙ')",
     "UPDATE catalog_items SET paint_mode = 'Частично', note = 'В заявке на покраску отмечать область, которую не красить' WHERE sku IN ('RS2323', 'RS2325')",
     "UPDATE catalog_items SET paint_mode = 'Частично', note = 'Накладной порог, верхние бобышки не красить' WHERE sku IN ('RS23231', 'RS23251')",
     "UPDATE catalog_items SET paint_mode = 'Частично', color_variants = '[\"Анод\", \"RAL стандарт\", \"RAL нестандарт\"]', note = 'W - 155 красится; W - 62 не красится по исходным Excel ЛИФТ' WHERE sku = 'RL104' AND system = 'ЛИФТ'",
@@ -281,6 +367,64 @@ def _normalize_section_center_offsets(conn):
         )
 
 
+def _normalize_glass_catalog_items(conn):
+    """Keep historical GLASS SKUs usable after the public naming migration."""
+    try:
+        rows = conn.execute(
+            text(
+                "SELECT id, sku FROM catalog_items "
+                "WHERE sku LIKE 'GLASS|%' ORDER BY id"
+            )
+        ).fetchall()
+    except Exception:
+        return
+
+    by_sku = {str(sku): int(item_id) for item_id, sku in rows}
+    for item_id, sku in rows:
+        sku = str(sku)
+        glass_type = sku.split("|", 1)[1] if "|" in sku else ""
+        normalized_type = normalize_slide_glass_type(glass_type)
+        normalized_sku = f"GLASS|{normalized_type}"
+        if normalized_sku == sku:
+            conn.execute(
+                text("UPDATE catalog_items SET name = :name WHERE id = :item_id"),
+                {"name": normalized_type, "item_id": item_id},
+            )
+            continue
+
+        target_id = by_sku.get(normalized_sku)
+        if target_id is None:
+            conn.execute(
+                text(
+                    "UPDATE catalog_items SET sku = :sku, name = :name "
+                    "WHERE id = :item_id"
+                ),
+                {"sku": normalized_sku, "name": normalized_type, "item_id": item_id},
+            )
+            by_sku.pop(sku, None)
+            by_sku[normalized_sku] = int(item_id)
+            continue
+
+        if int(target_id) == int(item_id):
+            continue
+        conn.execute(
+            text(
+                "UPDATE catalog_price_versions SET catalog_item_id = :target_id "
+                "WHERE catalog_item_id = :source_id"
+            ),
+            {"target_id": target_id, "source_id": item_id},
+        )
+        conn.execute(
+            text("DELETE FROM catalog_items WHERE id = :item_id"),
+            {"item_id": item_id},
+        )
+        conn.execute(
+            text("UPDATE catalog_items SET name = :name WHERE id = :target_id"),
+            {"name": normalized_type, "target_id": target_id},
+        )
+        by_sku.pop(sku, None)
+
+
 def run_migrations():
     """Выполнить все миграции. Безопасно вызывать при каждом старте."""
     with engine.connect() as conn:
@@ -310,6 +454,7 @@ def run_migrations():
         try:
             _normalize_section_templates(conn)
             _normalize_section_center_offsets(conn)
+            _normalize_glass_catalog_items(conn)
             conn.commit()
         except Exception:
             pass

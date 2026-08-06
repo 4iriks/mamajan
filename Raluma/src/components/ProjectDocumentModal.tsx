@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download,
+  AlertTriangle,
   FileSpreadsheet,
   FileText,
   Loader2,
   Plus,
   Save,
+  RefreshCw,
   Trash2,
   Upload,
   X,
@@ -24,6 +26,17 @@ import {
 } from '../api/projects';
 import type { DocumentFileFormat, SectionOut } from '../api/projects';
 import { toast } from '../store/toastStore';
+import {
+  getInternalQuote,
+  getPublicQuote,
+  InternalQuoteState,
+  PublicQuote,
+  QuoteManualService,
+  refreshQuote,
+  updateQuoteConfig,
+  updateQuoteOverrides,
+} from '../api/quotes';
+import { useAuthStore } from '../store/authStore';
 
 interface Props {
   isOpen: boolean;
@@ -60,6 +73,24 @@ interface DeliveryNoteData {
 }
 
 const makePaintRowId = () => `paint-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+const makeServiceId = () => `service-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+
+function emptyService(): QuoteManualService {
+  return { id: makeServiceId(), name: '', quantity: '1', unit: 'шт.', base_cost: '0' };
+}
+
+function formatQuoteMoney(value?: string | number) {
+  return `${Number(value || 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽`;
+}
+
+function requestError(error: unknown, fallback: string) {
+  const detail = (error as { response?: { data?: { detail?: unknown } } }).response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (detail && typeof detail === 'object' && 'message' in detail) {
+    return String((detail as { message: unknown }).message);
+  }
+  return fallback;
+}
 
 function normalizePaintRow(row?: Partial<PaintManualRow>): PaintManualRow {
   return {
@@ -143,12 +174,25 @@ export default function ProjectDocumentModal({
   const [isSavingPaintRows, setIsSavingPaintRows] = useState(false);
   const [deliveryData, setDeliveryData] = useState<DeliveryNoteData>(() => parseDeliveryData());
   const [isSavingDelivery, setIsSavingDelivery] = useState(false);
+  const [quote, setQuote] = useState<PublicQuote | null>(null);
+  const [internalQuote, setInternalQuote] = useState<InternalQuoteState | null>(null);
+  const [isQuoteLoading, setIsQuoteLoading] = useState(false);
+  const [isQuoteSaving, setIsQuoteSaving] = useState(false);
+  const { user, canManagePrices } = useAuthStore();
 
   const token = localStorage.getItem('access_token') ?? '';
   const isGuest = !token;
   const isPaintDocument = docType === 'paint';
   const isDeliveryDocument = docType === 'delivery';
-  const hasDocumentEditor = isPaintDocument || isDeliveryDocument;
+  const isCommercialDocument = docType === 'commercial';
+  const canEditCommercial = Boolean(user && user.role !== 'dealer');
+  const canOverrideCommercial = canManagePrices();
+  const canOverrideMargin = user?.role === 'admin' || user?.role === 'superadmin';
+  const missingPrices = internalQuote?.missing_prices ?? [];
+  const commercialWarnings: string[] = Array.from(new Set<string>(
+    internalQuote ? internalQuote.pending_warnings : (quote?.warnings ?? []),
+  ));
+  const hasDocumentEditor = isPaintDocument || isDeliveryDocument || isCommercialDocument;
   const previewUrl = useMemo(
     () => isGuest ? undefined : `${getProjectDocumentPreviewUrl(projectId, docType)}?token=${encodeURIComponent(token)}&v=${previewVersion}`,
     [docType, isGuest, projectId, token, previewVersion],
@@ -167,6 +211,24 @@ export default function ProjectDocumentModal({
     }
   }, [docType, isGuest, isOpen, projectId]);
 
+  const loadCommercialQuote = useCallback(async () => {
+    if (!isOpen || !isCommercialDocument || isGuest) return;
+    setIsQuoteLoading(true);
+    try {
+      const publicState = await getPublicQuote(projectId);
+      setQuote(publicState);
+      if (canEditCommercial) {
+        setInternalQuote(await getInternalQuote(projectId));
+      } else {
+        setInternalQuote(null);
+      }
+    } catch (error) {
+      toast.error(requestError(error, 'Не удалось рассчитать коммерческое предложение'));
+    } finally {
+      setIsQuoteLoading(false);
+    }
+  }, [canEditCommercial, isCommercialDocument, isGuest, isOpen, projectId]);
+
   useEffect(() => {
     if (!isOpen) {
       setPreviewSrcDoc('');
@@ -174,10 +236,13 @@ export default function ProjectDocumentModal({
       setPaintRows([]);
       setPaintColors([]);
       setDeliveryData(parseDeliveryData());
+      setQuote(null);
+      setInternalQuote(null);
       return;
     }
     loadGuestPreview();
-  }, [isOpen, loadGuestPreview]);
+    loadCommercialQuote();
+  }, [isOpen, loadCommercialQuote, loadGuestPreview]);
 
   useEffect(() => {
     if (!isOpen || !isPaintDocument) return;
@@ -361,9 +426,112 @@ export default function ProjectDocumentModal({
     }
   };
 
+  const patchCommercialConfig = (
+    updates: Partial<InternalQuoteState['config']>,
+  ) => {
+    setInternalQuote(current => current ? {
+      ...current,
+      config: { ...current.config, ...updates },
+    } : current);
+    setIsDirty(true);
+  };
+
+  const updateService = (id: string, updates: Partial<QuoteManualService>) => {
+    if (!internalQuote) return;
+    patchCommercialConfig({
+      services: internalQuote.config.services.map(service => (
+        service.id === id ? { ...service, ...updates } : service
+      )),
+    });
+  };
+
+  const addService = () => {
+    if (!internalQuote) return;
+    patchCommercialConfig({ services: [...internalQuote.config.services, emptyService()] });
+  };
+
+  const removeService = (id: string) => {
+    if (!internalQuote) return;
+    patchCommercialConfig({
+      services: internalQuote.config.services.filter(service => service.id !== id),
+    });
+  };
+
+  const updateMissingPriceOverride = (
+    sku: string,
+    updates: Partial<{ cost: string; comment: string }>,
+  ) => {
+    if (!internalQuote) return;
+    const current = internalQuote.config.overrides.find(row => row.sku === sku);
+    const next = current
+      ? internalQuote.config.overrides.map(row => row.sku === sku ? { ...row, ...updates } : row)
+      : [...internalQuote.config.overrides, { sku, cost: '', comment: '', ...updates }];
+    patchCommercialConfig({ overrides: next });
+  };
+
+  const saveCommercialConfig = async (): Promise<boolean> => {
+    if (!internalQuote) return false;
+    const incompleteOverride = internalQuote.config.overrides.find(row => (
+      (row.cost || row.comment.trim()) && (!row.cost || !row.comment.trim())
+    ));
+    if (canOverrideCommercial && incompleteOverride) {
+      toast.error(`Для разовой цены ${incompleteOverride.sku} укажите цену и обоснование`);
+      return false;
+    }
+    setIsQuoteSaving(true);
+    try {
+      const config = internalQuote.config;
+      await updateQuoteConfig(projectId, {
+        vat_mode: config.vat_mode,
+        vat_rate: config.vat_rate,
+        validity_days: config.validity_days,
+        manufacturing_term: config.manufacturing_term,
+        payment_terms: config.payment_terms,
+        services: config.services,
+      });
+      if (canOverrideCommercial) {
+        await updateQuoteOverrides(
+          projectId,
+          config.overrides.filter(row => row.sku && row.cost && row.comment.trim()),
+          canOverrideMargin ? config.margin_override_comment : undefined,
+        );
+      }
+      await loadCommercialQuote();
+      setPreviewVersion(value => value + 1);
+      setIsDirty(false);
+      toast.success('Условия коммерческого предложения сохранены');
+      return true;
+    } catch (error) {
+      toast.error(requestError(error, 'Не удалось сохранить условия предложения'));
+      return false;
+    } finally {
+      setIsQuoteSaving(false);
+    }
+  };
+
+  const handleRefreshQuote = async () => {
+    setIsQuoteSaving(true);
+    try {
+      setQuote(await refreshQuote(projectId));
+      if (canEditCommercial) setInternalQuote(await getInternalQuote(projectId));
+      setPreviewVersion(value => value + 1);
+      setIsDirty(false);
+      toast.success('Цены и редакция коммерческого предложения обновлены');
+    } catch (error) {
+      toast.error(requestError(error, 'Не удалось обновить коммерческое предложение'));
+      await loadCommercialQuote();
+    } finally {
+      setIsQuoteSaving(false);
+    }
+  };
+
   const handleDownload = async (format: DocumentFileFormat) => {
     setDownloadingFormat(format);
     try {
+      if (isCommercialDocument && !quote?.export_allowed) {
+        toast.error('Экспорт заблокирован: заполните отсутствующие цены и устраните предупреждения');
+        return;
+      }
       if (isPaintDocument) {
         const saved = await savePaintRows();
         if (!saved) return;
@@ -381,8 +549,12 @@ export default function ProjectDocumentModal({
         changes,
       );
       setIsDirty(false);
-    } catch {
-      toast.error(`Ошибка генерации ${format.toUpperCase()}`);
+      if (isCommercialDocument) {
+        await loadCommercialQuote();
+        setPreviewVersion(value => value + 1);
+      }
+    } catch (error) {
+      toast.error(requestError(error, `Ошибка генерации ${format.toUpperCase()}`));
     } finally {
       setDownloadingFormat(null);
     }
@@ -612,7 +784,214 @@ export default function ProjectDocumentModal({
               </div>
             )}
 
-            <div className="overflow-y-auto bg-gray-100" style={{ height: hasDocumentEditor ? 'calc(90vh - 295px)' : 'calc(90vh - 130px)' }}>
+            {isCommercialDocument && (
+              <div className="px-5 py-4 sm:px-8 bg-page border-b border-tint/20 flex-shrink-0 max-h-[42vh] overflow-y-auto">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="text-xs font-bold uppercase tracking-widest text-fg/45">Расчёт стоимости</div>
+                      {quote && (
+                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                          quote.status === 'fixed'
+                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                            : 'border-yellow-500/30 bg-yellow-500/10 text-yellow-300'
+                        }`}>
+                          Редакция {quote.revision} · {quote.status === 'fixed' ? 'зафиксирована' : 'черновик'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-fg/35 mt-1">
+                      PDF фиксирует первую редакцию; Word до первого PDF использует текущий черновик.
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {canEditCommercial && internalQuote && (
+                      <button
+                        type="button"
+                        onClick={saveCommercialConfig}
+                        disabled={isQuoteSaving}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-accent/30 bg-accent/15 text-accent text-xs font-bold uppercase tracking-wider hover:bg-accent/25 disabled:opacity-50"
+                      >
+                        {isQuoteSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        Сохранить
+                      </button>
+                    )}
+                    {canEditCommercial && (
+                      <button
+                        type="button"
+                        onClick={handleRefreshQuote}
+                        disabled={isQuoteSaving || !quote?.export_allowed}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-tint/30 bg-tint/10 text-fg/70 text-xs font-bold uppercase tracking-wider hover:bg-tint/20 disabled:opacity-40"
+                        title="Пересчитать по актуальному каталогу и увеличить номер редакции"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${isQuoteSaving ? 'animate-spin' : ''}`} />
+                        Обновить цены
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {isQuoteLoading && !quote ? (
+                  <div className="h-24 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-accent" /></div>
+                ) : quote ? (
+                  <div className="mt-4 space-y-4">
+                    {(quote.stale || commercialWarnings.length > 0) && (
+                      <div className="space-y-2">
+                        {quote.stale && (
+                          <div className="flex items-start gap-2 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-200">
+                            <AlertTriangle className="w-4 h-4 mt-0.5 flex-none" />
+                            Проект, каталог или условия изменились после расчёта. Для новой редакции нажмите «Обновить цены».
+                          </div>
+                        )}
+                        {commercialWarnings.map(warning => (
+                          <div key={warning} className="flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                            <AlertTriangle className="w-4 h-4 mt-0.5 flex-none" />
+                            {warning}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div className="rounded-xl border border-tint/20 bg-black/10 px-3 py-2">
+                        <div className="text-[10px] uppercase tracking-wider text-fg/35">До скидки</div>
+                        <div className="mt-1 text-sm font-bold">{formatQuoteMoney(quote.totals.before_discount)}</div>
+                      </div>
+                      <div className="rounded-xl border border-tint/20 bg-black/10 px-3 py-2">
+                        <div className="text-[10px] uppercase tracking-wider text-fg/35">Скидка</div>
+                        <div className="mt-1 text-sm font-bold text-accent">{formatQuoteMoney(quote.totals.discount)}</div>
+                      </div>
+                      <div className="rounded-xl border border-tint/20 bg-black/10 px-3 py-2">
+                        <div className="text-[10px] uppercase tracking-wider text-fg/35">НДС</div>
+                        <div className="mt-1 text-sm font-bold">{formatQuoteMoney(quote.totals.vat)}</div>
+                      </div>
+                      <div className="rounded-xl border border-accent/30 bg-accent/10 px-3 py-2">
+                        <div className="text-[10px] uppercase tracking-wider text-accent/70">Итого</div>
+                        <div className="mt-1 text-sm font-bold text-accent">{formatQuoteMoney(quote.totals.grand_total)}</div>
+                      </div>
+                    </div>
+
+                    {canEditCommercial && internalQuote && (
+                      <div className="space-y-3 border-t border-tint/15 pt-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                          <label className="space-y-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Режим НДС</span>
+                            <select
+                              value={internalQuote.config.vat_mode}
+                              onChange={event => patchCommercialConfig({ vat_mode: event.target.value as InternalQuoteState['config']['vat_mode'] })}
+                              className="w-full h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50"
+                            >
+                              <option value="none">Без НДС</option>
+                              <option value="included">НДС включён</option>
+                              <option value="on_top">НДС сверху</option>
+                            </select>
+                          </label>
+                          <label className="space-y-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Ставка НДС, %</span>
+                            <input
+                              type="number" min="0" max="100" step="0.01"
+                              value={internalQuote.config.vat_rate}
+                              onChange={event => patchCommercialConfig({ vat_rate: event.target.value })}
+                              className="w-full h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50"
+                            />
+                          </label>
+                          <label className="space-y-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Срок действия, дней</span>
+                            <input
+                              type="number" min="1" max="365"
+                              value={internalQuote.config.validity_days}
+                              onChange={event => patchCommercialConfig({ validity_days: Number(event.target.value) })}
+                              className="w-full h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50"
+                            />
+                          </label>
+                          <label className="space-y-1 sm:col-span-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Срок изготовления</span>
+                            <input
+                              value={internalQuote.config.manufacturing_term}
+                              onChange={event => patchCommercialConfig({ manufacturing_term: event.target.value })}
+                              placeholder="Например: 20 рабочих дней"
+                              className="w-full h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50"
+                            />
+                          </label>
+                          <label className="space-y-1 sm:col-span-2 lg:col-span-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Условия оплаты</span>
+                            <input
+                              value={internalQuote.config.payment_terms}
+                              onChange={event => patchCommercialConfig({ payment_terms: event.target.value })}
+                              placeholder="Например: 70/30"
+                              className="w-full h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50"
+                            />
+                          </label>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between gap-3 mb-2">
+                            <div>
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Ручные услуги</div>
+                              <div className="text-[10px] text-fg/30 mt-0.5">Базовая цена является внутренней и не попадает в дилерское КП.</div>
+                            </div>
+                            <button type="button" onClick={addService} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-tint/25 text-xs text-accent hover:bg-tint/10">
+                              <Plus className="w-3.5 h-3.5" /> Услуга
+                            </button>
+                          </div>
+                          {internalQuote.config.services.length > 0 && (
+                            <div className="space-y-2">
+                              {internalQuote.config.services.map(service => (
+                                <div key={service.id} className="grid grid-cols-[minmax(150px,1fr)_80px_110px_120px_34px] gap-2">
+                                  <input value={service.name} onChange={event => updateService(service.id, { name: event.target.value })} placeholder="Наименование" className="h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50" />
+                                  <input type="number" min="0.01" step="0.01" value={service.quantity} onChange={event => updateService(service.id, { quantity: event.target.value })} placeholder="Кол-во" className="h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50" />
+                                  <select value={service.unit} onChange={event => updateService(service.id, { unit: event.target.value })} className="h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50">
+                                    {['п.м.', 'шт.', 'кв.м.'].map(unit => <option key={unit} value={unit}>{unit}</option>)}
+                                  </select>
+                                  <input type="number" min="0" step="0.01" value={service.base_cost} onChange={event => updateService(service.id, { base_cost: event.target.value })} placeholder="Базовая цена" className="h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50" />
+                                  <button type="button" onClick={() => removeService(service.id)} aria-label="Удалить услугу" className="h-9 w-9 rounded-lg border border-red-500/25 text-red-400/75 hover:bg-red-500/10 flex items-center justify-center"><Trash2 className="w-4 h-4" /></button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {missingPrices.length > 0 && (
+                          <div className="rounded-xl border border-yellow-500/25 bg-yellow-500/5 p-3 space-y-2">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-yellow-300">
+                              {canOverrideCommercial ? 'Разовые цены для этого КП' : 'Нет действующих цен в каталоге'}
+                            </div>
+                            {missingPrices.map(item => {
+                              const override = internalQuote.config.overrides.find(row => row.sku === item.sku);
+                              return (
+                                <div key={item.sku} className={`grid gap-2 items-center ${canOverrideCommercial ? 'grid-cols-[minmax(160px,1fr)_120px_minmax(180px,1fr)]' : 'grid-cols-1'}`}>
+                                  <div className="text-xs"><span className="font-mono text-yellow-200">{item.sku}</span><span className="text-fg/40"> · {item.name} · {item.unit}</span></div>
+                                  {canOverrideCommercial && (
+                                    <>
+                                      <input type="number" min="0" step="0.01" value={override?.cost || ''} onChange={event => updateMissingPriceOverride(item.sku, { cost: event.target.value })} placeholder="Цена" className="h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50" />
+                                      <input value={override?.comment || ''} onChange={event => updateMissingPriceOverride(item.sku, { comment: event.target.value })} placeholder="Обязательное обоснование" className="h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50" />
+                                    </>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {canOverrideMargin && commercialWarnings.some(warning => warning.toLowerCase().includes('минималь')) && (
+                          <label className="block space-y-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-red-300">Обоснование исключения по минимальной цене</span>
+                            <input
+                              value={internalQuote.config.margin_override_comment}
+                              onChange={event => patchCommercialConfig({ margin_override_comment: event.target.value })}
+                              placeholder="Комментарий обязателен для разрешения экспорта"
+                              className="w-full h-9 rounded-lg bg-black/15 border border-red-500/25 px-2 text-xs outline-none focus:border-red-400/60"
+                            />
+                          </label>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            )}
+
+            <div className="overflow-y-auto bg-gray-100" style={{ height: isCommercialDocument ? 'min(40vh, 520px)' : hasDocumentEditor ? 'calc(90vh - 295px)' : 'calc(90vh - 130px)' }}>
               {isPreviewLoading ? (
                 <div className="h-full flex items-center justify-center bg-gray-100">
                   <Loader2 className="w-8 h-8 text-gray-500 animate-spin" />
@@ -632,17 +1011,17 @@ export default function ProjectDocumentModal({
               <div className="flex items-center gap-2 flex-wrap justify-end">
                 {([
                   ['pdf', 'PDF', Download],
-                  ...(isPaintDocument || docType === 'glass' || docType === 'hardware_order'
-                    ? [
-                      ['docx', 'Word', FileText],
-                      ['xlsx', 'Excel', FileSpreadsheet],
-                    ] as const
+                  ...(isPaintDocument || docType === 'glass' || docType === 'hardware_order' || isCommercialDocument
+                    ? [['docx', 'Word', FileText] as const]
+                    : []),
+                  ...(isPaintDocument || docType === 'glass' || docType === 'hardware_order' || isDeliveryDocument
+                    ? [['xlsx', 'Excel', FileSpreadsheet] as const]
                     : []),
                 ] as const).map(([format, label, Icon]) => (
                   <button
                     key={format}
                     onClick={() => handleDownload(format)}
-                    disabled={downloadingFormat !== null}
+                    disabled={downloadingFormat !== null || (isCommercialDocument && !quote?.export_allowed)}
                     className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent/15 hover:bg-accent/25 text-accent border border-accent/30 font-bold transition-all disabled:opacity-50 text-sm"
                   >
                     {downloadingFormat === format

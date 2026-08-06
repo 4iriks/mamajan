@@ -7,12 +7,13 @@ import hashlib
 import json
 from math import ceil
 import re
+from types import SimpleNamespace
 from typing import Iterable
 
 from jinja2 import Environment, FileSystemLoader
 
 from engine.book_calc import calculate_book
-from engine.glass_types import default_glass_type
+from engine.glass_types import default_glass_type, normalize_glass_type
 from engine.lift_calc import PENOPLEX_20MM, calculate_lift
 from engine.pdf import TEMPLATES_DIR, _img_b64, glass_mm
 from engine.slide_calc import calculate_slide
@@ -593,18 +594,19 @@ def _build_glass_rows(
                 row["area"] = round(width * height * row["qty"] / 1_000_000, 3)
             continue
 
+        glass_type = normalize_glass_type(item.calc.glass_type, system)
         for glass_index, glass in enumerate(
             _expand_glass_for_order(item.section, item.calc), start=1
         ):
             width = glass_mm(glass.width_mm)
             height = glass_mm(glass.height_mm)
             note = glass.note
-            key = (item.calc.glass_type, width, height, note)
+            key = (glass_type, width, height, note)
             row = grouped.setdefault(
                 key,
                 {
                     "markings": [],
-                    "glass_type": item.calc.glass_type,
+                    "glass_type": glass_type,
                     "width": width,
                     "height": height,
                     "qty": 0,
@@ -871,7 +873,7 @@ def _build_delivery_glass_rows(
         section_rows: dict[tuple, dict] = {}
         if system == "СЛАЙД":
             calc = calculate_slide(section)
-            glass_type = calc.glass_type
+            glass_type = normalize_glass_type(calc.glass_type, system)
             color = _section_color(section, calc)
             for glass in _expand_glass_for_order(section, calc):
                 width = glass_mm(glass.width_mm)
@@ -1601,6 +1603,7 @@ def build_project_document_context(
     project: object,
     sections: Iterable[object],
     doc_type: str,
+    quote: dict | None = None,
 ) -> dict:
     if doc_type not in DOC_TITLES:
         raise ValueError("unknown project document type")
@@ -1609,6 +1612,28 @@ def build_project_document_context(
         return _build_delivery_context(project, sections)
     if doc_type == "hardware_order":
         return _build_hardware_order_context(project, sections)
+    if doc_type == "commercial" and quote is not None:
+        document_warnings = list(quote.get("warnings") or [])
+        if quote.get("stale"):
+            document_warnings.insert(
+                0,
+                "Расчёт устарел: проект или каталог изменён после фиксации КП.",
+            )
+        quote_project = quote.get("project") if isinstance(quote, dict) else None
+        frozen_project = (
+            SimpleNamespace(**quote_project)
+            if isinstance(quote_project, dict)
+            else project
+        )
+        return {
+            "doc_type": "commercial",
+            "title": DOC_TITLES["commercial"],
+            "project": frozen_project,
+            "sections": [],
+            "commercial_rows": list(quote.get("lines") or []),
+            "commercial_quote": quote,
+            "document_warnings": document_warnings,
+        }
 
     section_rows = list(sections)
     excluded_book_sections = [
@@ -1657,8 +1682,9 @@ def render_project_document_html(
     sections: Iterable[object],
     doc_type: str,
     is_pdf: bool = False,
+    quote: dict | None = None,
 ) -> str:
-    context = build_project_document_context(project, sections, doc_type)
+    context = build_project_document_context(project, sections, doc_type, quote=quote)
     context["is_pdf"] = is_pdf
     template_name = {
         "delivery": "delivery_note.html",

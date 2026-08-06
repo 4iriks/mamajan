@@ -1488,6 +1488,265 @@ def _build_hardware_order_xlsx(context: dict) -> bytes:
     return output.getvalue()
 
 
+def _build_delivery_xlsx(context: dict) -> bytes:
+    """Build the editable, image-free delivery note on a single worksheet."""
+    output = io.BytesIO()
+    workbook = xlsxwriter.Workbook(output, {"in_memory": True})
+    project = context["project"]
+    delivery = context["delivery"]
+    project_number = str(getattr(project, "number", "") or "")
+    workbook.set_properties(
+        {
+            "title": f"Накладная {project_number}",
+            "subject": "Комплектность отгрузки",
+            "company": "Raluma",
+        }
+    )
+    formats = _formats(workbook)
+    border = {"border": 1, "border_color": "#4D565B"}
+    detail = workbook.add_format(
+        {
+            "font_name": "Arial",
+            "font_size": 9,
+            "valign": "vcenter",
+            "text_wrap": True,
+            **border,
+        }
+    )
+    detail_bold = workbook.add_format(
+        {
+            "font_name": "Arial",
+            "font_size": 9,
+            "bold": True,
+            "valign": "vcenter",
+            "text_wrap": True,
+            **border,
+        }
+    )
+    quantity = workbook.add_format(
+        {
+            "font_name": "Arial",
+            "font_size": 9,
+            "bold": True,
+            "align": "center",
+            "valign": "vcenter",
+            "num_format": "0.###",
+            **border,
+        }
+    )
+    signature = workbook.add_format(
+        {
+            "font_name": "Arial",
+            "font_size": 9,
+            "valign": "bottom",
+            "text_wrap": True,
+        }
+    )
+
+    worksheet = workbook.add_worksheet("Накладная")
+    _setup_sheet(worksheet, landscape=False, paper=9)
+    worksheet.set_header("")
+    worksheet.set_footer("&LНакладная&CСтраница &P из &N&R&D")
+    worksheet.set_margins(0.3, 0.3, 0.35, 0.4)
+    for column, width in enumerate((6, 14, 22, 55, 13, 14)):
+        worksheet.set_column(column, column, width)
+
+    worksheet.merge_range(
+        0,
+        0,
+        0,
+        5,
+        f"НАКЛАДНАЯ № {project_number}",
+        formats["title"],
+    )
+    worksheet.set_row(0, 28)
+    worksheet.merge_range(
+        1,
+        0,
+        1,
+        2,
+        "Исполнитель: ООО «ПРОЗРАЧНЫЕ РЕШЕНИЯ»",
+        detail_bold,
+    )
+    worksheet.merge_range(
+        1,
+        3,
+        1,
+        5,
+        f"Дата: {delivery.get('dateText', '')}",
+        detail_bold,
+    )
+
+    detail_rows = (
+        ("Заказчик", str(getattr(project, "customer", "") or "")),
+        ("Примечание", str(delivery.get("note") or "")),
+        ("Контактное лицо", str(delivery.get("contact") or "")),
+        ("Доставка, разгрузка и монтаж", str(delivery.get("delivery") or "")),
+    )
+    row = 2
+    for label, value in detail_rows:
+        worksheet.merge_range(row, 0, row, 1, label, formats["label"])
+        worksheet.merge_range(row, 2, row, 5, value, detail)
+        worksheet.set_row(row, 21 if value else 18)
+        row += 1
+
+    stages = int(delivery.get("productionStages") or 1)
+    current_stage = int(delivery.get("currentStage") or 1)
+    stage_text = "Одна отгрузка" if stages == 1 else f"Этап {current_stage} из {stages}"
+    worksheet.merge_range(row, 0, row, 5, stage_text, formats["bar"])
+    worksheet.set_row(row, 19)
+    row += 1
+
+    headers = (
+        "№",
+        "Раздел",
+        "Артикул / маркировка",
+        "Наименование, размеры и примечания",
+        "Кол-во, шт.",
+        "Кол-во мест",
+    )
+    header_row = row
+    for column, header in enumerate(headers):
+        worksheet.write(row, column, header, formats["header"])
+    worksheet.set_row(row, 30)
+    worksheet.repeat_rows(0, row)
+    worksheet.freeze_panes(row + 1, 0)
+    row += 1
+    data_start_row = row
+    item_number = 1
+    calculated_total = 0.0
+
+    def write_item(
+        section_name: str,
+        article: str,
+        name: str,
+        details_text: str,
+        qty: object,
+        places: object,
+    ) -> None:
+        nonlocal row, item_number, calculated_total
+        try:
+            numeric_qty = float(qty or 0)
+        except (TypeError, ValueError):
+            numeric_qty = 0.0
+        worksheet.write_number(row, 0, item_number, formats["center"])
+        worksheet.write(row, 1, section_name, formats["center"])
+        worksheet.write(row, 2, article, formats["center_bold"])
+        text = name if not details_text else f"{name}\n{details_text}"
+        worksheet.write(row, 3, text, detail_bold if name else detail)
+        worksheet.write_number(row, 4, numeric_qty, quantity)
+        worksheet.write(row, 5, str(places or ""), formats["center"])
+        worksheet.set_row(row, max(24, 16 * (text.count("\n") + 1)))
+        calculated_total += numeric_qty
+        item_number += 1
+        row += 1
+
+    for item in context.get("delivery_item1_rows") or []:
+        if item.get("kind") == "construction":
+            dimensions = []
+            for dimension in item.get("dimensions") or []:
+                value = f"{dimension.get('size', '')} — {dimension.get('qty', 0)} шт."
+                threshold = str(dimension.get("threshold") or "")
+                if threshold and item.get("threshold") == "Пороги согласно ТЗ":
+                    value += f" — {threshold}"
+                dimensions.append(value)
+            meta = ", ".join(
+                value
+                for value in (
+                    str(item.get("profile_set_name") or ""),
+                    str(item.get("color") or ""),
+                    str(item.get("threshold") or ""),
+                )
+                if value
+            )
+            details_text = "\n".join(filter(None, (meta, *dimensions)))
+            write_item(
+                "Конструкция",
+                "",
+                str(item.get("name") or ""),
+                details_text,
+                item.get("qty"),
+                item.get("places"),
+            )
+            continue
+
+        glass_rows = item.get("rows") or []
+        for glass_index, glass in enumerate(glass_rows):
+            if glass.get("width") is None or glass.get("height") is None:
+                size = "Размеры согласно ТЗ"
+            else:
+                size = f"{glass.get('width')} × {glass.get('height')} мм"
+            note = str(glass.get("note") or "")
+            details_text = "\n".join(filter(None, (size, note, str(item.get("color") or ""))))
+            write_item(
+                "Стекло",
+                str(glass.get("marking") or ""),
+                str(glass.get("glass_type") or item.get("name") or ""),
+                details_text,
+                glass.get("qty"),
+                item.get("places") if glass_index == 0 else "",
+            )
+
+    for item in context.get("delivery_item2_rows") or []:
+        details_text = "\n".join(
+            filter(
+                None,
+                (
+                    f"Цвет: {item.get('color')}" if item.get("color") else "",
+                    f"Размер: {item.get('size')}" if item.get("size") else "",
+                    str(item.get("note") or ""),
+                ),
+            )
+        )
+        write_item(
+            "Фурнитура",
+            str(item.get("article") or ""),
+            str(item.get("name") or ""),
+            details_text,
+            item.get("qty"),
+            item.get("places"),
+        )
+
+    if row == data_start_row:
+        worksheet.merge_range(row, 0, row, 3, "Позиции для отгрузки не найдены", detail)
+        worksheet.write_number(row, 4, 0, quantity)
+        worksheet.write_blank(row, 5, None, formats["center"])
+        row += 1
+
+    worksheet.merge_range(row, 0, row, 3, "ИТОГО", formats["total"])
+    if row > data_start_row:
+        worksheet.write_formula(
+            row,
+            4,
+            f"=SUM(E{data_start_row + 1}:E{row})",
+            formats["total"],
+            calculated_total,
+        )
+    else:
+        worksheet.write_number(row, 4, 0, formats["total"])
+    worksheet.write_blank(row, 5, None, formats["total"])
+    row += 2
+
+    worksheet.merge_range(
+        row,
+        0,
+        row,
+        5,
+        "Изделия и комплектацию принял. Претензий по качеству и количеству не имею.",
+        signature,
+    )
+    worksheet.set_row(row, 24)
+    row += 2
+    worksheet.merge_range(row, 0, row, 2, "Исполнитель: __________________ / __________________", signature)
+    worksheet.merge_range(row, 3, row, 5, "Заказчик: __________________ / __________________", signature)
+    worksheet.set_row(row, 30)
+
+    worksheet.autofilter(header_row, 0, max(header_row, row - 4), 5)
+    worksheet.print_area(0, 0, row, 5)
+    workbook.close()
+    return output.getvalue()
+
+
 def build_project_xlsx(
     project: object,
     sections: Iterable[object],
@@ -1500,6 +1759,8 @@ def build_project_xlsx(
         return _build_paint_xlsx(context)
     if doc_type == "hardware_order":
         return _build_hardware_order_xlsx(context)
+    if doc_type == "delivery":
+        return _build_delivery_xlsx(context)
     raise ValueError(
-        "Excel export is available only for glass, paint and hardware order documents"
+        "Excel export is available only for glass, paint, hardware order and delivery documents"
     )

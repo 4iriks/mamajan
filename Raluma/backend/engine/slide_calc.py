@@ -7,7 +7,7 @@
 from dataclasses import dataclass, field
 from math import ceil
 
-from engine.glass_types import SLIDE_DEFAULT_GLASS_TYPE
+from engine.glass_types import SLIDE_DEFAULT_GLASS_TYPE, normalize_slide_glass_type
 from engine.legacy_values import normalize_center_handle_offset, normalize_handle_offset
 from engine.profile_catalog import apply_profile_catalog
 
@@ -622,7 +622,9 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
 
     result.color_text = _format_color_text(painting_type, ral_color, threshold)
 
-    result.glass_type = _get(section, "glass_type", None) or DEFAULT_GLASS_TYPE
+    result.glass_type = normalize_slide_glass_type(
+        _get(section, "glass_type", None) or DEFAULT_GLASS_TYPE
+    )
     result.threshold_text = _threshold_display_name(
         rails, std, threshold, painting_type
     )
@@ -1389,7 +1391,9 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
 
     result.color_text = _format_color_text(painting_type, ral_color, threshold)
 
-    result.glass_type = section.glass_type or DEFAULT_GLASS_TYPE
+    result.glass_type = normalize_slide_glass_type(
+        section.glass_type or DEFAULT_GLASS_TYPE
+    )
     result.threshold_text = _threshold_display_name(
         rails, std, threshold, painting_type
     )

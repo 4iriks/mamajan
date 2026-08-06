@@ -1,6 +1,7 @@
 import type { ExtraComponent, Section, SystemType } from './types';
 import type { SectionOut } from '../../api/projects';
 import { bookExtraDoorPanelOptions, normalizeBookSystem } from '../../constants/book';
+import { normalizeGlassType } from '../../constants/glass';
 
 function parseExtraComponents(raw?: string): ExtraComponent[] {
   if (!raw) return [];
@@ -150,7 +151,7 @@ export function apiToLocal(s: SectionOut): Section {
     height: s.height,
     panels: s.panels,
     quantity: s.quantity,
-    glassType: s.glass_type,
+    glassType: normalizeGlassType(s.glass_type, rawSystem || 'СЛАЙД'),
     paintingType: s.painting_type as Section['paintingType'],
     ralColor: s.ral_color,
     cornerLeft: s.corner_left,
@@ -255,7 +256,7 @@ export function localToApi(s: Section, order: number): Omit<SectionOut, 'id' | '
     name: s.name, order,
     system: s.system,
     width: s.width, height: s.height, panels: s.panels, quantity: s.quantity,
-    glass_type: s.glassType, painting_type: s.paintingType,
+    glass_type: normalizeGlassType(s.glassType, s.system), painting_type: s.paintingType,
     ral_color: s.ralColor, corner_left: s.cornerLeft, corner_right: s.cornerRight,
     external_width: s.externalWidth,
     rails: s.rails, threshold: s.threshold, first_panel_inside: s.firstPanelInside,

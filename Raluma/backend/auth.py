@@ -79,6 +79,20 @@ def require_superadmin(
     return current_user
 
 
+def require_price_manager(
+    current_user: models.User = Depends(get_current_user),
+) -> models.User:
+    """Доступ к себестоимости, версиям цен и дилерским условиям."""
+    if current_user.role in ("admin", "superadmin"):
+        return current_user
+    if current_user.role == "user" and bool(current_user.can_manage_prices):
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Недостаточно прав для управления ценами",
+    )
+
+
 def generate_password(length: int = 12) -> str:
     alphabet = string.ascii_letters + string.digits + "!@#$%"
     return "".join(secrets.choice(alphabet) for _ in range(length))

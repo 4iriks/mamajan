@@ -15,7 +15,9 @@ from api import (
     calculations,
     catalog,
     documents,
+    pricing,
     projects,
+    quotes,
     section_templates,
     sections,
     users,
@@ -81,6 +83,8 @@ app.include_router(projects.router)
 app.include_router(sections.router)
 app.include_router(documents.router)
 app.include_router(catalog.router)
+app.include_router(pricing.router)
+app.include_router(quotes.router)
 app.include_router(section_templates.router)
 app.include_router(calculations.router)
 

@@ -8,6 +8,7 @@ interface AuthState {
   clearAuth: () => void;
   isAdmin: () => boolean;
   isSuperAdmin: () => boolean;
+  canManagePrices: () => boolean;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -30,4 +31,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   isSuperAdmin: () => get().user?.role === 'superadmin',
+  canManagePrices: () => {
+    const user = get().user;
+    return Boolean(
+      user && (
+        user.role === 'admin'
+        || user.role === 'superadmin'
+        || (user.role === 'user' && user.can_manage_prices)
+      )
+    );
+  },
 }));

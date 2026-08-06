@@ -30,12 +30,20 @@ from engine.office_common import drawing_files_for_sections
 from engine.slide_calc import calculate_slide
 from engine.pdf import append_pdf_drawings, render_preview, render_pdf_html, generate_pdf
 from engine.project_documents import DOC_TITLES, render_project_document_html
+from engine.quote_pricing import (
+    QuoteExportBlocked,
+    draft_quote_for_word,
+    freeze_quote,
+    public_quote,
+)
 
 router = APIRouter(prefix="/api/projects", tags=["documents"])
 
 ADMIN_ROLES = ("admin", "superadmin")
 PRODUCTION_SHEET_SYSTEMS = {"СЛАЙД", "ЛИФТ"}
-OFFICE_PROJECT_DOCUMENTS = {"glass", "paint", "hardware_order"}
+DOCX_PROJECT_DOCUMENTS = {"glass", "paint", "hardware_order"}
+XLSX_PROJECT_DOCUMENTS = {"glass", "paint", "hardware_order", "delivery"}
+OFFICE_PROJECT_DOCUMENTS = DOCX_PROJECT_DOCUMENTS | XLSX_PROJECT_DOCUMENTS
 PRODUCTION_PROJECT_DOCUMENTS = {"glass", "paint", "delivery", "hardware_order"}
 OFFICE_MEDIA_TYPES = {
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -254,14 +262,19 @@ def _validate_project_doc_type(doc_type: str) -> str:
     return doc_type
 
 
-def _validate_office_project_doc_type(doc_type: str) -> str:
+def _validate_office_project_doc_type(doc_type: str, file_format: str) -> str:
     _validate_project_doc_type(doc_type)
-    if doc_type not in OFFICE_PROJECT_DOCUMENTS:
+    allowed = (
+        DOCX_PROJECT_DOCUMENTS
+        if file_format == "docx"
+        else XLSX_PROJECT_DOCUMENTS
+    )
+    if doc_type not in allowed:
         raise HTTPException(
             status_code=400,
             detail=(
-                "Word и Excel доступны для заказа стекла, заявки на покраску "
-                "и наряда-заказа на фурнитуру"
+                "Word доступен для заказа стекла, заявки на покраску и "
+                "наряда-заказа на фурнитуру; Excel — также для накладной"
             ),
         )
     return doc_type
@@ -294,10 +307,21 @@ def _build_project_office(
     sections,
     doc_type: str,
     file_format: str,
+    quote: dict | None = None,
 ) -> bytes:
     if file_format == "docx":
-        return build_project_docx(project, sections, doc_type)
+        return build_project_docx(project, sections, doc_type, quote=quote)
     return build_project_xlsx(project, sections, doc_type)
+
+
+def _quote_blocked(exc: QuoteExportBlocked) -> HTTPException:
+    return HTTPException(
+        status_code=409,
+        detail={
+            "message": "Экспорт КП заблокирован до устранения ошибок расчёта",
+            "quote": exc.public_payload,
+        },
+    )
 
 
 @router.post("/local/sections/preview", response_class=HTMLResponse)
@@ -322,6 +346,11 @@ def calculate_local_section(payload: LocalDocumentPayload):
 @router.post("/local/documents/{doc_type}/preview", response_class=HTMLResponse)
 def preview_local_project_document(doc_type: str, payload: LocalProjectDocumentPayload):
     doc_type = _validate_project_doc_type(doc_type)
+    if doc_type == "commercial":
+        raise HTTPException(
+            status_code=403,
+            detail="Гостю недоступны цены и коммерческое предложение",
+        )
     project, sections = _build_local_project_document_objects(payload)
     _ensure_book_project_documents_supported(doc_type, sections)
     html = render_project_document_html(project, sections, doc_type)
@@ -374,6 +403,11 @@ def download_local_project_document_pdf(
     payload: LocalProjectDocumentPayload,
 ):
     doc_type = _validate_project_doc_type(doc_type)
+    if doc_type == "commercial":
+        raise HTTPException(
+            status_code=403,
+            detail="Гостю недоступно коммерческое предложение",
+        )
     project, sections = _build_local_project_document_objects(payload)
     _ensure_book_project_documents_supported(doc_type, sections)
     html = render_project_document_html(project, sections, doc_type, is_pdf=True)
@@ -396,7 +430,7 @@ def _download_local_project_office(
     payload: LocalProjectDocumentPayload,
     file_format: str,
 ):
-    doc_type = _validate_office_project_doc_type(doc_type)
+    doc_type = _validate_office_project_doc_type(doc_type, file_format)
     project, sections = _build_local_project_document_objects(payload)
     _ensure_book_project_documents_supported(doc_type, sections)
     content = _build_project_office(
@@ -436,7 +470,13 @@ def preview_project_document(
     current_user = _get_user_by_token(token, db)
     project = _get_project_or_404(project_id, db, current_user)
     _ensure_book_project_documents_supported(doc_type, project.sections)
-    html = render_project_document_html(project, project.sections, doc_type)
+    quote = None
+    if doc_type == "commercial":
+        quote = public_quote(db, project)
+        db.commit()
+    html = render_project_document_html(
+        project, project.sections, doc_type, quote=quote
+    )
     return HTMLResponse(html)
 
 
@@ -450,10 +490,25 @@ def download_project_document_pdf(
     doc_type = _validate_project_doc_type(doc_type)
     project = _get_project_or_404(project_id, db, current_user)
     _ensure_book_project_documents_supported(doc_type, project.sections)
-    html = render_project_document_html(project, project.sections, doc_type, is_pdf=True)
+    quote = None
+    if doc_type == "commercial":
+        try:
+            quote = freeze_quote(db, project, current_user)
+        except QuoteExportBlocked as exc:
+            db.rollback()
+            raise _quote_blocked(exc) from exc
+    html = render_project_document_html(
+        project,
+        project.sections,
+        doc_type,
+        is_pdf=True,
+        quote=quote,
+    )
     pdf_bytes = generate_pdf(html)
     if doc_type == "glass":
         pdf_bytes = append_pdf_drawings(pdf_bytes, drawing_files_for_sections(project.sections))
+    if doc_type == "commercial":
+        db.commit()
     filename = f"{DOC_TITLES[doc_type]}_{project.number}.pdf"
     from urllib.parse import quote
 
@@ -472,14 +527,31 @@ def _download_project_office(
     db: Session,
     current_user: models.User,
 ):
-    doc_type = _validate_office_project_doc_type(doc_type)
+    if doc_type == "commercial":
+        if file_format != "docx":
+            raise HTTPException(
+                status_code=400,
+                detail="Excel-версия коммерческого предложения не поддерживается",
+            )
+        _validate_project_doc_type(doc_type)
+    else:
+        doc_type = _validate_office_project_doc_type(doc_type, file_format)
     project = _get_project_or_404(project_id, db, current_user)
     _ensure_book_project_documents_supported(doc_type, project.sections)
+    quote = None
+    if doc_type == "commercial":
+        try:
+            quote = draft_quote_for_word(db, project)
+            db.commit()
+        except QuoteExportBlocked as exc:
+            db.rollback()
+            raise _quote_blocked(exc) from exc
     content = _build_project_office(
         project,
         project.sections,
         doc_type,
         file_format,
+        quote=quote,
     )
     filename = f"{DOC_TITLES[doc_type]}_{project.number}.{file_format}"
     return _office_response(content, filename, file_format)

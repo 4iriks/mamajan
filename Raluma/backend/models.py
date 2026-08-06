@@ -6,6 +6,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     Text,
 )
@@ -35,6 +36,7 @@ class User(Base):
     dealer_inn = Column(String, nullable=True)
     dealer_discount_percent = Column(Float, nullable=True)
     dealer_notes = Column(Text, nullable=True)
+    can_manage_prices = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
@@ -79,6 +81,12 @@ class Project(Base):
         back_populates="project",
         cascade="all, delete-orphan",
         order_by="Section.order",
+    )
+    quote_state = relationship(
+        "ProjectQuoteState",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        uselist=False,
     )
 
 
@@ -240,3 +248,107 @@ class CatalogItem(Base):
     note = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    price_versions = relationship(
+        "CatalogPriceVersion",
+        back_populates="catalog_item",
+        cascade="all, delete-orphan",
+        order_by="CatalogPriceVersion.effective_from.desc()",
+    )
+
+
+class CatalogPriceVersion(Base):
+    """Неизменяемая версия цены каталога.
+
+    Старые ``CatalogItem.purchase_price`` и ``markup_percent`` остаются только
+    для обратной совместимости каталога и никогда не используются в КП.
+    """
+
+    __tablename__ = "catalog_price_versions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    catalog_item_id = Column(
+        Integer, ForeignKey("catalog_items.id"), nullable=False, index=True
+    )
+    cost = Column(Numeric(14, 2), nullable=False)
+    profile_markup_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    profile_discount_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    waste_markup_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    construction_markup_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    construction_discount_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    category = Column(String, nullable=False)
+    unit = Column(String, nullable=False)
+    min_margin_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    effective_from = Column(DateTime, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    reason = Column(Text, nullable=False)
+    rollback_of_id = Column(
+        Integer, ForeignKey("catalog_price_versions.id"), nullable=True
+    )
+
+    catalog_item = relationship("CatalogItem", back_populates="price_versions")
+
+
+class DealerPricingTerms(Base):
+    """Скрытые условия дилерского аккаунта для расчёта КП."""
+
+    __tablename__ = "dealer_pricing_terms"
+
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    dealer_markup_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    profile_discount_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    construction_discount_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    component_discount_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    service_discount_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+    updated_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+
+class PricingSettings(Base):
+    """Глобальные переключатели расчёта, одна строка с id=1."""
+
+    __tablename__ = "pricing_settings"
+
+    id = Column(Integer, primary_key=True, default=1)
+    include_waste_markup = Column(Boolean, default=False, nullable=False)
+    default_vat_rate = Column(Numeric(6, 3), default=20, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+    updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+
+class ProjectQuoteState(Base):
+    """Единственная актуальная редакция коммерческого предложения проекта."""
+
+    __tablename__ = "project_quote_states"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(
+        Integer, ForeignKey("projects.id"), nullable=False, unique=True, index=True
+    )
+    revision = Column(Integer, default=1, nullable=False)
+    status = Column(String, default="draft", nullable=False)  # draft | fixed
+    public_payload = Column(Text, default="{}", nullable=False)
+    internal_payload = Column(Text, default="{}", nullable=False)
+    services_payload = Column(Text, default="[]", nullable=False)
+    overrides_payload = Column(Text, default="[]", nullable=False)
+    vat_mode = Column(String, default="none", nullable=False)
+    vat_rate = Column(Numeric(6, 3), default=20, nullable=False)
+    validity_days = Column(Integer, default=14, nullable=False)
+    manufacturing_term = Column(String, default="", nullable=False)
+    payment_terms = Column(String, default="", nullable=False)
+    margin_override_comment = Column(Text, nullable=True)
+    source_signature = Column(String, default="", nullable=False)
+    source_project_updated_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+    fixed_at = Column(DateTime, nullable=True)
+    fixed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    project = relationship("Project", back_populates="quote_state")

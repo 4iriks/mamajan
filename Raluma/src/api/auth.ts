@@ -6,6 +6,7 @@ export interface UserMe {
   display_name: string;
   role: 'user' | 'dealer' | 'admin' | 'superadmin';
   customer: string | null;
+  can_manage_prices: boolean;
   is_active: boolean;
   created_at: string;
   last_login: string | null;

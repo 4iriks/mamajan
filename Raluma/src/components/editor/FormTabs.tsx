@@ -8,7 +8,11 @@ import {
   SEL,
 } from './types';
 import { Checkbox, ToggleGroup, RadioList, ProfileCheckbox, SectionDivider } from './FormInputs';
-import { defaultGlassType, glassTypeOptions } from '../../constants/glass';
+import {
+  defaultGlassType,
+  glassTypeOptions,
+  normalizeGlassType,
+} from '../../constants/glass';
 
 const CUSTOM_GLASS_OPTION = '__custom_glass__';
 
@@ -90,8 +94,9 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
                 if (!value) {
                   setIsCustomGlass(false);
                   update({ glassType: defaultGlassType(s.system) });
-                } else if (value !== s.glassType) {
-                  update({ glassType: value });
+                } else {
+                  const normalized = normalizeGlassType(value, s.system);
+                  if (normalized !== s.glassType) update({ glassType: normalized });
                 }
               }}
               className={INP}

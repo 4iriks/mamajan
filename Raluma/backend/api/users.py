@@ -87,6 +87,11 @@ def create_user(
         raise HTTPException(status_code=400, detail="Введите пароль")
     if db.query(models.User).filter(models.User.username == username).first():
         raise HTTPException(status_code=400, detail="Логин уже занят")
+    if data.can_manage_prices and data.role != "user":
+        raise HTTPException(
+            status_code=400,
+            detail="Управление ценами можно назначить только сотруднику",
+        )
     user = models.User(
         username=username,
         password_hash=hash_password(data.password),
@@ -104,6 +109,7 @@ def create_user(
         dealer_inn=_blank_to_none(data.dealer_inn),
         dealer_discount_percent=_validate_dealer_discount(data.dealer_discount_percent),
         dealer_notes=_blank_to_none(data.dealer_notes),
+        can_manage_prices=data.can_manage_prices,
         is_active=data.is_active,
     )
     db.add(user)
@@ -144,6 +150,14 @@ def update_user(
             raise HTTPException(status_code=400, detail="Неизвестная роль")
         if current_user.role == "admin" and next_role not in MANAGED_ROLES:
             raise HTTPException(status_code=403, detail="Нельзя повысить до admin")
+    effective_role = next_role or user.role
+    if updates.get("can_manage_prices") and effective_role != "user":
+        raise HTTPException(
+            status_code=400,
+            detail="Управление ценами можно назначить только сотруднику",
+        )
+    if next_role is not None and next_role != "user":
+        updates["can_manage_prices"] = False
     if "display_name" in updates:
         display_name = (updates["display_name"] or "").strip()
         if not display_name:

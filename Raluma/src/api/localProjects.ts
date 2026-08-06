@@ -1,5 +1,5 @@
 import type { ProjectFull, ProjectList, SectionOut } from './projects';
-import { defaultGlassType } from '../constants/glass';
+import { defaultGlassType, normalizeGlassType } from '../constants/glass';
 import { normalizeBookSystem } from '../constants/book';
 
 export const LOCAL_PROJECTS_KEY = 'raluma-local-projects-v1';
@@ -72,7 +72,10 @@ function normalizeSection(
     height: section.height ?? 2400,
     panels: section.panels ?? 3,
     quantity: section.quantity ?? 1,
-    glass_type: section.glass_type?.trim() || defaultGlassType(section.system ?? 'СЛАЙД'),
+    glass_type: normalizeGlassType(
+      section.glass_type?.trim() || defaultGlassType(section.system ?? 'СЛАЙД'),
+      section.system ?? 'СЛАЙД',
+    ),
     painting_type: section.painting_type ?? 'RAL стандарт',
     ral_color: section.ral_color ?? '9016 МАТОВЫЙ',
     corner_left: section.corner_left ?? false,

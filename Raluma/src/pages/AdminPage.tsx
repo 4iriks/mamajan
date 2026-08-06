@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Plus, Search, Edit2, Key, Trash2, X,
-  User, Shield, Crown, Check, RefreshCw, Copy, LayoutGrid, Users, Package, Building2
+  User, Shield, Crown, Check, RefreshCw, Copy, LayoutGrid, Users, Package, Building2,
+  BadgePercent,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import {
@@ -55,6 +56,7 @@ const emptyForm: UserCreate = {
   dealer_inn: '',
   dealer_discount_percent: 0,
   dealer_notes: '',
+  can_manage_prices: false,
   is_active: true,
 };
 
@@ -77,7 +79,7 @@ function UserDetails({ user }: { user: UserOut }) {
       <div>
         <div className="text-sm font-medium text-fg/80">{user.dealer_company || user.customer || '—'}</div>
         <div className="text-[11px] text-fg/35 mt-1">
-          {user.dealer_discount_percent ? `скидка ${user.dealer_discount_percent}%` : 'скидка не задана'}
+          Ценовые условия задаются в разделе «Ценообразование»
           {user.dealer_city ? ` · ${user.dealer_city}` : ''}
         </div>
       </div>
@@ -87,7 +89,10 @@ function UserDetails({ user }: { user: UserOut }) {
     return (
       <div>
         <div className="text-sm font-medium text-fg/80">{user.position || 'Должность не указана'}</div>
-        <div className="text-[11px] text-fg/35 mt-1">{user.employee_number ? `ID ${user.employee_number}` : 'ID не указан'}</div>
+        <div className="text-[11px] text-fg/35 mt-1">
+          {user.employee_number ? `ID ${user.employee_number}` : 'ID не указан'}
+          {user.can_manage_prices ? ' · управление ценами' : ''}
+        </div>
       </div>
     );
   }
@@ -179,12 +184,16 @@ export default function AdminPage() {
           dealer_inn: form.dealer_inn || null,
           dealer_discount_percent: form.dealer_discount_percent || 0,
           dealer_notes: form.dealer_notes || null,
+          can_manage_prices: Boolean(form.can_manage_prices && form.role === 'user'),
           is_active: form.is_active,
         };
         if (form.password) upd.password = form.password;
         await updateUser(editingUser.id, upd);
       } else {
-        await createUser(form);
+        await createUser({
+          ...form,
+          can_manage_prices: Boolean(form.can_manage_prices && form.role === 'user'),
+        });
       }
       setIsEditOpen(false);
       await loadUsers();
@@ -292,11 +301,18 @@ export default function AdminPage() {
             <div className="h-6 w-px bg-tint/25" />
             <h1 className="text-2xl font-bold">Администрирование</h1>
           </div>
-          <button onClick={() => navigate('/admin/catalog/hardware')}
-            className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-tint/25 hover:bg-tint/40 text-accent font-bold border border-tint/35 transition-all">
-            <Package className="w-4 h-4" />
-            Каталог фурнитуры
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => navigate('/admin/pricing')}
+              className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-primary hover:bg-primary-h text-white font-bold border border-primary/40 transition-all">
+              <BadgePercent className="w-4 h-4" />
+              Ценообразование
+            </button>
+            <button onClick={() => navigate('/admin/catalog/hardware')}
+              className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-tint/25 hover:bg-tint/40 text-accent font-bold border border-tint/35 transition-all">
+              <Package className="w-4 h-4" />
+              Каталог
+            </button>
+          </div>
         </div>
 
         {/* Toolbar */}
@@ -502,18 +518,8 @@ export default function AdminPage() {
                           placeholder="ООО Прозрачные решения"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-accent/50 ml-1">Скидка</label>
-                        <div className="relative">
-                          <input type="number" value={form.dealer_discount_percent ?? 0}
-                            onChange={e => setForm(f => ({ ...f, dealer_discount_percent: Number(e.target.value) }))}
-                            className={INPUT_CLS + ' pr-12 font-mono'}
-                            min={0}
-                            max={100}
-                            step="0.1"
-                          />
-                          <span className="absolute right-5 top-1/2 -translate-y-1/2 text-xs font-bold text-fg/35">%</span>
-                        </div>
+                      <div className="rounded-2xl border border-tint/25 bg-tint/10 px-5 py-4 text-sm text-fg/60">
+                        Скрытая наценка и четыре категорийные скидки настраиваются отдельно в разделе «Ценообразование».
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -579,6 +585,22 @@ export default function AdminPage() {
                         placeholder="Условия, особенности оплаты, логистика..."
                       />
                     </div>
+                  </div>
+                )}
+
+                {form.role === 'user' && (
+                  <div className="flex items-center justify-between rounded-2xl border border-tint/25 bg-tint/10 px-5 py-4">
+                    <div>
+                      <div className="text-sm font-bold text-fg/85">Управление ценами</div>
+                      <div className="mt-1 text-xs text-fg/45">Себестоимость, версии цен, условия дилеров и исключения КП</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, can_manage_prices: !f.can_manage_prices }))}
+                      className={`relative h-6 w-12 rounded-full transition-colors ${form.can_manage_prices ? 'bg-primary' : 'bg-hi/15'}`}
+                    >
+                      <span className={`absolute top-1 h-4 w-4 rounded-full bg-hi shadow transition-transform ${form.can_manage_prices ? 'translate-x-7' : 'translate-x-1'}`} />
+                    </button>
                   </div>
                 )}
 

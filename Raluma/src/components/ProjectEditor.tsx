@@ -691,7 +691,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             { name: 'Накладная', icon: ClipboardList, projectDoc: 'delivery' as const },
             { name: 'Заказ стекла', icon: WindowIcon, projectDoc: 'glass' as const },
             { name: 'Заявка на покраску', icon: Palette, projectDoc: 'paint' as const },
-          ].map(doc => (
+          ].filter(doc => Boolean(token) || doc.projectDoc !== 'commercial').map(doc => (
             <button
               key={doc.name}
               onClick={() => doc.projectDoc ? openProjectDocument(doc.projectDoc, doc.name) : openPreview(doc.name)}

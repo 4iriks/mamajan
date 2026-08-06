@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -48,7 +50,7 @@ def create_section(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    _get_project_or_403(project_id, db, current_user)
+    project = _get_project_or_403(project_id, db, current_user)
     # auto order: use max to avoid collisions after deletions
     max_order = (
         db.query(func.max(models.Section.order))
@@ -59,6 +61,7 @@ def create_section(
     section_data["order"] = (max_order or 0) + 1
     section = models.Section(project_id=project_id, **section_data)
     db.add(section)
+    project.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(section)
     return section
@@ -72,7 +75,7 @@ def update_section(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    _get_project_or_403(project_id, db, current_user)
+    project = _get_project_or_403(project_id, db, current_user)
     section = (
         db.query(models.Section)
         .filter(
@@ -86,6 +89,7 @@ def update_section(
     section_data = normalize_section_data_values(data.model_dump())
     for field, value in section_data.items():
         setattr(section, field, value)
+    project.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(section)
     return section
@@ -98,7 +102,7 @@ def delete_section(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    _get_project_or_403(project_id, db, current_user)
+    project = _get_project_or_403(project_id, db, current_user)
     section = (
         db.query(models.Section)
         .filter(
@@ -110,4 +114,5 @@ def delete_section(
     if not section:
         raise HTTPException(status_code=404, detail="Секция не найдена")
     db.delete(section)
+    project.updated_at = datetime.utcnow()
     db.commit()

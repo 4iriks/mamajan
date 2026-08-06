@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import io
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Iterable
 
 from docx import Document
 from docx.enum.section import WD_ORIENT
-from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_ROW_HEIGHT_RULE
+from docx.enum.table import (
+    WD_CELL_VERTICAL_ALIGNMENT,
+    WD_ROW_HEIGHT_RULE,
+    WD_TABLE_ALIGNMENT,
+)
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -35,6 +40,7 @@ from engine.office_section_data import (
 )
 from engine.pdf import section_extra_components
 from engine.project_documents import build_project_document_context
+from engine.quote_diagrams import render_quote_room_png, render_quote_top_png
 
 
 CHECKLIST_ROWS = [
@@ -937,6 +943,327 @@ def _add_project_document_warnings(document: Document, context: dict) -> None:
         run.font.color.rgb = RGBColor.from_string(RED)
 
 
+def _rubles(value: Any) -> str:
+    try:
+        rounded = int(Decimal(str(value)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    except Exception:
+        rounded = 0
+    return f"{rounded:,}".replace(",", " ")
+
+
+def _build_commercial_docx(context: dict) -> bytes:
+    document = Document()
+    _configure_document(document, landscape=True)
+    quote = context["commercial_quote"]
+    _project_header(document, "Коммерческое предложение", context["project"])
+
+    status = document.add_paragraph()
+    status.paragraph_format.space_before = Pt(3)
+    status.paragraph_format.space_after = Pt(3)
+    status_run = status.add_run(
+        f"Редакция {quote['revision']} · "
+        + ("зафиксировано" if quote.get("status") == "fixed" else "черновой расчёт")
+    )
+    status_run.font.name = "Arial"
+    status_run.font.size = Pt(8)
+    status_run.font.color.rgb = RGBColor.from_string("666666")
+    _add_project_document_warnings(document, context)
+
+    construction_rows = [
+        row
+        for row in quote.get("lines") or []
+        if isinstance(row.get("section_details"), dict)
+    ]
+    if construction_rows:
+        technical_label = document.add_paragraph()
+        technical_label.paragraph_format.space_before = Pt(3)
+        technical_label.paragraph_format.space_after = Pt(2)
+        technical_label_run = technical_label.add_run("ТЕХНИЧЕСКИЕ ХАРАКТЕРИСТИКИ")
+        technical_label_run.bold = True
+        technical_label_run.font.name = "Arial"
+        technical_label_run.font.size = Pt(9)
+        technical = document.add_table(rows=1, cols=9)
+        technical_headers = (
+            "Изделие",
+            "Габарит, мм",
+            "Панели",
+            "Кол-во",
+            "Стекло, м²",
+            "Цвет",
+            "Система",
+            "Тип стекла",
+            "Порог",
+        )
+        technical_widths = (38, 25, 15, 15, 20, 29, 24, 70, 53)
+        for index, header in enumerate(technical_headers):
+            _set_cell_text(
+                technical.cell(0, index),
+                header,
+                bold=True,
+                size=6.4,
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+            )
+            _set_cell_width(technical.cell(0, index), technical_widths[index])
+        for line in construction_rows:
+            details = line["section_details"]
+            row = technical.add_row()
+            values = (
+                line.get("name", ""),
+                f"{details.get('width_mm', '')} × {details.get('height_mm', '')}",
+                details.get("panels", ""),
+                details.get("quantity", ""),
+                details.get("glass_area_m2", ""),
+                details.get("color", ""),
+                f"{details.get('system', '')} · {details.get('rails', '')} р.",
+                details.get("glass_type", ""),
+                details.get("threshold", ""),
+            )
+            for index, value in enumerate(values):
+                _set_cell_text(
+                    row.cells[index],
+                    value,
+                    bold=index == 0,
+                    size=6.5,
+                    align=(
+                        WD_ALIGN_PARAGRAPH.CENTER
+                        if index in {1, 2, 3, 4, 6}
+                        else None
+                    ),
+                )
+                _set_cell_width(row.cells[index], technical_widths[index])
+        _style_table(technical)
+
+        spacer = document.add_paragraph()
+        spacer.paragraph_format.space_after = Pt(2)
+
+    table = document.add_table(rows=1, cols=8)
+    headers = (
+        "№",
+        "Изделие / услуга",
+        "Цена до скидки, ₽",
+        "Скидка, %",
+        "Сумма скидки, ₽",
+        "Цена, ₽",
+        "Кол-во",
+        "Итого, ₽",
+    )
+    widths = (7, 78, 34, 22, 34, 32, 30, 52)
+    for index, header in enumerate(headers):
+        _set_cell_text(
+            table.cell(0, index),
+            header,
+            bold=True,
+            size=6.8,
+            align=WD_ALIGN_PARAGRAPH.CENTER,
+        )
+        _set_cell_width(table.cell(0, index), widths[index])
+    for row_index, row_data in enumerate(quote.get("lines") or [], start=1):
+        row = table.add_row()
+        values = (
+            row_index,
+            row_data.get("name", ""),
+            _rubles(row_data.get("document_unit_price_before_discount")),
+            row_data.get("discount_percent", "0"),
+            _rubles(row_data.get("document_unit_discount_amount")),
+            _rubles(row_data.get("document_unit_final_price")),
+            f"{row_data.get('quantity', '0')} {row_data.get('unit', '')}".strip(),
+            _rubles(row_data.get("document_line_total")),
+        )
+        for index, value in enumerate(values):
+            _set_cell_text(
+                row.cells[index],
+                value,
+                bold=index in {1, 7},
+                size=7,
+                align=(
+                    None
+                    if index == 1
+                    else WD_ALIGN_PARAGRAPH.RIGHT
+                    if index in {2, 4, 5, 7}
+                    else WD_ALIGN_PARAGRAPH.CENTER
+                ),
+            )
+            _set_cell_width(row.cells[index], widths[index])
+    _style_table(table)
+
+    totals = quote["totals"]
+    totals_table = document.add_table(rows=0, cols=2)
+    totals_rows = [
+        ("До скидки", f"{_rubles(totals['document_before_discount'])} ₽"),
+        ("Скидка", f"−{_rubles(totals['document_discount'])} ₽"),
+    ]
+    vat = quote.get("vat") or {}
+    if vat.get("mode") == "included":
+        totals_rows.append(
+            (
+                f"В том числе НДС {vat.get('rate', '0')}%",
+                f"{_rubles(vat.get('document_amount', vat.get('amount', 0)))} ₽",
+            )
+        )
+    elif vat.get("mode") == "on_top":
+        totals_rows.append(
+            (
+                f"НДС {vat.get('rate', '0')}% сверху",
+                f"{_rubles(vat.get('document_amount', vat.get('amount', 0)))} ₽",
+            )
+        )
+    else:
+        totals_rows.append(("НДС", "Без НДС"))
+    totals_rows.append(
+        ("ИТОГО", f"{_rubles(totals['document_grand_total'])} ₽")
+    )
+    for row_index, (label, value) in enumerate(totals_rows):
+        row = totals_table.add_row()
+        _set_cell_text(
+            row.cells[0],
+            label,
+            bold=row_index == len(totals_rows) - 1,
+            size=8.5,
+        )
+        _set_cell_text(
+            row.cells[1],
+            value,
+            bold=row_index == len(totals_rows) - 1,
+            size=8.5,
+            align=WD_ALIGN_PARAGRAPH.RIGHT,
+        )
+        _set_cell_width(row.cells[0], 58)
+        _set_cell_width(row.cells[1], 32)
+    totals_table.alignment = WD_TABLE_ALIGNMENT.RIGHT
+    _style_table(totals_table, header_rows=0)
+
+    terms = document.add_paragraph()
+    terms.paragraph_format.space_before = Pt(5)
+    terms.paragraph_format.space_after = Pt(0)
+    terms_lines = (
+        f"Предложение действительно до: {quote.get('valid_until', '')}",
+        f"Срок изготовления: {quote.get('manufacturing_term') or 'по согласованию'}",
+        f"Условия оплаты: {quote.get('payment_terms') or 'по согласованию'}",
+    )
+    for index, text in enumerate(terms_lines):
+        if index:
+            terms.add_run("\n")
+        run = terms.add_run(text)
+        run.font.name = "Arial"
+        run.font.size = Pt(9)
+
+    for line in construction_rows:
+        details = line["section_details"]
+        document.add_page_break()
+        heading = document.add_paragraph()
+        heading.paragraph_format.space_after = Pt(2)
+        heading_run = heading.add_run(str(line.get("name") or "Секция").upper())
+        heading_run.bold = True
+        heading_run.font.name = "Arial"
+        heading_run.font.size = Pt(14)
+
+        meta = document.add_paragraph()
+        meta.paragraph_format.space_after = Pt(4)
+        meta_text = (
+            f"{details.get('width_mm', '')} × {details.get('height_mm', '')} мм · "
+            f"{details.get('panels', '')} пан. · {details.get('quantity', '')} изд. · "
+            f"{details.get('system', '')}, {details.get('rails', '')} рельс. · "
+            f"{details.get('glass_type', '')} · {details.get('color', '')}"
+        )
+        meta_run = meta.add_run(meta_text)
+        meta_run.font.name = "Arial"
+        meta_run.font.size = Pt(8)
+        meta_run.font.color.rgb = RGBColor.from_string("555555")
+
+        sketches = document.add_table(rows=1, cols=2)
+        _hide_table_borders(sketches)
+        _set_cell_width(sketches.cell(0, 0), 143)
+        _set_cell_width(sketches.cell(0, 1), 143)
+        _add_picture_fitted(
+            sketches.cell(0, 0),
+            render_quote_room_png(details),
+            max_width_mm=137,
+            max_height_mm=56,
+        )
+        _add_picture_fitted(
+            sketches.cell(0, 1),
+            render_quote_top_png(details),
+            max_width_mm=137,
+            max_height_mm=56,
+        )
+
+        label = document.add_paragraph()
+        label.paragraph_format.space_before = Pt(3)
+        label.paragraph_format.space_after = Pt(2)
+        label_run = label.add_run("ПРОФИЛИ И ФУРНИТУРА")
+        label_run.bold = True
+        label_run.font.name = "Arial"
+        label_run.font.size = Pt(9)
+
+        breakdown = document.add_table(rows=1, cols=6)
+        breakdown_headers = (
+            "Артикул",
+            "Название",
+            "Количество",
+            "Единица",
+            "Продажная цена, ₽",
+            "Сумма, ₽",
+        )
+        breakdown_widths = (28, 130, 30, 25, 36, 40)
+        for index, header in enumerate(breakdown_headers):
+            _set_cell_text(
+                breakdown.cell(0, index),
+                header,
+                bold=True,
+                size=6.7,
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+            )
+            _set_cell_width(breakdown.cell(0, index), breakdown_widths[index])
+        for item in line.get("breakdown") or []:
+            row = breakdown.add_row()
+            values = (
+                item.get("sku", ""),
+                item.get("name", ""),
+                item.get("quantity", ""),
+                item.get("unit", ""),
+                _rubles(item.get("unit_price")),
+                _rubles(item.get("line_total")),
+            )
+            for index, value in enumerate(values):
+                _set_cell_text(
+                    row.cells[index],
+                    value,
+                    bold=index == 5,
+                    size=6.8,
+                    align=(
+                        WD_ALIGN_PARAGRAPH.RIGHT
+                        if index in {2, 4, 5}
+                        else WD_ALIGN_PARAGRAPH.CENTER
+                        if index in {0, 3}
+                        else None
+                    ),
+                )
+                _set_cell_width(row.cells[index], breakdown_widths[index])
+        total_row = breakdown.add_row()
+        total_label = total_row.cells[0].merge(total_row.cells[4])
+        _set_cell_text(
+            total_label,
+            "Итого по секции",
+            bold=True,
+            size=7.2,
+            align=WD_ALIGN_PARAGRAPH.RIGHT,
+        )
+        _set_cell_text(
+            total_row.cells[5],
+            f"{_rubles(line.get('document_line_total'))} ₽",
+            bold=True,
+            size=7.2,
+            align=WD_ALIGN_PARAGRAPH.RIGHT,
+        )
+        for cell in total_row.cells:
+            _set_cell_shading(cell, HEADER_GRAY)
+        _style_table(breakdown)
+
+    output = io.BytesIO()
+    document.save(output)
+    return output.getvalue()
+
+
 def _build_glass_docx(context: dict) -> bytes:
     document = Document()
     _configure_document(document, landscape=False)
@@ -1239,8 +1566,11 @@ def build_project_docx(
     project: object,
     sections: Iterable[object],
     doc_type: str,
+    quote: dict | None = None,
 ) -> bytes:
-    context = build_project_document_context(project, sections, doc_type)
+    context = build_project_document_context(project, sections, doc_type, quote=quote)
+    if doc_type == "commercial" and quote is not None:
+        return _build_commercial_docx(context)
     if doc_type == "glass":
         return _build_glass_docx(context)
     if doc_type == "paint":
@@ -1248,5 +1578,5 @@ def build_project_docx(
     if doc_type == "hardware_order":
         return _build_hardware_order_docx(context)
     raise ValueError(
-        "Word export is available only for glass, paint and hardware order documents"
+        "Word export is available only for commercial, glass, paint and hardware order documents"
     )

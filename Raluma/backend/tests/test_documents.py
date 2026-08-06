@@ -306,7 +306,7 @@ class TestSystemGlassDefaults:
     def test_default_depends_on_section_system(self):
         assert (
             SectionCreate(name="Слайд", system="СЛАЙД").glass_type
-            == "10ММ ПРОЗРАЧНОЕ"
+            == "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
         )
         for system in ("КНИЖКА", "ЛИФТ", "ЦС"):
             assert (
@@ -314,14 +314,22 @@ class TestSystemGlassDefaults:
                 == "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
             )
 
-    def test_explicit_custom_glass_is_not_replaced(self):
+    def test_explicit_custom_glass_is_tempered_once(self):
         assert (
             SectionCreate(
                 name="Заказное стекло",
                 system="СЛАЙД",
                 glass_type="СТЕКЛО ПО ТЗ",
             ).glass_type
-            == "СТЕКЛО ПО ТЗ"
+            == "ЗАКАЛЕННОЕ СТЕКЛО ПО ТЗ"
+        )
+        assert (
+            SectionCreate(
+                name="Уже нормализовано",
+                system="СЛАЙД",
+                glass_type="10мм закаленное стекло по ТЗ",
+            ).glass_type
+            == "10ММ ЗАКАЛЕННОЕ СТЕКЛО ПО ТЗ"
         )
 
     @pytest.mark.parametrize(
@@ -392,7 +400,9 @@ class TestPreview:
         self, client, admin_headers, project
     ):
         malicious_glass = '<img src=x onerror="alert(1)">'
-        escaped_glass = "&lt;img src=x onerror=&#34;alert(1)&#34;&gt;"
+        escaped_glass = (
+            "ЗАКАЛЕННОЕ &lt;IMG SRC=X ONERROR=&#34;ALERT(1)&#34;&gt;"
+        )
         section = _create_slide_section(
             client,
             admin_headers,
@@ -2366,6 +2376,123 @@ class TestOfficeDownloads:
                     assert compact_value in pdf_compact
                     assert compact_value in html_compact
 
+    @pytest.mark.parametrize(
+        ("production_stages", "current_stage", "expected_section", "excluded_section"),
+        [
+            (1, 1, {"Конструкция", "Стекло"}, set()),
+            (2, 1, {"Конструкция"}, {"Стекло"}),
+            (2, 2, {"Стекло"}, {"Конструкция"}),
+        ],
+    )
+    def test_local_delivery_xlsx_is_one_image_free_sheet_and_respects_stage(
+        self,
+        client,
+        production_stages,
+        current_stage,
+        expected_section,
+        excluded_section,
+    ):
+        response = client.post(
+            "/api/projects/local/documents/delivery/xlsx",
+            json={
+                "project": {
+                    "number": "OFFICE-DELIVERY",
+                    "customer": "Заказчик",
+                    "production_stages": production_stages,
+                    "current_stage": current_stage,
+                    "delivery_note_data": json.dumps(
+                        {
+                            "dateMode": "custom",
+                            "date": "2026-08-06",
+                            "note": "Проверить упаковку",
+                            "contact": "Иван Иванов",
+                            "delivery": "Самовывоз",
+                            "places": {},
+                        },
+                        ensure_ascii=False,
+                    ),
+                },
+                "sections": [
+                    {
+                        "name": "Секция 1",
+                        "system": "СЛАЙД",
+                        "width": 2000,
+                        "height": 2400,
+                        "panels": 3,
+                        "quantity": 1,
+                        "rails": 3,
+                        "glass_type": "10ММ ПРОЗРАЧНОЕ",
+                        "threshold": "Стандартный анод",
+                        "first_panel_inside": "Справа",
+                    }
+                ],
+            },
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.content.startswith(b"PK")
+        assert self._xlsx_worksheet_count(response.content) == 1
+        archive_text = self._archive_text(response.content)
+        assert "НАКЛАДНАЯ № OFFICE-DELIVERY" in archive_text
+        assert "Иван Иванов" in archive_text
+        assert "Изделия и комплектацию принял" in archive_text
+        sheet_rows = self._xlsx_sheet_rows(response.content)[0]
+        section_values = {row.get("B") for row in sheet_rows if row.get("B")}
+        assert expected_section <= section_values
+        assert excluded_section.isdisjoint(section_values)
+        if "Стекло" in expected_section:
+            assert "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ" in archive_text
+            assert "OFFICE-DELIVERY 1,1" in archive_text
+        with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+            assert not any(
+                name.startswith(("xl/media/", "xl/drawings/"))
+                for name in archive.namelist()
+            )
+
+    def test_saved_delivery_xlsx_uses_saved_requisites_and_docx_stays_disabled(
+        self, client, admin_headers, project, section
+    ):
+        saved = client.put(
+            f"/api/projects/{project['id']}",
+            headers=admin_headers,
+            json={
+                "production_stages": 2,
+                "current_stage": 2,
+                "delivery_note_data": json.dumps(
+                    {
+                        "dateMode": "custom",
+                        "date": "2026-08-15",
+                        "note": "Второй этап",
+                        "contact": "Петров Пётр",
+                        "delivery": "Доставка на объект",
+                        "places": {},
+                    },
+                    ensure_ascii=False,
+                ),
+            },
+        )
+        assert saved.status_code == 200
+
+        response = client.get(
+            f"/api/projects/{project['id']}/documents/delivery/xlsx",
+            headers=admin_headers,
+        )
+        assert response.status_code == 200, response.text
+        archive_text = self._archive_text(response.content)
+        assert "15.08.2026" in archive_text
+        assert "Петров Пётр" in archive_text
+        assert "Второй этап" in archive_text
+        assert "Стекло" in archive_text
+        assert "Конструкция" not in {
+            row.get("B") for row in self._xlsx_sheet_rows(response.content)[0]
+        }
+
+        word = client.get(
+            f"/api/projects/{project['id']}/documents/delivery/docx",
+            headers=admin_headers,
+        )
+        assert word.status_code == 400
+
     @pytest.mark.parametrize("file_format", ["docx", "xlsx"])
     def test_local_unsupported_project_office_download_is_rejected(
         self, client, file_format
@@ -2759,7 +2886,12 @@ class TestProjectGlassOrder:
 
     def test_different_glass_names_keep_same_sizes_but_do_not_merge(self):
         project = SimpleNamespace(number="P-GLASS-TYPE")
-        section = SimpleNamespace(panels=1, quantity=1, slide_rows=1)
+        section = SimpleNamespace(
+            panels=1,
+            quantity=1,
+            slide_rows=1,
+            system="СЛАЙД",
+        )
 
         def calculated(order: int, glass_type: str):
             calc = SimpleNamespace(
@@ -2785,8 +2917,8 @@ class TestProjectGlassOrder:
 
         assert len(rows) == 2
         assert [row["glass_type"] for row in rows] == [
-            "10ММ ПРОЗРАЧНОЕ",
-            "ТРИПЛЕКС 4.1.4",
+            "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
+            "ТРИПЛЕКС 4.1.4 ЗАКАЛЕННЫЙ",
         ]
         assert {(row["width"], row["height"]) for row in rows} == {(900, 2200)}
         assert [row["marking"] for row in rows] == ["1,1", "2,1"]
