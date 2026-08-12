@@ -139,6 +139,7 @@ export interface SectionOut {
 const hasAuthToken = () => Boolean(localStorage.getItem('access_token'));
 
 export type ProjectDocumentType =
+  | 'sketch'
   | 'commercial'
   | 'paint'
   | 'glass'

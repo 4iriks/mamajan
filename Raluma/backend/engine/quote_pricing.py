@@ -204,11 +204,13 @@ def safe_public_payload(payload: dict[str, Any]) -> dict[str, Any]:
         safe["missing_price_count"] = (
             len(legacy_missing) if isinstance(legacy_missing, list) else 0
         )
-    safe["warnings"] = (
-        ["Расчёт требует проверки менеджером."]
-        if not bool(payload.get("export_allowed"))
-        else []
-    )
+    safe["warnings"] = [
+        str(warning)
+        for warning in payload.get("warnings", [])
+        if "SLIDE:" in str(warning)
+    ]
+    if not bool(payload.get("export_allowed")):
+        safe["warnings"].insert(0, "Расчёт требует проверки менеджером.")
     return safe
 
 
@@ -343,10 +345,7 @@ def _dealer_terms(db: Session, owner: models.User | None) -> dict[str, Decimal]:
     )
     if terms is None:
         return zeros
-    return {
-        key: decimal_value(getattr(terms, key))
-        for key in zeros
-    }
+    return {key: decimal_value(getattr(terms, key)) for key in zeros}
 
 
 def _discount_for_category(terms: dict[str, Decimal], category: str) -> Decimal:
@@ -363,9 +362,7 @@ def _paint_color(section: object, calc: object) -> str:
     color = " ".join(str(getattr(calc, "color_text", "") or "").split())
     if color:
         return color
-    painting_type = " ".join(
-        str(getattr(section, "painting_type", "") or "").split()
-    )
+    painting_type = " ".join(str(getattr(section, "painting_type", "") or "").split())
     return painting_type or "Без цвета"
 
 
@@ -376,10 +373,16 @@ def _price_sku(prefix: str, *parts: object) -> str:
 
 def _parse_extra_components(raw: str | None) -> list[dict[str, Any]]:
     parsed = _json_load(raw, [])
-    return [row for row in parsed if isinstance(row, dict)] if isinstance(parsed, list) else []
+    return (
+        [row for row in parsed if isinstance(row, dict)]
+        if isinstance(parsed, list)
+        else []
+    )
 
 
-def _slide_panel_widths(calc: object, panels: int, fallback_width: Decimal) -> list[Decimal]:
+def _slide_panel_widths(
+    calc: object, panels: int, fallback_width: Decimal
+) -> list[Decimal]:
     physical = sorted(
         list(getattr(calc, "panel_glass", None) or []),
         key=lambda panel: int(getattr(panel, "panel", 0) or 0),
@@ -562,9 +565,7 @@ def _section_breakdown_exact(
 def _section_requirements(section: object) -> tuple[object, list[dict[str, Any]]]:
     calc = calculate_slide(section)
     required: list[dict[str, Any]] = []
-    section_quantity = decimal_value(
-        getattr(section, "quantity", 1), Decimal("1")
-    )
+    section_quantity = decimal_value(getattr(section, "quantity", 1), Decimal("1"))
 
     for profile in calc.profiles:
         quantity = decimal_value(profile.length_mm) * decimal_value(profile.qty) / 1000
@@ -691,8 +692,7 @@ def _section_requirements(section: object) -> tuple[object, list[dict[str, Any]]
     for extra in _parse_extra_components(getattr(section, "extra_components", None)):
         sku = str(extra.get("sku") or extra.get("art") or "").strip()
         quantity = (
-            decimal_value(extra.get("qty") or extra.get("quantity"))
-            * section_quantity
+            decimal_value(extra.get("qty") or extra.get("quantity")) * section_quantity
         )
         if not sku or quantity <= 0:
             continue
@@ -796,7 +796,9 @@ def _allocate_whole_rubles(values: Iterable[Decimal]) -> list[int]:
     source = [max(ZERO, value) for value in values]
     if not source:
         return []
-    floors = [int(value.quantize(WHOLE_RUBLE, rounding=ROUND_FLOOR)) for value in source]
+    floors = [
+        int(value.quantize(WHOLE_RUBLE, rounding=ROUND_FLOOR)) for value in source
+    ]
     target = int(sum(source, ZERO).quantize(WHOLE_RUBLE, rounding=ROUND_HALF_UP))
     remaining = target - sum(floors)
     order = sorted(
@@ -819,7 +821,9 @@ def _allocate_whole_rubles_to_target(
     source = [max(ZERO, decimal_value(value)) for value in values]
     if not source:
         return []
-    floors = [int(value.quantize(WHOLE_RUBLE, rounding=ROUND_FLOOR)) for value in source]
+    floors = [
+        int(value.quantize(WHOLE_RUBLE, rounding=ROUND_FLOOR)) for value in source
+    ]
     result = list(floors)
     delta = int(target) - sum(result)
     if delta >= 0:
@@ -1214,6 +1218,7 @@ def calculate_quote(
     exact_lines: list[dict[str, Decimal]] = []
     internal_sections: list[dict[str, Any]] = []
     issues: list[dict[str, Any]] = []
+    slide_warnings: list[str] = []
 
     slide_sections = [
         section
@@ -1222,6 +1227,10 @@ def calculate_quote(
     ]
     for section in slide_sections:
         calc, requirements = _section_requirements(section)
+        slide_warnings.extend(
+            f"{section.name or f'Секция {section.order}'}: {warning}"
+            for warning in getattr(calc, "warnings", []) or []
+        )
         priced_bom: list[dict[str, Any]] = []
         section_issues: list[dict[str, Any]] = []
         for required in requirements:
@@ -1253,9 +1262,9 @@ def calculate_quote(
             internal_total=internal_total,
             terms=terms,
         )
-        sale_factor = _markup_factor(
-            terms["dealer_markup_percent"]
-        ) * _discount_factor(terms["construction_discount_percent"])
+        sale_factor = _markup_factor(terms["dealer_markup_percent"]) * _discount_factor(
+            terms["construction_discount_percent"]
+        )
         public_line["section_details"] = _section_snapshot(section, calc)
         public_line["_breakdown_exact"] = _section_breakdown_exact(
             priced_bom,
@@ -1264,7 +1273,9 @@ def calculate_quote(
         )
         if not section_issues:
             for bom_line in priced_bom:
-                item_sale = money(decimal_value(bom_line["internal_total"]) * sale_factor)
+                item_sale = money(
+                    decimal_value(bom_line["internal_total"]) * sale_factor
+                )
                 if item_sale >= decimal_value(bom_line["minimum_total"]):
                     continue
                 margin_issue = {
@@ -1285,13 +1296,9 @@ def calculate_quote(
                 "issues": section_issues,
                 "internal_total": money_text(internal_total),
                 "minimum_total": money_text(minimum_total),
-                "dealer_markup_percent": decimal_text(
-                    terms["dealer_markup_percent"]
-                ),
+                "dealer_markup_percent": decimal_text(terms["dealer_markup_percent"]),
                 "dealer_discount_percent": public_line["discount_percent"],
-                "price_before_discount": public_line[
-                    "line_total_before_discount"
-                ],
+                "price_before_discount": public_line["line_total_before_discount"],
                 "final_price": public_line["line_total"],
             }
         )
@@ -1329,9 +1336,7 @@ def calculate_quote(
                 **service,
                 "base_cost": money_text(base_cost),
                 "internal_total": money_text(internal_total),
-                "dealer_markup_percent": decimal_text(
-                    terms["dealer_markup_percent"]
-                ),
+                "dealer_markup_percent": decimal_text(terms["dealer_markup_percent"]),
                 "dealer_discount_percent": public_line["discount_percent"],
                 "final_price": public_line["line_total"],
             }
@@ -1350,9 +1355,7 @@ def calculate_quote(
     subtotal_before_discount = money(
         sum((row["before_discount"] for row in exact_lines), ZERO)
     )
-    discount_total = money(
-        sum((row["discount_amount"] for row in exact_lines), ZERO)
-    )
+    discount_total = money(sum((row["discount_amount"] for row in exact_lines), ZERO))
     subtotal = money(sum((row["total"] for row in exact_lines), ZERO))
     vat_amount, grand_total, display_factor = _vat_values(
         subtotal,
@@ -1378,12 +1381,9 @@ def calculate_quote(
             )
         )
         public_line["document_unit_discount_amount"] = int(
-            (
-                Decimal(
-                    rounded_before[index] - rounded_final[index]
-                )
-                / divisor
-            ).quantize(WHOLE_RUBLE, rounding=ROUND_HALF_UP)
+            (Decimal(rounded_before[index] - rounded_final[index]) / divisor).quantize(
+                WHOLE_RUBLE, rounding=ROUND_HALF_UP
+            )
         )
         public_line["document_unit_final_price"] = int(
             (Decimal(rounded_final[index]) / divisor).quantize(
@@ -1456,6 +1456,7 @@ def calculate_quote(
         )
     if any(issue["code"] == "no_slide_sections" for issue in issues):
         warnings.append("В проекте нет секций СЛАЙД.")
+    warnings.extend(slide_warnings)
 
     basis_date = state.fixed_at or now
     valid_until = basis_date.date() + timedelta(days=state.validity_days)
@@ -1505,12 +1506,8 @@ def calculate_quote(
         "services": internal_services,
         "issues": issues,
         "blocking_issues": blocking_issues,
-        "missing_prices": sorted(
-            missing_by_sku.values(), key=lambda row: row["sku"]
-        ),
-        "dealer_terms": {
-            key: decimal_text(value) for key, value in terms.items()
-        },
+        "missing_prices": sorted(missing_by_sku.values(), key=lambda row: row["sku"]),
+        "dealer_terms": {key: decimal_text(value) for key, value in terms.items()},
         "include_waste_markup": bool(settings.include_waste_markup),
         "margin_approval": margin_approval,
         "calculated_at": now.isoformat(),
@@ -1570,7 +1567,11 @@ def public_quote(
     at: datetime | None = None,
 ) -> dict[str, Any]:
     state = get_or_create_quote_state(db, project)
-    if state.status != "fixed" or not state.public_payload or state.public_payload == "{}":
+    if (
+        state.status != "fixed"
+        or not state.public_payload
+        or state.public_payload == "{}"
+    ):
         payload = refresh_draft_quote(db, project, state, at=at)
     else:
         payload = _json_load(state.public_payload, {})
@@ -1672,9 +1673,7 @@ def refresh_quote_revision(
         raise QuoteExportBlocked(payload)
 
     fixed_at = evaluation_at
-    valid_until = (
-        fixed_at.date() + timedelta(days=state.validity_days)
-    ).isoformat()
+    valid_until = (fixed_at.date() + timedelta(days=state.validity_days)).isoformat()
     public.update(
         {
             "revision": next_revision,

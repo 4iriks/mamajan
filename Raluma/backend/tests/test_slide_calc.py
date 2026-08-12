@@ -4,6 +4,7 @@
 """
 
 from dataclasses import asdict
+from collections import Counter
 from math import ceil
 from types import SimpleNamespace
 
@@ -12,9 +13,15 @@ import pytest
 from engine.slide_calc import (
     PanelGlassItem,
     SlideCalcResult,
+    _apply_glass_total_correction,
     _aggregate_glass_profiles,
+    _glass_correction_adjustments,
+    _inter_glass_overlap_mm,
+    _group_1row_glass_from_panels,
+    _round_glass_difference_mm,
     calculate_slide,
 )
+from engine.project_documents import _expand_glass_for_order
 
 
 def _make_section(**overrides):
@@ -122,6 +129,194 @@ class TestGlassProfileAggregation:
             (802, 2),
             (829, 3),
             (832, 1),
+        ]
+
+
+class TestGlassTotalCorrection:
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            (0.49, 0),
+            (0.5, 1),
+            (1.5, 2),
+            (-0.49, 0),
+            (-0.5, -1),
+            (-1.5, -2),
+        ],
+    )
+    def test_difference_rounds_half_away_from_zero(self, value, expected):
+        assert _round_glass_difference_mm(value) == expected
+
+    @pytest.mark.parametrize(
+        ("panel_count", "difference", "expected"),
+        [
+            (5, 1, {2: 1}),
+            (5, -1, {2: -1}),
+            (5, 2, {0: 1, 4: 1}),
+            (5, -2, {0: -1, 4: -1}),
+            (5, 3, {0: 1, 2: 1, 4: 1}),
+            (5, -3, {0: -1, 2: -1, 4: -1}),
+            (5, 4, {}),
+            (5, -4, {}),
+            (6, 1, {2: 1, 3: 1}),
+            (6, -1, {}),
+            (6, 2, {0: 1, 5: 1}),
+            (6, -2, {0: -1, 5: -1}),
+            (6, 3, {0: 1, 2: 1, 3: 1, 5: 1}),
+            (6, -3, {0: -1, 5: -1}),
+            (6, 4, {}),
+            (6, -4, {}),
+        ],
+    )
+    def test_even_and_odd_distribution_rules(self, panel_count, difference, expected):
+        assert _glass_correction_adjustments(panel_count, difference) == expected
+
+    @pytest.mark.parametrize("difference", [4, -4])
+    def test_four_millimetres_warns_without_changing_panels(self, difference):
+        result = SlideCalcResult(
+            panel_glass=[
+                PanelGlassItem(index, f"Панель {index}", 500, 2200, 497)
+                for index in range(1, 6)
+            ]
+        )
+        original = [asdict(panel) for panel in result.panel_glass]
+
+        applied = _apply_glass_total_correction(result, 2500 + difference)
+
+        assert applied == difference
+        assert [asdict(panel) for panel in result.panel_glass] == original
+        assert len(result.warnings) == 1
+        assert "Контрольная сумма" in result.warnings[0]
+        assert "фактическая сумма" in result.warnings[0]
+        assert f"{difference:+d} мм" in result.warnings[0]
+
+    @pytest.mark.parametrize(
+        ("profile", "expected_overlap"),
+        [
+            ("— Без межстекольного профиля —", 0.0),
+            ("Прозрачный RS1006", 9.5),
+            ("Алюминиевый RS2061", 9.5),
+            ("Профиль с зацепом RS3061", 11.5),
+        ],
+    )
+    def test_selected_profile_controls_overlap(self, profile, expected_overlap):
+        article = {
+            "— Без межстекольного профиля —": "",
+            "Прозрачный RS1006": "RS1006",
+            "Алюминиевый RS2061": "RS2061",
+            "Профиль с зацепом RS3061": "RS3061",
+        }[profile]
+        assert _inter_glass_overlap_mm(article) == expected_overlap
+
+    @pytest.mark.parametrize(
+        ("slide_rows", "panels"),
+        [(1, 5), (2, 6)],
+    )
+    @pytest.mark.parametrize(
+        ("profile", "overlap"),
+        [
+            ("— Без межстекольного профиля —", 0.0),
+            ("Алюминиевый RS2061", 9.5),
+            ("Профиль с зацепом RS3061", 11.5),
+        ],
+    )
+    def test_control_formula_uses_overlap_for_both_rows(
+        self, slide_rows, panels, profile, overlap
+    ):
+        section = _make_section(
+            width=4310,
+            panels=panels,
+            rails=5,
+            slide_rows=slide_rows,
+            inter_glass_profile=profile,
+            profile_left_wall=False,
+            profile_right_wall=False,
+            first_panel_inside=None if slide_rows == 2 else "Справа",
+        )
+
+        result = calculate_slide(section)
+        control_total = (
+            4310
+            - (3 if slide_rows == 2 else 0)
+            + overlap * (panels - (2 if slide_rows == 2 else 1))
+        )
+
+        assert not result.warnings
+        assert (
+            abs(control_total - sum(panel.width_mm for panel in result.panel_glass))
+            <= 1
+        )
+
+    def test_corrected_panels_drive_groups_profiles_rollers_and_glass_order(self):
+        section = _make_section(
+            slide_rows=2,
+            panels=4,
+            profile_left_p_bar=True,
+            profile_left_bubble=True,
+            handle_left="Ручка-кноб RS3014",
+            first_panel_inside=None,
+        )
+
+        result = calculate_slide(section)
+        physical = Counter(
+            (
+                round(panel.width_mm, 1),
+                round(panel.height_mm, 1),
+                round(panel.glass_profile_length, 1),
+            )
+            for panel in result.panel_glass
+        )
+        grouped = Counter()
+        for glass in result.glass:
+            grouped[
+                (
+                    round(glass.width_mm, 1),
+                    round(glass.height_mm, 1),
+                    round(glass.glass_profile_length, 1),
+                )
+            ] += glass.qty
+        assert grouped == physical
+
+        expected_profiles = Counter(
+            int(panel.glass_profile_length + 0.5) for panel in result.panel_glass
+        )
+        actual_profiles = Counter(
+            {
+                int(profile.length_mm): profile.qty
+                for profile in _find_profile(result, "RS2021")
+            }
+        )
+        assert actual_profiles == expected_profiles
+
+        expected_ru003 = sum(panel.width_mm <= 500 for panel in result.panel_glass) * 2
+        expected_ru005 = sum(panel.width_mm > 500 for panel in result.panel_glass) * 2
+        assert _find_hardware(result, "RU003")[0].value == expected_ru003
+        assert _find_hardware(result, "RU005")[0].value == expected_ru005
+
+        ordered = _expand_glass_for_order(section, result)
+        assert [glass.width_mm for glass in ordered] == [
+            panel.width_mm for panel in result.panel_glass
+        ]
+        assert [glass.height_mm for glass in ordered] == [
+            panel.height_mm for panel in result.panel_glass
+        ]
+
+    def test_equal_edge_widths_with_different_profile_lengths_stay_separate(self):
+        result = SlideCalcResult()
+        panels = [
+            PanelGlassItem(1, "Левое", 600, 2200, 597),
+            PanelGlassItem(2, "Промежуточные", 600, 2200, 600),
+            PanelGlassItem(3, "Правое", 600, 2200, 616),
+        ]
+
+        _group_1row_glass_from_panels(result, panels, 2)
+
+        assert [
+            (row.position, row.qty, row.glass_profile_length) for row in result.glass
+        ] == [
+            ("Левое", 2, 597),
+            ("Промежуточные", 2, 600),
+            ("Правое", 2, 616),
         ]
 
 
@@ -364,7 +559,7 @@ class TestProfileVariables:
     @pytest.mark.parametrize("slide_rows", [1, 2])
     @pytest.mark.parametrize("side", ["left", "right"])
     def test_hidden_offset_is_ignored_for_handle_without_offset(self, slide_rows, side):
-        """Старый скрытый отступ не меняет стекло и не подавляет возврат 16 мм."""
+        """Скрытый отступ не меняет стекло и не подавляет крайний нахлёст."""
         common = {
             "slide_rows": slide_rows,
             "panels": 4 if slide_rows == 2 else 3,
@@ -381,12 +576,13 @@ class TestProfileVariables:
         ]
         edge = 0 if side == "left" else -1
         neighbor = 1 if side == "left" else -2
+        expected_edge_recovery = 17 if slide_rows == 2 else 16
         assert (
             round(
                 stale.panel_glass[edge].width_mm - stale.panel_glass[neighbor].width_mm,
                 1,
             )
-            == 16
+            == expected_edge_recovery
         )
 
 

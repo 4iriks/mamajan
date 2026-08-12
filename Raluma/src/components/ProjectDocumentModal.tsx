@@ -186,6 +186,7 @@ export default function ProjectDocumentModal({
   const isPaintDocument = docType === 'paint';
   const isDeliveryDocument = docType === 'delivery';
   const isCommercialDocument = docType === 'commercial';
+  const isSketchDocument = docType === 'sketch';
   const canEditCommercial = canManagePrices();
   const canOverrideCommercial = canEditCommercial;
   const canOverrideMargin = user?.role === 'admin' || user?.role === 'superadmin';
@@ -1035,7 +1036,7 @@ export default function ProjectDocumentModal({
               <div className="flex items-center gap-2 flex-wrap justify-end">
                 {([
                   ['pdf', 'PDF', Download],
-                  ...(isPaintDocument || docType === 'glass' || docType === 'hardware_order' || isCommercialDocument
+                  ...(isSketchDocument || isPaintDocument || docType === 'glass' || docType === 'hardware_order' || isCommercialDocument
                     ? [['docx', 'Word', FileText] as const]
                     : []),
                   ...(isPaintDocument || docType === 'glass' || docType === 'hardware_order' || isDeliveryDocument

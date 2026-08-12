@@ -400,9 +400,7 @@ class TestPreview:
         self, client, admin_headers, project
     ):
         malicious_glass = '<img src=x onerror="alert(1)">'
-        escaped_glass = (
-            "ЗАКАЛЕННОЕ &lt;IMG SRC=X ONERROR=&#34;ALERT(1)&#34;&gt;"
-        )
+        escaped_glass = "ЗАКАЛЕННОЕ &lt;IMG SRC=X ONERROR=&#34;ALERT(1)&#34;&gt;"
         section = _create_slide_section(
             client,
             admin_headers,
@@ -559,8 +557,8 @@ class TestLocalPreview:
         assert 'data-profile="inter-glass" data-panel="2" data-dir="1"' in r.text
         assert 'data-profile="inter-glass" data-panel="3" data-dir="-1"' in r.text
         assert r.text.count('data-profile="inter-glass"') == 2
-        assert r.text.count('data-center-handle-room=') == 2
-        assert r.text.count('data-center-handle-top=') == 2
+        assert r.text.count("data-center-handle-room=") == 2
+        assert r.text.count("data-center-handle-top=") == 2
         assert 'data-center-lock-room="center"' in r.text
         assert 'data-center-lock-top="center"' in r.text
 
@@ -1267,6 +1265,307 @@ class TestProjectDocuments:
         assert "TEST-001" in r.text
         assert "contenteditable" not in r.text
 
+
+class TestSketchProject:
+    @staticmethod
+    def _slide(**overrides):
+        values = {
+            "name": "Изделие SLIDE",
+            "order": 1,
+            "system": "СЛАЙД",
+            "width": 2000,
+            "height": 2400,
+            "panels": 3,
+            "quantity": 1,
+            "rails": 3,
+            "threshold": "Стандартный анод",
+            "first_panel_inside": "Справа",
+            "inter_glass_profile": "Алюминиевый RS2061",
+        }
+        values.update(overrides)
+        return values
+
+    @staticmethod
+    def _book(**overrides):
+        values = {
+            "name": "Изделие BOOK",
+            "order": 2,
+            "system": "КНИЖКА",
+            "width": 3000,
+            "height": 2500,
+            "panels": 4,
+            "quantity": 1,
+            "book_system": "B25",
+            "doors": 2,
+            "door_side": "both",
+            "book_left_stack_panels": 2,
+        }
+        values.update(overrides)
+        return values
+
+    @staticmethod
+    def _lift(**overrides):
+        values = {
+            "name": "Изделие LIFT",
+            "order": 3,
+            "system": "ЛИФТ",
+            "width": 3043,
+            "height": 3300,
+            "panels": 4,
+            "quantity": 1,
+            "lift_filling_type": "СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)",
+            "lift_opening_type": "Сдвиг вниз",
+            "lift_control_type": "Пульт ДУ",
+            "lift_remote_1ch_qty": 2,
+            "lift_remote_6ch_qty": 1,
+        }
+        values.update(overrides)
+        return values
+
+    @classmethod
+    def _payload(cls, sections=None):
+        return {
+            "project": {"number": "SKETCH-001", "customer": "Секретный клиент"},
+            "sections": sections or [cls._slide(), cls._book(), cls._lift()],
+        }
+
+    @staticmethod
+    def _docx_text(content: bytes) -> str:
+        document = DocxDocument(io.BytesIO(content))
+        return "\n".join(
+            [paragraph.text for paragraph in document.paragraphs]
+            + [
+                cell.text
+                for table in document.tables
+                for row in table.rows
+                for cell in row.cells
+            ]
+        )
+
+    @staticmethod
+    def _pdf_text(content: bytes) -> str:
+        return "\n".join(
+            page.extract_text() or "" for page in PdfReader(io.BytesIO(content)).pages
+        )
+
+    @pytest.mark.parametrize(
+        ("section", "expected_diagram"),
+        [
+            (_slide.__func__(), "СХЕМА · ВИД СВЕРХУ"),
+            (_book.__func__(), "СХЕМА · ВИД СВЕРХУ"),
+            (_lift.__func__(), "КИНЕМАТИЧЕСКАЯ СХЕМА"),
+        ],
+    )
+    def test_guest_preview_supports_each_system(
+        self, client, section, expected_diagram
+    ):
+        response = client.post(
+            "/api/projects/local/documents/sketch/preview",
+            json=self._payload([section]),
+        )
+
+        assert response.status_code == 200, response.text
+        assert "ЭСКИЗНЫЙ ПРОЕКТ № SKETCH-001" in response.text
+        assert expected_diagram.lower() in response.text.lower()
+        assert "data-sketch-section=" in response.text
+        assert "Физические панели" in response.text
+        assert "Комплектация" in response.text
+
+    def test_mixed_preview_pdf_and_docx_share_order_geometry_and_components(
+        self, client
+    ):
+        pytest.importorskip("weasyprint")
+        payload = self._payload()
+        responses = {
+            extension: client.post(
+                f"/api/projects/local/documents/sketch/{extension}",
+                json=payload,
+            )
+            for extension in ("preview", "pdf", "docx")
+        }
+        assert {response.status_code for response in responses.values()} == {200}
+        assert responses["pdf"].content.startswith(b"%PDF")
+        assert responses["docx"].content.startswith(b"PK")
+
+        texts = {
+            "preview": responses["preview"].text,
+            "pdf": self._pdf_text(responses["pdf"].content),
+            "docx": self._docx_text(responses["docx"].content),
+        }
+        required = (
+            "ЭСКИЗНЫЙ ПРОЕКТ № SKETCH-001",
+            "SLIDE-стандарт 1 ряд",
+            "BOOK B25",
+            "LIFT",
+            "2000",
+            "2400",
+            "3043",
+            "3300",
+            "RS2061",
+            "RU005",
+            "RL2087",
+        )
+        for text in texts.values():
+            compact = re.sub(r"\s+", "", text)
+            for expected in required:
+                assert re.sub(r"\s+", "", expected) in compact
+            positions = [compact.index(marker) for marker in ("SLIDE", "BOOK", "LIFT")]
+            assert positions == sorted(positions)
+
+        preview = texts["preview"].lower()
+        assert "purchase_price" not in preview
+        assert "internal_total" not in preview
+        assert "dealer_markup" not in preview
+        assert "цена" not in preview
+        assert "стоимость" not in preview
+        assert "итого" not in preview
+
+    def test_sketch_docx_is_allowed_but_xlsx_is_not(self, client):
+        docx = client.post(
+            "/api/projects/local/documents/sketch/docx",
+            json=self._payload([self._slide()]),
+        )
+        xlsx = client.post(
+            "/api/projects/local/documents/sketch/xlsx",
+            json=self._payload([self._slide()]),
+        )
+
+        assert docx.status_code == 200
+        assert xlsx.status_code == 400
+
+    def test_unsupported_system_blocks_whole_document_with_section_list(self, client):
+        sections = [
+            self._slide(),
+            {"name": "ЦС 7", "order": 7, "system": "ЦС"},
+            {"name": "Комплект 8", "order": 8, "system": "КОМПЛЕКТАЦИЯ"},
+        ]
+        for extension in ("preview", "pdf", "docx"):
+            response = client.post(
+                f"/api/projects/local/documents/sketch/{extension}",
+                json=self._payload(sections),
+            )
+            assert response.status_code == 409
+            detail = response.json()["detail"]
+            assert detail["unsupported_sections"] == [
+                "ЦС 7 (ЦС)",
+                "Комплект 8 (КОМПЛЕКТАЦИЯ)",
+            ]
+
+    def test_preliminary_book_is_allowed_and_warning_is_in_document(self, client):
+        response = client.post(
+            "/api/projects/local/documents/sketch/preview",
+            json=self._payload([self._book(book_system="B16")]),
+        )
+
+        assert response.status_code == 200, response.text
+        assert "предварительн" in response.text.lower()
+        assert "этой системы заблокированы" in response.text
+
+    def test_book_geometry_error_returns_422(self, client):
+        response = client.post(
+            "/api/projects/local/documents/sketch/preview",
+            json=self._payload([self._book(width=20)]),
+        )
+
+        assert response.status_code == 422
+        assert "Суммарная ширина стекол" in response.json()["detail"]
+
+    def test_authenticated_preview_and_downloads_are_available(
+        self, client, admin_headers, project
+    ):
+        _create_slide_section(client, admin_headers, project["id"])
+        token = admin_headers["Authorization"].replace("Bearer ", "")
+
+        preview = client.get(
+            f"/api/projects/{project['id']}/documents/sketch/preview",
+            params={"token": token},
+        )
+        pdf = client.get(
+            f"/api/projects/{project['id']}/documents/sketch/pdf",
+            headers=admin_headers,
+        )
+        docx = client.get(
+            f"/api/projects/{project['id']}/documents/sketch/docx",
+            headers=admin_headers,
+        )
+
+        assert preview.status_code == 200
+        assert pdf.status_code == 200
+        assert docx.status_code == 200
+        assert "ЭСКИЗНЫЙ ПРОЕКТ № TEST-001" in preview.text
+
+    def test_context_json_has_no_price_or_internal_fields(self):
+        project = SimpleNamespace(number="SAFE-001")
+        section = SimpleNamespace(**SectionCreate(**self._slide()).model_dump())
+        context = build_project_document_context(project, [section], "sketch")
+        serialized = json.dumps(context, ensure_ascii=False, default=str).lower()
+
+        for forbidden in (
+            "price",
+            "cost",
+            "margin",
+            "internal",
+            "purchase",
+            "supplier",
+            "цена",
+            "стоимость",
+        ):
+            assert forbidden not in serialized
+
+    def test_sketch_filters_minor_consumables_from_components(self, client):
+        response = client.post(
+            "/api/projects/local/documents/sketch/preview",
+            json=self._payload([self._book()]),
+        )
+
+        assert response.status_code == 200, response.text
+        lowered = response.text.lower()
+        for forbidden in (
+            "шуруп",
+            "саморез",
+            "винт",
+            "крепёж",
+            "заглушка",
+            "наклейка",
+            "инструкция",
+            "щёточный уплотнитель",
+        ):
+            assert forbidden not in lowered
+
+    def test_sketch_marks_missing_interglass_profile_as_not_applicable(self, client):
+        response = client.post(
+            "/api/projects/local/documents/sketch/preview",
+            json=self._payload(
+                [self._slide(inter_glass_profile="— Без межстекольного профиля —")]
+            ),
+        )
+
+        assert response.status_code == 200, response.text
+        assert re.search(
+            r"Межстекольный профиль</span><span class=\"meta-value\">—</span>",
+            response.text,
+        )
+
+    def test_sketch_extra_component_quantity_follows_section_quantity(self, client):
+        response = client.post(
+            "/api/projects/local/documents/sketch/preview",
+            json=self._payload(
+                [
+                    self._slide(
+                        quantity=3,
+                        extra_components=json.dumps(
+                            [{"sku": "EXTRA-SKETCH", "name": "Доп. позиция", "qty": 2}],
+                            ensure_ascii=False,
+                        ),
+                    )
+                ]
+            ),
+        )
+
+        assert response.status_code == 200, response.text
+        assert "EXTRA-SKETCH" in response.text
+        assert re.search(r">6 шт<", response.text)
+
     def test_project_paint_preview_returns_html(self, client, admin_headers, project):
         _create_slide_section(
             client,
@@ -1442,9 +1741,7 @@ class TestProjectDocuments:
         assert "Заказ стекла" in r.text
         assert "Проект LOCAL-DOC" not in r.text
 
-    def test_local_lift_production_preview_uses_dedicated_two_page_sheet(
-        self, client
-    ):
+    def test_local_lift_production_preview_uses_dedicated_two_page_sheet(self, client):
         r = client.post(
             "/api/projects/local/sections/preview",
             json={
@@ -1527,12 +1824,8 @@ class TestProjectDocuments:
         }
         payload = {"project": project, "sections": [section]}
 
-        paint = client.post(
-            "/api/projects/local/documents/paint/preview", json=payload
-        )
-        glass = client.post(
-            "/api/projects/local/documents/glass/preview", json=payload
-        )
+        paint = client.post("/api/projects/local/documents/paint/preview", json=payload)
+        glass = client.post("/api/projects/local/documents/glass/preview", json=payload)
         delivery = client.post(
             "/api/projects/local/documents/delivery/preview", json=payload
         )
@@ -1703,9 +1996,7 @@ class TestOfficeDownloads:
                 ):
                     values: dict[str, str] = {}
                     for cell in (
-                        node
-                        for node in row
-                        if node.tag.rsplit("}", 1)[-1] == "c"
+                        node for node in row if node.tag.rsplit("}", 1)[-1] == "c"
                     ):
                         reference = cell.attrib.get("r", "")
                         column_match = re.match(r"[A-Z]+", reference)
@@ -1824,9 +2115,7 @@ class TestOfficeDownloads:
         assert "1,1" in archive_text
 
     @pytest.mark.parametrize("file_format", ["docx", "xlsx"])
-    def test_local_paint_office_download_keeps_manual_rows(
-        self, client, file_format
-    ):
+    def test_local_paint_office_download_keeps_manual_rows(self, client, file_format):
         response = client.post(
             f"/api/projects/local/documents/paint/{file_format}",
             json={
@@ -1969,7 +2258,7 @@ class TestOfficeDownloads:
                         "lift_remote_6ch_qty": 1,
                         "lift_cable_side": "Слева",
                         "lift_opening_type": "Сдвиг вниз",
-                    }
+                    },
                 ],
             },
         )
@@ -2193,9 +2482,7 @@ class TestOfficeDownloads:
             if row.get("A") == "Итого":
                 break
             if row.get("A"):
-                xlsx_rows.append(
-                    [row.get(column, "") for column in "ABCDEFGH"]
-                )
+                xlsx_rows.append([row.get(column, "") for column in "ABCDEFGH"])
         assert xlsx_rows == expected_rows
 
         pdf = PdfReader(io.BytesIO(responses["pdf"].content))
@@ -2295,11 +2582,7 @@ class TestOfficeDownloads:
             if table and table[0][0] == "Артикул"
         ]
         docx_pages = [
-            [
-                tuple(row[:6])
-                for row in table[1:]
-                if row[0] and row[0] != "Итого"
-            ]
+            [tuple(row[:6]) for row in table[1:] if row[0] and row[0] != "Итого"]
             for table in docx_tables
         ]
         assert docx_pages == [rows for _, rows in expected_pages]
@@ -2764,9 +3047,7 @@ class TestProjectPaintOrder:
         assert "RL101" in articles
         assert articles[-1] == "MAN-LIFT"
         assert page["total_qty"] == sum(row["qty"] for row in page["rows"])
-        assert page["total_m"] == round(
-            sum(row["total_m"] for row in page["rows"]), 1
-        )
+        assert page["total_m"] == round(sum(row["total_m"] for row in page["rows"]), 1)
 
     def test_anodized_lift_has_no_paint_request_rows(self):
         section = _delivery_section(
@@ -2809,8 +3090,7 @@ class TestProjectGlassOrder:
         ]
         assert [row["marking"] for row in rows] == ["1,1", "1,2"]
         assert all(
-            row["glass_type"] == "СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
-            for row in rows
+            row["glass_type"] == "СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ" for row in rows
         )
 
     def test_two_panel_lift_igu_orders_only_glass_and_keeps_project_section_number(
@@ -3156,10 +3436,7 @@ class TestDeliveryNote:
             "СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)",
             "ЗЕРКАЛО 8мм",
         }
-        assert {
-            row["glass_type"]: row["qty"]
-            for row in glass_rows
-        } == {
+        assert {row["glass_type"]: row["qty"] for row in glass_rows} == {
             "СТЕКЛОПАКЕТ 20мм (6зак-8-6зак)": 6,
             "ЗЕРКАЛО 8мм": 2,
         }
@@ -3894,9 +4171,7 @@ class TestDeliveryNote:
             "Н-001 3,1",
         }
         lift_rows = [
-            detail
-            for detail in detail_rows
-            if detail["marking"].startswith("Н-001 2,")
+            detail for detail in detail_rows if detail["marking"].startswith("Н-001 2,")
         ]
         assert all(detail["width"] is not None for detail in lift_rows)
         assert all(detail["height"] is not None for detail in lift_rows)
@@ -3908,8 +4183,7 @@ class TestDeliveryNote:
         assert all(detail["width"] is None for detail in placeholder_rows)
         assert all(detail["height"] is None for detail in placeholder_rows)
         assert all(
-            detail["note"] == "Размеры согласно ТЗ"
-            for detail in placeholder_rows
+            detail["note"] == "Размеры согласно ТЗ" for detail in placeholder_rows
         )
 
     def test_places_are_stable_and_restored_per_group(self):

@@ -28,7 +28,16 @@ from engine.office_docx import build_project_docx, build_section_docx
 from engine.office_xlsx import build_project_xlsx, build_section_xlsx
 from engine.office_common import drawing_files_for_sections
 from engine.slide_calc import calculate_slide
-from engine.pdf import append_pdf_drawings, render_preview, render_pdf_html, generate_pdf
+from engine.sketch_project import (
+    SketchGeometryError,
+    SketchUnsupportedSectionsError,
+)
+from engine.pdf import (
+    append_pdf_drawings,
+    render_preview,
+    render_pdf_html,
+    generate_pdf,
+)
 from engine.project_documents import DOC_TITLES, render_project_document_html
 from engine.quote_pricing import (
     QuoteExportBlocked,
@@ -41,7 +50,7 @@ router = APIRouter(prefix="/api/projects", tags=["documents"])
 
 ADMIN_ROLES = ("admin", "superadmin")
 PRODUCTION_SHEET_SYSTEMS = {"СЛАЙД", "ЛИФТ"}
-DOCX_PROJECT_DOCUMENTS = {"glass", "paint", "hardware_order"}
+DOCX_PROJECT_DOCUMENTS = {"sketch", "glass", "paint", "hardware_order"}
 XLSX_PROJECT_DOCUMENTS = {"glass", "paint", "hardware_order", "delivery"}
 OFFICE_PROJECT_DOCUMENTS = DOCX_PROJECT_DOCUMENTS | XLSX_PROJECT_DOCUMENTS
 PRODUCTION_PROJECT_DOCUMENTS = {"glass", "paint", "delivery", "hardware_order"}
@@ -120,7 +129,10 @@ def _ensure_book_project_documents_supported(
     for section in book_sections:
         calc = _calculate_section(section)
         if not calc.documents_allowed:
-            label = getattr(section, "name", None) or f"Секция {getattr(section, 'order', '')}"
+            label = (
+                getattr(section, "name", None)
+                or f"Секция {getattr(section, 'order', '')}"
+            )
             preliminary_reasons.append(
                 f"{label}: {' '.join(calc.document_block_reasons)}"
             )
@@ -129,8 +141,7 @@ def _ensure_book_project_documents_supported(
             status_code=409,
             detail=(
                 "Производственные документы КНИЖКИ заблокированы для "
-                "предварительных конфигураций. "
-                + " ".join(preliminary_reasons)
+                "предварительных конфигураций. " + " ".join(preliminary_reasons)
             ),
         )
     # Накладная является общей сводкой и не требует производственного расчёта
@@ -251,7 +262,9 @@ def _build_local_project_document_objects(payload: LocalProjectDocumentPayload):
         section_values["document_overrides"] = (
             section_values.get("document_overrides") or "{}"
         )
-        section_values["extra_components"] = section_values.get("extra_components") or "[]"
+        section_values["extra_components"] = (
+            section_values.get("extra_components") or "[]"
+        )
         sections.append(SimpleNamespace(**section_values))
     return project, sections
 
@@ -265,16 +278,15 @@ def _validate_project_doc_type(doc_type: str) -> str:
 def _validate_office_project_doc_type(doc_type: str, file_format: str) -> str:
     _validate_project_doc_type(doc_type)
     allowed = (
-        DOCX_PROJECT_DOCUMENTS
-        if file_format == "docx"
-        else XLSX_PROJECT_DOCUMENTS
+        DOCX_PROJECT_DOCUMENTS if file_format == "docx" else XLSX_PROJECT_DOCUMENTS
     )
     if doc_type not in allowed:
         raise HTTPException(
             status_code=400,
             detail=(
                 "Word доступен для заказа стекла, заявки на покраску и "
-                "наряда-заказа на фурнитуру; Excel — также для накладной"
+                "наряда-заказа на фурнитуру и эскизного проекта; "
+                "Excel — также для накладной"
             ),
         )
     return doc_type
@@ -309,9 +321,48 @@ def _build_project_office(
     file_format: str,
     quote: dict | None = None,
 ) -> bytes:
-    if file_format == "docx":
-        return build_project_docx(project, sections, doc_type, quote=quote)
-    return build_project_xlsx(project, sections, doc_type)
+    try:
+        if file_format == "docx":
+            return build_project_docx(project, sections, doc_type, quote=quote)
+        return build_project_xlsx(project, sections, doc_type)
+    except SketchUnsupportedSectionsError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "unsupported_sections": exc.sections,
+            },
+        ) from exc
+    except (BookCalculationError, SketchGeometryError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _render_project_document_or_error(
+    project: object,
+    sections,
+    doc_type: str,
+    *,
+    is_pdf: bool = False,
+    quote: dict | None = None,
+) -> str:
+    try:
+        return render_project_document_html(
+            project,
+            sections,
+            doc_type,
+            is_pdf=is_pdf,
+            quote=quote,
+        )
+    except SketchUnsupportedSectionsError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(exc),
+                "unsupported_sections": exc.sections,
+            },
+        ) from exc
+    except (BookCalculationError, SketchGeometryError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 def _quote_blocked(exc: QuoteExportBlocked) -> HTTPException:
@@ -353,7 +404,7 @@ def preview_local_project_document(doc_type: str, payload: LocalProjectDocumentP
         )
     project, sections = _build_local_project_document_objects(payload)
     _ensure_book_project_documents_supported(doc_type, sections)
-    html = render_project_document_html(project, sections, doc_type)
+    html = _render_project_document_or_error(project, sections, doc_type)
     return HTMLResponse(html)
 
 
@@ -410,7 +461,12 @@ def download_local_project_document_pdf(
         )
     project, sections = _build_local_project_document_objects(payload)
     _ensure_book_project_documents_supported(doc_type, sections)
-    html = render_project_document_html(project, sections, doc_type, is_pdf=True)
+    html = _render_project_document_or_error(
+        project,
+        sections,
+        doc_type,
+        is_pdf=True,
+    )
     pdf_bytes = generate_pdf(html)
     if doc_type == "glass":
         pdf_bytes = append_pdf_drawings(pdf_bytes, drawing_files_for_sections(sections))
@@ -474,7 +530,7 @@ def preview_project_document(
     if doc_type == "commercial":
         quote = public_quote(db, project)
         db.commit()
-    html = render_project_document_html(
+    html = _render_project_document_or_error(
         project, project.sections, doc_type, quote=quote
     )
     return HTMLResponse(html)
@@ -497,7 +553,7 @@ def download_project_document_pdf(
         except QuoteExportBlocked as exc:
             db.rollback()
             raise _quote_blocked(exc) from exc
-    html = render_project_document_html(
+    html = _render_project_document_or_error(
         project,
         project.sections,
         doc_type,
@@ -506,7 +562,9 @@ def download_project_document_pdf(
     )
     pdf_bytes = generate_pdf(html)
     if doc_type == "glass":
-        pdf_bytes = append_pdf_drawings(pdf_bytes, drawing_files_for_sections(project.sections))
+        pdf_bytes = append_pdf_drawings(
+            pdf_bytes, drawing_files_for_sections(project.sections)
+        )
     if doc_type == "commercial":
         db.commit()
     filename = f"{DOC_TITLES[doc_type]}_{project.number}.pdf"

@@ -144,16 +144,16 @@ def render_slide_room(section: object, calc: object) -> bytes:
     _center_text(draw, (800, 34), "ВИД ИЗ ПОМЕЩЕНИЯ", title_font)
     section_width = float(getattr(section, "width", 0) or 1)
     section_height = float(getattr(section, "height", 0) or 1)
-    drawing_width, drawing_height = _fit_rect(
-        section_width, section_height, 1340, 470
-    )
+    drawing_width, drawing_height = _fit_rect(section_width, section_height, 1340, 470)
     left = (1600 - drawing_width) // 2
     top = 80 + max(0, (470 - drawing_height) // 2)
     right = left + drawing_width
     bottom = top + drawing_height
 
     draw.rectangle((left, top, right, bottom), outline=INK, width=7)
-    draw.rectangle((left + 10, top + 10, right - 10, bottom - 10), outline=GRID, width=2)
+    draw.rectangle(
+        (left + 10, top + 10, right - 10, bottom - 10), outline=GRID, width=2
+    )
 
     panels = max(int(getattr(section, "panels", 0) or 0), 1)
     widths = [
@@ -251,7 +251,9 @@ def render_slide_top(section: object, calc: object) -> bytes:
     x = left
     for index, panel_width in enumerate(widths):
         panel_px = (right - left) * panel_width / total
-        rail = rails_for_panels[index] if index < len(rails_for_panels) else index % rails
+        rail = (
+            rails_for_panels[index] if index < len(rails_for_panels) else index % rails
+        )
         cy = top + (rail + 0.5) * row_height
         x1 = round(x + 4)
         x2 = round(x + panel_px - 4)
@@ -285,17 +287,19 @@ def render_lift_front(section: object, calc: object) -> bytes:
 
     section_width = float(getattr(section, "width", 0) or 1)
     section_height = float(getattr(section, "height", 0) or 1)
-    drawing_width, drawing_height = _fit_rect(
-        section_width, section_height, 720, 760
-    )
+    drawing_width, drawing_height = _fit_rect(section_width, section_height, 720, 760)
     left = (1050 - drawing_width) // 2
     top = 90 + max(0, (760 - drawing_height) // 2)
     right = left + drawing_width
     bottom = top + drawing_height
     draw.rectangle((left, top, right, bottom), outline=INK, width=8)
-    draw.rectangle((left + 12, top + 12, right - 12, bottom - 12), outline=GRID, width=2)
+    draw.rectangle(
+        (left + 12, top + 12, right - 12, bottom - 12), outline=GRID, width=2
+    )
     draw.rectangle((left, top, right, top + 22), fill="#DCE4E6", outline=INK, width=2)
-    draw.rectangle((left, bottom - 20, right, bottom), fill="#E6EAEB", outline=INK, width=2)
+    draw.rectangle(
+        (left, bottom - 20, right, bottom), fill="#E6EAEB", outline=INK, width=2
+    )
 
     panels = list(getattr(calc, "panels", None) or [])
     total_height = sum(max(float(panel.height_mm or 0), 1) for panel in panels) or 1
@@ -305,7 +309,9 @@ def render_lift_front(section: object, calc: object) -> bytes:
     usable_height = drawing_height - 42
     opening = str(getattr(calc, "opening_text", "") or "")
     for panel in panels:
-        panel_height = usable_height * max(float(panel.height_mm or 0), 1) / total_height
+        panel_height = (
+            usable_height * max(float(panel.height_mm or 0), 1) / total_height
+        )
         box = (left + 12, round(y), right - 12, round(y + panel_height))
         draw.rectangle(box, fill=fill, outline=GRID, width=2)
         if matte:
@@ -361,8 +367,18 @@ def render_lift_kinematic(section: object, calc: object) -> bytes:
     x_axis = 170
     top, bottom = 100, 870
     draw.line((x_axis, top, x_axis, bottom), fill=INK, width=8)
-    draw.ellipse((x_axis - 22, top - 22, x_axis + 22, top + 22), fill=BACKGROUND, outline=INK, width=6)
-    draw.ellipse((x_axis - 22, bottom - 22, x_axis + 22, bottom + 22), fill=BACKGROUND, outline=INK, width=6)
+    draw.ellipse(
+        (x_axis - 22, top - 22, x_axis + 22, top + 22),
+        fill=BACKGROUND,
+        outline=INK,
+        width=6,
+    )
+    draw.ellipse(
+        (x_axis - 22, bottom - 22, x_axis + 22, bottom + 22),
+        fill=BACKGROUND,
+        outline=INK,
+        width=6,
+    )
 
     panels = list(getattr(calc, "panels", None) or [])
     count = max(len(panels), 1)
@@ -441,8 +457,226 @@ def render_lift_assembly(section: object, calc: object) -> bytes:
     return _png(canvas)
 
 
+def render_book_room(section: object, calc: object) -> bytes:
+    canvas = Image.new("RGB", (1600, 760), BACKGROUND)
+    draw = ImageDraw.Draw(canvas)
+    title_font = load_font(30, bold=True)
+    number_font = load_font(28, bold=True)
+    role_font = load_font(17, bold=True)
+    dim_font = load_font(21, bold=True)
+    _center_text(draw, (800, 34), "ВИД ИЗ ПОМЕЩЕНИЯ", title_font)
+
+    section_width = max(float(getattr(section, "width", 0) or 0), 1)
+    section_height = max(float(getattr(section, "height", 0) or 0), 1)
+    drawing_width, drawing_height = _fit_rect(
+        section_width,
+        section_height,
+        1320,
+        500,
+    )
+    left = (1600 - drawing_width) // 2
+    top = 82 + max(0, (500 - drawing_height) // 2)
+    right = left + drawing_width
+    bottom = top + drawing_height
+    draw.line((left - 8, top - 9, right + 8, top - 9), fill=INK, width=8)
+    draw.line((left - 8, bottom + 9, right + 8, bottom + 9), fill=INK, width=8)
+
+    panels = list(getattr(calc, "panels", []) or [])
+    total_panel_width = (
+        sum(max(float(getattr(panel, "panel_width_mm", 0) or 0), 1) for panel in panels)
+        or 1
+    )
+    x = left
+    role_names = {
+        "standard": "ПАНЕЛЬ",
+        "door": "ДВЕРЬ",
+        "fixed": "ГЛУХАЯ",
+        "moving_door": "ДОП. ДВЕРЬ",
+    }
+    for panel in panels:
+        panel_width = max(float(getattr(panel, "panel_width_mm", 0) or 0), 1)
+        panel_px = drawing_width * panel_width / total_panel_width
+        panel_left = round(x)
+        panel_right = round(x + panel_px)
+        role = str(getattr(panel, "role", "standard") or "standard")
+        filling = str(getattr(panel, "glass_type", "") or "")
+        fill = glass_fill(filling)
+        outline = "#D97706" if role == "fixed" else INK
+        draw.rectangle(
+            (panel_left + 2, top, panel_right - 2, bottom),
+            fill=fill,
+            outline=outline,
+            width=4 if role in {"door", "moving_door", "fixed"} else 2,
+        )
+        if glass_is_matte(filling):
+            _matte_pattern(
+                draw,
+                (panel_left + 4, top + 4, panel_right - 4, bottom - 4),
+            )
+        center_x = (panel_left + panel_right) / 2
+        _center_text(
+            draw,
+            (center_x, top + 48),
+            str(getattr(panel, "number", "")),
+            number_font,
+        )
+        _center_text(
+            draw,
+            (center_x, top + 78),
+            role_names.get(role, role.upper()),
+            role_font,
+            MUTED,
+        )
+        direction = str(getattr(panel, "movement_direction", "none") or "none")
+        if direction != "none":
+            span = min(70, max(24, panel_px * 0.22))
+            if direction == "left":
+                _arrow(
+                    draw, (center_x + span, bottom - 60), (center_x - span, bottom - 60)
+                )
+            else:
+                _arrow(
+                    draw, (center_x - span, bottom - 60), (center_x + span, bottom - 60)
+                )
+        _center_text(
+            draw,
+            (center_x, bottom + 38),
+            _format_book_dimension(getattr(panel, "glass_width_mm", 0)),
+            dim_font,
+            RED,
+        )
+        x += panel_px
+
+    draw.line((left, bottom + 73, right, bottom + 73), fill=INK, width=2)
+    draw.line((left, bottom + 62, left, bottom + 84), fill=INK, width=2)
+    draw.line((right, bottom + 62, right, bottom + 84), fill=INK, width=2)
+    _center_text(
+        draw,
+        (800, bottom + 104),
+        f"{_format_book_dimension(section_width)} × {_format_book_dimension(section_height)} ММ",
+        dim_font,
+        RED,
+    )
+    return _png(canvas)
+
+
+def _format_book_dimension(value: object) -> str:
+    number = round(float(value or 0), 1)
+    if number == int(number):
+        return str(int(number))
+    return f"{number:.1f}".replace(".", ",")
+
+
+def render_book_top(section: object, calc: object) -> bytes:
+    canvas = Image.new("RGB", (1600, 560), BACKGROUND)
+    draw = ImageDraw.Draw(canvas)
+    title_font = load_font(30, bold=True)
+    number_font = load_font(24, bold=True)
+    dim_font = load_font(20, bold=True)
+    label_font = load_font(17, bold=True)
+    _center_text(draw, (800, 34), "СХЕМА · ВИД СВЕРХУ", title_font)
+    left, right = 100, 1500
+    guide_y = 108
+    draw.rounded_rectangle(
+        (left, guide_y - 10, right, guide_y + 10),
+        radius=4,
+        fill="#DDE7E9",
+        outline=GRID,
+        width=2,
+    )
+    _center_text(draw, (800, 80), "ПРОЁМ / НАПРАВЛЯЮЩАЯ", label_font, MUTED)
+
+    panels = list(getattr(calc, "panels", []) or [])
+    total_width = (
+        sum(max(float(getattr(panel, "panel_width_mm", 0) or 0), 1) for panel in panels)
+        or 1
+    )
+    x = left
+    panel_y = 180
+    for panel in panels:
+        logical_width = max(float(getattr(panel, "panel_width_mm", 0) or 0), 1)
+        panel_px = (right - left) * logical_width / total_width
+        panel_left = round(x)
+        panel_right = round(x + panel_px)
+        center_x = (panel_left + panel_right) / 2
+        role = str(getattr(panel, "role", "standard") or "standard")
+        color = "#F59E0B" if role == "fixed" else "#B8D7DC"
+        draw.rounded_rectangle(
+            (panel_left + 3, panel_y - 16, panel_right - 3, panel_y + 16),
+            radius=4,
+            fill=color,
+            outline="#F97316" if role == "moving_door" else INK,
+            width=4 if role in {"door", "moving_door"} else 2,
+        )
+        _center_text(
+            draw,
+            (center_x, panel_y - 43),
+            str(getattr(panel, "number", "")),
+            number_font,
+        )
+        direction = str(getattr(panel, "movement_direction", "none") or "none")
+        if direction != "none":
+            span = min(72, max(25, panel_px * 0.23))
+            if direction == "left":
+                _arrow(
+                    draw,
+                    (center_x + span, panel_y + 70),
+                    (center_x - span, panel_y + 70),
+                )
+            else:
+                _arrow(
+                    draw,
+                    (center_x - span, panel_y + 70),
+                    (center_x + span, panel_y + 70),
+                )
+        if role in {"door", "moving_door"}:
+            radius = min(95, max(42, panel_px * 0.45))
+            hinge_x = (
+                panel_right - 5
+                if getattr(panel, "door_side", "") == "right"
+                else panel_left + 5
+            )
+            box = (
+                hinge_x - radius,
+                panel_y - radius,
+                hinge_x + radius,
+                panel_y + radius,
+            )
+            draw.arc(box, start=15, end=90, fill=INK, width=3)
+        x += panel_px
+
+    config = getattr(calc, "normalized_config", {}) or {}
+    obstacle = float(config.get("obstacle_distance_mm") or 0)
+    if obstacle > 0:
+        obstacle_y = 350
+        draw.line((left, obstacle_y, right, obstacle_y), fill=RED, width=3)
+        _center_text(
+            draw,
+            (800, obstacle_y + 30),
+            f"ПРЕПЯТСТВИЕ · {_format_book_dimension(obstacle)} ММ",
+            label_font,
+            RED,
+        )
+    draw.line((left, 460, right, 460), fill=INK, width=2)
+    draw.line((left, 448, left, 472), fill=INK, width=2)
+    draw.line((right, 448, right, 472), fill=INK, width=2)
+    _center_text(
+        draw,
+        (800, 500),
+        f"{_format_book_dimension(getattr(section, 'width', 0))} ММ",
+        dim_font,
+        RED,
+    )
+    return _png(canvas)
+
+
 def section_diagrams(section: object, calc: object) -> list[tuple[str, bytes]]:
     system = str(getattr(section, "system", "") or "").strip().upper()
+    if system == "КНИЖКА":
+        return [
+            ("Вид из помещения", render_book_room(section, calc)),
+            ("Схема · вид сверху", render_book_top(section, calc)),
+        ]
     reference = _reference_diagrams(section, calc)
     if system == "ЛИФТ":
         if len(reference) >= 2:

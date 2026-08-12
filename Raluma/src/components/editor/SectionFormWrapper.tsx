@@ -188,6 +188,16 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
                       <span>Ширина панели меньше 350 мм. Уменьшите количество панелей.</span>
                     </div>
                   )}
+                  {(slideCalc?.warnings || []).map((warning, index) => (
+                    <div
+                      key={`${warning}-${index}`}
+                      data-slide-calc-warning
+                      className="mt-3 rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm font-bold text-amber-200 flex gap-2"
+                    >
+                      <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                      <span>{warning}</span>
+                    </div>
+                  ))}
                 </div>
               )}
 

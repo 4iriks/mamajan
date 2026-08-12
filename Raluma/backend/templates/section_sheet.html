@@ -25,6 +25,16 @@
   .hdr { border: 2px solid #000; }
   .hdr td { padding: 0.5mm 1.5mm; font-weight: 900; font-size: 9.5pt; }
   .hdr td + td { border-left: 2px solid #000; }
+  .calc-warning {
+    border: 1px solid #b91c1c;
+    border-top: none;
+    background: #fff1f2;
+    color: #991b1b;
+    padding: 0.7mm 1.5mm;
+    font-size: 7pt;
+    font-weight: 900;
+    line-height: 1.15;
+  }
 
   /* ── Чёрная полоса-заголовок ── */
   .bar {
@@ -208,6 +218,9 @@
     <td style="width:35%; text-align:right">{{ calc.system_text }}</td>
   </tr>
 </table>
+{% for warning in calc.warnings or [] %}
+<div class="calc-warning">{{ warning|e }}</div>
+{% endfor %}
 
 <!-- ══════ СХЕМЫ ══════ -->
 <table style="border:1px solid #000; border-top:none;">

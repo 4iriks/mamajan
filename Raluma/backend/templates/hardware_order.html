@@ -94,6 +94,11 @@
   <section class="page">
     <h1>Наряд-заказ на фурнитуру — {{ project.number|e }}</h1>
     <h2>{{ page.system|e }}</h2>
+    {% if loop.first %}
+      {% for warning in document_warnings or [] %}
+        <div class="warning">{{ warning|e }}</div>
+      {% endfor %}
+    {% endif %}
     {% if page.warning %}
       <div class="warning">{{ page.warning|e }}</div>
     {% endif %}

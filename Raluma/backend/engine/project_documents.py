@@ -17,9 +17,11 @@ from engine.glass_types import default_glass_type, normalize_glass_type
 from engine.lift_calc import PENOPLEX_20MM, calculate_lift
 from engine.pdf import TEMPLATES_DIR, _img_b64, glass_mm
 from engine.slide_calc import calculate_slide
+from engine.sketch_project import build_sketch_project_context
 
 
 DOC_TITLES = {
+    "sketch": "Эскизный проект",
     "commercial": "Коммерческое предложение",
     "paint": "Заявка на покраску",
     "glass": "Заказ стекла",
@@ -45,6 +47,7 @@ class PhysicalGlassItem:
 def _get_env() -> Environment:
     env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=False)
     env.filters["img_b64"] = _img_b64
+    env.filters["format_mm"] = _format_mm
     return env
 
 
@@ -107,7 +110,9 @@ def _iter_calculated_sections(
         system = str(getattr(section, "system", "") or "").strip().upper()
         if system not in {"СЛАЙД", "ЛИФТ"}:
             continue
-        calc = calculate_slide(section) if system == "СЛАЙД" else calculate_lift(section)
+        calc = (
+            calculate_slide(section) if system == "СЛАЙД" else calculate_lift(section)
+        )
         rows.append(
             CalculatedSection(
                 order=index,
@@ -116,6 +121,27 @@ def _iter_calculated_sections(
             )
         )
     return rows
+
+
+def _calculation_document_warnings(
+    calculated: Iterable[CalculatedSection],
+) -> list[str]:
+    warnings: list[str] = []
+    for item in calculated:
+        label = _text_section_label(item.section, item.order)
+        for warning in getattr(item.calc, "warnings", []) or []:
+            warnings.append(f"{label}: {warning}")
+    return warnings
+
+
+def _text_section_label(section: object, fallback: int) -> str:
+    return str(
+        getattr(section, "name", None) or f"Секция {_section_order(section, fallback)}"
+    )
+
+
+def _slide_document_warnings(sections: Iterable[object]) -> list[str]:
+    return _calculation_document_warnings(_iter_slide_sections(sections))
 
 
 def _format_mm(value: float) -> str:
@@ -302,6 +328,36 @@ def _expand_2row_glass(section: object, calc: object) -> list[PhysicalGlassItem]
 
 
 def _expand_glass_for_order(section: object, calc: object) -> list[PhysicalGlassItem]:
+    physical_panels = list(getattr(calc, "panel_glass", []) or [])
+    if physical_panels:
+        panel_count = len(physical_panels)
+        rows = _positive_int(getattr(section, "slide_rows", 1), 1)
+        quantity = _positive_int(getattr(section, "quantity", 0), 1)
+        center_left = panel_count // 2 - 1
+        center_right = panel_count // 2
+        result: list[PhysicalGlassItem] = []
+        for _ in range(quantity):
+            for index, panel in enumerate(physical_panels):
+                if panel_count == 1:
+                    role = "single"
+                elif index == 0:
+                    role = "left"
+                elif index == panel_count - 1:
+                    role = "right"
+                elif rows == 2 and index == center_left:
+                    role = "center_left"
+                elif rows == 2 and index == center_right:
+                    role = "center_right"
+                else:
+                    role = "center" if rows == 1 and index == panel_count // 2 else ""
+                result.append(
+                    _physical_glass(
+                        panel,
+                        _glass_note_for_role(section, role) if role else "",
+                    )
+                )
+        return result
+
     rows = _positive_int(getattr(section, "slide_rows", 1), 1)
     if rows == 2:
         return _expand_2row_glass(section, calc)
@@ -683,9 +739,7 @@ def _project_delivery_stage(project: object) -> tuple[int, int]:
     stages = 2 if _positive_int(getattr(project, "production_stages", 1), 1) == 2 else 1
     if stages == 1:
         return 1, 1
-    current = (
-        2 if _positive_int(getattr(project, "current_stage", 1), 1) == 2 else 1
-    )
+    current = 2 if _positive_int(getattr(project, "current_stage", 1), 1) == 2 else 1
     return stages, current
 
 
@@ -1280,6 +1334,7 @@ def _build_delivery_context(project: object, sections: Iterable[object]) -> dict
         "delivery_item2_rows": hardware_rows,
         "delivery_total_qty": _format_quantity(total_qty),
         "delivery_names_count": 2,
+        "document_warnings": _slide_document_warnings(sorted_sections),
     }
 
 
@@ -1552,9 +1607,10 @@ def _build_hardware_order_page(system: str, sections: list[object]) -> dict:
     )
     for index, row in enumerate(rows, start=1):
         article = str(row["article"] or "").upper()
-        if article in {"RU004", "RU006", "RU007", "RU008"} and str(
-            row["unit"]
-        ).lower() == "м":
+        if (
+            article in {"RU004", "RU006", "RU007", "RU008"}
+            and str(row["unit"]).lower() == "м"
+        ):
             row["qty"] = ceil(float(row["qty"]) * 10 - 1e-9) / 10
         row["index"] = index
         row["qty_text"] = _format_quantity(row["qty"])
@@ -1592,6 +1648,7 @@ def _build_hardware_order_context(
         "title": DOC_TITLES["hardware_order"],
         "project": project,
         "sections": section_rows,
+        "document_warnings": _slide_document_warnings(section_rows),
         "hardware_order_pages": [
             _build_hardware_order_page(system, grouped_sections[system])
             for system in ordered_systems
@@ -1607,6 +1664,9 @@ def build_project_document_context(
 ) -> dict:
     if doc_type not in DOC_TITLES:
         raise ValueError("unknown project document type")
+
+    if doc_type == "sketch":
+        return build_sketch_project_context(project, sections)
 
     if doc_type == "delivery":
         return _build_delivery_context(project, sections)
@@ -1662,6 +1722,7 @@ def build_project_document_context(
         calculated, getattr(project, "paint_manual_rows", None)
     )
     glass_rows = _build_glass_rows(project, calculated)
+    document_warnings.extend(_calculation_document_warnings(calculated))
 
     return {
         "doc_type": doc_type,
@@ -1687,6 +1748,7 @@ def render_project_document_html(
     context = build_project_document_context(project, sections, doc_type, quote=quote)
     context["is_pdf"] = is_pdf
     template_name = {
+        "sketch": "sketch_project.html",
         "delivery": "delivery_note.html",
         "hardware_order": "hardware_order.html",
     }.get(doc_type, "project_document.html")

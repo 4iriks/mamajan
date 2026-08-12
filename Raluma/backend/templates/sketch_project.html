@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ document_title }}</title>
+  <style>
+    @page { size: A4 portrait; margin: 10mm 11mm 12mm; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: #eef1f2;
+      color: #162d37;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 8.5pt;
+      line-height: 1.25;
+    }
+    main {
+      width: 188mm;
+      min-height: 273mm;
+      margin: 0 auto;
+      padding: 9mm 8mm 11mm;
+      background: #fff;
+    }
+    h1 {
+      margin: 0 0 6mm;
+      color: #123f47;
+      font-size: 18pt;
+      line-height: 1.1;
+      text-align: center;
+    }
+    .sketch-section { margin: 0 0 7mm; }
+    .section-intro {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .section-heading {
+      margin: 0 0 2.5mm;
+      padding: 2mm 2.4mm;
+      border-left: 3mm solid #123f47;
+      background: #e8f0f1;
+      font-size: 11pt;
+      line-height: 1.15;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+    .warning {
+      margin: 0 0 2.5mm;
+      padding: 2mm 2.5mm;
+      border: 0.3mm solid #d97706;
+      background: #fff7ed;
+      color: #9a3412;
+      font-weight: 700;
+      break-inside: avoid;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border-top: 0.25mm solid #80959a;
+      border-left: 0.25mm solid #80959a;
+      margin-bottom: 2.5mm;
+      break-inside: avoid;
+    }
+    .meta-item {
+      min-height: 13mm;
+      padding: 1.4mm 1.7mm;
+      border-right: 0.25mm solid #80959a;
+      border-bottom: 0.25mm solid #80959a;
+    }
+    .meta-label {
+      display: block;
+      margin-bottom: 0.8mm;
+      color: #607b81;
+      font-size: 6.5pt;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+    .meta-value { display: block; font-weight: 700; }
+    .diagram-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 2.5mm;
+      margin: 0 0 2.5mm;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .diagram {
+      min-height: 60mm;
+      padding: 1.5mm;
+      border: 0.25mm solid #a8bbc0;
+      text-align: center;
+    }
+    .diagram-title {
+      margin-bottom: 1mm;
+      color: #607b81;
+      font-size: 7pt;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .diagram img {
+      display: block;
+      width: 100%;
+      height: 54mm;
+      object-fit: contain;
+    }
+    .table-title {
+      margin: 2.5mm 0 1.2mm;
+      color: #123f47;
+      font-size: 8pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 7.4pt;
+    }
+    thead { display: table-header-group; }
+    tr {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    th, td {
+      padding: 1.2mm 1.4mm;
+      border: 0.25mm solid #80959a;
+      vertical-align: middle;
+      overflow-wrap: anywhere;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    th {
+      background: #e8f0f1;
+      text-align: center;
+      font-weight: 700;
+    }
+    .center { text-align: center; }
+    .muted { color: #607b81; }
+    .empty {
+      padding: 2.5mm;
+      border: 0.25mm dashed #a8bbc0;
+      color: #607b81;
+      text-align: center;
+    }
+    @media print {
+      body { background: #fff; }
+      main { width: auto; min-height: 0; margin: 0; padding: 0; }
+    }
+  </style>
+</head>
+<body>
+<main data-sketch-project>
+  <h1>{{ document_title|e }}</h1>
+
+  {% if not sections %}
+    <div class="empty">В проекте нет секций.</div>
+  {% endif %}
+
+  {% for section in sections %}
+  <section class="sketch-section" data-sketch-section="{{ section.order }}" data-system="{{ section.system|e }}">
+    <div class="section-intro">
+      <h2 class="section-heading">Изделие № {{ section.order }} · {{ section.system_text|e }}</h2>
+
+      {% for warning in section.warnings %}
+        <div class="warning">{{ warning|e }}</div>
+      {% endfor %}
+
+      <div class="meta-grid">
+        <div class="meta-item"><span class="meta-label">Номер изделия</span><span class="meta-value">{{ section.order }}</span></div>
+        <div class="meta-item"><span class="meta-label">Система</span><span class="meta-value">{{ section.system_text|e }}</span></div>
+        <div class="meta-item"><span class="meta-label">Ширина</span><span class="meta-value">{{ section.width_mm|format_mm }} мм</span></div>
+        <div class="meta-item"><span class="meta-label">Высота</span><span class="meta-value">{{ section.height_mm|format_mm }} мм</span></div>
+        <div class="meta-item"><span class="meta-label">Цвет</span><span class="meta-value">{{ section.color|e }}</span></div>
+        <div class="meta-item"><span class="meta-label">Количество</span><span class="meta-value">{{ section.quantity }} шт</span></div>
+        <div class="meta-item"><span class="meta-label">Порог</span><span class="meta-value">{{ section.threshold|e }}</span></div>
+        <div class="meta-item"><span class="meta-label">Межстекольный профиль</span><span class="meta-value">{{ section.inter_glass_profile|e }}</span></div>
+        <div class="meta-item" style="grid-column: span 4"><span class="meta-label">Стекло / заполнение</span><span class="meta-value">{{ section.filling|e }}</span></div>
+      </div>
+    </div>
+
+    <div class="diagram-grid">
+      {% for diagram in section.diagrams %}
+      <div class="diagram">
+        <div class="diagram-title">{{ diagram.title|e }}</div>
+        <img src="{{ diagram.data_uri }}" alt="{{ diagram.title|e }}">
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="table-title">Физические панели</div>
+    <table class="panel-table">
+      <colgroup><col style="width: 9%"><col style="width: 21%"><col style="width: 38%"><col style="width: 12%"><col style="width: 12%"><col style="width: 8%"></colgroup>
+      <thead><tr><th>№</th><th>Позиция</th><th>Стекло / заполнение</th><th>Ширина, мм</th><th>Высота, мм</th><th>Кол-во</th></tr></thead>
+      <tbody>
+      {% for panel in section.panels %}
+        <tr>
+          <td class="center">{{ panel.number }}</td>
+          <td>{{ panel.position|e }}</td>
+          <td>{{ panel.filling|e }}</td>
+          <td class="center">{{ panel.width_mm|format_mm }}</td>
+          <td class="center">{{ panel.height_mm|format_mm }}</td>
+          <td class="center">{{ panel.qty }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="table-title">Комплектация</div>
+    {% if section.components %}
+    <table class="component-table">
+      <colgroup><col style="width: 17%"><col style="width: 41%"><col style="width: 17%"><col style="width: 10%"><col style="width: 15%"></colgroup>
+      <thead><tr><th>Артикул</th><th>Наименование</th><th>Размер</th><th>Кол-во</th><th>Примечание</th></tr></thead>
+      <tbody>
+      {% for item in section.components %}
+        <tr>
+          <td class="center">{{ item.article|e or '—' }}</td>
+          <td>{{ item.name|e }}</td>
+          <td class="center">{{ item.size|e }}</td>
+          <td class="center">{{ item.qty|e }} {{ item.unit|e }}</td>
+          <td>{{ item.note|e or '—' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <div class="empty">Комплектация не выбрана.</div>
+    {% endif %}
+  </section>
+  {% endfor %}
+</main>
+</body>
+</html>

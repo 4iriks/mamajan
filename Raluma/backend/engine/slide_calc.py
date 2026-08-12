@@ -5,6 +5,7 @@
 """
 
 from dataclasses import dataclass, field
+from decimal import Decimal, ROUND_HALF_UP
 from math import ceil
 
 from engine.glass_types import SLIDE_DEFAULT_GLASS_TYPE, normalize_slide_glass_type
@@ -138,6 +139,7 @@ class SlideCalcResult:
     system_text: str = ""
     panel_rails: list[int] = field(default_factory=list)  # panel i → rail index
     panel_glass: list[PanelGlassItem] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 def _is_standard_threshold(threshold: str | None) -> bool:
@@ -250,6 +252,109 @@ def _inter_glass_overlap_mm(article: str) -> float:
     return 0
 
 
+def _round_glass_difference_mm(value: float) -> int:
+    """Round a signed discrepancy to whole millimetres, with 0.5 away from zero."""
+    return int(
+        Decimal(str(float(value or 0))).quantize(
+            Decimal("1"),
+            rounding=ROUND_HALF_UP,
+        )
+    )
+
+
+def _format_check_mm(value: float, *, signed: bool = False) -> str:
+    rounded = round(float(value or 0), 1)
+    prefix = "+" if signed and rounded > 0 else ""
+    if rounded == int(rounded):
+        text = str(int(rounded))
+    else:
+        text = f"{rounded:.1f}".replace(".", ",")
+    return f"{prefix}{text}"
+
+
+def _glass_correction_adjustments(
+    panel_count: int, difference_mm: int
+) -> dict[int, int]:
+    """Return per-panel whole-mm adjustments from the approved distribution rules."""
+    count = max(int(panel_count or 0), 0)
+    if count == 0 or difference_mm == 0 or abs(difference_mm) >= 4:
+        return {}
+
+    sign = 1 if difference_mm > 0 else -1
+    magnitude = abs(difference_mm)
+    adjustments: dict[int, int] = {}
+
+    def add(index: int, value: int) -> None:
+        if 0 <= index < count:
+            adjustments[index] = adjustments.get(index, 0) + value
+
+    if count % 2:
+        center = count // 2
+        if magnitude in {1, 3}:
+            add(center, sign)
+        if magnitude in {2, 3}:
+            add(0, sign)
+            add(count - 1, sign)
+        return adjustments
+
+    # The approved even-panel rule intentionally favors the larger glass:
+    # +1/+3 add a millimetre to each member of the central pair, so the
+    # applied total may exceed the rounded control discrepancy by 1 mm.
+    center_left = count // 2 - 1
+    center_right = count // 2
+    if difference_mm == 1:
+        add(center_left, 1)
+        add(center_right, 1)
+    elif difference_mm == -1:
+        return {}
+    elif magnitude == 2:
+        add(0, sign)
+        add(count - 1, sign)
+    elif difference_mm == 3:
+        add(center_left, 1)
+        add(center_right, 1)
+        add(0, 1)
+        add(count - 1, 1)
+    elif difference_mm == -3:
+        add(0, -1)
+        add(count - 1, -1)
+    return adjustments
+
+
+def _apply_glass_total_correction(
+    result: SlideCalcResult,
+    control_total_mm: float,
+) -> int:
+    """Reconcile physical panel widths with the independent control formula."""
+    panels = result.panel_glass
+    if not panels:
+        return 0
+
+    actual_total_mm = sum(float(panel.width_mm or 0) for panel in panels)
+    raw_difference_mm = float(control_total_mm) - actual_total_mm
+    difference_mm = _round_glass_difference_mm(raw_difference_mm)
+
+    if abs(difference_mm) >= 4:
+        result.warnings.append(
+            "SLIDE: автоматическая коррекция стекол не выполнена. "
+            f"Контрольная сумма — {_format_check_mm(control_total_mm)} мм; "
+            f"фактическая сумма — {_format_check_mm(actual_total_mm)} мм; "
+            f"разница — {_format_check_mm(raw_difference_mm, signed=True)} мм."
+        )
+        return difference_mm
+
+    for index, adjustment in _glass_correction_adjustments(
+        len(panels), difference_mm
+    ).items():
+        panel = panels[index]
+        panel.width_mm = round(float(panel.width_mm) + adjustment, 1)
+        panel.glass_profile_length = round(
+            float(panel.glass_profile_length) + adjustment,
+            1,
+        )
+    return difference_mm
+
+
 def _inter_glass_profile_name(article: str) -> str:
     if article == "RS3061":
         return "Профиль с зацепом"
@@ -305,20 +410,19 @@ def _group_1row_glass_from_panels(
     left = panels[0]
     right = panels[-1]
     middle_panels = panels[1:-1]
-    if round(left.width_mm, 1) == round(right.width_mm, 1):
-        profile_length = (
-            left.glass_profile_length
-            if round(left.glass_profile_length, 1)
-            == round(right.glass_profile_length, 1)
-            else 0
-        )
+    same_edges = (
+        round(left.width_mm, 1) == round(right.width_mm, 1)
+        and round(left.height_mm, 1) == round(right.height_mm, 1)
+        and round(left.glass_profile_length, 1) == round(right.glass_profile_length, 1)
+    )
+    if same_edges:
         result.glass.append(
             GlassItem(
                 "Крайние",
                 left.width_mm,
                 left.height_mm,
                 2 * quantity,
-                profile_length,
+                left.glass_profile_length,
             )
         )
     else:
@@ -333,6 +437,98 @@ def _group_1row_glass_from_panels(
         )
 
     if middle_panels:
+        groups: list[
+            tuple[tuple[float, float, float], list[tuple[int, PanelGlassItem]]]
+        ] = []
+        for physical_index, panel in enumerate(middle_panels, start=1):
+            key = (
+                round(panel.width_mm, 1),
+                round(panel.height_mm, 1),
+                round(panel.glass_profile_length, 1),
+            )
+            for group_key, members in groups:
+                if group_key == key:
+                    members.append((physical_index, panel))
+                    break
+            else:
+                groups.append((key, [(physical_index, panel)]))
+
+        center_indices = (
+            {len(panels) // 2}
+            if len(panels) % 2
+            else {len(panels) // 2 - 1, len(panels) // 2}
+        )
+        for _, members in groups:
+            panel = members[0][1]
+            member_indices = {index for index, _ in members}
+            is_distinct_center = (
+                bool(member_indices & center_indices) and len(groups) > 1
+            )
+            position = (
+                "Центральное"
+                if is_distinct_center and len(panels) % 2
+                else "Центральные"
+                if is_distinct_center
+                else "Промежуточные"
+            )
+            result.glass.append(
+                GlassItem(
+                    position,
+                    panel.width_mm,
+                    panel.height_mm,
+                    len(members) * quantity,
+                    panel.glass_profile_length,
+                )
+            )
+
+    if not same_edges:
+        result.glass.append(
+            GlassItem(
+                "Правое",
+                right.width_mm,
+                right.height_mm,
+                quantity,
+                right.glass_profile_length,
+            )
+        )
+
+
+def _group_2row_glass_from_panels(
+    result: SlideCalcResult,
+    panels: list[PanelGlassItem],
+    quantity: int,
+    *,
+    separate_center_profiles: bool,
+) -> None:
+    result.glass = []
+    if not panels:
+        return
+    if len(panels) < 4:
+        _group_1row_glass_from_panels(result, panels, quantity)
+        return
+
+    left = panels[0]
+    right = panels[-1]
+    center_left_index = len(panels) // 2 - 1
+    center_right_index = len(panels) // 2
+    center_left = panels[center_left_index]
+    center_right = panels[center_right_index]
+    middle_panels = [
+        panel
+        for index, panel in enumerate(panels)
+        if index not in {0, center_left_index, center_right_index, len(panels) - 1}
+    ]
+
+    result.glass.append(
+        GlassItem(
+            "Левое",
+            left.width_mm,
+            left.height_mm,
+            quantity,
+            left.glass_profile_length,
+        )
+    )
+    if middle_panels:
         middle = middle_panels[0]
         result.glass.append(
             GlassItem(
@@ -344,16 +540,50 @@ def _group_1row_glass_from_panels(
             )
         )
 
-    if round(left.width_mm, 1) != round(right.width_mm, 1):
+    same_center = (
+        round(center_left.width_mm, 1) == round(center_right.width_mm, 1)
+        and round(center_left.height_mm, 1) == round(center_right.height_mm, 1)
+        and round(center_left.glass_profile_length, 1)
+        == round(center_right.glass_profile_length, 1)
+    )
+    if same_center and not separate_center_profiles:
         result.glass.append(
             GlassItem(
-                "Правое",
-                right.width_mm,
-                right.height_mm,
-                quantity,
-                right.glass_profile_length,
+                "Центральные",
+                center_left.width_mm,
+                center_left.height_mm,
+                2 * quantity,
+                center_left.glass_profile_length,
             )
         )
+    else:
+        result.glass.append(
+            GlassItem(
+                "Центральное левое",
+                center_left.width_mm,
+                center_left.height_mm,
+                quantity,
+                center_left.glass_profile_length,
+            )
+        )
+        result.glass.append(
+            GlassItem(
+                "Центральное правое",
+                center_right.width_mm,
+                center_right.height_mm,
+                quantity,
+                center_right.glass_profile_length,
+            )
+        )
+    result.glass.append(
+        GlassItem(
+            "Правое",
+            right.width_mm,
+            right.height_mm,
+            quantity,
+            right.glass_profile_length,
+        )
+    )
 
 
 def calculate_slide(section) -> SlideCalcResult:
@@ -998,6 +1228,26 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         glass.glass_profile_length = round(base_len, 1)
 
     result.panel_glass = _expand_panel_glass(result, P, W, glass_H)
+    control_glass_total = (
+        W
+        - 3
+        - ppr
+        - ppl
+        - rpr
+        - rpl
+        - pzl
+        - pzr
+        - centr1
+        - centr2
+        + inter_glass_overlap * (P - 2)
+    )
+    _apply_glass_total_correction(result, control_glass_total)
+    _group_2row_glass_from_panels(
+        result,
+        result.panel_glass,
+        Q,
+        separate_center_profiles=center_is_rs112,
+    )
     _aggregate_glass_profiles(result, quantity=Q, painted=painted)
 
     handle_bar_len_m = handle_bar_len / 1000
@@ -1557,6 +1807,10 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
         )
         result.panel_glass = panel_rows
 
+    control_glass_total = (
+        W - ppr - ppl - rpr - rpl - pzl - pzr - pl - pr + inter_glass_overlap * (P - 1)
+    )
+    _apply_glass_total_correction(result, control_glass_total)
     _group_1row_glass_from_panels(result, result.panel_glass, Q)
 
     # ── Профили ───────────────────────────────────────────────────────────────

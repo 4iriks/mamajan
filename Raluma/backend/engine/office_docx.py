@@ -47,12 +47,24 @@ CHECKLIST_ROWS = [
     ("1", "Нарезка профиля по ТЗ", ""),
     ("2", "Фрезеровка профиля-замка под защелку (при наличии)", "Проверить сторону"),
     ("2", "Фрезеровка пазов в П-профиле и профиле-замке (при наличии)", ""),
-    ("3", "Рассверловка боковых пристеночных профилей", "Под низкий порог снизу не сверлится"),
+    (
+        "3",
+        "Рассверловка боковых пристеночных профилей",
+        "Под низкий порог снизу не сверлится",
+    ),
     ("3", "Рассверловка порога", ""),
     ("4", "Установка роликов и заглушек на стекольный профиль", ""),
     ("4", "Установка фетрового уплотнения в верхний направляющий профиль", "7×6"),
-    ("4", "Установка фетрового уплотнения в профиль-ручку", "7×6 + приклеить фетр к профилю"),
-    ("4", "Установка фетрового уплотнения в межстворочный профиль", "7×12 + приклеить фетр к профилю"),
+    (
+        "4",
+        "Установка фетрового уплотнения в профиль-ручку",
+        "7×6 + приклеить фетр к профилю",
+    ),
+    (
+        "4",
+        "Установка фетрового уплотнения в межстворочный профиль",
+        "7×12 + приклеить фетр к профилю",
+    ),
     ("5", "Склеить панели по ТЗ", ""),
     ("6", "Сборка фурнитуры по ТЗ", ""),
     ("6", "Сборка дополнительной фурнитуры по накладной", ""),
@@ -96,7 +108,12 @@ def _set_cell_margins(cell, top=60, start=80, bottom=60, end=80) -> None:
     if margins is None:
         margins = OxmlElement("w:tcMar")
         properties.append(margins)
-    for edge, value in (("top", top), ("start", start), ("bottom", bottom), ("end", end)):
+    for edge, value in (
+        ("top", top),
+        ("start", start),
+        ("bottom", bottom),
+        ("end", end),
+    ):
         node = margins.find(qn(f"w:{edge}"))
         if node is None:
             node = OxmlElement(f"w:{edge}")
@@ -181,6 +198,25 @@ def _style_table(table, header_rows: int = 1) -> None:
                     run.bold = True
 
 
+def _set_table_geometry_mm(table, widths_mm: tuple[float, ...]) -> None:
+    table.autofit = False
+    properties = table._tbl.tblPr
+    layout = properties.find(qn("w:tblLayout"))
+    if layout is None:
+        layout = OxmlElement("w:tblLayout")
+        properties.append(layout)
+    layout.set(qn("w:type"), "fixed")
+    width = properties.find(qn("w:tblW"))
+    if width is None:
+        width = OxmlElement("w:tblW")
+        properties.append(width)
+    width.set(qn("w:w"), str(int(sum(widths_mm) * 56.6929)))
+    width.set(qn("w:type"), "dxa")
+    for row in table.rows:
+        for cell, cell_width in zip(row.cells, widths_mm, strict=False):
+            _set_cell_width(cell, cell_width)
+
+
 def _configure_document(document: Document, *, landscape: bool) -> None:
     if landscape:
         _set_landscape(document.sections[0])
@@ -200,7 +236,9 @@ def _add_bar(document: Document, text: str) -> None:
     _set_cell_shading(cell, BRAND_DARK)
 
 
-def _add_header(document: Document, project: object, section: object, label: str) -> None:
+def _add_header(
+    document: Document, project: object, section: object, label: str
+) -> None:
     table = document.add_table(rows=1, cols=3)
     values = (
         f"ПРОЕКТ № {getattr(project, 'number', '')}",
@@ -246,7 +284,9 @@ def _add_picture_fitted(
         with Image.open(stream) as source:
             width_px, height_px = source.size
         stream.seek(0)
-        paragraph = cell.paragraphs[0]
+        paragraph = (
+            cell.add_paragraph() if cell.paragraphs[0].text else cell.paragraphs[0]
+        )
         paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
         paragraph.paragraph_format.space_after = Pt(0)
         if width_px / max(height_px, 1) >= max_width_mm / max_height_mm:
@@ -291,7 +331,9 @@ def _add_slide_parameters(
         ("СИСТЕМА", getattr(calc, "system_text", "") or ""),
     )
     for label, value in labels:
-        paragraph = left.add_paragraph() if left.paragraphs[0].text else left.paragraphs[0]
+        paragraph = (
+            left.add_paragraph() if left.paragraphs[0].text else left.paragraphs[0]
+        )
         paragraph.paragraph_format.space_after = Pt(0)
         label_run = paragraph.add_run(f"{label:<10} ")
         label_run.bold = True
@@ -440,7 +482,22 @@ def _add_diagrams(document: Document, section: object, calc: object) -> None:
         )
 
 
-def _add_slide_glass(document: Document, calc: object, overrides: dict[str, Any]) -> None:
+def _add_calc_warnings(document: Document, calc: object) -> None:
+    for warning_text in getattr(calc, "warnings", []) or []:
+        paragraph = document.add_paragraph()
+        paragraph.paragraph_format.space_before = Pt(1)
+        paragraph.paragraph_format.space_after = Pt(2)
+        paragraph.paragraph_format.keep_with_next = True
+        run = paragraph.add_run(str(warning_text))
+        run.bold = True
+        run.font.name = "Arial"
+        run.font.size = Pt(7)
+        run.font.color.rgb = RGBColor.from_string(RED)
+
+
+def _add_slide_glass(
+    document: Document, calc: object, overrides: dict[str, Any]
+) -> None:
     _add_bar(document, "Стекла")
     table = document.add_table(rows=1, cols=5)
     headers = ("Позиция", "Ширина, мм", "Высота, мм", "Кол-во, шт", "RS2021, мм")
@@ -479,7 +536,9 @@ def _add_slide_glass(document: Document, calc: object, overrides: dict[str, Any]
     _style_table(table)
 
 
-def _add_lift_panels(document: Document, calc: object, overrides: dict[str, Any]) -> None:
+def _add_lift_panels(
+    document: Document, calc: object, overrides: dict[str, Any]
+) -> None:
     _add_bar(document, "Заполнение и панели при склейке")
     table = document.add_table(rows=1, cols=7)
     headers = (
@@ -636,8 +695,12 @@ def _add_profiles(document: Document, calc: object, overrides: dict[str, Any]) -
                 {
                     "length": getattr(profile, "length_mm", 0),
                     "qty": getattr(profile, "qty", 0),
-                    "length_field": getattr(profile, "field_key", "") or f"profile_{index}_length",
-                    "qty_field": (getattr(profile, "field_key", "") or f"profile_{index}") + "_qty",
+                    "length_field": getattr(profile, "field_key", "")
+                    or f"profile_{index}_length",
+                    "qty_field": (
+                        getattr(profile, "field_key", "") or f"profile_{index}"
+                    )
+                    + "_qty",
                 }
             ]
         cut_labels: list[str] = []
@@ -686,7 +749,9 @@ def _add_hardware(document: Document, calc: object, overrides: dict[str, Any]) -
     _add_compact_cards(document, "Фурнитура и крепеж", cards)
 
 
-def _add_extra_components(document: Document, section: object, overrides: dict[str, Any]) -> None:
+def _add_extra_components(
+    document: Document, section: object, overrides: dict[str, Any]
+) -> None:
     rows = section_extra_components(section, overrides)
     if not rows:
         return
@@ -711,8 +776,7 @@ def _add_slide_checklist(
     paragraph = document.add_paragraph()
     paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = paragraph.add_run(
-        f"ПРОЕКТ № {getattr(project, 'number', '')} — "
-        f"{getattr(section, 'name', '')}"
+        f"ПРОЕКТ № {getattr(project, 'number', '')} — {getattr(section, 'name', '')}"
     )
     run.bold = True
     run.font.name = "Arial"
@@ -748,7 +812,9 @@ def _add_slide_checklist(
     _style_table(table)
     _add_bar(document, "Примечания и особые отметки при производстве или проверке ОТК")
     comments_table = document.add_table(rows=1, cols=1)
-    comments = override_value(overrides, "section_comments", getattr(section, "comments", "") or "")
+    comments = override_value(
+        overrides, "section_comments", getattr(section, "comments", "") or ""
+    )
     _set_cell_text(comments_table.cell(0, 0), comments, bold=True, size=9)
     comments_table.rows[0].height = Mm(29)
     comments_table.rows[0].height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
@@ -856,9 +922,14 @@ def build_section_docx(project: object, section: object, calc: object) -> bytes:
     document = Document()
     _configure_document(document, landscape=False)
     system = str(getattr(section, "system", "") or "").strip().upper()
-    label = "ЛИФТ · ПРОИЗВОДСТВЕННЫЙ ЛИСТ" if system == "ЛИФТ" else "СЛАЙД · ПРОИЗВОДСТВЕННЫЙ ЛИСТ"
+    label = (
+        "ЛИФТ · ПРОИЗВОДСТВЕННЫЙ ЛИСТ"
+        if system == "ЛИФТ"
+        else "СЛАЙД · ПРОИЗВОДСТВЕННЫЙ ЛИСТ"
+    )
     overrides = load_overrides(section)
     _add_header(document, project, section, label)
+    _add_calc_warnings(document, calc)
     if system == "ЛИФТ":
         _add_summary(document, section, calc)
         _add_diagrams(document, section, calc)
@@ -889,14 +960,27 @@ def build_section_docx(project: object, section: object, calc: object) -> bytes:
                 ("Количество приводов", f"{torque.drive_count} шт"),
             )
             for index, (label_text, value) in enumerate(values):
-                _set_cell_text(table.cell(0, index), label_text, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER)
-                _set_cell_text(table.cell(1, index), value, bold=True, size=10, align=WD_ALIGN_PARAGRAPH.CENTER)
+                _set_cell_text(
+                    table.cell(0, index),
+                    label_text,
+                    bold=True,
+                    align=WD_ALIGN_PARAGRAPH.CENTER,
+                )
+                _set_cell_text(
+                    table.cell(1, index),
+                    value,
+                    bold=True,
+                    size=10,
+                    align=WD_ALIGN_PARAGRAPH.CENTER,
+                )
             table.style = "Table Grid"
         _add_bar(document, "Примечания и особые отметки")
         notes = document.add_table(rows=1, cols=1)
         _set_cell_text(
             notes.cell(0, 0),
-            override_value(overrides, "lift_comments", getattr(section, "comments", "") or ""),
+            override_value(
+                overrides, "lift_comments", getattr(section, "comments", "") or ""
+            ),
             bold=True,
             size=10,
         )
@@ -943,9 +1027,238 @@ def _add_project_document_warnings(document: Document, context: dict) -> None:
         run.font.color.rgb = RGBColor.from_string(RED)
 
 
+def _sketch_heading(document: Document, text: str, *, size: float) -> None:
+    paragraph = document.add_paragraph()
+    paragraph.paragraph_format.space_before = Pt(5)
+    paragraph.paragraph_format.space_after = Pt(3)
+    paragraph.paragraph_format.keep_with_next = True
+    run = paragraph.add_run(text)
+    run.bold = True
+    run.font.name = "Arial"
+    run.font.size = Pt(size)
+    run.font.color.rgb = RGBColor.from_string(BRAND_DARK)
+
+
+def _build_sketch_docx(context: dict) -> bytes:
+    document = Document()
+    _configure_document(document, landscape=False)
+    section = document.sections[0]
+    section.top_margin = Mm(10)
+    section.bottom_margin = Mm(12)
+    section.left_margin = Mm(11)
+    section.right_margin = Mm(11)
+    normal = document.styles["Normal"]
+    normal.font.name = "Arial"
+    normal.font.size = Pt(8.5)
+    normal.paragraph_format.space_after = Pt(0)
+    document.core_properties.title = context["document_title"]
+    document.core_properties.subject = "Эскизный проект"
+    document.core_properties.company = "Raluma"
+
+    title = document.add_paragraph()
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title.paragraph_format.space_after = Pt(8)
+    title.paragraph_format.keep_with_next = True
+    title_run = title.add_run(context["document_title"])
+    title_run.bold = True
+    title_run.font.name = "Arial"
+    title_run.font.size = Pt(16)
+    title_run.font.color.rgb = RGBColor.from_string(BRAND_DARK)
+
+    if not context["sections"]:
+        paragraph = document.add_paragraph("В проекте нет секций.")
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    for sketch_section in context["sections"]:
+        _sketch_heading(
+            document,
+            f"Изделие № {sketch_section['order']} · {sketch_section['system_text']}",
+            size=10.5,
+        )
+        for warning_text in sketch_section["warnings"]:
+            warning = document.add_paragraph()
+            warning.paragraph_format.space_before = Pt(1)
+            warning.paragraph_format.space_after = Pt(3)
+            warning.paragraph_format.keep_with_next = True
+            warning_run = warning.add_run(str(warning_text))
+            warning_run.bold = True
+            warning_run.font.name = "Arial"
+            warning_run.font.size = Pt(7.5)
+            warning_run.font.color.rgb = RGBColor.from_string(RED)
+
+        meta = document.add_table(rows=5, cols=4)
+        meta_values = (
+            (
+                "Номер изделия",
+                sketch_section["order"],
+                "Система",
+                sketch_section["system_text"],
+            ),
+            (
+                "Ширина",
+                f"{format_dimension(sketch_section['width_mm'])} мм",
+                "Высота",
+                f"{format_dimension(sketch_section['height_mm'])} мм",
+            ),
+            (
+                "Цвет",
+                sketch_section["color"],
+                "Количество",
+                f"{sketch_section['quantity']} шт",
+            ),
+            (
+                "Порог",
+                sketch_section["threshold"],
+                "Межстекольный профиль",
+                sketch_section["inter_glass_profile"],
+            ),
+        )
+        for row_index, values in enumerate(meta_values):
+            for column, value in enumerate(values):
+                _set_cell_text(
+                    meta.cell(row_index, column),
+                    value,
+                    bold=column % 2 == 0,
+                    size=6.7 if column % 2 == 0 else 7.2,
+                )
+                if column % 2 == 0:
+                    _set_cell_shading(meta.cell(row_index, column), HEADER_GRAY)
+        _set_cell_text(meta.cell(4, 0), "Стекло / заполнение", bold=True, size=6.7)
+        _set_cell_shading(meta.cell(4, 0), HEADER_GRAY)
+        filling_cell = meta.cell(4, 1).merge(meta.cell(4, 3))
+        _set_cell_text(filling_cell, sketch_section["filling"], bold=True, size=7.2)
+        meta.style = "Table Grid"
+        _set_table_geometry_mm(meta, (32, 59, 32, 59))
+        for row in meta.rows:
+            _prevent_row_split(row)
+
+        diagrams = sketch_section["diagrams"]
+        if diagrams:
+            diagram_table = document.add_table(rows=1, cols=len(diagrams))
+            for index, diagram in enumerate(diagrams):
+                cell = diagram_table.cell(0, index)
+                _set_cell_text(
+                    cell,
+                    diagram["title"].upper(),
+                    bold=True,
+                    size=7,
+                    align=WD_ALIGN_PARAGRAPH.CENTER,
+                )
+                _add_picture_fitted(
+                    cell,
+                    diagram["png"],
+                    max_width_mm=86,
+                    max_height_mm=54,
+                )
+            diagram_table.style = "Table Grid"
+            _set_table_geometry_mm(
+                diagram_table,
+                tuple(91 for _ in diagrams),
+            )
+            for row in diagram_table.rows:
+                _prevent_row_split(row)
+
+        _sketch_heading(document, "ФИЗИЧЕСКИЕ ПАНЕЛИ", size=8)
+        panels_table = document.add_table(rows=1, cols=6)
+        panel_headers = (
+            "№",
+            "Позиция",
+            "Стекло / заполнение",
+            "Ширина, мм",
+            "Высота, мм",
+            "Кол-во",
+        )
+        for column, header in enumerate(panel_headers):
+            _set_cell_text(
+                panels_table.cell(0, column),
+                header,
+                bold=True,
+                size=6.5,
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+            )
+        for panel in sketch_section["panels"]:
+            row = panels_table.add_row()
+            values = (
+                panel.number,
+                panel.position,
+                panel.filling,
+                format_dimension(panel.width_mm),
+                format_dimension(panel.height_mm),
+                panel.qty,
+            )
+            for column, value in enumerate(values):
+                _set_cell_text(
+                    row.cells[column],
+                    value,
+                    size=6.5,
+                    align=(
+                        WD_ALIGN_PARAGRAPH.CENTER
+                        if column in {0, 3, 4, 5}
+                        else WD_ALIGN_PARAGRAPH.LEFT
+                    ),
+                )
+        _style_table(panels_table)
+        _set_table_geometry_mm(panels_table, (12, 32, 70, 25, 25, 18))
+        for row in panels_table.rows:
+            _prevent_row_split(row)
+
+        _sketch_heading(document, "КОМПЛЕКТАЦИЯ", size=8)
+        components = sketch_section["components"]
+        if components:
+            components_table = document.add_table(rows=1, cols=5)
+            component_headers = (
+                "Артикул",
+                "Наименование",
+                "Размер",
+                "Кол-во",
+                "Примечание",
+            )
+            for column, header in enumerate(component_headers):
+                _set_cell_text(
+                    components_table.cell(0, column),
+                    header,
+                    bold=True,
+                    size=6.5,
+                    align=WD_ALIGN_PARAGRAPH.CENTER,
+                )
+            for component in components:
+                row = components_table.add_row()
+                values = (
+                    component["article"] or "—",
+                    component["name"],
+                    component["size"],
+                    f"{component['qty']} {component['unit']}",
+                    component["note"] or "—",
+                )
+                for column, value in enumerate(values):
+                    _set_cell_text(
+                        row.cells[column],
+                        value,
+                        size=6.3,
+                        align=(
+                            WD_ALIGN_PARAGRAPH.CENTER
+                            if column in {0, 2, 3}
+                            else WD_ALIGN_PARAGRAPH.LEFT
+                        ),
+                    )
+            _style_table(components_table)
+            _set_table_geometry_mm(components_table, (28, 70, 28, 22, 34))
+            for row in components_table.rows:
+                _prevent_row_split(row)
+        else:
+            empty = document.add_paragraph("Комплектация не выбрана.")
+            empty.paragraph_format.space_after = Pt(3)
+
+    output = io.BytesIO()
+    document.save(output)
+    return output.getvalue()
+
+
 def _rubles(value: Any) -> str:
     try:
-        rounded = int(Decimal(str(value)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        rounded = int(
+            Decimal(str(value)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        )
     except Exception:
         rounded = 0
     return f"{rounded:,}".replace(",", " ")
@@ -1025,9 +1338,7 @@ def _build_commercial_docx(context: dict) -> bytes:
                     bold=index == 0,
                     size=6.5,
                     align=(
-                        WD_ALIGN_PARAGRAPH.CENTER
-                        if index in {1, 2, 3, 4, 6}
-                        else None
+                        WD_ALIGN_PARAGRAPH.CENTER if index in {1, 2, 3, 4, 6} else None
                     ),
                 )
                 _set_cell_width(row.cells[index], technical_widths[index])
@@ -1109,9 +1420,7 @@ def _build_commercial_docx(context: dict) -> bytes:
         )
     else:
         totals_rows.append(("НДС", "Без НДС"))
-    totals_rows.append(
-        ("ИТОГО", f"{_rubles(totals['document_grand_total'])} ₽")
-    )
+    totals_rows.append(("ИТОГО", f"{_rubles(totals['document_grand_total'])} ₽"))
     for row_index, (label, value) in enumerate(totals_rows):
         row = totals_table.add_row()
         _set_cell_text(
@@ -1277,7 +1586,16 @@ def _build_glass_docx(context: dict) -> bytes:
     run.font.color.rgb = RGBColor.from_string(RED)
 
     table = document.add_table(rows=1, cols=8)
-    headers = ("№", "Маркировка", "Стекло", "Ширина, мм", "Высота, мм", "Кол-во", "Площадь, м²", "Примечание")
+    headers = (
+        "№",
+        "Маркировка",
+        "Стекло",
+        "Ширина, мм",
+        "Высота, мм",
+        "Кол-во",
+        "Площадь, м²",
+        "Примечание",
+    )
     for index, header in enumerate(headers):
         _set_cell_text(
             table.cell(0, index),
@@ -1307,8 +1625,18 @@ def _build_glass_docx(context: dict) -> bytes:
     total = table.add_row()
     total.cells[0].merge(total.cells[4])
     _set_cell_text(total.cells[0], "Итого", bold=True, align=WD_ALIGN_PARAGRAPH.RIGHT)
-    _set_cell_text(total.cells[5], context["glass_total_qty"], bold=True, align=WD_ALIGN_PARAGRAPH.CENTER)
-    _set_cell_text(total.cells[6], f"{context['glass_total_area']:.3f}", bold=True, align=WD_ALIGN_PARAGRAPH.CENTER)
+    _set_cell_text(
+        total.cells[5],
+        context["glass_total_qty"],
+        bold=True,
+        align=WD_ALIGN_PARAGRAPH.CENTER,
+    )
+    _set_cell_text(
+        total.cells[6],
+        f"{context['glass_total_area']:.3f}",
+        bold=True,
+        align=WD_ALIGN_PARAGRAPH.CENTER,
+    )
     _style_table(table)
 
     quality = document.add_paragraph()
@@ -1358,7 +1686,14 @@ def _build_paint_docx(context: dict) -> bytes:
         warning_run.font.color.rgb = RGBColor.from_string(RED)
 
         table = document.add_table(rows=1, cols=6)
-        headers = ("Артикул", "Сечение", "Кол-во", "Чистовые размеры", "С припуском 50 мм", "Общее, м.п.")
+        headers = (
+            "Артикул",
+            "Сечение",
+            "Кол-во",
+            "Чистовые размеры",
+            "С припуском 50 мм",
+            "Общее, м.п.",
+        )
         for index, header in enumerate(headers):
             _set_cell_text(
                 table.cell(0, index),
@@ -1370,9 +1705,16 @@ def _build_paint_docx(context: dict) -> bytes:
             start = len(table.rows)
             for row_data in group["rows"]:
                 row = table.add_row()
-                _set_cell_text(row.cells[0], group["article"], bold=True, align=WD_ALIGN_PARAGRAPH.CENTER)
+                _set_cell_text(
+                    row.cells[0],
+                    group["article"],
+                    bold=True,
+                    align=WD_ALIGN_PARAGRAPH.CENTER,
+                )
                 _set_cell_text(row.cells[1], group["name"], size=7.5)
-                _set_cell_text(row.cells[2], row_data["qty"], align=WD_ALIGN_PARAGRAPH.CENTER)
+                _set_cell_text(
+                    row.cells[2], row_data["qty"], align=WD_ALIGN_PARAGRAPH.CENTER
+                )
                 _set_cell_text(
                     row.cells[3],
                     format_dimension(row_data["clean"]),
@@ -1383,7 +1725,11 @@ def _build_paint_docx(context: dict) -> bytes:
                     format_dimension(row_data["allowance"]),
                     align=WD_ALIGN_PARAGRAPH.CENTER,
                 )
-                _set_cell_text(row.cells[5], f"{row_data['total_m']:.1f}".replace(".", ","), align=WD_ALIGN_PARAGRAPH.CENTER)
+                _set_cell_text(
+                    row.cells[5],
+                    f"{row_data['total_m']:.1f}".replace(".", ","),
+                    align=WD_ALIGN_PARAGRAPH.CENTER,
+                )
                 row.height = Mm(11)
                 row.height_rule = WD_ROW_HEIGHT_RULE.AT_LEAST
             end = len(table.rows) - 1
@@ -1392,8 +1738,15 @@ def _build_paint_docx(context: dict) -> bytes:
             if end > start:
                 article_cell = article_cell.merge(table.cell(end, 0))
                 image_cell = image_cell.merge(table.cell(end, 1))
-            _set_cell_text(article_cell, group["article"], bold=True, align=WD_ALIGN_PARAGRAPH.CENTER)
-            _set_cell_text(image_cell, group["name"], size=7.5, align=WD_ALIGN_PARAGRAPH.CENTER)
+            _set_cell_text(
+                article_cell,
+                group["article"],
+                bold=True,
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+            )
+            _set_cell_text(
+                image_cell, group["name"], size=7.5, align=WD_ALIGN_PARAGRAPH.CENTER
+            )
             if group.get("note"):
                 note = image_cell.add_paragraph(str(group["note"]))
                 note.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -1410,9 +1763,21 @@ def _build_paint_docx(context: dict) -> bytes:
 
         total = table.add_row()
         total.cells[0].merge(total.cells[1])
-        _set_cell_text(total.cells[0], "Итого", bold=True, align=WD_ALIGN_PARAGRAPH.RIGHT)
-        _set_cell_text(total.cells[2], page["total_qty"], bold=True, align=WD_ALIGN_PARAGRAPH.CENTER)
-        _set_cell_text(total.cells[5], f"{page['total_m']:.1f}".replace(".", ","), bold=True, align=WD_ALIGN_PARAGRAPH.CENTER)
+        _set_cell_text(
+            total.cells[0], "Итого", bold=True, align=WD_ALIGN_PARAGRAPH.RIGHT
+        )
+        _set_cell_text(
+            total.cells[2],
+            page["total_qty"],
+            bold=True,
+            align=WD_ALIGN_PARAGRAPH.CENTER,
+        )
+        _set_cell_text(
+            total.cells[5],
+            f"{page['total_m']:.1f}".replace(".", ","),
+            bold=True,
+            align=WD_ALIGN_PARAGRAPH.CENTER,
+        )
         _style_table(table)
 
     output = io.BytesIO()
@@ -1444,12 +1809,14 @@ def _build_hardware_order_docx(context: dict) -> bytes:
         heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
         heading.paragraph_format.space_after = Pt(0)
         run = heading.add_run(
-            f"НАРЯД-ЗАКАЗ НА ФУРНИТУРУ — "
-            f"{getattr(context['project'], 'number', '')}"
+            f"НАРЯД-ЗАКАЗ НА ФУРНИТУРУ — {getattr(context['project'], 'number', '')}"
         )
         run.bold = True
         run.font.name = "Arial"
         run.font.size = Pt(12)
+
+        if page_index == 0:
+            _add_project_document_warnings(document, context)
 
         system_heading = document.add_paragraph()
         system_heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -1569,6 +1936,8 @@ def build_project_docx(
     quote: dict | None = None,
 ) -> bytes:
     context = build_project_document_context(project, sections, doc_type, quote=quote)
+    if doc_type == "sketch":
+        return _build_sketch_docx(context)
     if doc_type == "commercial" and quote is not None:
         return _build_commercial_docx(context)
     if doc_type == "glass":
@@ -1578,5 +1947,5 @@ def build_project_docx(
     if doc_type == "hardware_order":
         return _build_hardware_order_docx(context)
     raise ValueError(
-        "Word export is available only for commercial, glass, paint and hardware order documents"
+        "Word export is available only for sketch, commercial, glass, paint and hardware order documents"
     )

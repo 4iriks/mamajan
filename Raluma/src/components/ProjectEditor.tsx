@@ -639,7 +639,15 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           </button>
           <div className="hidden sm:block h-6 w-px bg-tint/20 flex-shrink-0" />
           <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-            <span className="text-sm sm:text-xl font-bold whitespace-nowrap">№ {project.number}</span>
+            <button
+              type="button"
+              onClick={() => requestNavigate(null)}
+              className="text-fg text-sm sm:text-xl font-bold whitespace-nowrap hover:text-accent transition-colors"
+              aria-label="Открыть проект"
+              title="Документы и параметры проекта"
+            >
+              № {project.number}
+            </button>
             <div className="hidden lg:flex items-center gap-2 flex-shrink-0">
               <span className="text-fg/20">·</span>
               <span className="text-fg/60 truncate max-w-[200px]">{project.customer}</span>
@@ -682,6 +690,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       {!activeSectionId && (
         <div className="hidden sm:flex items-center gap-1 px-4 sm:px-8 py-2 border-b border-tint/20 bg-surface/20 flex-shrink-0">
           {[
+            { name: 'Эскизный проект', icon: FileText, projectDoc: 'sketch' as const },
             { name: 'Коммерческое предложение', icon: FileText, projectDoc: 'commercial' as const },
             {
               name: 'Наряд-заказ на фурнитуру',
