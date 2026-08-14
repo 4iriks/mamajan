@@ -66,7 +66,7 @@ function LayoutCard({
       }`}
     >
       <span data-slide-preset-preview className="block h-[150px] overflow-hidden rounded-xl bg-page/55 [&_svg]:h-full [&_svg]:w-full">
-        <SlideRoomViewSVG section={preview} />
+        <SlideRoomViewSVG section={preview} compact />
       </span>
       <span className="mt-1.5 flex h-7 items-center justify-between gap-2 px-1">
         <span className="min-w-0 truncate text-[11px] font-bold text-fg/85">{preset.title}</span>

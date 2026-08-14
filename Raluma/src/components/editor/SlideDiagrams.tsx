@@ -527,7 +527,15 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
 
 // ── SVG: Вид из помещения ─────────────────────────────────────────────────────
 
-export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: SlideCalcPreview | null }) {
+export function SlideRoomViewSVG({
+  section,
+  calc,
+  compact = false,
+}: {
+  section: Section;
+  calc?: SlideCalcPreview | null;
+  compact?: boolean;
+}) {
   const diagramId = React.useId().replace(/:/g, '');
   const panels  = section.panels;
   const is2row = (section.slideRows ?? 1) === 2;
@@ -570,6 +578,10 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
   const fH = safeH * drawingScale;
   const fX = drawingOriginX + (maxDrawingW - fW) / 2;
   const fY = drawingOriginY + (maxDrawingH - fH) / 2;
+  const compactPadding = 10;
+  const roomViewBox = compact
+    ? `${fX - compactPadding} ${fY - compactPadding} ${fW + compactPadding * 2} ${fH + compactPadding * 2}`
+    : `0 0 ${vbW} ${vbH}`;
 
   const topProfileMm = findProfileDimension(calc, rails === 5 ? ['RS1315'] : ['RS1313'], 'section_height_mm', 53);
   const thresholdArticles = rails === 5
@@ -643,7 +655,12 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
   };
 
   return (
-    <svg viewBox={`0 0 ${vbW} ${vbH}`} className="block w-full" style={{ maxWidth: 600, maxHeight: 360, margin: '0 auto' }}>
+    <svg
+      data-room-view-mode={compact ? 'compact' : 'full'}
+      viewBox={roomViewBox}
+      className="block w-full"
+      style={{ maxWidth: 600, maxHeight: 360, margin: '0 auto' }}
+    >
       <defs>
         <pattern id={mattePatternId} data-glass-pattern="matte" width="6" height="6" patternUnits="userSpaceOnUse">
           <rect width="6" height="6" fill={glassFill} />
@@ -655,7 +672,7 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
       <rect x={fX} y={fY + fH - bottomPx} width={fW} height={bottomPx} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.6" strokeOpacity="0.4" />
       <rect x={fX} y={fY} width={sidePx} height={fH} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.6" strokeOpacity="0.4" />
       <rect x={fX + fW - sidePx} y={fY} width={sidePx} height={fH} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.6" strokeOpacity="0.4" />
-      <rect x={fX} y={fY} width={fW} height={fH} fill="none" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.5" />
+      <rect data-room-frame x={fX} y={fY} width={fW} height={fH} fill="none" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.5" />
       {Array.from({ length: panels }).map((_, i) => {
         const layout = panelLayout[i];
         const px = layout.x;
@@ -808,7 +825,7 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
         );
       })()}
 
-      {Array.from({ length: panels }).map((_, i) => {
+      {!compact && Array.from({ length: panels }).map((_, i) => {
         const layout = panelLayout[i];
         const dx1 = layout.x;
         const dx2 = layout.x + layout.width;
@@ -816,7 +833,7 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
         const cx  = (dx1 + dx2) / 2;
         const panelWmm = layout.widthMm;
         return (
-          <g key={i}>
+          <g key={i} data-room-panel-dimension={i + 1}>
             <line x1={dx1 + 3} y1={dy} x2={dx2 - 3} y2={dy} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.35" />
             <line x1={dx1 + 3} y1={dy - 4} x2={dx1 + 3} y2={dy + 4} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.35" />
             <line x1={dx2 - 3} y1={dy - 4} x2={dx2 - 3} y2={dy + 4} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.35" />
@@ -831,19 +848,23 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
       {renderHandleSymbol(handleRight, handleRightX)}
       {renderLockSymbol(lockRight, lockRightX)}
 
-      <line x1={iX} y1={fY + fH + 38} x2={iX + iW} y2={fY + fH + 38} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
-      <line x1={iX}      y1={fY + fH + 32} x2={iX}      y2={fY + fH + 44} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
-      <line x1={iX + iW} y1={fY + fH + 32} x2={iX + iW} y2={fY + fH + 44} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
-      <text x={iX + iW / 2} y={fY + fH + 52} textAnchor="middle" fontSize="10" fill="var(--theme-accent)" fillOpacity="0.5">{W}</text>
+      {!compact && (
+        <g data-room-overall-dimensions>
+          <line x1={iX} y1={fY + fH + 38} x2={iX + iW} y2={fY + fH + 38} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
+          <line x1={iX}      y1={fY + fH + 32} x2={iX}      y2={fY + fH + 44} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
+          <line x1={iX + iW} y1={fY + fH + 32} x2={iX + iW} y2={fY + fH + 44} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
+          <text x={iX + iW / 2} y={fY + fH + 52} textAnchor="middle" fontSize="10" fill="var(--theme-accent)" fillOpacity="0.5">{W}</text>
 
-      <line x1={fX + fW + 18} y1={fY} x2={fX + fW + 18} y2={fY + fH} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
-      <line x1={fX + fW + 12} y1={fY}      x2={fX + fW + 24} y2={fY}      stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
-      <line x1={fX + fW + 12} y1={fY + fH} x2={fX + fW + 24} y2={fY + fH} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
-      <text
-        x={fX + fW + 34} y={fY + fH / 2}
-        textAnchor="middle" fontSize="10" fill="var(--theme-accent)" fillOpacity="0.5"
-        transform={`rotate(90,${fX + fW + 34},${fY + fH / 2})`}
-      >{Hh}</text>
+          <line x1={fX + fW + 18} y1={fY} x2={fX + fW + 18} y2={fY + fH} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
+          <line x1={fX + fW + 12} y1={fY}      x2={fX + fW + 24} y2={fY}      stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
+          <line x1={fX + fW + 12} y1={fY + fH} x2={fX + fW + 24} y2={fY + fH} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
+          <text
+            x={fX + fW + 34} y={fY + fH / 2}
+            textAnchor="middle" fontSize="10" fill="var(--theme-accent)" fillOpacity="0.5"
+            transform={`rotate(90,${fX + fW + 34},${fY + fH / 2})`}
+          >{Hh}</text>
+        </g>
+      )}
     </svg>
   );
 }

@@ -63,6 +63,10 @@ const oneRowMarkup = renderToStaticMarkup(
 );
 assert.equal((oneRowMarkup.match(/data-slide-layout-preset=/g) ?? []).length, 3);
 assert.equal((oneRowMarkup.match(/data-slide-hardware-preset=/g) ?? []).length, 0);
+assert.equal((oneRowMarkup.match(/data-room-view-mode="compact"/g) ?? []).length, 3);
+assert.match(oneRowMarkup, /data-glass-panel="1"/);
+assert.doesNotMatch(oneRowMarkup, /data-room-panel-dimension/);
+assert.doesNotMatch(oneRowMarkup, /data-room-overall-dimensions/);
 assert.doesNotMatch(oneRowMarkup, /Добавить|0\/10|Переименовать|Удалить/);
 assert.doesNotMatch(oneRowMarkup, /Быстрый выбор|СЛАЙД · 1 ряд|>Схема</);
 assert.doesNotMatch(oneRowMarkup, /2000 × 3000 мм/);
@@ -78,6 +82,10 @@ const twoRowMarkup = renderToStaticMarkup(
 );
 assert.equal((twoRowMarkup.match(/data-slide-layout-preset=/g) ?? []).length, 4);
 assert.equal((twoRowMarkup.match(/data-slide-hardware-preset=/g) ?? []).length, 3);
+assert.equal((twoRowMarkup.match(/data-room-view-mode="compact"/g) ?? []).length, 4);
+assert.match(twoRowMarkup, /data-glass-panel="1"/);
+assert.doesNotMatch(twoRowMarkup, /data-room-panel-dimension/);
+assert.doesNotMatch(twoRowMarkup, /data-room-overall-dimensions/);
 assert.doesNotMatch(twoRowMarkup, /Быстрый выбор|СЛАЙД · 2 ряда|>Схема<|>Фурнитура</);
 assert.doesNotMatch(twoRowMarkup, /3500 × 3000 мм/);
 
