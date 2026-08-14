@@ -18,6 +18,7 @@ DEFAULT_INTER_GLASS_PROFILE = "Алюминиевый RS2061"
 DEFAULT_GLASS_TYPE = SLIDE_DEFAULT_GLASS_TYPE
 PNG_PROFILE_IMAGES = {
     "RS1002",
+    "RS1005",
     "RS1006",
     "RS105",
     "RS106",
@@ -138,6 +139,7 @@ class SlideCalcResult:
     threshold_text: str = ""
     system_text: str = ""
     panel_rails: list[int] = field(default_factory=list)  # panel i → rail index
+    panel_numbers: list[int] = field(default_factory=list)
     panel_glass: list[PanelGlassItem] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -262,6 +264,11 @@ def _round_glass_difference_mm(value: float) -> int:
     )
 
 
+def _round_production_mm(value: float) -> int:
+    """Round a production dimension to a whole millimetre, half away from zero."""
+    return _round_glass_difference_mm(value)
+
+
 def _format_check_mm(value: float, *, signed: bool = False) -> str:
     rounded = round(float(value or 0), 1)
     prefix = "+" if signed and rounded > 0 else ""
@@ -330,10 +337,73 @@ def _apply_glass_total_correction(
     if not panels:
         return 0
 
+    calculation_groups: dict[float, list[int]] = {}
+    for index, panel in enumerate(panels):
+        calculation_groups.setdefault(round(float(panel.width_mm), 6), []).append(index)
+
+    # Glass and its RS2021 profile are issued to production in whole millimetres.
+    # Compare the checksum with those exact values, not intermediate tenths.
+    for panel in panels:
+        panel.width_mm = float(_round_production_mm(panel.width_mm))
+        panel.height_mm = float(_round_production_mm(panel.height_mm))
+        panel.glass_profile_length = float(
+            _round_production_mm(panel.glass_profile_length)
+        )
+
     actual_total_mm = sum(float(panel.width_mm or 0) for panel in panels)
     raw_difference_mm = float(control_total_mm) - actual_total_mm
     difference_mm = _round_glass_difference_mm(raw_difference_mm)
 
+    if abs(difference_mm) >= 4:
+        result.warnings.append(
+            "Ошибка проверки суммы стекол SLIDE: автоматическая коррекция "
+            "не выполнена. "
+            f"Контрольная сумма — {_format_check_mm(control_total_mm)} мм; "
+            f"фактическая сумма — {_format_check_mm(actual_total_mm)} мм; "
+            f"разница — {_format_check_mm(raw_difference_mm, signed=True)} мм."
+        )
+        return difference_mm
+
+    for index, adjustment in _glass_correction_adjustments(
+        len(panels), difference_mm
+    ).items():
+        panel = panels[index]
+        panel.width_mm = round(float(panel.width_mm) + adjustment, 1)
+        panel.glass_profile_length = round(
+            float(panel.glass_profile_length) + adjustment,
+            1,
+        )
+
+    # Panels produced by the same calculation form mirrored pairs. If an
+    # approved checksum adjustment leaves a pair one millimetre apart, issue
+    # both at the larger size and carry the same +1 into its RS2021 cutting.
+    for indexes in calculation_groups.values():
+        for pair_offset in range(len(indexes) // 2):
+            left = panels[indexes[pair_offset]]
+            right = panels[indexes[-pair_offset - 1]]
+            pair_difference = float(left.width_mm) - float(right.width_mm)
+            if abs(pair_difference) != 1:
+                continue
+            smaller = right if pair_difference > 0 else left
+            smaller.width_mm = round(float(smaller.width_mm) + 1, 1)
+            smaller.glass_profile_length = round(
+                float(smaller.glass_profile_length) + 1,
+                1,
+            )
+    return difference_mm
+
+
+def _apply_legacy_two_row_glass_total_correction(
+    result: SlideCalcResult,
+    control_total_mm: float,
+) -> int:
+    """Keep the established two-row decimal calculation unchanged."""
+    panels = result.panel_glass
+    if not panels:
+        return 0
+    actual_total_mm = sum(float(panel.width_mm or 0) for panel in panels)
+    raw_difference_mm = float(control_total_mm) - actual_total_mm
+    difference_mm = _round_glass_difference_mm(raw_difference_mm)
     if abs(difference_mm) >= 4:
         result.warnings.append(
             "SLIDE: автоматическая коррекция стекол не выполнена. "
@@ -342,7 +412,6 @@ def _apply_glass_total_correction(
             f"разница — {_format_check_mm(raw_difference_mm, signed=True)} мм."
         )
         return difference_mm
-
     for index, adjustment in _glass_correction_adjustments(
         len(panels), difference_mm
     ).items():
@@ -875,6 +944,14 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     if len(left_rails) < half:
         left_rails.extend([available[-1]] * (half - len(left_rails)))
     result.panel_rails = left_rails + list(reversed(left_rails))[: P - half]
+    if unused_track == "Внешний":
+        result.panel_numbers = list(range(half, 0, -1)) + list(
+            range(1, P - half + 1)
+        )
+    else:
+        result.panel_numbers = list(range(1, half + 1)) + list(
+            range(P - half, 0, -1)
+        )
 
     wall_l = bool(_get(section, "profile_left_wall", False))
     wall_r = bool(_get(section, "profile_right_wall", False))
@@ -1168,12 +1245,12 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     else:
         result.profiles.append(
             ProfileItem(
-                article="RS3110",
-                name="h-уплотнитель центрального стыка",
+                article="RS1005",
+                name="h-уплотнитель 10 мм",
                 length_mm=round(inter_glass_len, 1),
                 qty=Q,
                 painted=False,
-                image="RS3110.jpg",
+                image="RS1005.png",
                 field_key="center_joint_profile_length",
                 note="",
             )
@@ -1241,7 +1318,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         - centr2
         + inter_glass_overlap * (P - 2)
     )
-    _apply_glass_total_correction(result, control_glass_total)
+    _apply_legacy_two_row_glass_total_correction(result, control_glass_total)
     _group_2row_glass_from_panels(
         result,
         result.panel_glass,
@@ -1663,6 +1740,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
         ri_idx = (len(available) - 1 - pi) if not first_right else pi
         ri_idx = max(0, min(ri_idx, len(available) - 1))
         result.panel_rails.append(available[ri_idx])
+    result.panel_numbers = [P - pi if first_right else pi + 1 for pi in range(P)]
 
     # ── Профильные переменные (для расчёта стёкол) ────────────────────────────
 

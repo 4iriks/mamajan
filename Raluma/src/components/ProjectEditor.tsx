@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Save, Plus, Trash2, FileText,
   ClipboardList, Square as WindowIcon, Palette,
-  Loader2, X, LogIn,
+  Loader2, X, LogIn, PackagePlus,
 } from 'lucide-react';
 import { getProject, getProjects, updateProject, createSection, updateSection, deleteSection } from '../api/projects';
 import type { ProjectDocumentType, ProjectList } from '../api/projects';
@@ -20,6 +20,7 @@ import { useAuthStore } from '../store/authStore';
 
 import {
   DEFAULT_INTER_GLASS_PROFILE,
+  ExtraComponent,
   Section,
   OrderItem,
   ProjectEditorProps,
@@ -28,9 +29,15 @@ import {
   INP,
   SEL,
 } from './editor/types';
-import { apiToLocal, localToApi } from './editor/converters';
+import {
+  apiToLocal,
+  localToApi,
+  parseExtraComponents,
+  stringifyExtraComponents,
+} from './editor/converters';
 import { EditorSidebar } from './editor/EditorSidebar';
 import { SectionFormWrapper } from './editor/SectionFormWrapper';
+import { ExtraComponentsEditor } from './editor/ExtraComponentsEditor';
 import { buildCustomerOptions, filterCustomerOptions } from '../utils/customers';
 import { defaultGlassType } from '../constants/glass';
 import {
@@ -60,6 +67,8 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       setProject({ id: p.id, number: p.number, customer: p.customer });
       setProjectCustomerDraft(p.customer || '');
       setProjectExtraParts(p.extra_parts || '');
+      setProjectExtraComponents(parseExtraComponents(p.extra_components));
+      setHardwareInstallation(p.hardware_installation || 'not_installed');
       setProjectComments(p.comments || '');
       setProductionStages((p.production_stages as 1 | 2) || 1);
       setCurrentStage((p.current_stage as 1 | 2) || 1);
@@ -100,6 +109,9 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const [isDirty, setIsDirty] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(true);
   const [projectExtraParts, setProjectExtraParts] = useState('');
+  const [projectExtraComponents, setProjectExtraComponents] = useState<ExtraComponent[]>([]);
+  const [hardwareInstallation, setHardwareInstallation] = useState<'installed' | 'not_installed'>('not_installed');
+  const [projectExtrasOpen, setProjectExtrasOpen] = useState(false);
   const [projectComments, setProjectComments] = useState('');
   const [productionStages, setProductionStages] = useState<1 | 2>(1);
   const [currentStage, setCurrentStage] = useState<1 | 2>(1);
@@ -371,6 +383,8 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     try {
       await updateProject(project.id, {
         extra_parts: projectExtraParts,
+        extra_components: stringifyExtraComponents(projectExtraComponents),
+        hardware_installation: hardwareInstallation,
         comments: projectComments,
         production_stages: productionStages,
         current_stage: currentStage,
@@ -385,6 +399,33 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       });
     } catch {
       toast.error('Не удалось сохранить данные проекта');
+    }
+  };
+
+  const handleSaveProjectExtras = async () => {
+    if (!project) return;
+    try {
+      await updateProject(project.id, {
+        extra_components: stringifyExtraComponents(projectExtraComponents),
+      });
+      setProjectExtrasOpen(false);
+      toast.success('Комплектующие проекта сохранены');
+    } catch {
+      toast.error('Не удалось сохранить комплектующие проекта');
+    }
+  };
+
+  const changeHardwareInstallation = async (
+    value: 'installed' | 'not_installed',
+  ) => {
+    if (!project || value === hardwareInstallation) return;
+    const previous = hardwareInstallation;
+    setHardwareInstallation(value);
+    try {
+      await updateProject(project.id, { hardware_installation: value });
+    } catch {
+      setHardwareInstallation(previous);
+      toast.error('Не удалось сохранить режим установки фурнитуры');
     }
   };
 
@@ -545,6 +586,8 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           setProjectExtraParts={setProjectExtraParts}
           projectComments={projectComments}
           setProjectComments={setProjectComments}
+          projectExtraComponentsCount={projectExtraComponents.length}
+          onOpenProjectExtraComponents={() => setProjectExtrasOpen(true)}
           onSaveProjectNotes={handleSaveProjectNotes}
         />
 
@@ -727,10 +770,48 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   )}
                 </div>
 
+                {/* Hardware installation and structured project extras */}
+                <div className="mb-4 rounded-2xl border border-tint/30 bg-surface/40 p-5 sm:p-6">
+                  <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40">Комплектация</p>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {([
+                      ['installed', 'С установленной фурнитурой'],
+                      ['not_installed', 'Без установленной фурнитуры'],
+                    ] as const).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => changeHardwareInstallation(value)}
+                        className={`rounded-xl border px-4 py-3 text-left text-sm font-bold transition-colors ${
+                          hardwareInstallation === value
+                            ? 'border-accent/55 bg-accent/15 text-accent'
+                            : 'border-tint/25 bg-hi/[0.03] text-fg/55 hover:border-tint/45'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setProjectExtrasOpen(true)}
+                    className="mt-3 flex w-full items-center justify-between rounded-xl border border-tint/30 bg-tint/10 px-4 py-3 text-sm font-bold text-accent hover:bg-tint/20"
+                  >
+                    <span className="flex items-center gap-2"><PackagePlus className="h-4 w-4" /> Дополнительные комплектующие проекта</span>
+                    <span className="rounded-full bg-accent/15 px-2.5 py-0.5 font-mono text-xs">{projectExtraComponents.length}</span>
+                  </button>
+                </div>
+
                 {/* Notes */}
                 <div className="bg-surface/40 border border-tint/30 rounded-2xl p-5 sm:p-6 mb-4">
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40 mb-5">Примечания к проекту</p>
                   <div className="space-y-4">
+                    <div>
+                      <label className="text-[11px] text-fg/35 uppercase tracking-wider block mb-2">Примечание к комплектации</label>
+                      <textarea value={projectExtraParts} onChange={e => setProjectExtraParts(e.target.value)}
+                        onBlur={handleSaveProjectNotes} rows={2} placeholder="Сохранённый текст из старого поля..."
+                        className="w-full bg-hi/[0.03] border border-tint/25 rounded-2xl px-4 py-3 text-sm text-fg/70 placeholder-fg/20 resize-none focus:outline-none focus:border-accent/40 transition-colors" />
+                    </div>
                     <div>
                       <label className="text-[11px] text-fg/35 uppercase tracking-wider block mb-2">Комментарии</label>
                       <textarea value={projectComments} onChange={e => setProjectComments(e.target.value)}
@@ -762,6 +843,45 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           </AnimatePresence>
         </main>
       </div>
+
+      {/* Project extra-components modal */}
+      <AnimatePresence>
+        {projectExtrasOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-6">
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setProjectExtrasOpen(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.96, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.96, opacity: 0, y: 15 }}
+              className="relative z-10 flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem] border border-tint/35 bg-modal shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-tint/20 px-5 py-4 sm:px-8">
+                <div>
+                  <h2 className="text-xl font-bold sm:text-2xl">Комплектующие проекта</h2>
+                  <p className="mt-1 text-xs text-fg/40">Учитываются один раз на весь проект</p>
+                </div>
+                <button type="button" onClick={() => setProjectExtrasOpen(false)} className="text-fg/30 hover:text-fg">
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 sm:p-7">
+                <ExtraComponentsEditor
+                  items={projectExtraComponents}
+                  onChange={setProjectExtraComponents}
+                />
+              </div>
+              <div className="flex justify-end gap-3 border-t border-tint/20 bg-black/10 px-5 py-4 sm:px-8">
+                <button type="button" onClick={() => setProjectExtrasOpen(false)} className="rounded-xl border border-tint/25 px-5 py-2.5 text-sm font-bold text-fg/60 hover:bg-hi/5">Закрыть</button>
+                <button type="button" onClick={handleSaveProjectExtras} className="rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white hover:bg-primary-h">Сохранить</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Delete Section Modal */}
       <AnimatePresence>

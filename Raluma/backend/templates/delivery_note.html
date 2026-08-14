@@ -67,6 +67,7 @@
     .row-title { font-weight: 700; line-height: 1.25; }
     .row-meta { margin-top: 0.7mm; font-size: 8.8pt; line-height: 1.25; }
     .row-note { margin-top: 0.8mm; font-size: 8.4pt; font-weight: 700; line-height: 1.25; }
+    .component-thumb { float: right; width: auto; max-width: 22mm; height: auto; max-height: 12mm; margin: 0 0 1mm 2mm; object-fit: contain; }
     .dimensions { margin-top: 1.2mm; }
     .dimension-line { display: flex; gap: 2mm; align-items: baseline; line-height: 1.35; }
     .dimension-size { min-width: 37mm; }
@@ -224,11 +225,31 @@
             <div class="row-title">
               {% if row.article %}<span class="nowrap">{{ row.article|e }}</span> — {% endif %}{{ row.name|e }}
             </div>
+            {% if row.image %}<img class="component-thumb" src="{{ row.image|img_b64 }}" alt="">{% endif %}
             {% if row.color %}<div class="row-meta">Цвет: {{ row.color|e }}</div>{% endif %}
             {% if row.size %}<div class="row-meta">Размер: {{ row.size|e }}</div>{% endif %}
+            {% if row.stage %}<div class="row-meta">Этап: {{ row.stage|e }}</div>{% endif %}
             {% if row.note %}<div class="row-note">{{ row.note|e }}</div>{% endif %}
           </td>
-          <td class="quantity">{{ row.qty_text }}</td>
+          <td class="quantity">{{ row.qty_display or row.qty_text }}</td>
+          <td class="places" {% if not is_pdf %}contenteditable="true" data-delivery-place-key="{{ row.place_key }}" data-original="{{ row.places|e }}"{% endif %}>{{ row.places|e }}</td>
+        </tr>
+        {% endfor %}
+
+        {% for row in delivery_project_extra_rows %}
+        <tr class="group-row">
+          {% if loop.first %}<td class="item-number" rowspan="{{ delivery_project_extra_rows|length }}">3</td>{% endif %}
+          <td>
+            <div class="row-title">
+              {% if row.article %}<span class="nowrap">{{ row.article|e }}</span> — {% endif %}{{ row.name|e }}
+            </div>
+            {% if row.image %}<img class="component-thumb" src="{{ row.image|img_b64 }}" alt="">{% endif %}
+            {% if row.color %}<div class="row-meta">Цвет: {{ row.color|e }}</div>{% endif %}
+            {% if row.size %}<div class="row-meta">Размер: {{ row.size|e }}</div>{% endif %}
+            {% if row.stage %}<div class="row-meta">Этап: {{ row.stage|e }}</div>{% endif %}
+            {% if loop.first and delivery_project_extra_note %}<div class="row-note">Примечание к комплектации: {{ delivery_project_extra_note|e }}</div>{% endif %}
+          </td>
+          <td class="quantity">{{ row.qty_display }}</td>
           <td class="places" {% if not is_pdf %}contenteditable="true" data-delivery-place-key="{{ row.place_key }}" data-original="{{ row.places|e }}"{% endif %}>{{ row.places|e }}</td>
         </tr>
         {% endfor %}
@@ -241,7 +262,7 @@
       </tbody>
     </table>
 
-    <div class="names-total">Всего {{ delivery_names_count }} (два) наименования.</div>
+    <div class="names-total">Всего наименований: {{ delivery_names_count }}.</div>
     <div class="acceptance">
       Изделия и комплектацию принял. Претензий по качеству и количеству не имею. <span class="acceptance-line"></span>
     </div>

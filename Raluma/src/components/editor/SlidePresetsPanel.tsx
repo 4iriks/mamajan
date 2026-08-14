@@ -101,7 +101,7 @@ export function SlidePresetsPanel({
     <section data-slide-presets data-slide-presets-layout="beside-heading" className="min-w-0 rounded-2xl border border-tint/25 bg-surface/20 p-2">
       <div className={isTwoRows ? 'grid gap-2 xl:grid-cols-[minmax(0,4fr)_minmax(210px,1fr)]' : ''}>
         <div className="min-w-0">
-          <div className={`grid gap-2 ${isTwoRows ? 'sm:grid-cols-2 xl:grid-cols-4' : 'sm:grid-cols-3'}`}>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             {layouts.map(preset => (
               <React.Fragment key={preset.id}>
                 <LayoutCard

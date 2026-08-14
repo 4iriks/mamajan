@@ -171,9 +171,8 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
 
   // Неиспользуемый рельс: показываем когда панелей < макс
   const maxPanels1row = rails;
-  const maxPanels2row = rails * 2;
   const showUnused = is2row
-    ? (s.panels ?? 4) < maxPanels2row
+    ? true
     : (s.panels ?? 3) < maxPanels1row;
   const firstPanelsPlacement = (s.unusedTrack ?? 'Внешний') === 'Внешний' ? 'В центре' : 'Снаружи';
 

@@ -706,7 +706,10 @@ def _add_profiles(document: Document, calc: object, overrides: dict[str, Any]) -
         cut_labels: list[str] = []
         for cut in cuts:
             length = ""
-            if str(getattr(profile, "article", "")).upper() != "RS3110":
+            if str(getattr(profile, "article", "")).upper() not in {
+                "RS1005",
+                "RS3110",
+            }:
                 length = override_value(
                     overrides,
                     str(cut.get("length_field") or ""),
@@ -1069,7 +1072,9 @@ def _build_sketch_docx(context: dict) -> bytes:
         paragraph = document.add_paragraph("В проекте нет секций.")
         paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-    for sketch_section in context["sections"]:
+    for section_index, sketch_section in enumerate(context["sections"]):
+        if section_index:
+            document.add_page_break()
         _sketch_heading(
             document,
             f"Изделие № {sketch_section['order']} · {sketch_section['system_text']}",
@@ -1132,11 +1137,23 @@ def _build_sketch_docx(context: dict) -> bytes:
         for row in meta.rows:
             _prevent_row_split(row)
 
+        if sketch_section.get("comments"):
+            comment = document.add_paragraph()
+            comment.paragraph_format.space_before = Pt(2)
+            comment.paragraph_format.space_after = Pt(3)
+            comment.paragraph_format.keep_with_next = True
+            comment_run = comment.add_run(
+                f"Примечание: {sketch_section['comments']}"
+            )
+            comment_run.font.name = "Arial"
+            comment_run.font.size = Pt(7.2)
+            comment_run.italic = True
+
         diagrams = sketch_section["diagrams"]
         if diagrams:
-            diagram_table = document.add_table(rows=1, cols=len(diagrams))
+            diagram_table = document.add_table(rows=len(diagrams), cols=1)
             for index, diagram in enumerate(diagrams):
-                cell = diagram_table.cell(0, index)
+                cell = diagram_table.cell(index, 0)
                 _set_cell_text(
                     cell,
                     diagram["title"].upper(),
@@ -1147,18 +1164,15 @@ def _build_sketch_docx(context: dict) -> bytes:
                 _add_picture_fitted(
                     cell,
                     diagram["png"],
-                    max_width_mm=86,
-                    max_height_mm=54,
+                    max_width_mm=176,
+                    max_height_mm=58,
                 )
             diagram_table.style = "Table Grid"
-            _set_table_geometry_mm(
-                diagram_table,
-                tuple(91 for _ in diagrams),
-            )
+            _set_table_geometry_mm(diagram_table, (182,))
             for row in diagram_table.rows:
                 _prevent_row_split(row)
 
-        _sketch_heading(document, "ФИЗИЧЕСКИЕ ПАНЕЛИ", size=8)
+        _sketch_heading(document, "РАЗМЕРЫ СТЕКОЛ", size=8)
         panels_table = document.add_table(rows=1, cols=6)
         panel_headers = (
             "№",
@@ -1223,9 +1237,27 @@ def _build_sketch_docx(context: dict) -> bytes:
                 )
             for component in components:
                 row = components_table.add_row()
+                component_meta = "\n".join(
+                    filter(
+                        None,
+                        (
+                            component["name"],
+                            (
+                                f"Цвет: {component['color']}"
+                                if component.get("color")
+                                else ""
+                            ),
+                            (
+                                f"Этап: {component['stage']}"
+                                if component.get("stage")
+                                else ""
+                            ),
+                        ),
+                    )
+                )
                 values = (
                     component["article"] or "—",
-                    component["name"],
+                    component_meta,
                     component["size"],
                     f"{component['qty']} {component['unit']}",
                     component["note"] or "—",
@@ -1241,6 +1273,12 @@ def _build_sketch_docx(context: dict) -> bytes:
                             else WD_ALIGN_PARAGRAPH.LEFT
                         ),
                     )
+                _add_picture_fitted(
+                    row.cells[1],
+                    image_stream(component.get("image"), max_size=(500, 300)),
+                    max_width_mm=14,
+                    max_height_mm=7,
+                )
             _style_table(components_table)
             _set_table_geometry_mm(components_table, (28, 70, 28, 22, 34))
             for row in components_table.rows:
@@ -1248,6 +1286,81 @@ def _build_sketch_docx(context: dict) -> bytes:
         else:
             empty = document.add_paragraph("Комплектация не выбрана.")
             empty.paragraph_format.space_after = Pt(3)
+
+    project_components = context.get("project_components") or []
+    project_note = str(context.get("project_extra_parts_note") or "").strip()
+    if project_components or project_note:
+        if context["sections"]:
+            document.add_page_break()
+        _sketch_heading(
+            document,
+            "ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ ПРОЕКТА",
+            size=10.5,
+        )
+        if project_note:
+            note = document.add_paragraph()
+            note.paragraph_format.space_after = Pt(4)
+            note_run = note.add_run(f"Примечание к комплектации: {project_note}")
+            note_run.font.name = "Arial"
+            note_run.font.size = Pt(7.5)
+            note_run.italic = True
+        if project_components:
+            project_table = document.add_table(rows=1, cols=5)
+            headers = (
+                "Артикул",
+                "Наименование",
+                "Размер",
+                "Кол-во",
+                "Примечание",
+            )
+            for column, header in enumerate(headers):
+                _set_cell_text(
+                    project_table.cell(0, column),
+                    header,
+                    bold=True,
+                    size=6.5,
+                    align=WD_ALIGN_PARAGRAPH.CENTER,
+                )
+            for component in project_components:
+                row = project_table.add_row()
+                component_meta = "\n".join(
+                    filter(
+                        None,
+                        (
+                            component["name"],
+                            f"Цвет: {component['color']}" if component.get("color") else "",
+                            f"Этап: {component['stage']}" if component.get("stage") else "",
+                        ),
+                    )
+                )
+                values = (
+                    component["article"] or "—",
+                    component_meta,
+                    component["size"],
+                    f"{component['qty']} {component['unit']}",
+                    component["note"] or "—",
+                )
+                for column, value in enumerate(values):
+                    _set_cell_text(
+                        row.cells[column],
+                        value,
+                        size=6.3,
+                        align=(
+                            WD_ALIGN_PARAGRAPH.CENTER
+                            if column in {0, 2, 3}
+                            else WD_ALIGN_PARAGRAPH.LEFT
+                        ),
+                    )
+                _add_picture_fitted(
+                    row.cells[1],
+                    image_stream(component.get("image"), max_size=(500, 300)),
+                    max_width_mm=14,
+                    max_height_mm=7,
+                )
+            _style_table(project_table)
+            _set_table_geometry_mm(project_table, (28, 70, 28, 22, 34))
+            for row in project_table.rows:
+                _prevent_row_split(row)
 
     output = io.BytesIO()
     document.save(output)
@@ -1835,13 +1948,25 @@ def _build_hardware_order_docx(context: dict) -> bytes:
             warning_run.font.size = Pt(7)
             warning_run.font.color.rgb = RGBColor.from_string(RED)
 
-        table = document.add_table(rows=1, cols=6)
+        if page.get("note"):
+            note = document.add_paragraph()
+            note.paragraph_format.space_after = Pt(2)
+            note_run = note.add_run(
+                f"Примечание к комплектации: {page['note']}"
+            )
+            note_run.font.name = "Arial"
+            note_run.font.size = Pt(7)
+            note_run.italic = True
+
+        table = document.add_table(rows=1, cols=8)
         table.autofit = False
-        widths = (21, 29, 84, 14, 24, 22)
+        widths = (18, 23, 61, 22, 22, 13, 19, 16)
         headers = (
             "Артикул",
             "Эскиз",
             "Название",
+            "Цвет",
+            "Размер",
             "Этап",
             "Кол-во\n(общее в проекте)",
             "Единицы измерения",
@@ -1887,20 +2012,32 @@ def _build_hardware_order_docx(context: dict) -> bytes:
             _set_cell_text(row.cells[2], row_data["name"], size=body_font_size)
             _set_cell_text(
                 row.cells[3],
+                row_data.get("color") or "—",
+                size=body_font_size,
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+            )
+            _set_cell_text(
+                row.cells[4],
+                row_data.get("size") or "—",
+                size=body_font_size,
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+            )
+            _set_cell_text(
+                row.cells[5],
                 row_data["stage_text"],
                 bold=True,
                 size=body_font_size,
                 align=WD_ALIGN_PARAGRAPH.CENTER,
             )
             _set_cell_text(
-                row.cells[4],
+                row.cells[6],
                 row_data["qty_text"],
                 bold=True,
                 size=6.4 if dense_page else 7,
                 align=WD_ALIGN_PARAGRAPH.CENTER,
             )
             _set_cell_text(
-                row.cells[5],
+                row.cells[7],
                 row_data["unit"],
                 size=body_font_size,
                 align=WD_ALIGN_PARAGRAPH.CENTER,
@@ -1915,7 +2052,7 @@ def _build_hardware_order_docx(context: dict) -> bytes:
                 )
         if not page["rows"]:
             row = table.add_row()
-            cell = row.cells[0].merge(row.cells[5])
+            cell = row.cells[0].merge(row.cells[7])
             _set_cell_text(
                 cell,
                 "Позиции не найдены",

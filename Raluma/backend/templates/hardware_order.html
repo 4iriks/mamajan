@@ -52,11 +52,13 @@
       font-weight: 700;
       text-align: center;
     }
-    .article { width: 22mm; text-align: center; font-weight: 700; }
-    .sketch { width: 31mm; text-align: center; }
-    .stage { width: 14mm; text-align: center; font-weight: 700; }
-    .quantity { width: 22mm; text-align: center; font-weight: 700; }
-    .unit { width: 19mm; text-align: center; }
+    .article { width: 18mm; text-align: center; font-weight: 700; }
+    .sketch { width: 24mm; text-align: center; }
+    .color { width: 22mm; }
+    .size { width: 22mm; }
+    .stage { width: 13mm; text-align: center; font-weight: 700; }
+    .quantity { width: 18mm; text-align: center; font-weight: 700; }
+    .unit { width: 16mm; text-align: center; }
     .sketch img {
       display: block;
       width: auto;
@@ -83,6 +85,13 @@
       text-align: center;
       color: #555;
     }
+    .note {
+      margin: 0 0 2mm;
+      padding: 1.5mm 2mm;
+      border-left: 2px solid #687b83;
+      background: #f2f5f6;
+      white-space: pre-wrap;
+    }
     @media print {
       body { background: #fff; }
       .page { width: auto; min-height: 0; margin: 0; padding: 0; }
@@ -102,12 +111,17 @@
     {% if page.warning %}
       <div class="warning">{{ page.warning|e }}</div>
     {% endif %}
+    {% if page.note %}
+      <div class="note"><strong>Примечание к комплектации:</strong> {{ page.note|e }}</div>
+    {% endif %}
     <table>
       <thead>
         <tr>
           <th class="article">Артикул</th>
           <th class="sketch">Эскиз</th>
           <th>Название</th>
+          <th class="color">Цвет</th>
+          <th class="size">Размер</th>
           <th class="stage">Этап</th>
           <th class="quantity">Кол-во<br>(общее в проекте)</th>
           <th class="unit">Единицы измерения</th>
@@ -125,12 +139,14 @@
             {% endif %}
           </td>
           <td>{{ row.name|e }}</td>
+          <td class="color">{{ row.color|e or '—' }}</td>
+          <td class="size">{{ row.size|e or '—' }}</td>
           <td class="stage">{{ row.stage_text|e }}</td>
           <td class="quantity">{{ row.qty_text|e }}</td>
           <td class="unit">{{ row.unit|e }}</td>
         </tr>
         {% else %}
-        <tr><td class="empty" colspan="6">Позиции не найдены</td></tr>
+        <tr><td class="empty" colspan="8">Позиции не найдены</td></tr>
         {% endfor %}
       </tbody>
     </table>

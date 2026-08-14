@@ -166,7 +166,8 @@ def render_slide_room(section: object, calc: object) -> bytes:
     slide_rows = int(getattr(section, "slide_rows", 1) or 1)
     first_value = str(getattr(section, "first_panel_inside", "") or "")
     first_right = first_value == "Справа"
-    first_center = "центр" in first_value.lower()
+    first_center = str(getattr(section, "unused_track", "") or "Внешний") == "Внешний"
+    panel_numbers = list(getattr(calc, "panel_numbers", None) or [])
 
     x = left + 12
     inner_width = drawing_width - 24
@@ -180,7 +181,7 @@ def render_slide_room(section: object, calc: object) -> bytes:
             _matte_pattern(draw, box)
 
         if slide_rows == 2:
-            number = index + 1
+            number = panel_numbers[index] if index < len(panel_numbers) else index + 1
             direction = -1 if index < panels / 2 else 1
             if not first_center:
                 direction *= -1
@@ -246,6 +247,7 @@ def render_slide_top(section: object, calc: object) -> bytes:
     ]
     total = sum(widths) or panels
     rails_for_panels = list(getattr(calc, "panel_rails", None) or [])
+    panel_numbers = list(getattr(calc, "panel_numbers", None) or [])
     fill = glass_fill(getattr(calc, "glass_type", ""))
     matte = glass_is_matte(getattr(calc, "glass_type", ""))
     x = left
@@ -265,7 +267,7 @@ def render_slide_top(section: object, calc: object) -> bytes:
         _center_text(
             draw,
             ((x1 + x2) / 2, (y1 + y2) / 2),
-            f"{glass_mm(panel_width)} · №{index + 1}",
+            f"{glass_mm(panel_width)} · №{panel_numbers[index] if index < len(panel_numbers) else index + 1}",
             label_font,
         )
         x += panel_px

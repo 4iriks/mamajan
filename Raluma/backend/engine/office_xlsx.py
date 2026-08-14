@@ -640,7 +640,10 @@ def _write_profiles(
                 worksheet.merge_range(row, 4, row, 6, "", formats["cell"])
                 worksheet.merge_range(row, 10, row, 11, "", formats["cell"])
             length = ""
-            if str(getattr(profile, "article", "")).upper() != "RS3110":
+            if str(getattr(profile, "article", "")).upper() not in {
+                "RS1005",
+                "RS3110",
+            }:
                 length = override_value(
                     overrides,
                     str(cut.get("length_field") or ""),
@@ -778,7 +781,10 @@ def _write_compact_profiles(
                 str(cut.get("qty_field") or ""),
                 cut.get("qty", 0),
             )
-            if str(getattr(profile, "article", "")).upper() == "RS3110":
+            if str(getattr(profile, "article", "")).upper() in {
+                "RS1005",
+                "RS3110",
+            }:
                 values.append(f"{quantity} шт")
             else:
                 length = override_value(
@@ -1461,7 +1467,7 @@ def _build_hardware_order_xlsx(context: dict) -> bytes:
         _setup_sheet(worksheet, landscape=False)
         worksheet.set_header("")
         worksheet.fit_to_pages(1, 1)
-        widths = (14, 22, 43, 10, 16, 15)
+        widths = (12, 18, 34, 16, 16, 9, 14, 12)
         for column, width in enumerate(widths):
             worksheet.set_column(column, column, width)
 
@@ -1470,7 +1476,7 @@ def _build_hardware_order_xlsx(context: dict) -> bytes:
             0,
             0,
             0,
-            5,
+            7,
             f"НАРЯД-ЗАКАЗ НА ФУРНИТУРУ — {project_number}",
             formats["title"],
         )
@@ -1479,7 +1485,7 @@ def _build_hardware_order_xlsx(context: dict) -> bytes:
             1,
             0,
             1,
-            5,
+            7,
             page["system"] or "БЕЗ СИСТЕМЫ",
             formats["bar"],
         )
@@ -1491,7 +1497,7 @@ def _build_hardware_order_xlsx(context: dict) -> bytes:
                     row,
                     0,
                     row,
-                    5,
+                    7,
                     warning,
                     formats["red_center"],
                 )
@@ -1502,9 +1508,20 @@ def _build_hardware_order_xlsx(context: dict) -> bytes:
                 row,
                 0,
                 row,
-                5,
+                7,
                 page["warning"],
                 formats["red_center"],
+            )
+            worksheet.set_row(row, 24)
+            row += 1
+        if page.get("note"):
+            worksheet.merge_range(
+                row,
+                0,
+                row,
+                7,
+                f"Примечание к комплектации: {page['note']}",
+                formats["note"],
             )
             worksheet.set_row(row, 24)
             row += 1
@@ -1513,6 +1530,8 @@ def _build_hardware_order_xlsx(context: dict) -> bytes:
             "Артикул",
             "Эскиз",
             "Название",
+            "Цвет",
+            "Размер",
             "Этап",
             "Кол-во\n(общее в проекте)",
             "Единицы измерения",
@@ -1529,9 +1548,11 @@ def _build_hardware_order_xlsx(context: dict) -> bytes:
             worksheet.write(row, 0, row_data["article"], formats["center_bold"])
             worksheet.write_blank(row, 1, None, formats["center"])
             worksheet.write(row, 2, row_data["name"], formats["cell"])
-            worksheet.write(row, 3, row_data["stage_text"], formats["center_bold"])
-            worksheet.write_number(row, 4, row_data["qty"], formats["center_bold"])
-            worksheet.write(row, 5, row_data["unit"], formats["center"])
+            worksheet.write(row, 3, row_data.get("color") or "—", formats["cell"])
+            worksheet.write(row, 4, row_data.get("size") or "—", formats["cell"])
+            worksheet.write(row, 5, row_data["stage_text"], formats["center_bold"])
+            worksheet.write_number(row, 6, row_data["qty"], formats["center_bold"])
+            worksheet.write(row, 7, row_data["unit"], formats["center"])
             worksheet.set_row(row, 28)
             _insert_image(
                 worksheet,
@@ -1550,14 +1571,14 @@ def _build_hardware_order_xlsx(context: dict) -> bytes:
                 row,
                 0,
                 row + 1,
-                5,
+                7,
                 "Позиции не найдены",
                 formats["center"],
             )
             row += 2
 
-        worksheet.autofilter(header_row, 0, max(header_row, row - 1), 5)
-        worksheet.print_area(0, 0, max(header_row, row - 1), 5)
+        worksheet.autofilter(header_row, 0, max(header_row, row - 1), 7)
+        worksheet.print_area(0, 0, max(header_row, row - 1), 7)
 
     workbook.close()
     return output.getvalue()
@@ -1776,12 +1797,43 @@ def _build_delivery_xlsx(context: dict) -> bytes:
                 (
                     f"Цвет: {item.get('color')}" if item.get("color") else "",
                     f"Размер: {item.get('size')}" if item.get("size") else "",
+                    f"Единица: {item.get('unit')}" if item.get("unit") else "",
+                    f"Этап: {item.get('stage')}" if item.get("stage") else "",
                     str(item.get("note") or ""),
                 ),
             )
         )
         write_item(
             "Фурнитура",
+            str(item.get("article") or ""),
+            str(item.get("name") or ""),
+            details_text,
+            item.get("qty"),
+            item.get("places"),
+        )
+
+    for item_index, item in enumerate(
+        context.get("delivery_project_extra_rows") or []
+    ):
+        details_text = "\n".join(
+            filter(
+                None,
+                (
+                    f"Цвет: {item.get('color')}" if item.get("color") else "",
+                    f"Размер: {item.get('size')}" if item.get("size") else "",
+                    f"Единица: {item.get('unit')}" if item.get("unit") else "",
+                    f"Этап: {item.get('stage')}" if item.get("stage") else "",
+                    (
+                        f"Примечание к комплектации: {context.get('delivery_project_extra_note')}"
+                        if item_index == 0
+                        and context.get("delivery_project_extra_note")
+                        else ""
+                    ),
+                ),
+            )
+        )
+        write_item(
+            "Доп. комплектующие проекта",
             str(item.get("article") or ""),
             str(item.get("name") or ""),
             details_text,

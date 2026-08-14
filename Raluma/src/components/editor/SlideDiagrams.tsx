@@ -68,6 +68,25 @@ function buildPanelLayout(widthsMm: number[], startPx: number, totalPx: number) 
   });
 }
 
+function panelNumber(
+  section: Section,
+  calc: SlideCalcPreview | null | undefined,
+  index: number,
+) {
+  const calculated = calc?.panel_numbers?.[index];
+  if (typeof calculated === 'number') return calculated;
+  const panels = Math.max(section.panels, 1);
+  if ((section.slideRows ?? 1) !== 2) {
+    return (section.firstPanelInside ?? 'Справа') === 'Справа'
+      ? panels - index
+      : index + 1;
+  }
+  const half = Math.floor(panels / 2);
+  return (section.unusedTrack ?? 'Внешний') === 'Внешний'
+    ? (index < half ? half - index : index - half + 1)
+    : (index < half ? index + 1 : panels - index);
+}
+
 function findProfileDimension(
   calc: SlideCalcPreview | null | undefined,
   articles: string[],
@@ -428,7 +447,7 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
         const layout = panelLayout[pi];
         const px = layout.x;
         const panelW = layout.width;
-        const panelNum = is2row ? pi + 1 : (firstPanelInside === 'Справа' ? panels - pi : pi + 1);
+        const panelNum = panelNumber(section, calc, pi);
         const bounds = panelGlassBounds(pi);
         const rx = bounds.left;
         const rRight = bounds.right;
@@ -679,7 +698,7 @@ export function SlideRoomViewSVG({
         const pW = layout.width;
         const cx = px + pW / 2;
         const cy = iY + iH / 2;
-        const num = is2row ? i + 1 : (firstRight ? panels - i : i + 1);
+        const num = panelNumber(section, calc, i);
         const aLen = Math.min(22, pW * 0.45);
         const isLeftPanel = i === leftPanelIdx;
         const isRightPanel = i === rightPanelIdx;
@@ -704,8 +723,7 @@ export function SlideRoomViewSVG({
                 y={iY + 1}
                 width={centerRs112Width}
                 height={Math.max(1, iH - 2)}
-                fill="var(--theme-accent)"
-                fillOpacity="0.28"
+                fill="none"
                 stroke="var(--theme-accent)"
                 strokeWidth="0.8"
                 strokeOpacity="0.8"

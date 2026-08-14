@@ -58,6 +58,8 @@ class Project(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     extra_parts = Column(String, nullable=True)
+    extra_components = Column(Text, default="[]", nullable=False)
+    hardware_installation = Column(String, default="installed", nullable=False)
     comments = Column(String, nullable=True)
     # ТЗ5 — статус производства
     production_stages = Column(Integer, default=1)  # 1 или 2

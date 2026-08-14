@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Loader2, PackagePlus, RefreshCw, Search, Trash2 } from 'lucide-react';
+
 import { listHardwareCatalogOptions } from '../../api/catalog';
 import type { HardwareCatalogOption } from '../../api/catalog';
-import { toast } from '../../store/toastStore';
+import { filterCatalogOptions } from './extraComponentsCatalog';
 import { ExtraComponent, INP, LBL, SEL } from './types';
 
 interface ExtraComponentsEditorProps {
@@ -19,11 +20,17 @@ function normalizeItem(item?: Partial<ExtraComponent>): ExtraComponent {
     name: item?.name ?? '',
     color: item?.color ?? '',
     size: item?.size ?? '',
-    qty: item?.qty ?? '',
+    qty: item?.qty ?? '1',
     unit: item?.unit ?? 'шт',
     imageFile: item?.imageFile ?? '',
     deliveryStage: item?.deliveryStage ?? 'both',
   };
+}
+
+function assetUrl(filename?: string) {
+  return filename
+    ? `/api/catalog/profile-assets/${encodeURIComponent(filename)}`
+    : '';
 }
 
 export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
@@ -31,177 +38,197 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
   onChange,
 }) => {
   const [catalog, setCatalog] = useState<HardwareCatalogOption[]>([]);
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setLoadError('');
     listHardwareCatalogOptions()
       .then(rows => {
-        if (cancelled) return;
-        setCatalog(
-          rows
-            .filter(row => row.isActive)
-            .sort((a, b) => `${a.name} ${a.sku}`.localeCompare(`${b.name} ${b.sku}`, 'ru')),
-        );
+        if (!cancelled) setCatalog(filterCatalogOptions(rows, ''));
       })
       .catch(() => {
-        if (!cancelled) toast.error('Не удалось загрузить каталог комплектующих');
+        if (!cancelled) setLoadError('Не удалось загрузить каталог комплектующих');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [reloadToken]);
 
-  const rows = useMemo(() => items.map(normalizeItem), [items]);
+  const rows = useMemo(
+    () => items.map((item, index) => normalizeItem({
+      ...item,
+      id: item.id ?? `saved-${index}-${item.sku}`,
+    })),
+    [items],
+  );
+  const matches = useMemo(
+    () => filterCatalogOptions(catalog, query).slice(0, 30),
+    [catalog, query],
+  );
 
-  const commit = (next: ExtraComponent[]) => {
+  const commit = useCallback((next: ExtraComponent[]) => {
     onChange(next.map(normalizeItem));
-  };
+  }, [onChange]);
 
   const updateRow = (id: string, updates: Partial<ExtraComponent>) => {
     commit(rows.map(row => row.id === id ? { ...row, ...updates } : row));
   };
 
-  const addRow = () => {
-    commit([...rows, normalizeItem()]);
-  };
-
-  const removeRow = (id: string) => {
-    commit(rows.filter(row => row.id !== id));
-  };
-
-  const selectCatalogItem = (row: ExtraComponent, sku: string) => {
-    const item = catalog.find(candidate => candidate.sku === sku);
-    updateRow(row.id!, {
-      sku,
-      name: item?.name ?? '',
-      unit: item?.unit ?? 'шт',
-      imageFile: item?.imageFile ?? '',
-    });
+  const addCatalogItem = (item: HardwareCatalogOption) => {
+    commit([...rows, normalizeItem({
+      sku: item.sku,
+      name: item.name,
+      unit: item.unit || 'шт',
+      imageFile: item.imageFile || '',
+      qty: '1',
+    })]);
+    setQuery('');
   };
 
   return (
-    <div className="space-y-3">
-      {rows.length > 0 && (
-        <div className="hidden lg:grid grid-cols-[minmax(180px,1.4fr)_110px_minmax(110px,0.8fr)_105px_80px_72px_130px_36px] gap-2 px-1">
-          {['Название', 'Артикул', 'Цвет', 'Размер, мм', 'Кол-во', 'Ед.', 'Этап отгрузки', ''].map(label => (
-            <span key={label} className="text-[9px] font-bold uppercase tracking-widest text-fg/25">
-              {label}
-            </span>
-          ))}
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-tint/25 bg-surface/35 p-3">
+        <label className={LBL}>Поиск по артикулу или названию</label>
+        <div className="relative mt-1.5">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg/30" />
+          <input
+            value={query}
+            onChange={event => setQuery(event.target.value)}
+            className={`${INP} pl-10`}
+            placeholder="Например, RS1005 или уплотнитель"
+            aria-label="Поиск комплектующих"
+          />
         </div>
-      )}
 
-      <div className="space-y-2">
-        {rows.map(row => (
-          <div
-            key={row.id}
-            className="grid grid-cols-1 lg:grid-cols-[minmax(180px,1.4fr)_110px_minmax(110px,0.8fr)_105px_80px_72px_130px_36px] gap-2 items-end"
-          >
-            <div className="space-y-1 lg:space-y-0">
-              <label className={`${LBL} lg:hidden`}>Название</label>
-              <select
-                value={row.sku}
-                onChange={e => selectCatalogItem(row, e.target.value)}
-                className={SEL}
-              >
-                <option value="">— Выберите из каталога —</option>
-                {catalog.map(item => (
-                  <option key={item.id} value={item.sku}>
-                    {item.name} {item.sku}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1 lg:space-y-0">
-              <label className={`${LBL} lg:hidden`}>Артикул</label>
-              <input
-                value={row.sku}
-                readOnly
-                className={`${INP} text-fg/55`}
-                placeholder="—"
-              />
-            </div>
-
-            <div className="space-y-1 lg:space-y-0">
-              <label className={`${LBL} lg:hidden`}>Цвет</label>
-              <input
-                value={row.color}
-                onChange={e => updateRow(row.id!, { color: e.target.value })}
-                className={INP}
-                placeholder="RAL / анод"
-              />
-            </div>
-
-            <div className="space-y-1 lg:space-y-0">
-              <label className={`${LBL} lg:hidden`}>Размер, мм</label>
-              <input
-                value={row.size}
-                onChange={e => updateRow(row.id!, { size: e.target.value })}
-                className={INP}
-                placeholder="Напр. 1200"
-              />
-            </div>
-
-            <div className="space-y-1 lg:space-y-0">
-              <label className={`${LBL} lg:hidden`}>Кол-во</label>
-              <input
-                value={row.qty}
-                onChange={e => updateRow(row.id!, { qty: e.target.value })}
-                className={INP}
-                placeholder="шт"
-              />
-            </div>
-
-            <div className="space-y-1 lg:space-y-0">
-              <label className={`${LBL} lg:hidden`}>Единица</label>
-              <input
-                value={row.unit || 'шт'}
-                onChange={e => updateRow(row.id!, { unit: e.target.value })}
-                className={INP}
-                placeholder="шт"
-              />
-            </div>
-
-            <div className="space-y-1 lg:space-y-0">
-              <label className={`${LBL} lg:hidden`}>Этап отгрузки</label>
-              <select
-                value={row.deliveryStage || 'both'}
-                onChange={e => updateRow(row.id!, {
-                  deliveryStage: e.target.value as ExtraComponent['deliveryStage'],
-                })}
-                className={SEL}
-              >
-                <option value="both">Оба этапа</option>
-                <option value="1">Этап 1</option>
-                <option value="2">Этап 2</option>
-              </select>
-            </div>
-
+        {loading && (
+          <div className="flex items-center gap-2 px-2 py-4 text-xs text-fg/45">
+            <Loader2 className="h-4 w-4 animate-spin text-accent" />
+            Загружаем каталог…
+          </div>
+        )}
+        {!loading && loadError && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-500/25 bg-red-500/5 px-3 py-2.5 text-xs text-red-300">
+            <span>{loadError}</span>
             <button
               type="button"
-              onClick={() => removeRow(row.id!)}
-              className="h-10 w-10 rounded-xl border border-red-500/25 bg-red-500/5 text-red-400/70 hover:bg-red-500/15 hover:text-red-300 transition-colors flex items-center justify-center"
-              aria-label="Удалить комплектующее"
+              onClick={() => setReloadToken(value => value + 1)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-red-400/30 px-2.5 py-1.5 font-bold"
             >
-              <Trash2 className="w-4 h-4" />
+              <RefreshCw className="h-3.5 w-3.5" /> Повторить
             </button>
           </div>
+        )}
+        {!loading && !loadError && (query.trim() || matches.length > 0) && (
+          <div className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded-xl border border-tint/20 bg-page/60 p-1.5">
+            {matches.map(item => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => addCatalogItem(item)}
+                className="grid w-full grid-cols-[44px_105px_minmax(0,1fr)_28px] items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-tint/15"
+              >
+                <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-tint/20 bg-white/90">
+                  {item.imageFile ? (
+                    <img
+                      src={assetUrl(item.imageFile)}
+                      alt=""
+                      className="max-h-full max-w-full object-contain"
+                      onError={event => { event.currentTarget.style.display = 'none'; }}
+                    />
+                  ) : <PackagePlus className="h-4 w-4 text-slate-400" />}
+                </span>
+                <span className="font-mono text-xs font-bold text-accent">{item.sku}</span>
+                <span className="min-w-0 text-xs text-fg/70">{item.name}</span>
+                <PackagePlus className="h-4 w-4 text-accent/55" />
+              </button>
+            ))}
+            {matches.length === 0 && (
+              <div className="px-3 py-4 text-center text-xs text-fg/35">
+                В каталоге ничего не найдено
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        {rows.map(row => (
+          <article
+            key={row.id}
+            className="rounded-2xl border border-tint/25 bg-surface/30 p-3 sm:p-4"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-tint/25 bg-white/90 p-1">
+                {row.imageFile ? (
+                  <img
+                    src={assetUrl(row.imageFile)}
+                    alt={row.name}
+                    className="max-h-full max-w-full object-contain"
+                    onError={event => { event.currentTarget.style.display = 'none'; }}
+                  />
+                ) : <PackagePlus className="h-6 w-6 text-slate-400" />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="font-mono text-xs font-bold text-accent">{row.sku || 'Без артикула'}</div>
+                <div className="mt-1 text-sm font-semibold text-fg/80">{row.name || 'Без названия'}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => commit(rows.filter(item => item.id !== row.id))}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-red-500/25 bg-red-500/5 text-red-400/70 hover:bg-red-500/15 hover:text-red-300"
+                aria-label={`Удалить ${row.sku || row.name}`}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <label className="space-y-1">
+                <span className={LBL}>Цвет</span>
+                <input value={row.color} onChange={event => updateRow(row.id!, { color: event.target.value })} className={INP} placeholder="RAL / анод" />
+              </label>
+              <label className="space-y-1">
+                <span className={LBL}>Размер</span>
+                <input value={row.size} onChange={event => updateRow(row.id!, { size: event.target.value })} className={INP} placeholder="1200 мм" />
+              </label>
+              <label className="space-y-1">
+                <span className={LBL}>Количество</span>
+                <input type="number" min="0" step="any" value={row.qty} onChange={event => updateRow(row.id!, { qty: event.target.value })} className={INP} />
+              </label>
+              <label className="space-y-1">
+                <span className={LBL}>Единица</span>
+                <input value={row.unit || ''} onChange={event => updateRow(row.id!, { unit: event.target.value })} className={INP} placeholder="шт" />
+              </label>
+              <label className="space-y-1">
+                <span className={LBL}>Этап</span>
+                <select
+                  value={row.deliveryStage || 'both'}
+                  onChange={event => updateRow(row.id!, {
+                    deliveryStage: event.target.value as ExtraComponent['deliveryStage'],
+                  })}
+                  className={SEL}
+                >
+                  <option value="both">Оба этапа</option>
+                  <option value="1">Этап 1</option>
+                  <option value="2">Этап 2</option>
+                </select>
+              </label>
+            </div>
+          </article>
         ))}
       </div>
 
       {rows.length === 0 && (
         <div className="rounded-xl border border-dashed border-tint/30 bg-hi/[0.03] px-4 py-5 text-center text-xs font-bold uppercase tracking-widest text-fg/25">
-          Дополнительные комплектующие не добавлены
+          Найдите позицию в каталоге и добавьте её в проект
         </div>
       )}
-
-      <button
-        type="button"
-        onClick={addRow}
-        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-tint/35 bg-tint/10 text-accent text-xs font-bold uppercase tracking-wider hover:bg-tint/20 transition-colors"
-      >
-        <Plus className="w-4 h-4" />
-        Добавить комплектующее
-      </button>
     </div>
   );
 };

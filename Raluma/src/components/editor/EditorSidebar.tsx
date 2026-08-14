@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Plus, Trash2, ChevronRight } from 'lucide-react';
+import { Copy, Plus, Trash2, ChevronRight, PackagePlus } from 'lucide-react';
 import { Section, SystemType, SYSTEM_COLORS, SYSTEM_ACCENT_BG, SYSTEM_PICKER_COLORS } from './types';
 import { getSectionTypeLabel, getSectionColorLabel } from './FormInputs';
 
@@ -28,6 +28,8 @@ export interface EditorSidebarProps {
   setProjectExtraParts: (v: string) => void;
   projectComments: string;
   setProjectComments: (v: string) => void;
+  projectExtraComponentsCount: number;
+  onOpenProjectExtraComponents: () => void;
   onSaveProjectNotes: () => void;
 }
 
@@ -44,6 +46,8 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
   setProjectExtraParts,
   projectComments,
   setProjectComments,
+  projectExtraComponentsCount,
+  onOpenProjectExtraComponents,
   onSaveProjectNotes,
 }) => {
   const [showSystemPicker, setShowSystemPicker] = useState(false);
@@ -248,6 +252,19 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
         {/* Sidebar project notes */}
         <div className="mt-5 pt-4 border-t border-tint/20">
           <button
+            type="button"
+            onClick={onOpenProjectExtraComponents}
+            className="mb-3 flex w-full items-center justify-between gap-2 rounded-xl border border-tint/30 bg-tint/10 px-3 py-2.5 text-left text-xs font-bold text-accent transition-colors hover:bg-tint/20"
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              <PackagePlus className="h-4 w-4 shrink-0" />
+              <span className="truncate">Комплектующие проекта</span>
+            </span>
+            <span className="rounded-full bg-accent/15 px-2 py-0.5 font-mono text-[11px]">
+              {projectExtraComponentsCount}
+            </span>
+          </button>
+          <button
             onClick={() => setNotesOpen(v => !v)}
             className="flex items-center justify-between w-full group mb-0"
           >
@@ -269,7 +286,7 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
               >
                 <div className="space-y-2.5 pt-3">
                   <div>
-                    <label className="text-[10px] text-fg/25 uppercase tracking-wider block mb-1.5">Доп. комплектующие</label>
+                    <label className="text-[10px] text-fg/25 uppercase tracking-wider block mb-1.5">Примечание к комплектации</label>
                     <textarea
                       value={projectExtraParts}
                       onChange={e => setProjectExtraParts(e.target.value)}

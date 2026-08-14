@@ -34,6 +34,7 @@ from engine.project_documents import (
     _build_glass_rows,
     _build_hardware_order_context,
     _build_paint_pages,
+    _exclude_installed_hardware,
     _iter_calculated_sections,
     _iter_slide_sections,
     build_project_document_context,
@@ -1079,11 +1080,11 @@ class TestLocalPreview:
         assert '<div class="hw-art">RS3020</div>' in r.text
         assert '<div class="hw-art">RS123</div>' in r.text
 
-    def test_local_preview_hides_rs3110_length_but_keeps_piece_quantity(self, client):
+    def test_local_preview_hides_rs1005_length_but_keeps_piece_quantity(self, client):
         r = client.post(
             "/api/projects/local/sections/preview",
             json={
-                "project": {"number": "LOCAL-RS3110", "customer": "Тест"},
+                "project": {"number": "LOCAL-RS1005", "customer": "Тест"},
                 "section": {
                     "name": "Секция 1",
                     "system": "СЛАЙД",
@@ -1101,8 +1102,8 @@ class TestLocalPreview:
         )
 
         assert r.status_code == 200
-        assert 'data-profile-article="RS3110"' in r.text
-        assert 'data-profile-article="RS3110" data-length-visible="false"' in r.text
+        assert 'data-profile-article="RS1005"' in r.text
+        assert 'data-profile-article="RS1005" data-length-visible="false"' in r.text
 
     def test_local_preview_section_4_room_scheme_keeps_physical_glass_order(
         self, client
@@ -1368,7 +1369,7 @@ class TestSketchProject:
         assert "ЭСКИЗНЫЙ ПРОЕКТ № SKETCH-001" in response.text
         assert expected_diagram.lower() in response.text.lower()
         assert "data-sketch-section=" in response.text
-        assert "Физические панели" in response.text
+        assert "Размеры стекол" in response.text
         assert "Комплектация" in response.text
 
     def test_mixed_preview_pdf_and_docx_share_order_geometry_and_components(
@@ -1402,7 +1403,7 @@ class TestSketchProject:
             "3043",
             "3300",
             "RS2061",
-            "RU005",
+            "RU008",
             "RL2087",
         )
         for text in texts.values():
@@ -1412,13 +1413,14 @@ class TestSketchProject:
             positions = [compact.index(marker) for marker in ("SLIDE", "BOOK", "LIFT")]
             assert positions == sorted(positions)
 
-        preview = texts["preview"].lower()
-        assert "purchase_price" not in preview
-        assert "internal_total" not in preview
-        assert "dealer_markup" not in preview
-        assert "цена" not in preview
-        assert "стоимость" not in preview
-        assert "итого" not in preview
+        for rendered_text in texts.values():
+            lowered = rendered_text.lower()
+            assert "purchase_price" not in lowered
+            assert "internal_total" not in lowered
+            assert "dealer_markup" not in lowered
+            assert "цена" not in lowered
+            assert "стоимость" not in lowered
+            assert "итого" not in lowered
 
     def test_sketch_docx_is_allowed_but_xlsx_is_not(self, client):
         docx = client.post(
@@ -1565,6 +1567,105 @@ class TestSketchProject:
         assert response.status_code == 200, response.text
         assert "EXTRA-SKETCH" in response.text
         assert re.search(r">6 шт<", response.text)
+
+    def test_slide_sketch_keeps_core_hardware_and_filters_minor_items(self, client):
+        response = client.post(
+            "/api/projects/local/documents/sketch/preview",
+            json=self._payload(
+                [
+                    self._slide(
+                        comments="Монтаж вести со стороны помещения",
+                        profile_left_bubble=True,
+                        handle_left="Ручка-кноб RS3014",
+                        lock_left="ЗАМОК-ЗАЩЕЛКА 1стор RS3018",
+                        floor_latches_left=True,
+                        extra_components=json.dumps(
+                            [
+                                {
+                                    "sku": "RU005",
+                                    "name": "Выбранный пользователем комплект роликов",
+                                    "qty": 1,
+                                    "imageFile": "RU005.png",
+                                    "deliveryStage": "2",
+                                }
+                            ],
+                            ensure_ascii=False,
+                        ),
+                    )
+                ]
+            ),
+        )
+
+        assert response.status_code == 200, response.text
+        for expected in (
+            "RS3014",
+            "RS3018",
+            "RS205",
+            "RS1002",
+            "Выбранный пользователем комплект роликов",
+            "Монтаж вести со стороны помещения",
+        ):
+            assert expected in response.text
+        for excluded in ("RSD1", "RSD2", "RS1121", "RS122", "RU003"):
+            assert excluded not in response.text
+
+    def test_project_sketch_extras_are_rendered_once_without_section_multiplier(
+        self, client
+    ):
+        payload = self._payload([self._slide(quantity=4), self._book(quantity=3)])
+        payload["project"].update(
+            {
+                "extra_parts": "Старое примечание проекта",
+                "extra_components": json.dumps(
+                    [
+                        {
+                            "sku": "PROJECT-SKETCH",
+                            "name": "Проектная комплектующая",
+                            "qty": 2,
+                            "unit": "компл.",
+                            "color": "RAL 9005",
+                            "size": "800 мм",
+                            "imageFile": "RS112.png",
+                            "deliveryStage": "both",
+                        }
+                    ],
+                    ensure_ascii=False,
+                ),
+            }
+        )
+
+        response = client.post(
+            "/api/projects/local/documents/sketch/preview",
+            json=payload,
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.text.count("PROJECT-SKETCH") == 1
+        assert "data-project-components" in response.text
+        assert "Старое примечание проекта" in response.text
+        assert "Этап: 1, 2" in response.text
+        assert re.search(r">2 компл\.<", response.text)
+
+    def test_sketch_sections_and_docx_start_on_new_pages(self, client):
+        payload = self._payload([self._slide(), self._book(), self._lift()])
+        preview = client.post(
+            "/api/projects/local/documents/sketch/preview",
+            json=payload,
+        )
+        docx = client.post(
+            "/api/projects/local/documents/sketch/docx",
+            json=payload,
+        )
+
+        assert preview.status_code == 200
+        assert docx.status_code == 200
+        assert ".sketch-section + .sketch-section" in preview.text
+        assert "grid-template-columns: minmax(0, 1fr)" in preview.text
+        assert preview.text.count('class="sketch-section"') == 3
+        with zipfile.ZipFile(io.BytesIO(docx.content)) as archive:
+            document_xml = archive.read("word/document.xml").decode("utf-8")
+        assert document_xml.count('w:type="page"') >= 2
+        assert "РАЗМЕРЫ СТЕКОЛ" in self._docx_text(docx.content)
 
     def test_project_paint_preview_returns_html(self, client, admin_headers, project):
         _create_slide_section(
@@ -2361,7 +2462,7 @@ class TestOfficeDownloads:
         for table in self._docx_table_rows(responses["docx"].content):
             docx_pages.append(
                 [
-                    (row[0], row[2], row[3], row[4], row[5])
+                    (row[0], row[2], row[5], row[6], row[7])
                     for row in table[1:]
                     if row[0] and row[0] != "Позиции не найдены"
                 ]
@@ -2381,9 +2482,9 @@ class TestOfficeDownloads:
                     (
                         row.get("A", ""),
                         row.get("C", ""),
-                        row.get("D", ""),
-                        row.get("E", ""),
                         row.get("F", ""),
+                        row.get("G", ""),
+                        row.get("H", ""),
                     )
                 )
             xlsx_pages.append(page_rows)
@@ -3682,7 +3783,7 @@ class TestDeliveryNote:
         assert "RS3018" not in rows
         assert "RS3020" not in rows
 
-    def test_project_4169_bubble_seal_counts_physical_pieces_without_sizes(self):
+    def test_project_4169_bubble_seal_counts_three_meter_blanks(self):
         sections = [
             _delivery_section(
                 name="Секция 1",
@@ -3716,8 +3817,11 @@ class TestDeliveryNote:
         )
         rows = {row["article"]: row for row in context["delivery_item2_rows"]}
 
-        assert rows["RS1002"]["name"] == "Пузырьковый уплотнитель"
-        assert rows["RS1002"]["size"] == ""
+        assert (
+            rows["RS1002"]["name"]
+            == "Пузырьковый уплотнитель (заготовка 3000 мм)"
+        )
+        assert rows["RS1002"]["size"] == "3000 мм"
         assert rows["RS1002"]["qty"] == 4
 
     def test_delivery_content_is_driven_by_project_stage_not_legacy_checkbox(self):
@@ -3950,7 +4054,7 @@ class TestDeliveryNote:
         )
         assert {"SLIDE-STAGE-1", "LIFT-STAGE-1"}.isdisjoint(stage_two_articles)
 
-    def test_reference_4108_keeps_rs3110_but_excludes_rs2081(self):
+    def test_reference_4108_keeps_rs1005_but_excludes_rs2081(self):
         sections = [
             _delivery_section(
                 name="Секция 1",
@@ -3993,12 +4097,12 @@ class TestDeliveryNote:
         context = _build_delivery_context(self.project(), sections)
         hardware = {row["article"]: row for row in context["delivery_item2_rows"]}
 
-        assert hardware["RS3110"]["qty"] == 1
+        assert hardware["RS1005"]["qty"] == 1
         assert "RS2081" not in hardware
         assert context["delivery_total_qty"] == "22"
 
         html = render_project_document_html(self.project(), sections, "delivery")
-        assert "RS3110" in html
+        assert "RS1005" in html
         assert "RS2081" not in html
 
     def test_project_4169_excludes_lock_profiles_from_delivery_note(self):
@@ -4124,7 +4228,7 @@ class TestDeliveryNote:
         }
         assert hardware["RS3014"]["qty"] == 2
         assert hardware["RS205"]["qty"] == 2
-        assert hardware["RS3110"]["qty"] == 1
+        assert hardware["RS1005"]["qty"] == 1
         assert context["delivery_total_qty"] == "33"
 
     def test_lift_uses_calculated_dimensions_while_unimplemented_systems_do_not(self):
@@ -4324,6 +4428,8 @@ class TestHardwareOrder:
         shared_extra = {
             "sku": "EXTRA-1",
             "name": "Уголок алюминиевый",
+            "color": "RAL 7024",
+            "size": "450 мм",
             "qty": 2,
             "unit": "компл.",
             "imageFile": "RS112.png",
@@ -4377,6 +4483,8 @@ class TestHardwareOrder:
         assert slide_rows["EXTRA-1"]["qty"] == 5
         assert slide_rows["EXTRA-1"]["unit"] == "компл."
         assert slide_rows["EXTRA-1"]["image"] == "RS112.png"
+        assert slide_rows["EXTRA-1"]["color"] == "RAL 7024"
+        assert slide_rows["EXTRA-1"]["size"] == "450 мм"
         assert slide_rows["EXTRA-1"]["stage_text"] == "1, 2"
         assert any(row["image"] for row in slide_rows.values())
         assert lift_rows["RL2087"]["qty"] == 3
@@ -4434,6 +4542,159 @@ class TestHardwareOrder:
         assert len(rows) == 1
         assert rows[0]["qty"] == 2
         assert rows[0]["stage_text"] == "2"
+
+    def test_project_extras_are_once_and_section_extras_follow_section_quantity(self):
+        project = self.project(
+            extra_parts="Старое примечание к комплектации",
+            extra_components=json.dumps(
+                [
+                    {
+                        "sku": "PROJECT-ONLY",
+                        "name": "Проектная позиция",
+                        "color": "RAL 9005",
+                        "size": "1250 мм",
+                        "qty": 2,
+                        "unit": "компл.",
+                        "imageFile": "RS112.png",
+                        "deliveryStage": "1",
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+        )
+        section_extra = json.dumps(
+            [{"sku": "SECTION-EXTRA", "name": "Секционная позиция", "qty": 1}],
+            ensure_ascii=False,
+        )
+        sections = [
+            _delivery_section(quantity=3, extra_components=section_extra),
+            _delivery_section(
+                name="Секция 2",
+                order=2,
+                quantity=4,
+                extra_components=section_extra,
+            ),
+        ]
+
+        context = _build_hardware_order_context(project, sections)
+
+        assert [page["system"] for page in context["hardware_order_pages"]] == [
+            "СЛАЙД",
+            "Дополнительные комплектующие проекта",
+        ]
+        section_rows = {
+            row["article"]: row
+            for row in context["hardware_order_pages"][0]["rows"]
+        }
+        project_page = context["hardware_order_pages"][1]
+        project_rows = {row["article"]: row for row in project_page["rows"]}
+        assert section_rows["SECTION-EXTRA"]["qty"] == 7
+        assert project_rows["PROJECT-ONLY"]["qty"] == 2
+        assert project_rows["PROJECT-ONLY"]["color"] == "RAL 9005"
+        assert project_rows["PROJECT-ONLY"]["size"] == "1250 мм"
+        assert project_rows["PROJECT-ONLY"]["unit"] == "компл."
+        assert project_rows["PROJECT-ONLY"]["image"] == "RS112.png"
+        assert project_rows["PROJECT-ONLY"]["stage_text"] == "1"
+        assert project_page["note"] == "Старое примечание к комплектации"
+
+        delivery = _build_delivery_context(project, sections)
+        assert {
+            row["article"]: row for row in delivery["delivery_item2_rows"]
+        }["SECTION-EXTRA"]["qty"] == 7
+        assert delivery["delivery_project_extra_rows"][0]["qty"] == 2
+
+    def test_installed_mode_filters_only_calculated_stock_issue(self):
+        custom_ru003 = json.dumps(
+            [
+                {
+                    "sku": "RU003",
+                    "name": "Пользовательский комплект роликов",
+                    "qty": 7,
+                    "unit": "компл.",
+                }
+            ],
+            ensure_ascii=False,
+        )
+        section = _delivery_section(
+            width=1000,
+            panels=4,
+            slide_rows=2,
+            center_handle="Ручки-профиль RS112 (2шт)",
+            extra_components=custom_ru003,
+        )
+
+        not_installed = _build_hardware_order_context(
+            self.project(hardware_installation="not_installed"),
+            [section],
+        )["hardware_order_pages"][0]["rows"]
+        installed = _build_hardware_order_context(
+            self.project(hardware_installation="installed"),
+            [section],
+        )["hardware_order_pages"][0]["rows"]
+
+        assert any(row["article"] == "RU010" for row in not_installed)
+        assert any(
+            "DIN7982" in row["name"] and "4,8×25" in row["name"]
+            for row in not_installed
+        )
+        assert not any(row["article"] == "RU010" for row in installed)
+        assert not any(
+            "DIN7982" in row["name"] and "4,8×25" in row["name"]
+            for row in installed
+        )
+        installed_ru003 = [row for row in installed if row["article"] == "RU003"]
+        assert len(installed_ru003) == 1
+        assert installed_ru003[0]["name"] == "Пользовательский комплект роликов"
+        assert installed_ru003[0]["qty"] == 7
+
+    @pytest.mark.parametrize(
+        "article",
+        ["RU003", "RU004", "RU006", "RU010", "RS103B", "RS104B", "RS130"],
+    )
+    def test_installed_mode_uses_complete_exclusion_list(self, article):
+        assert _exclude_installed_hardware("installed", article, "Позиция")
+        assert not _exclude_installed_hardware("not_installed", article, "Позиция")
+
+    def test_installed_mode_recognizes_din7982_4825_by_calculated_row_name(self):
+        assert _exclude_installed_hardware(
+            "installed",
+            "4,8×25 A2",
+            "Саморез 4,8×25 A2 (DIN7982)",
+        )
+        assert not _exclude_installed_hardware(
+            "installed",
+            "4,8×38 A2",
+            "Саморез 4,8×38 A2 (DIN7982)",
+        )
+
+    @pytest.mark.parametrize(
+        ("height", "rs1002_qty", "rs1005_qty"),
+        [(2990, 2, 1), (3300, 4, 2)],
+    )
+    def test_rs1002_and_rs1005_use_three_meter_blanks(
+        self, height, rs1002_qty, rs1005_qty
+    ):
+        section = _delivery_section(
+            height=height,
+            panels=4,
+            slide_rows=2,
+            profile_left_p_bar=True,
+            profile_right_p_bar=True,
+            profile_left_bubble=True,
+            profile_right_bubble=True,
+            center_handle="Без ручки (глухие)",
+        )
+
+        page = _build_hardware_order_context(
+            self.project(), [section]
+        )["hardware_order_pages"][0]
+        rows = {row["article"]: row for row in page["rows"]}
+
+        assert rows["RS1002"]["qty"] == rs1002_qty
+        assert rows["RS1005"]["qty"] == rs1005_qty
+        assert rows["RS1002"]["size"] == "3000 мм"
+        assert rows["RS1005"]["size"] == "3000 мм"
+        assert rows["RS1005"]["image"] == "RS1005.png"
 
     def test_guest_preview_and_authenticated_preview_are_available(
         self, client, admin_headers, project

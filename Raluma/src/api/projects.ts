@@ -25,6 +25,8 @@ export interface ProjectList {
   system?: string;
   subtype?: string;
   extra_parts?: string;
+  extra_components?: string;
+  hardware_installation?: 'installed' | 'not_installed';
   comments?: string;
   production_stages?: number;
   current_stage?: number;
@@ -185,6 +187,7 @@ export interface SlideCalcPreview {
   profiles: SlideCalcProfile[];
   glass: SlideCalcGlass[];
   panel_rails: number[];
+  panel_numbers?: number[];
   panel_glass?: SlideCalcPanelGlass[];
   torque?: {
     torque_nm: number;
@@ -503,10 +506,14 @@ export const importLocalProjectsToServer = async () => {
       number: project.number,
       customer: project.customer,
       production_stages: project.production_stages,
+      extra_components: project.extra_components ?? '[]',
+      hardware_installation: project.hardware_installation ?? 'not_installed',
     }).then(r => r.data);
 
     await client.put<ProjectFull>(`/api/projects/${created.id}`, {
       extra_parts: project.extra_parts,
+      extra_components: project.extra_components ?? '[]',
+      hardware_installation: project.hardware_installation ?? 'not_installed',
       comments: project.comments,
       production_stages: project.production_stages,
       current_stage: project.current_stage,

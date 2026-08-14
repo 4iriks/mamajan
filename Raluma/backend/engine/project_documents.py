@@ -1047,10 +1047,21 @@ def _add_delivery_component(
     color: str = "",
     size: str = "",
     note: str = "",
+    unit: str = "шт",
+    image: str = "",
+    stage: str = "",
 ) -> None:
     if qty <= 0 or not (article or name):
         return
-    base_key = (article.strip(), name.strip(), color.strip(), size.strip())
+    base_key = (
+        article.strip(),
+        name.strip(),
+        color.strip(),
+        size.strip(),
+        str(unit or "шт").strip() or "шт",
+        str(image or "").strip(),
+        str(stage or "").strip(),
+    )
     normalized_note = note.strip()
     # Preserve existing place keys for rows that do not have a processing note.
     key = (*base_key, normalized_note) if normalized_note else base_key
@@ -1061,6 +1072,9 @@ def _add_delivery_component(
             "name": base_key[1],
             "color": base_key[2],
             "size": base_key[3],
+            "unit": base_key[4],
+            "image": base_key[5],
+            "stage": base_key[6],
             "note": normalized_note,
             "qty": 0.0,
         },
@@ -1141,9 +1155,9 @@ def _build_delivery_hardware_rows(
     *,
     include_calculated_specials: bool,
     extra_stage: int | None,
+    hardware_installation: str = "not_installed",
 ) -> list[dict]:
     grouped: dict[tuple, dict] = {}
-    bubble_seal_qty = 0.0
     lift_remote_controls: dict[str, dict] = {}
     special_articles = {"RS3014", "RS3017", "RS30201", "RS205"}
     excluded_locks = {"RS3018", "RS3020"}
@@ -1157,6 +1171,10 @@ def _build_delivery_hardware_rows(
                 article = str(getattr(item, "article", "") or "").strip().upper()
                 name = str(getattr(item, "name", "") or "").strip()
                 is_lock = name.lower().startswith("замок")
+                if _exclude_installed_hardware(
+                    hardware_installation, article, name
+                ):
+                    continue
                 if article in excluded_locks:
                     continue
                 if article not in special_articles and not is_lock:
@@ -1167,23 +1185,47 @@ def _build_delivery_hardware_rows(
                     name=name,
                     qty=_safe_float(getattr(item, "value", 0)),
                 )
-            bubble_seal_qty += (
-                int(bool(getattr(section, "profile_left_bubble", False)))
-                + int(bool(getattr(section, "profile_right_bubble", False)))
-            ) * section_qty
             for profile in calc.profiles:
                 article = str(getattr(profile, "article", "") or "").strip().upper()
-                if article not in {"RS1002", "RS3110"}:
+                if article == "RU010":
+                    if _exclude_installed_hardware(
+                        hardware_installation,
+                        article,
+                        getattr(profile, "name", ""),
+                    ):
+                        continue
+                    _add_delivery_component(
+                        grouped,
+                        article=article,
+                        name=getattr(profile, "name", ""),
+                        qty=(
+                            _safe_float(getattr(profile, "length_mm", 0), 0)
+                            * _safe_float(getattr(profile, "qty", 0), 0)
+                            / 1000
+                        ),
+                        unit="м",
+                        image=getattr(profile, "image", ""),
+                        stage="1",
+                    )
                     continue
-                if article == "RS1002":
+                if article not in {"RS1002", "RS1005"}:
                     continue
+                blanks = ceil(
+                    _safe_float(getattr(profile, "length_mm", 0), 0) / 3000
+                ) * _safe_float(getattr(profile, "qty", 0), 0)
                 _add_delivery_component(
                     grouped,
                     article=article,
-                    name=str(getattr(profile, "name", "") or article).strip(),
+                    name=(
+                        f"{str(getattr(profile, 'name', '') or article).strip()} "
+                        "(заготовка 3000 мм)"
+                    ),
                     color="",
-                    size="",
-                    qty=_safe_float(getattr(profile, "qty", 0)),
+                    size="3000 мм",
+                    qty=blanks,
+                    unit="шт",
+                    image=str(getattr(profile, "image", "") or ""),
+                    stage="2",
                 )
         elif system == "ЛИФТ" and include_calculated_specials:
             calc = calculate_lift(section)
@@ -1226,15 +1268,16 @@ def _build_delivery_hardware_rows(
                 color=str(extra.get("color") or ""),
                 size=str(extra.get("size") or ""),
                 qty=qty * section_qty,
+                unit=str(extra.get("unit") or "шт"),
+                image=str(
+                    extra.get("imageFile")
+                    or extra.get("image_file")
+                    or extra.get("image")
+                    or ""
+                ),
+                stage=_extra_delivery_stage(extra),
             )
 
-    if bubble_seal_qty > 0:
-        _add_delivery_component(
-            grouped,
-            article="RS1002",
-            name="Пузырьковый уплотнитель",
-            qty=bubble_seal_qty,
-        )
     for remote in lift_remote_controls.values():
         _add_delivery_component(
             grouped,
@@ -1266,6 +1309,53 @@ def _build_delivery_hardware_rows(
             {
                 **component,
                 "qty_text": _format_quantity(component["qty"]),
+                "qty_display": (
+                    f"{_format_quantity(component['qty'])} {component['unit']}"
+                ),
+                "place_key": place_key,
+                "places": _delivery_place(places, place_key),
+            }
+        )
+    return rows
+
+
+def _build_delivery_project_extra_rows(
+    project: object,
+    places: dict[str, str],
+    extra_stage: int | None,
+) -> list[dict]:
+    grouped: dict[tuple, dict] = {}
+    for extra in _parse_extra_components(getattr(project, "extra_components", None)):
+        if not _extra_matches_delivery_stage(extra, extra_stage):
+            continue
+        _add_delivery_component(
+            grouped,
+            article=str(extra.get("sku") or extra.get("article") or ""),
+            name=str(extra.get("name") or "Дополнительная комплектующая"),
+            color=str(extra.get("color") or ""),
+            size=str(extra.get("size") or ""),
+            qty=_safe_float(extra.get("qty") or extra.get("quantity"), 0),
+            unit=str(extra.get("unit") or "шт"),
+            image=str(
+                extra.get("imageFile")
+                or extra.get("image_file")
+                or extra.get("image")
+                or ""
+            ),
+            stage=_extra_delivery_stage(extra),
+        )
+
+    rows: list[dict] = []
+    for component_key, component in sorted(
+        grouped.items(), key=lambda item: (item[1]["article"], item[1]["name"])
+    ):
+        place_key = _delivery_key("project-extra", *component_key)
+        qty_text = _format_quantity(component["qty"])
+        rows.append(
+            {
+                **component,
+                "qty_text": qty_text,
+                "qty_display": f"{qty_text} {component['unit']}",
                 "place_key": place_key,
                 "places": _delivery_place(places, place_key),
             }
@@ -1299,6 +1389,15 @@ def _build_delivery_context(project: object, sections: Iterable[object]) -> dict
         places,
         include_calculated_specials=include_calculated_specials,
         extra_stage=extra_stage,
+        hardware_installation=str(
+            getattr(project, "hardware_installation", "not_installed")
+            or "not_installed"
+        ),
+    )
+    project_extra_rows = _build_delivery_project_extra_rows(
+        project,
+        places,
+        extra_stage,
     )
     item1_rows = [
         *(
@@ -1316,7 +1415,7 @@ def _build_delivery_context(project: object, sections: Iterable[object]) -> dict
     ]
     total_qty = sum(float(row["qty"]) for row in item1_rows) + sum(
         float(row["qty"]) for row in hardware_rows
-    )
+    ) + sum(float(row["qty"]) for row in project_extra_rows)
     return {
         "doc_type": "delivery",
         "title": DOC_TITLES["delivery"],
@@ -1332,13 +1431,51 @@ def _build_delivery_context(project: object, sections: Iterable[object]) -> dict
         },
         "delivery_item1_rows": item1_rows,
         "delivery_item2_rows": hardware_rows,
+        "delivery_project_extra_rows": project_extra_rows,
+        "delivery_project_extra_note": str(
+            getattr(project, "extra_parts", "") or ""
+        ).strip(),
         "delivery_total_qty": _format_quantity(total_qty),
-        "delivery_names_count": 2,
+        "delivery_names_count": 2 + int(bool(project_extra_rows)),
         "document_warnings": _slide_document_warnings(sorted_sections),
     }
 
 
 HARDWARE_ORDER_SYSTEMS = ("СЛАЙД", "ЛИФТ", "КНИЖКА", "ЦС")
+
+INSTALLED_HARDWARE_EXCLUDED_ARTICLES = {
+    "RU003",
+    "RU004",
+    "RU006",
+    "RU010",
+    "RS103B",
+    "RS104B",
+    "RS130",
+}
+
+
+def _exclude_installed_hardware(
+    hardware_installation: str,
+    article: object,
+    name: object,
+) -> bool:
+    if str(hardware_installation or "not_installed") != "installed":
+        return False
+    article_text = str(article or "").strip().upper()
+    if article_text in INSTALLED_HARDWARE_EXCLUDED_ARTICLES:
+        return True
+    combined_text = f"{article_text} {name or ''}"
+    if "DIN7982" not in combined_text.upper():
+        return False
+    normalized_name = (
+        combined_text
+        .casefold()
+        .replace("×", "x")
+        .replace("х", "x")
+        .replace(" ", "")
+        .replace(".", ",")
+    )
+    return "4,8x25" in normalized_name
 
 
 SLIDE_HARDWARE_STAGES = {
@@ -1357,6 +1494,8 @@ SLIDE_HARDWARE_STAGES = {
     "RS122": "2",
     "RS123": "2",
     "RS205": "2",
+    "RS1002": "2",
+    "RS1005": "2",
     "RS3110": "2",
     "RS3014": "2",
     "RS3017": "2",
@@ -1432,7 +1571,7 @@ def _canonical_hardware_order_name(article: str, name: str) -> str:
 
 
 def _add_hardware_order_row(
-    grouped: dict[tuple[str, str, str, str], dict],
+    grouped: dict[tuple[str, str, str, str, str, str], dict],
     *,
     article: object,
     name: object,
@@ -1440,6 +1579,8 @@ def _add_hardware_order_row(
     unit: object = "шт",
     image: object = "",
     stage: object = "",
+    color: object = "",
+    size: object = "",
     aggregate: str = "sum",
 ) -> None:
     numeric_qty = _safe_float(qty, 0)
@@ -1452,7 +1593,9 @@ def _add_hardware_order_row(
 
     unit_text = str(unit or "шт").strip() or "шт"
     image_text = str(image or "").strip()
-    key = (article_text, name_text, unit_text, image_text)
+    color_text = str(color or "").strip()
+    size_text = str(size or "").strip()
+    key = (article_text, name_text, unit_text, image_text, color_text, size_text)
     row = grouped.setdefault(
         key,
         {
@@ -1461,6 +1604,8 @@ def _add_hardware_order_row(
             "qty": 0.0,
             "unit": unit_text,
             "image": image_text,
+            "color": color_text,
+            "size": size_text,
             "stages": set(),
         },
     )
@@ -1474,7 +1619,7 @@ def _add_hardware_order_row(
 
 
 def _add_hardware_order_extras(
-    grouped: dict[tuple[str, str, str, str], dict],
+    grouped: dict[tuple[str, str, str, str, str, str], dict],
     section: object,
 ) -> None:
     section_qty = max(1, _positive_int(getattr(section, "quantity", 1), 1))
@@ -1493,11 +1638,17 @@ def _add_hardware_order_extras(
                 or ""
             ),
             stage=_extra_delivery_stage(extra),
+            color=extra.get("color") or "",
+            size=extra.get("size") or "",
         )
 
 
-def _build_hardware_order_page(system: str, sections: list[object]) -> dict:
-    grouped: dict[tuple[str, str, str, str], dict] = {}
+def _build_hardware_order_page(
+    system: str,
+    sections: list[object],
+    hardware_installation: str = "not_installed",
+) -> dict:
+    grouped: dict[tuple[str, str, str, str, str, str], dict] = {}
     warning = ""
 
     if system == "СЛАЙД":
@@ -1507,19 +1658,31 @@ def _build_hardware_order_page(system: str, sections: list[object]) -> dict:
                 sub_items = getattr(item, "sub_items", None) or []
                 if sub_items:
                     for sub_item in sub_items:
+                        sub_article = getattr(sub_item, "article", "")
+                        sub_name = f"{getattr(item, 'name', '')} {getattr(sub_item, 'label', '')}".strip()
+                        if _exclude_installed_hardware(
+                            hardware_installation, sub_article, sub_name
+                        ):
+                            continue
                         _add_hardware_order_row(
                             grouped,
-                            article=getattr(sub_item, "article", ""),
-                            name=f"{getattr(item, 'name', '')} {getattr(sub_item, 'label', '')}".strip(),
+                            article=sub_article,
+                            name=sub_name,
                             qty=getattr(sub_item, "value", 0),
                             unit=getattr(item, "unit", "шт"),
                             image=getattr(item, "image", ""),
                             stage=_hardware_order_stage(
                                 system,
                                 str(getattr(sub_item, "article", "") or ""),
-                                f"{getattr(item, 'name', '')} {getattr(sub_item, 'label', '')}".strip(),
+                                sub_name,
                             ),
                         )
+                    continue
+                if _exclude_installed_hardware(
+                    hardware_installation,
+                    getattr(item, "article", ""),
+                    getattr(item, "name", ""),
+                ):
                     continue
                 _add_hardware_order_row(
                     grouped,
@@ -1535,6 +1698,12 @@ def _build_hardware_order_page(system: str, sections: list[object]) -> dict:
                     ),
                 )
             for item in calc.screws:
+                if _exclude_installed_hardware(
+                    hardware_installation,
+                    getattr(item, "article", ""),
+                    getattr(item, "name", ""),
+                ):
+                    continue
                 _add_hardware_order_row(
                     grouped,
                     article=getattr(item, "article", ""),
@@ -1548,12 +1717,59 @@ def _build_hardware_order_page(system: str, sections: list[object]) -> dict:
                         str(getattr(item, "name", "") or ""),
                     ),
                 )
+            for profile in calc.profiles:
+                article = str(getattr(profile, "article", "") or "").strip().upper()
+                if article == "RU010":
+                    if _exclude_installed_hardware(
+                        hardware_installation,
+                        article,
+                        getattr(profile, "name", ""),
+                    ):
+                        continue
+                    _add_hardware_order_row(
+                        grouped,
+                        article=article,
+                        name=getattr(profile, "name", ""),
+                        qty=(
+                            _safe_float(getattr(profile, "length_mm", 0), 0)
+                            * _safe_float(getattr(profile, "qty", 0), 0)
+                            / 1000
+                        ),
+                        unit="м",
+                        image=getattr(profile, "image", ""),
+                        stage=_hardware_order_stage(system, article, ""),
+                    )
+                    continue
+                if article not in {"RS1002", "RS1005"}:
+                    continue
+                blank_qty = ceil(
+                    _safe_float(getattr(profile, "length_mm", 0), 0) / 3000
+                ) * _safe_float(getattr(profile, "qty", 0), 0)
+                _add_hardware_order_row(
+                    grouped,
+                    article=article,
+                    name=(
+                        f"{str(getattr(profile, 'name', '') or article).strip()} "
+                        "(заготовка 3000 мм)"
+                    ),
+                    qty=blank_qty,
+                    unit="шт",
+                    image=getattr(profile, "image", ""),
+                    stage=_hardware_order_stage(system, article, ""),
+                    size="3000 мм",
+                )
             _add_hardware_order_extras(grouped, section)
     elif system == "ЛИФТ":
         for section in sections:
             calc = calculate_lift(section)
             for item in [*calc.hardware, *calc.fasteners]:
                 article = str(getattr(item, "article", "") or "").strip().upper()
+                if _exclude_installed_hardware(
+                    hardware_installation,
+                    article,
+                    getattr(item, "name", ""),
+                ):
+                    continue
                 aggregate = (
                     "max"
                     if article in {"RL2087", "RL2088"}
@@ -1583,6 +1799,12 @@ def _build_hardware_order_page(system: str, sections: list[object]) -> dict:
                 if not getattr(item, "included", False):
                     continue
                 article = str(getattr(item, "article", "") or "").strip().upper()
+                if _exclude_installed_hardware(
+                    hardware_installation,
+                    article,
+                    getattr(item, "name", ""),
+                ):
+                    continue
                 _add_hardware_order_row(
                     grouped,
                     article=article,
@@ -1603,12 +1825,18 @@ def _build_hardware_order_page(system: str, sections: list[object]) -> dict:
 
     rows = sorted(
         grouped.values(),
-        key=lambda row: (row["article"], row["name"], row["unit"]),
+        key=lambda row: (
+            row["article"],
+            row["name"],
+            row["color"],
+            row["size"],
+            row["unit"],
+        ),
     )
     for index, row in enumerate(rows, start=1):
         article = str(row["article"] or "").upper()
         if (
-            article in {"RU004", "RU006", "RU007", "RU008"}
+            article in {"RU004", "RU006", "RU007", "RU008", "RU010"}
             and str(row["unit"]).lower() == "м"
         ):
             row["qty"] = ceil(float(row["qty"]) * 10 - 1e-9) / 10
@@ -1619,6 +1847,52 @@ def _build_hardware_order_page(system: str, sections: list[object]) -> dict:
         "system": system,
         "rows": rows,
         "warning": warning,
+    }
+
+
+def _build_project_hardware_extra_page(project: object) -> dict | None:
+    grouped: dict[tuple[str, str, str, str, str, str], dict] = {}
+    for extra in _parse_extra_components(getattr(project, "extra_components", None)):
+        _add_hardware_order_row(
+            grouped,
+            article=extra.get("sku") or extra.get("article"),
+            name=extra.get("name") or "Дополнительная комплектующая",
+            qty=extra.get("qty") or extra.get("quantity"),
+            unit=extra.get("unit") or "шт",
+            image=(
+                extra.get("imageFile")
+                or extra.get("image_file")
+                or extra.get("image")
+                or ""
+            ),
+            stage=_extra_delivery_stage(extra),
+            color=extra.get("color") or "",
+            size=extra.get("size") or "",
+        )
+
+    rows = sorted(
+        grouped.values(),
+        key=lambda row: (
+            row["article"],
+            row["name"],
+            row["color"],
+            row["size"],
+        ),
+    )
+    for index, row in enumerate(rows, start=1):
+        row["index"] = index
+        row["qty_text"] = _format_quantity(row["qty"])
+        row["stage_text"] = ", ".join(sorted(row.pop("stages", set()))) or "—"
+
+    note = str(getattr(project, "extra_parts", "") or "").strip()
+    if not rows and not note:
+        return None
+    return {
+        "system": "Дополнительные комплектующие проекта",
+        "rows": rows,
+        "warning": "",
+        "note": note,
+        "is_project_extras": True,
     }
 
 
@@ -1643,16 +1917,29 @@ def _build_hardware_order_context(
     ordered_systems.extend(
         sorted(system for system in grouped_sections if system not in ordered_systems)
     )
+    hardware_installation = str(
+        getattr(project, "hardware_installation", "not_installed")
+        or "not_installed"
+    )
+    pages = [
+        _build_hardware_order_page(
+            system,
+            grouped_sections[system],
+            hardware_installation,
+        )
+        for system in ordered_systems
+    ]
+    project_extras_page = _build_project_hardware_extra_page(project)
+    if project_extras_page:
+        pages.append(project_extras_page)
     return {
         "doc_type": "hardware_order",
         "title": DOC_TITLES["hardware_order"],
         "project": project,
         "sections": section_rows,
         "document_warnings": _slide_document_warnings(section_rows),
-        "hardware_order_pages": [
-            _build_hardware_order_page(system, grouped_sections[system])
-            for system in ordered_systems
-        ],
+        "hardware_installation": hardware_installation,
+        "hardware_order_pages": pages,
     }
 
 

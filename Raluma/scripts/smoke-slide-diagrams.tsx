@@ -242,14 +242,15 @@ const calcTwoRows: SlideCalcPreview = {
   ],
   profiles: calc.profiles,
   panel_rails: [1, 2, 2, 1],
+  panel_numbers: [2, 1, 1, 2],
 };
 
 const roomMarkupTwoRows = renderToStaticMarkup(<SlideRoomViewSVG section={sectionTwoRows} calc={calcTwoRows} />);
 const schemeMarkupTwoRows = renderToStaticMarkup(<SlideSchemeSVG section={sectionTwoRows} calc={calcTwoRows} />);
 
 assert.match(roomMarkupTwoRows, />500</, '2-row room view must round the left central glass to the nearest millimeter');
-assert.match(schemeMarkupTwoRows, /500 · №2/, '2-row top scheme must round the left central panel to the nearest millimeter');
-assert.match(schemeMarkupTwoRows, /501 · №3/, '2-row top scheme must use the rounded physical width for the right central panel');
+assert.match(schemeMarkupTwoRows, /500 · №1/, 'center-first numbering must label the left central panel as 1');
+assert.match(schemeMarkupTwoRows, /501 · №1/, 'center-first numbering must label the right central panel as 1');
 assert.match(schemeMarkupTwoRows, /data-dir="1"/, '2-row top scheme must mirror left-side inter-glass profile');
 assert.match(schemeMarkupTwoRows, /data-dir="-1"/, '2-row top scheme must mirror right-side inter-glass profile');
 assert.equal((schemeMarkupTwoRows.match(/data-profile="inter-glass"/g) ?? []).length, 2, '2-row top scheme must not draw an inter-glass profile in the central joint');
@@ -333,6 +334,26 @@ assert.equal(
   2,
   'room view must render a 40 mm RS112 strip on both central panels',
 );
+assert.doesNotMatch(
+  centerRs112RoomMarkup,
+  /data-center-rs112-room="(?:left|right)"[^>]*fill="var\(--theme-accent\)"/,
+  'central RS112 profiles must keep their contour without a blue fill',
+);
+
+const outsideFirstCalc: SlideCalcPreview = {
+  ...calcTwoRows,
+  panel_numbers: [1, 2, 2, 1],
+};
+const outsideFirstMarkup = renderToStaticMarkup(
+  <SlideSchemeSVG
+    section={{ ...sectionTwoRows, unusedTrack: 'Внутренний' }}
+    calc={outsideFirstCalc}
+  />,
+);
+assert.match(outsideFirstMarkup, /520 · №1/);
+assert.match(outsideFirstMarkup, /500 · №2/);
+assert.match(outsideFirstMarkup, /501 · №2/);
+assert.match(outsideFirstMarkup, /530 · №1/);
 assert.equal(
   (centerRs112TopMarkup.match(/data-center-rs112-top="(left|right)"/g) ?? []).length,
   2,

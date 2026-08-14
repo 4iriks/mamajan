@@ -239,7 +239,18 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
               <div>
                 <SectionDivider label="Примечания к секции" />
                 <div className="mt-3">
-                  <div className="space-y-1.5">
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <label className={LBL}>Примечание к комплектации</label>
+                      <textarea
+                        value={section.extraParts || ''}
+                        onChange={e => onUpdate({ extraParts: e.target.value || undefined })}
+                        rows={2}
+                        placeholder="Сохранённое текстовое примечание..."
+                        className="w-full bg-hi/8 border border-tint/30 rounded-xl px-3 py-2 outline-none focus:border-accent/50 transition-all text-fg resize-y placeholder-fg/20 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
                     <label className={LBL}>Комментарии</label>
                     <textarea
                       value={section.comments || ''}
@@ -248,6 +259,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
                       placeholder="Дополнительные комментарии..."
                       className="w-full bg-hi/8 border border-tint/30 rounded-xl px-3 py-2 outline-none focus:border-accent/50 transition-all text-fg resize-y placeholder-fg/20 text-sm"
                     />
+                    </div>
                   </div>
                 </div>
               </div>

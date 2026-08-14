@@ -432,6 +432,8 @@ class ProjectBase(BaseModel):
     system: Optional[str] = None
     subtype: Optional[str] = None
     extra_parts: Optional[str] = None
+    extra_components: str = "[]"
+    hardware_installation: Literal["installed", "not_installed"] = "installed"
     comments: Optional[str] = None
     production_stages: Optional[int] = 1
     current_stage: Optional[int] = 1
@@ -457,6 +459,10 @@ class ProjectUpdate(BaseModel):
     system: Optional[str] = None
     subtype: Optional[str] = None
     extra_parts: Optional[str] = None
+    extra_components: Optional[str] = None
+    hardware_installation: Optional[
+        Literal["installed", "not_installed"]
+    ] = None
     comments: Optional[str] = None
     production_stages: Optional[int] = None
     current_stage: Optional[int] = None

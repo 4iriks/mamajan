@@ -99,6 +99,7 @@ export const SLIDE_ONE_ROW_LAYOUTS: SlideLayoutPreset[] = [
   layout('one-2-3', 2000, 2, 3, ONE_ROW_COMMON),
   layout('one-3-3', 3000, 3, 3, ONE_ROW_COMMON),
   layout('one-4-5', 4000, 4, 5, ONE_ROW_COMMON),
+  layout('one-5-5', 5000, 5, 5, ONE_ROW_COMMON),
 ];
 
 export const SLIDE_TWO_ROW_LAYOUTS: SlideLayoutPreset[] = [

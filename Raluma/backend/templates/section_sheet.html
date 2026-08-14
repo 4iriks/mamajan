@@ -295,7 +295,7 @@
         {% if i < section.panels - 1 %}
         <rect x="{{ gpx + rpW - 1 }}" y="{{ riY }}" width="2" height="{{ riH }}" fill="#e0e0e0" stroke="#ccc" stroke-width="0.3"/>
         {% endif %}
-        {% set pnum = i + 1 if is2row else (section.panels - i if room_first_right else i + 1) %}
+        {% set pnum = calc.panel_numbers[i] if calc.panel_numbers and i < calc.panel_numbers|length else (i + 1 if is2row else (section.panels - i if room_first_right else i + 1)) %}
         {# Deaf panel — X #}
         {% set isCenterPanel = is2row and (i == centerLeftIdx or i == centerRightIdx) %}
         {% if i == centerLeftIdx %}
@@ -311,7 +311,7 @@
         {% set rs112x = gpx + rpW - rs112w if i == centerLeftIdx else gpx %}
         <rect data-center-rs112-room="{{ 'left' if i == centerLeftIdx else 'right' }}" data-profile-width-mm="40"
               x="{{ rs112x }}" y="{{ riY }}" width="{{ rs112w }}" height="{{ riH }}"
-              fill="#777" fill-opacity="0.24" stroke="#555" stroke-width="0.5"/>
+              fill="none" stroke="#555" stroke-width="0.5"/>
         {% endif %}
         {% if isCenterPanel and not centerDeaf and not centerRS112 and (centerKnob or centerGlassHandle or centerBrace) %}
         {% set centerHandleX = gpx + rpW - 7 if i == centerLeftIdx else gpx + 7 %}
@@ -531,7 +531,7 @@
         {# Панель — тонкий прямоугольник #}
         <rect data-scheme-panel="{{ pi + 1 }}" x="{{ gx1 }}" y="{{ cy - 3.5 }}" width="{{ gx2 - gx1 }}" height="7" data-panel-boundary-start="{{ px }}" data-panel-boundary-end="{{ px + panel_w }}" data-glass-fill="{{ glass_fill_color }}" data-glass-pattern="{{ 'matte' if matte_glass else '' }}" fill="{{ 'url(#matte-top-glass)' if matte_glass else glass_fill_color }}" fill-opacity="0.8" stroke="#000" stroke-width="0.8"/>
         {# Номер панели #}
-        {% set pnum = pi + 1 if is2row else (P - pi if first_right else pi + 1) %}
+        {% set pnum = calc.panel_numbers[pi] if calc.panel_numbers and pi < calc.panel_numbers|length else (pi + 1 if is2row else (P - pi if first_right else pi + 1)) %}
         <text x="{{ (gx1 + gx2) / 2 }}" y="{{ cy + 3 }}" text-anchor="middle" font-size="6" font-family="Arial" font-weight="bold" fill="#333">{{ panel_w_mm|glass_mm }} · {{ pnum }}</text>
         {% if top_center_rs112 and (pi == (P // 2) - 1 or pi == P // 2) %}
         {% set rs112_side = 'left' if pi == (P // 2) - 1 else 'right' %}
@@ -712,7 +712,7 @@
   <tr>
     {% for col in range(cols) %}
     {% set i = row * cols + col %}
-    <td style="width:33.33%"{% if i < total %} data-profile-article="{{ all_profiles[i].article }}" data-length-visible="{{ 'false' if all_profiles[i].article == 'RS3110' else 'true' }}"{% endif %}>
+    <td style="width:33.33%"{% if i < total %} data-profile-article="{{ all_profiles[i].article }}" data-length-visible="{{ 'false' if all_profiles[i].article in ['RS1005', 'RS3110'] else 'true' }}"{% endif %}>
       {% if i < total %}
       {% set p = all_profiles[i] %}
       {% set fk_l = "p_" ~ i ~ "_len" %}
@@ -732,7 +732,7 @@
                 <span class="qty" {{ ce(cut.qty_field, cut.qty) }}>{{ ov(cut.qty_field, cut.qty) }}</span>{% if not loop.last %}<br>{% endif %}
               {% endfor %}
             {% else %}
-            <span class="dim" {% if p.article != 'RS3110' and p.length_mm > 0 %}{{ ce(fk_l, p.length_mm|int) }}{% endif %}>{% if p.article != 'RS3110' and p.length_mm > 0 %}{{ ov(fk_l, p.length_mm|int) }}{% endif %}</span>
+            <span class="dim" {% if p.article not in ['RS1005', 'RS3110'] and p.length_mm > 0 %}{{ ce(fk_l, p.length_mm|int) }}{% endif %}>{% if p.article not in ['RS1005', 'RS3110'] and p.length_mm > 0 %}{{ ov(fk_l, p.length_mm|int) }}{% endif %}</span>
             <span class="qty" {{ ce(fk_q, p.qty) }}>{{ ov(fk_q, p.qty) }}</span>
             {% endif %}
           </span>

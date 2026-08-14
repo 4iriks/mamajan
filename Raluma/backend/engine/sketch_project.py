@@ -103,9 +103,14 @@ def _book_warnings(calc: object) -> list[str]:
 def _slide_panels(section: object, calc: object) -> list[SketchPanelRow]:
     filling = _text(getattr(calc, "glass_type", None))
     quantity = _positive_int(getattr(section, "quantity", 1))
+    panel_numbers = list(getattr(calc, "panel_numbers", None) or [])
     return [
         SketchPanelRow(
-            number=int(getattr(panel, "panel", index) or index),
+            number=int(
+                panel_numbers[index - 1]
+                if index - 1 < len(panel_numbers)
+                else getattr(panel, "panel", index) or index
+            ),
             position=_text(getattr(panel, "position", None), f"Панель {index}"),
             filling=filling,
             width_mm=_number(getattr(panel, "width_mm", 0)),
@@ -177,6 +182,7 @@ _EXCLUDED_COMPONENT_TERMS = (
     "заглуш",
     "наклей",
     "инструкц",
+    "ответн",
 )
 
 
@@ -190,6 +196,46 @@ def _is_sketch_component(article: object, name: object) -> bool:
     return not any(term in normalized for term in _EXCLUDED_COMPONENT_TERMS)
 
 
+_SLIDE_INCLUDED_HARDWARE_TERMS = (
+    "ручк",
+    "замок",
+    "защел",
+    "защёл",
+    "уплотн",
+    "двутавр",
+)
+_SLIDE_INCLUDED_HARDWARE_ARTICLES = {
+    "RS205",
+    "RS206",
+    "RS207",
+    "RS3014",
+    "RS3017",
+    "RS3018",
+    "RS3020",
+    "RS30201",
+    "RS30301",
+    "RU007",
+    "RU008",
+    "RU010",
+}
+
+
+def _is_calculated_hardware_for_sketch(
+    system: str,
+    article: object,
+    name: object,
+) -> bool:
+    if system != "СЛАЙД":
+        return _is_sketch_component(article, name)
+    article_text = str(article or "").strip().upper()
+    if article_text in _SLIDE_INCLUDED_HARDWARE_ARTICLES:
+        return True
+    if not _is_sketch_component(article, name):
+        return False
+    normalized = str(name or "").casefold()
+    return any(term in normalized for term in _SLIDE_INCLUDED_HARDWARE_TERMS)
+
+
 def _component_row(
     *,
     article: object,
@@ -198,6 +244,9 @@ def _component_row(
     qty: object = "",
     unit: object = "шт",
     note: object = "",
+    image: object = "",
+    color: object = "",
+    stage: object = "",
 ) -> dict:
     return {
         "article": _text(article, ""),
@@ -206,6 +255,9 @@ def _component_row(
         "qty": _text(qty),
         "unit": _text(unit, "шт"),
         "note": _text(note, ""),
+        "image": _text(image, ""),
+        "color": _text(color, ""),
+        "stage": _text(stage, ""),
     }
 
 
@@ -228,6 +280,7 @@ def _calculated_components(calc: object, system: str) -> list[dict]:
                 qty=_format_number(qty),
                 unit=getattr(item, "unit", "шт"),
                 note=getattr(item, "position", "") if system == "КНИЖКА" else "",
+                image=getattr(item, "image", ""),
             )
         )
 
@@ -236,14 +289,13 @@ def _calculated_components(calc: object, system: str) -> list[dict]:
             continue
         article = getattr(item, "article", "")
         name = getattr(item, "name", "")
-        if not _is_sketch_component(article, name):
-            continue
         sub_items = getattr(item, "sub_items", None)
         if sub_items:
             for sub_item in sub_items:
                 if _number(getattr(sub_item, "value", 0)) <= 0:
                     continue
-                if not _is_sketch_component(
+                if not _is_calculated_hardware_for_sketch(
+                    system,
                     getattr(sub_item, "article", ""),
                     f"{name} {getattr(sub_item, 'label', '')}",
                 ):
@@ -254,8 +306,12 @@ def _calculated_components(calc: object, system: str) -> list[dict]:
                         name=f"{name} {getattr(sub_item, 'label', '')}",
                         qty=_format_number(getattr(sub_item, "value", 0)),
                         unit=getattr(item, "unit", "шт"),
+                        image=getattr(item, "image", ""),
                     )
                 )
+            continue
+
+        if not _is_calculated_hardware_for_sketch(system, article, name):
             continue
 
         value = getattr(item, "qty", None)
@@ -272,13 +328,14 @@ def _calculated_components(calc: object, system: str) -> list[dict]:
                 qty=_format_number(value),
                 unit=getattr(item, "unit", "шт"),
                 note=getattr(item, "note", ""),
+                image=getattr(item, "image", ""),
             )
         )
     return rows
 
 
-def _extra_components(section: object) -> list[dict]:
-    raw = getattr(section, "extra_components", None)
+def _extra_components(owner: object, *, multiply: bool) -> list[dict]:
+    raw = getattr(owner, "extra_components", None)
     if isinstance(raw, list):
         source = raw
     else:
@@ -289,7 +346,9 @@ def _extra_components(section: object) -> list[dict]:
     if not isinstance(source, list):
         return []
     rows = []
-    section_quantity = _positive_int(getattr(section, "quantity", 1))
+    quantity_multiplier = (
+        _positive_int(getattr(owner, "quantity", 1)) if multiply else 1
+    )
     for item in source:
         if not isinstance(item, dict):
             continue
@@ -297,13 +356,16 @@ def _extra_components(section: object) -> list[dict]:
         name = item.get("name") or ""
         if not any((article, name, item.get("size"), item.get("qty"))):
             continue
-        if not _is_sketch_component(article, name):
-            continue
         raw_qty = item.get("qty") or item.get("quantity") or ""
         total_qty = (
-            _format_number(_number(raw_qty) * section_quantity)
+            _format_number(_number(raw_qty) * quantity_multiplier)
             if _number(raw_qty) > 0
             else raw_qty
+        )
+        stage = (
+            item.get("deliveryStage")
+            or item.get("delivery_stage")
+            or "both"
         )
         rows.append(
             _component_row(
@@ -312,7 +374,15 @@ def _extra_components(section: object) -> list[dict]:
                 size=item.get("size") or "",
                 qty=total_qty,
                 unit=item.get("unit") or "шт",
-                note=item.get("color") or "",
+                note="",
+                color=item.get("color") or "",
+                image=(
+                    item.get("imageFile")
+                    or item.get("image_file")
+                    or item.get("image")
+                    or ""
+                ),
+                stage="1, 2" if str(stage).strip().lower() == "both" else stage,
             )
         )
     return rows
@@ -391,8 +461,9 @@ def _section_data(section: object, order: int) -> dict:
         "panels": panel_rows,
         "components": [
             *_calculated_components(calc, system),
-            *_extra_components(section),
+            *_extra_components(section, multiply=True),
         ],
+        "comments": _text(getattr(section, "comments", None), ""),
         "warnings": [f"{label}: {warning}" for warning in warnings],
         "diagrams": _diagram_rows(section, calc),
     }
@@ -432,6 +503,10 @@ def build_sketch_project_context(
         "document_title": f"ЭСКИЗНЫЙ ПРОЕКТ № {_text(getattr(project, 'number', None), '')}",
         "project_number": _text(getattr(project, "number", None), ""),
         "sections": prepared,
+        "project_components": _extra_components(project, multiply=False),
+        "project_extra_parts_note": _text(
+            getattr(project, "extra_parts", None), ""
+        ),
         "document_warnings": [
             warning for section in prepared for warning in section["warnings"]
         ],

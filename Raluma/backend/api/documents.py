@@ -228,6 +228,12 @@ def _build_local_document_objects(payload: LocalDocumentPayload):
         id=project_data.get("id") or 0,
         number=project_data.get("number") or "Локальный проект",
         customer=project_data.get("customer") or "",
+        extra_parts=project_data.get("extra_parts"),
+        extra_components=project_data.get("extra_components") or "[]",
+        hardware_installation=(
+            project_data.get("hardware_installation") or "not_installed"
+        ),
+        comments=project_data.get("comments"),
         paint_manual_rows=project_data.get("paint_manual_rows") or "[]",
         glass_status=project_data.get("glass_status") or "",
         delivery_note_data=project_data.get("delivery_note_data") or "{}",
@@ -244,6 +250,12 @@ def _build_local_project_document_objects(payload: LocalProjectDocumentPayload):
         id=project_data.get("id") or 0,
         number=project_data.get("number") or "Локальный проект",
         customer=project_data.get("customer") or "",
+        extra_parts=project_data.get("extra_parts"),
+        extra_components=project_data.get("extra_components") or "[]",
+        hardware_installation=(
+            project_data.get("hardware_installation") or "not_installed"
+        ),
+        comments=project_data.get("comments"),
         paint_manual_rows=project_data.get("paint_manual_rows") or "[]",
         glass_status=project_data.get("glass_status") or "",
         delivery_note_data=project_data.get("delivery_note_data") or "{}",

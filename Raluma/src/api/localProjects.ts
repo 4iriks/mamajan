@@ -17,10 +17,24 @@ function read(): ProjectFull[] {
     const raw = localStorage.getItem(LOCAL_PROJECTS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed)
+      ? parsed.map(project => normalizeProject(project))
+      : [];
   } catch {
     return [];
   }
+}
+
+function normalizeProject(project: ProjectFull): ProjectFull {
+  return {
+    ...project,
+    extra_components: project.extra_components ?? '[]',
+    // Projects saved before this field existed must keep their former work order.
+    hardware_installation: project.hardware_installation ?? 'not_installed',
+    sections: Array.isArray(project.sections)
+      ? project.sections.map(section => normalizeSection(project.id, section))
+      : [],
+  };
 }
 
 function write(projects: ProjectFull[]) {
@@ -193,6 +207,8 @@ export function createLocalProject(data: { number: string; customer: string; pro
     system: '',
     subtype: undefined,
     extra_parts: undefined,
+    extra_components: '[]',
+    hardware_installation: 'installed',
     comments: undefined,
     production_stages: data.production_stages ?? 1,
     current_stage: 1,

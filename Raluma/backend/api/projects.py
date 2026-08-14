@@ -42,14 +42,9 @@ def create_project(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    project = models.Project(
-        number=data.number,
-        customer=data.customer,
-        system=data.system or "",  # '' satisfies legacy NOT NULL constraint
-        subtype=data.subtype,
-        production_stages=data.production_stages,
-        created_by=current_user.id,
-    )
+    values = data.model_dump()
+    values["system"] = values.get("system") or ""  # legacy NOT NULL constraint
+    project = models.Project(**values, created_by=current_user.id)
     db.add(project)
     db.commit()
     db.refresh(project)
@@ -105,6 +100,8 @@ def copy_project(
         system=source.system,
         subtype=source.subtype,
         extra_parts=source.extra_parts,
+        extra_components=source.extra_components,
+        hardware_installation=source.hardware_installation,
         comments=source.comments,
         production_stages=source.production_stages,
         status=source.status,

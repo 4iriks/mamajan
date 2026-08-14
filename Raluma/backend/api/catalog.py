@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,6 +16,16 @@ import schemas
 router = APIRouter(prefix="/api/catalog", tags=["catalog"])
 
 CATALOG_UPDATED_AT = "2026-06-08"
+
+
+def _natural_sku_key(item: models.CatalogItem) -> tuple:
+    sku = str(item.sku or "").casefold()
+    normalized_sku = re.sub(
+        r"\d+",
+        lambda match: f"{int(match.group()):020d}",
+        sku,
+    )
+    return normalized_sku, sku, str(item.name or "").casefold()
 
 
 def _seed_item_to_model(index: int, item) -> models.CatalogItem:
@@ -170,9 +181,9 @@ def list_hardware_options(db: Session = Depends(get_db)):
     items = (
         db.query(models.CatalogItem)
         .filter(models.CatalogItem.is_active == True)  # noqa: E712
-        .order_by(models.CatalogItem.sku)
         .all()
     )
+    items.sort(key=_natural_sku_key)
     return [_item_to_option(item) for item in items]
 
 

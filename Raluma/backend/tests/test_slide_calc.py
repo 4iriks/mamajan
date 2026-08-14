@@ -171,6 +171,36 @@ class TestGlassTotalCorrection:
     def test_even_and_odd_distribution_rules(self, panel_count, difference, expected):
         assert _glass_correction_adjustments(panel_count, difference) == expected
 
+    @pytest.mark.parametrize("panel_count", [2, 3, 4, 5])
+    @pytest.mark.parametrize("difference", [-4, -3, -2, -1, 1, 2, 3, 4])
+    def test_production_rounding_and_correction_for_two_to_five_panels(
+        self, panel_count, difference
+    ):
+        result = SlideCalcResult(
+            panel_glass=[
+                PanelGlassItem(index, f"Панель {index}", 500.4, 2200.4, 497.4)
+                for index in range(1, panel_count + 1)
+            ]
+        )
+
+        applied = _apply_glass_total_correction(
+            result,
+            panel_count * 500 + difference,
+        )
+
+        expected_adjustments = _glass_correction_adjustments(panel_count, difference)
+        assert applied == difference
+        assert [panel.width_mm for panel in result.panel_glass] == [
+            500.0 + expected_adjustments.get(index, 0)
+            for index in range(panel_count)
+        ]
+        assert [panel.glass_profile_length for panel in result.panel_glass] == [
+            497.0 + expected_adjustments.get(index, 0)
+            for index in range(panel_count)
+        ]
+        assert all(panel.height_mm == 2200.0 for panel in result.panel_glass)
+        assert bool(result.warnings) is (abs(difference) >= 4)
+
     @pytest.mark.parametrize("difference", [4, -4])
     def test_four_millimetres_warns_without_changing_panels(self, difference):
         result = SlideCalcResult(
@@ -189,6 +219,24 @@ class TestGlassTotalCorrection:
         assert "Контрольная сумма" in result.warnings[0]
         assert "фактическая сумма" in result.warnings[0]
         assert f"{difference:+d} мм" in result.warnings[0]
+
+    def test_one_millimetre_pair_difference_raises_smaller_glass_and_rs2021(self):
+        result = SlideCalcResult(
+            panel_glass=[
+                PanelGlassItem(1, "Левое", 500.4, 2200.4, 497.4),
+                PanelGlassItem(2, "Промежуточное", 480.4, 2200.4, 477.4),
+                PanelGlassItem(3, "Правое", 480.4, 2200.4, 477.4),
+            ]
+        )
+
+        _apply_glass_total_correction(result, 1461)
+
+        assert [panel.width_mm for panel in result.panel_glass] == [500, 481, 481]
+        assert [panel.glass_profile_length for panel in result.panel_glass] == [
+            497,
+            478,
+            478,
+        ]
 
     @pytest.mark.parametrize(
         ("profile", "expected_overlap"),
@@ -301,6 +349,90 @@ class TestGlassTotalCorrection:
             panel.height_mm for panel in result.panel_glass
         ]
 
+    def test_reference_section_4214_reaches_independent_control_sum(self):
+        section = _make_section(
+            width=3330,
+            height=1660,
+            panels=3,
+            profile_left_lock_bar=True,
+            profile_right_lock_bar=True,
+            profile_left_handle_bar=True,
+            profile_right_handle_bar=True,
+        )
+
+        result = calculate_slide(section)
+
+        assert [panel.width_mm for panel in result.panel_glass] == [
+            1068.0,
+            1061.0,
+            1068.0,
+        ]
+        assert sum(panel.width_mm for panel in result.panel_glass) == 3197
+        assert [
+            (profile.length_mm, profile.qty)
+            for profile in _find_profile(result, "RS2021")
+        ] == [(1084.0, 2), (1058.0, 1)]
+        assert not result.warnings
+
+        grouped = Counter()
+        for glass in result.glass:
+            grouped[(glass.width_mm, glass.glass_profile_length)] += glass.qty
+        assert grouped == Counter(
+            (panel.width_mm, panel.glass_profile_length)
+            for panel in result.panel_glass
+        )
+        assert _find_hardware(result, "RU005")[0].value == 6
+        ordered = _expand_glass_for_order(section, result)
+        assert [item.width_mm for item in ordered] == [1068.0, 1061.0, 1068.0]
+
+    def test_two_row_dimensions_remain_on_the_existing_formula(self):
+        result = calculate_slide(
+            _make_section(
+                width=5000,
+                height=3000,
+                panels=6,
+                rails=3,
+                slide_rows=2,
+                unused_track="Внешний",
+                first_panel_inside=None,
+                profile_left_p_bar=True,
+                profile_right_p_bar=True,
+                profile_left_bubble=True,
+                profile_right_bubble=True,
+                handle_left="Без ручки (глухая)",
+                handle_right="Без ручки (глухая)",
+            )
+        )
+
+        assert [panel.width_mm for panel in result.panel_glass] == [
+            841.8,
+            825.8,
+            825.8,
+            825.8,
+            825.8,
+            841.8,
+        ]
+
+    @pytest.mark.parametrize(
+        ("placement", "expected"),
+        [
+            ("Внешний", [3, 2, 1, 1, 2, 3]),
+            ("Внутренний", [1, 2, 3, 3, 2, 1]),
+        ],
+    )
+    def test_two_row_pair_numbering(self, placement, expected):
+        result = calculate_slide(
+            _make_section(
+                panels=6,
+                rails=3,
+                slide_rows=2,
+                unused_track=placement,
+                first_panel_inside=None,
+            )
+        )
+
+        assert result.panel_numbers == expected
+
     def test_equal_edge_widths_with_different_profile_lengths_stay_separate(self):
         result = SlideCalcResult()
         panels = [
@@ -378,9 +510,8 @@ class TestBasicSlide:
         """Без ручек/замков, только пристеночные: ppl=ppr=16, остальные=0."""
         edge = _find_glass(self.result, "Крайние")[0]
         mid = _find_glass(self.result, "Промежуточные")[0]
-        expected_mid = round((2000 - 16 - 16 + 9.5 * 2) / 3, 1)
-        assert mid.width_mm == expected_mid
-        assert edge.width_mm == expected_mid
+        assert mid.width_mm == 663
+        assert edge.width_mm == 662
 
     def test_glass_quantities(self):
         edge = _find_glass(self.result, "Крайние")[0]
@@ -442,9 +573,7 @@ class TestProfileVariables:
         s = _make_section(profile_left_wall=True, profile_right_wall=True)
         r = calculate_slide(s)
         mid = _find_glass(r, "Промежуточные")[0]
-        # middle_W с ppl=16, ppr=16
-        expected = round((2000 - 16 - 16 + 9.5 * 2) / 3, 1)
-        assert mid.width_mm == expected
+        assert mid.width_mm == 663
 
     def test_no_wall_profiles(self):
         s = _make_section(profile_left_wall=False, profile_right_wall=False)
@@ -461,8 +590,7 @@ class TestProfileVariables:
         )
         r = calculate_slide(s)
         edge = _find_glass(r, "Крайние")[0]
-        expected = round((2000 - 16 - 16 - 60 + 9.5 * 2) / 3, 1)
-        assert edge.width_mm == expected
+        assert edge.width_mm == 642
 
     def test_rpl_p_bar(self):
         """П-профиль RS1082 слева → rpl = 28."""
@@ -483,10 +611,8 @@ class TestProfileVariables:
         r = calculate_slide(s)
         left = r.panel_glass[0]
         mid = _find_glass(r, "Промежуточные")[0]
-        edge_base = round((2000 - 16 - 16 - 6 - 16 - 2 + 9.5 * 2) / 3, 1)
-        expected_mid = edge_base
-        assert left.width_mm == round(edge_base + 16, 1)
-        assert mid.width_mm == expected_mid
+        assert left.width_mm == 670
+        assert mid.width_mm == 655
 
     @pytest.mark.parametrize(
         "handle",
@@ -515,10 +641,10 @@ class TestProfileVariables:
             "expected_right",
         ),
         [
-            pytest.param(1, 3, 0, 0, 979.7, 995.7, 995.7, id="one-row-zero"),
-            pytest.param(1, 3, 100, 0, 951.7, 1051.7, 967.7, id="one-row-left"),
-            pytest.param(1, 3, 0, 100, 951.7, 967.7, 1051.7, id="one-row-right"),
-            pytest.param(1, 3, 100, 100, 923.7, 1023.7, 1023.7, id="one-row-both"),
+            pytest.param(1, 3, 0, 0, 979, 996, 996, id="one-row-zero"),
+            pytest.param(1, 3, 100, 0, 951, 1052, 968, id="one-row-left"),
+            pytest.param(1, 3, 0, 100, 951, 968, 1052, id="one-row-right"),
+            pytest.param(1, 3, 100, 100, 923, 1024, 1024, id="one-row-both"),
             pytest.param(2, 6, 0, 0, 492.5, 508.5, 508.5, id="two-row-zero"),
             pytest.param(2, 6, 100, 0, 478.5, 578.5, 494.5, id="two-row-left"),
             pytest.param(2, 6, 0, 100, 478.5, 494.5, 578.5, id="two-row-right"),
@@ -576,7 +702,9 @@ class TestProfileVariables:
         ]
         edge = 0 if side == "left" else -1
         neighbor = 1 if side == "left" else -2
-        expected_edge_recovery = 17 if slide_rows == 2 else 16
+        # One-row production reconciliation raises the paired neighbouring
+        # panel by 1 mm; the untouched legacy two-row formula remains 17 mm.
+        expected_edge_recovery = 17 if slide_rows == 2 else 15
         assert (
             round(
                 stale.panel_glass[edge].width_mm - stale.panel_glass[neighbor].width_mm,
@@ -760,9 +888,8 @@ class TestInterGlass:
         )
         edge = _find_glass(r, "Крайние")[0]
         mid = _find_glass(r, "Промежуточные")[0]
-        expected = round((2000 - 16 - 16 + 11.5 * 2) / 3, 1)
-        assert edge.width_mm == expected
-        assert mid.width_mm == expected
+        assert edge.width_mm == 664
+        assert mid.width_mm == 663
 
     def test_legacy_rs1004_maps_to_rs3061(self):
         r = calculate_slide(_make_section(inter_glass_profile="h-профиль RS1004"))
@@ -1549,8 +1676,8 @@ class TestCustomerSections0107:
                 lock_right="Без",
             )
         )
-        assert _ceil_panel_widths(r) == [886, 870, 878]
-        assert _ceil_panel_profile_lengths(r) == [886, 867, 894]
+        assert _ceil_panel_widths(r) == [886, 869, 878]
+        assert _ceil_panel_profile_lengths(r) == [886, 866, 894]
 
     def test_section_9_physical_panels_and_rs2021(self):
         r = calculate_slide(
@@ -1606,8 +1733,8 @@ class TestCustomerSections0107:
                 lock_right="Без",
             )
         )
-        assert _ceil_panel_widths(r) == [823, 815, 823]
-        assert _ceil_panel_profile_lengths(r) == [839, 812, 839]
+        assert _ceil_panel_widths(r) == [822, 815, 822]
+        assert _ceil_panel_profile_lengths(r) == [838, 812, 838]
         assert _find_hardware(r, "RS3020")
         assert not _find_hardware(r, "RS122")
 
@@ -2149,7 +2276,7 @@ class TestSlideTwoRows:
         assert middle.qty == 4
         assert r.panel_rails == [1, 2, 3, 4, 4, 3, 2, 1]
 
-    def test_center_rs112_adds_profiles_and_skips_rs3110(self):
+    def test_center_rs112_adds_profiles_and_skips_rs1005(self):
         r = calculate_slide(
             _make_section(
                 slide_rows=2,
@@ -2168,8 +2295,8 @@ class TestSlideTwoRows:
         assert rs1083.name == "Соединительный профиль 30×20×30"
         assert ru010.qty == 2
         assert ru010.length_mm == rs1083.length_mm
-        assert not _find_hardware(r, "RS3110")
-        assert not _find_profile(r, "RS3110")
+        assert not _find_hardware(r, "RS1005")
+        assert not _find_profile(r, "RS1005")
 
     def test_center_rs112_uses_updated_465_center_offset(self):
         r = calculate_slide(
@@ -2270,7 +2397,7 @@ class TestSlideTwoRows:
         assert not _find_hardware(r, "RS106")
         assert screw.qty == (rs105.value + rs108.value) * 2
 
-    def test_center_rs3110_is_cut_profile_with_image(self):
+    def test_center_rs1005_is_cut_profile_with_xlsx_image(self):
         r = calculate_slide(
             _make_section(
                 slide_rows=2,
@@ -2280,11 +2407,11 @@ class TestSlideTwoRows:
                 first_panel_inside=None,
             )
         )
-        rs3110 = _find_profile(r, "RS3110")[0]
-        assert rs3110.length_mm == 2238
-        assert rs3110.qty == 1
-        assert rs3110.image == "RS3110.jpg"
-        assert not _find_hardware(r, "RS3110")
+        rs1005 = _find_profile(r, "RS1005")[0]
+        assert rs1005.length_mm == 2238
+        assert rs1005.qty == 1
+        assert rs1005.image == "RS1005.png"
+        assert not _find_hardware(r, "RS1005")
 
     def test_center_locks_are_separate_hardware(self):
         glass_lock = calculate_slide(
@@ -2505,8 +2632,8 @@ class TestInterGlassProfileDefaults:
             )
         )
 
-        assert _ceil_panel_widths(result) == [620, 612, 620]
-        assert _ceil_panel_profile_lengths(result) == [636, 612, 636]
+        assert _ceil_panel_widths(result) == [620, 611, 620]
+        assert _ceil_panel_profile_lengths(result) == [636, 611, 636]
         assert not _find_profile(result, "RS2061")
 
     def test_five_panel_reference_keeps_side_specific_offsets(self):
@@ -2531,8 +2658,8 @@ class TestInterGlassProfileDefaults:
             )
         )
 
-        assert _ceil_panel_widths(result) == [853, 837, 837, 837, 937]
-        assert _ceil_panel_profile_lengths(result) == [853, 834, 834, 834, 934]
+        assert _ceil_panel_widths(result) == [853, 837, 836, 837, 937]
+        assert _ceil_panel_profile_lengths(result) == [853, 834, 833, 834, 934]
 
     def test_reference_4186_keeps_right_offset_and_left_deaf_recovery(self):
         result = calculate_slide(
@@ -2559,8 +2686,8 @@ class TestInterGlassProfileDefaults:
             )
         )
 
-        assert _ceil_panel_widths(result) == [960, 944, 1044]
-        assert _ceil_panel_profile_lengths(result) == [960, 941, 1041]
+        assert _ceil_panel_widths(result) == [960, 943, 1044]
+        assert _ceil_panel_profile_lengths(result) == [960, 940, 1041]
 
     def test_two_rows_keep_handle_offset_separate_from_fixed_edge_recovery(self):
         result = calculate_slide(

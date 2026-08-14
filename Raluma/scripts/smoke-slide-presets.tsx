@@ -47,10 +47,10 @@ const section: Section = {
   comments: 'Не менять при выборе пресета',
 };
 
-assert.equal(SLIDE_ONE_ROW_LAYOUTS.length, 3, 'duplicate one-row layout must be omitted');
+assert.equal(SLIDE_ONE_ROW_LAYOUTS.length, 4);
 assert.deepEqual(
   SLIDE_ONE_ROW_LAYOUTS.map(item => [item.updates.width, item.updates.panels, item.updates.rails]),
-  [[2000, 2, 3], [3000, 3, 3], [4000, 4, 5]],
+  [[2000, 2, 3], [3000, 3, 3], [4000, 4, 5], [5000, 5, 5]],
 );
 assert.deepEqual(
   SLIDE_TWO_ROW_LAYOUTS.map(item => [item.updates.width, item.updates.panels, item.updates.rails]),
@@ -61,9 +61,9 @@ assert.equal(SLIDE_HARDWARE_PRESETS.length, 3);
 const oneRowMarkup = renderToStaticMarkup(
   <SlidePresetsPanel section={section} onApply={() => undefined} />,
 );
-assert.equal((oneRowMarkup.match(/data-slide-layout-preset=/g) ?? []).length, 3);
+assert.equal((oneRowMarkup.match(/data-slide-layout-preset=/g) ?? []).length, 4);
 assert.equal((oneRowMarkup.match(/data-slide-hardware-preset=/g) ?? []).length, 0);
-assert.equal((oneRowMarkup.match(/data-room-view-mode="compact"/g) ?? []).length, 3);
+assert.equal((oneRowMarkup.match(/data-room-view-mode="compact"/g) ?? []).length, 4);
 assert.match(oneRowMarkup, /data-glass-panel="1"/);
 assert.doesNotMatch(oneRowMarkup, /data-room-panel-dimension/);
 assert.doesNotMatch(oneRowMarkup, /data-room-overall-dimensions/);

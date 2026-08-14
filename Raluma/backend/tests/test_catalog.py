@@ -14,11 +14,49 @@ def test_hardware_catalog_options_are_public(client):
     assert "RS2323" in skus
     assert "RS1313" in skus
     assert "RS3110" in skus
+    assert "RS1005" in skus
     assert "RS123" in skus
     assert "RL101" in skus
     assert "RL2085" in skus
     assert all(item["unit"] for item in data)
     assert "purchasePrice" not in data[0]
+
+
+def test_hardware_catalog_options_use_natural_sku_order(client, admin_headers):
+    created_ids = []
+    for sku in ("ZZ10-NATURAL", "ZZ2-NATURAL", "ZZ-NATURAL"):
+        response = client.post(
+            "/api/catalog/hardware",
+            headers=admin_headers,
+            json={
+                "sku": sku,
+                "name": f"Позиция {sku}",
+                "group": "Фурнитура",
+                "system": "Все",
+                "unit": "шт",
+                "purchasePrice": 0,
+                "markupPercent": 0,
+                "weight": 0,
+                "wastePercent": 0,
+                "sectionWidthMm": 0,
+                "sectionHeightMm": 0,
+                "imageFile": "",
+                "paintMode": "Не красится",
+                "colorVariants": ["Без цвета"],
+                "supplier": "Тест",
+                "isActive": True,
+                "note": "natural sort",
+            },
+        )
+        assert response.status_code == 201, response.text
+        created_ids.append(response.json()["id"])
+
+    options = client.get("/api/catalog/hardware/options").json()
+    ordered = [row["sku"] for row in options if "-NATURAL" in row["sku"]]
+    assert ordered == ["ZZ-NATURAL", "ZZ2-NATURAL", "ZZ10-NATURAL"]
+
+    for item_id in created_ids:
+        client.delete(f"/api/catalog/hardware/{item_id}", headers=admin_headers)
 
 
 def test_hardware_catalog_returns_calculation_seed(client, admin_headers):
@@ -136,11 +174,15 @@ def test_profile_asset_returns_lift_images(client):
         assert len(r.content) > 0
 
 
-def test_profile_asset_returns_new_rs123_and_rs3110_images(client):
-    for filename in ("RS123.jpg", "RS3110.jpg"):
+def test_profile_asset_returns_new_rs123_rs3110_and_rs1005_images(client):
+    for filename, media_type in (
+        ("RS123.jpg", "image/jpeg"),
+        ("RS3110.jpg", "image/jpeg"),
+        ("RS1005.png", "image/png"),
+    ):
         r = client.get(f"/api/catalog/profile-assets/{filename}")
         assert r.status_code == 200
-        assert r.headers["content-type"] == "image/jpeg"
+        assert r.headers["content-type"] == media_type
         assert len(r.content) > 0
 
 

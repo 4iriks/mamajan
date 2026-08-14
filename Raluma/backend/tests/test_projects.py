@@ -11,6 +11,8 @@ def test_create_project(client, admin_headers):
     data = r.json()
     assert data["number"] == "P-CREATE-TEST"
     assert data["customer"] == "ПРОЗРАЧНЫЕ РЕШЕНИЯ"
+    assert data["extra_components"] == "[]"
+    assert data["hardware_installation"] == "installed"
     assert "id" in data
     # cleanup
     client.delete(f"/api/projects/{data['id']}", headers=admin_headers)
@@ -49,12 +51,25 @@ def test_update_project(client, admin_headers, project):
 
 
 def test_copy_project(client, admin_headers, project, section):
+    extra_components = '[{"sku":"PROJECT-EXTRA","qty":2}]'
+    updated = client.put(
+        f"/api/projects/{project['id']}",
+        headers=admin_headers,
+        json={
+            "extra_components": extra_components,
+            "hardware_installation": "not_installed",
+        },
+    )
+    assert updated.status_code == 200
+
     r = client.post(f"/api/projects/{project['id']}/copy", headers=admin_headers)
     assert r.status_code == 201
     copy = r.json()
     assert copy["number"] == project["number"] + "-копия"
     assert len(copy["sections"]) == 1
     assert copy["sections"][0]["name"] == section["name"]
+    assert copy["extra_components"] == extra_components
+    assert copy["hardware_installation"] == "not_installed"
     # cleanup copy
     client.delete(f"/api/projects/{copy['id']}", headers=admin_headers)
 
@@ -120,3 +135,40 @@ def test_delete_project(client, admin_headers):
 def test_projects_require_auth(client):
     r = client.get("/api/projects")
     assert r.status_code == 403
+
+
+def test_project_rejects_unknown_hardware_installation(
+    client, admin_headers, project
+):
+    response = client.put(
+        f"/api/projects/{project['id']}",
+        headers=admin_headers,
+        json={"hardware_installation": "sometimes"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_startup_sqlite_columns_keep_legacy_projects_unchanged():
+    import sqlite3
+
+    from migrations import _ADD_COLUMNS
+
+    connection = sqlite3.connect(":memory:")
+    connection.execute("CREATE TABLE projects (id INTEGER PRIMARY KEY)")
+    connection.execute("INSERT INTO projects (id) VALUES (1)")
+    statements = [
+        sql
+        for sql in _ADD_COLUMNS
+        if "projects ADD COLUMN extra_components" in sql
+        or "projects ADD COLUMN hardware_installation" in sql
+    ]
+    assert len(statements) == 2
+    for statement in statements:
+        connection.execute(statement)
+
+    row = connection.execute(
+        "SELECT extra_components, hardware_installation FROM projects WHERE id = 1"
+    ).fetchone()
+
+    assert row == ("[]", "not_installed")

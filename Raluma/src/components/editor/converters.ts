@@ -3,7 +3,7 @@ import type { SectionOut } from '../../api/projects';
 import { bookExtraDoorPanelOptions, normalizeBookSystem } from '../../constants/book';
 import { normalizeGlassType } from '../../constants/glass';
 
-function parseExtraComponents(raw?: string): ExtraComponent[] {
+export function parseExtraComponents(raw?: string): ExtraComponent[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
@@ -30,7 +30,7 @@ function parseExtraComponents(raw?: string): ExtraComponent[] {
   }
 }
 
-function stringifyExtraComponents(rows?: ExtraComponent[]): string {
+export function stringifyExtraComponents(rows?: ExtraComponent[]): string {
   const normalized = (rows ?? [])
     .map(row => ({
       sku: row.sku.trim(),
