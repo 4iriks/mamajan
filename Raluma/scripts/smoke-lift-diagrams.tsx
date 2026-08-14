@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { apiToLocal, applyTemplateDataToSection, localToApi, localToTemplateData } from '../src/components/editor/converters';
+import { apiToLocal, localToApi } from '../src/components/editor/converters';
 import { EditorVisualizer } from '../src/components/editor/EditorVisualizer';
 import { LiftKinematicSVG, LiftRoomViewSVG } from '../src/components/editor/LiftDiagrams';
 import { LiftSystemTab } from '../src/components/editor/LiftForm';
@@ -161,16 +161,6 @@ assert.equal(roundTrip.liftRemote1chQty, 2);
 assert.equal(roundTrip.liftRemote6chQty, 1);
 assert.equal(roundTrip.liftCableSide, baseSection.liftCableSide);
 assert.equal(roundTrip.liftOpeningType, baseSection.liftOpeningType);
-
-const templateData = localToTemplateData(baseSection);
-assert.equal('lift_remote_1ch_qty' in templateData, false);
-assert.equal('lift_remote_6ch_qty' in templateData, false);
-const fromTemplate = applyTemplateDataToSection(
-  { ...baseSection, liftFillingCustom: undefined },
-  templateData,
-);
-assert.equal(fromTemplate.liftFillingCustom, 'Панель по ТЗ');
-assert.equal(fromTemplate.liftOpeningType, 'Сдвиг вниз');
 
 const remoteFormMarkup = renderToStaticMarkup(
   <LiftSystemTab s={baseSection} update={() => undefined} />,

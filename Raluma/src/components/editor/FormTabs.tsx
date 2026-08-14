@@ -407,6 +407,11 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
                       ? s.centerHandleOffset
                       : undefined,
                   };
+                  if (v !== ch) {
+                    // Замок относится к выбранному типу ручки. Не переносим
+                    // несовместимую фурнитуру при переключении варианта.
+                    upd.centerLock = undefined;
+                  }
                   if (!v || v === 'Без ручки (глухие)') {
                     upd.centerLock = undefined;
                     upd.centerFloorLatchesLeft = false;

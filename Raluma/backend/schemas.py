@@ -423,36 +423,6 @@ class SectionOut(SectionBase):
     model_config = {"from_attributes": True}
 
 
-# ── Section templates ────────────────────────────────────────────────────────
-
-
-class SectionTemplateBase(BaseModel):
-    name: str
-    system: str
-    template_data: dict[str, Any]
-    sort_order: int = 0
-
-
-class SectionTemplateCreate(SectionTemplateBase):
-    pass
-
-
-class SectionTemplateUpdate(BaseModel):
-    name: Optional[str] = None
-    system: Optional[str] = None
-    template_data: Optional[dict[str, Any]] = None
-    sort_order: Optional[int] = None
-
-
-class SectionTemplateOut(SectionTemplateBase):
-    id: int
-    created_by: Optional[int] = None
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
 # ── Project ───────────────────────────────────────────────────────────────────
 
 

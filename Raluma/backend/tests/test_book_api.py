@@ -139,29 +139,6 @@ def test_book_fields_save_copy_and_legacy_mapping(
     assert legacy.json()["book_system"] == "B25"
 
 
-def test_book_template_preserves_new_fields(client, admin_headers):
-    created = client.post(
-        "/api/section-templates",
-        headers=admin_headers,
-        json={
-            "name": "КНИЖКА с двумя дверями",
-            "system": "КНИЖКА",
-            "template_data": book_payload(),
-        },
-    )
-    assert created.status_code == 201
-    template = created.json()
-    assert template["template_data"]["book_left_door_hardware"] == "handle"
-    assert template["template_data"]["book_right_door_opening"] == "outside_out"
-    assert template["template_data"]["book_left_stack_panels"] == 2
-    assert template["template_data"]["book_system"] == "B25"
-
-    client.delete(
-        f"/api/section-templates/{template['id']}",
-        headers=admin_headers,
-    )
-
-
 def test_book_production_documents_are_deferred_and_preliminary_are_blocked(client):
     confirmed = {
         "project": {"number": "Гость", "customer": ""},

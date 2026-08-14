@@ -10,7 +10,6 @@ import {
   isBookCalcPreview,
   SectionCalcPreview,
 } from '../../api/projects';
-import type { SectionTemplate } from '../../api/sectionTemplates';
 import { Section, LBL, SYSTEM_COLORS } from './types';
 import { localToApi } from './converters';
 import { SectionDivider } from './FormInputs';
@@ -18,7 +17,7 @@ import { MainTab, SlideSystemTab, CsShapeTab, DoorSystemTab } from './FormTabs';
 import { BookSystemTab } from './BookForm';
 import { LiftMainTab, LiftSystemTab } from './LiftForm';
 import { EditorVisualizer } from './EditorVisualizer';
-import { SectionTemplatesPanel } from './SectionTemplatesPanel';
+import { SlidePresetsPanel } from './SlidePresetsPanel';
 import { ExtraComponentsEditor } from './ExtraComponentsEditor';
 import { BookCalcResults } from './BookCalcResults';
 
@@ -30,26 +29,10 @@ export interface SectionFormWrapperProps {
   isSaving: boolean;
   isDirty: boolean;
   onOpenDoc?: (docName: string) => void;
-  templates?: SectionTemplate[];
-  templatesLoading?: boolean;
-  canManageTemplates?: boolean;
-  onApplyTemplate?: (template: SectionTemplate) => void;
-  onCreateTemplate?: () => void;
-  onRenameTemplate?: (template: SectionTemplate) => void;
-  onRefreshTemplate?: (template: SectionTemplate) => void;
-  onDeleteTemplate?: (template: SectionTemplate) => void;
 }
 
 export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
   section, onUpdate, onSave, onBack, isSaving, isDirty, onOpenDoc,
-  templates = [],
-  templatesLoading = false,
-  canManageTemplates = false,
-  onApplyTemplate,
-  onCreateTemplate,
-  onRenameTemplate,
-  onRefreshTemplate,
-  onDeleteTemplate,
 }) => {
   const [sectionCalc, setSectionCalc] = useState<SectionCalcPreview | null>(null);
   const [calcError, setCalcError] = useState<string | null>(null);
@@ -148,17 +131,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
         </div>
       </div>
 
-      <SectionTemplatesPanel
-        section={section}
-        templates={templates}
-        isAdmin={canManageTemplates}
-        isLoading={templatesLoading}
-        onApply={template => onApplyTemplate?.(template)}
-        onCreate={() => onCreateTemplate?.()}
-        onRename={template => onRenameTemplate?.(template)}
-        onRefresh={template => onRefreshTemplate?.(template)}
-        onDelete={template => onDeleteTemplate?.(template)}
-      />
+      <SlidePresetsPanel section={section} onApply={onUpdate} />
 
       {/* Flex-контейнер: форма слева, схема справа (на xl) */}
       <div className={['СЛАЙД', 'ЛИФТ', 'КНИЖКА'].includes(section.system) ? 'xl:flex xl:gap-5 xl:items-start' : ''}>

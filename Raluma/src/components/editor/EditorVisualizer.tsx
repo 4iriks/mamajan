@@ -57,7 +57,7 @@ export const EditorVisualizer: React.FC<EditorVisualizerProps> = ({ section, var
       return <div className="mb-4 space-y-4 xl:hidden" data-book-visualizer="mobile">{diagrams}</div>;
     }
     return (
-      <div className="hidden xl:sticky xl:top-4 xl:flex xl:w-[500px] xl:flex-shrink-0 xl:flex-col xl:gap-3" data-book-visualizer="desktop">
+      <div className="hidden xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100dvh-2rem)] xl:w-[500px] xl:flex-shrink-0 xl:self-start xl:flex-col xl:gap-3 xl:overflow-y-auto xl:overscroll-contain xl:pr-1" data-book-visualizer="desktop">
         {diagrams}
       </div>
     );
@@ -102,7 +102,7 @@ export const EditorVisualizer: React.FC<EditorVisualizerProps> = ({ section, var
       );
     }
     return (
-      <div className="hidden xl:sticky xl:top-4 xl:flex xl:w-[500px] xl:flex-shrink-0 xl:flex-col">
+      <div className="hidden xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100dvh-2rem)] xl:w-[500px] xl:flex-shrink-0 xl:self-start xl:flex-col xl:overflow-y-auto xl:overscroll-contain xl:pr-1">
         <div className="rounded-2xl border border-tint/30 bg-surface/25 p-4">
           <div className="mb-3 flex items-center justify-between">
             <span className="text-[10px] font-bold uppercase tracking-widest text-accent/40">Схема ЛИФТ</span>
@@ -120,7 +120,7 @@ export const EditorVisualizer: React.FC<EditorVisualizerProps> = ({ section, var
 
   if (variant === 'mobile') {
     return (
-      <div className="xl:hidden space-y-4 mb-4">
+      <div className="xl:hidden space-y-4 mb-4" data-slide-visualizer="mobile">
         <div className="bg-surface/25 border border-tint/30 rounded-2xl sm:rounded-[2rem] p-4 sm:p-7 overflow-x-auto">
           <div className="flex items-center justify-between mb-4 min-w-[360px]">
             <h4 className="text-[10px] font-bold uppercase tracking-widest text-accent/40">Вид из помещения</h4>
@@ -141,7 +141,7 @@ export const EditorVisualizer: React.FC<EditorVisualizerProps> = ({ section, var
 
   // variant === 'desktop'
   return (
-    <div className="hidden xl:flex xl:flex-col xl:gap-3 xl:w-[500px] xl:flex-shrink-0 xl:sticky xl:top-4">
+    <div className="hidden xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100dvh-2rem)] xl:w-[500px] xl:flex-shrink-0 xl:self-start xl:flex-col xl:gap-3 xl:overflow-y-auto xl:overscroll-contain xl:pr-1" data-slide-visualizer="desktop">
       <div className="bg-surface/25 border border-tint/30 rounded-2xl p-4">
         <div className="flex items-center justify-between mb-3">
           <span className="text-[10px] font-bold uppercase tracking-widest text-accent/40">Вид из помещения</span>

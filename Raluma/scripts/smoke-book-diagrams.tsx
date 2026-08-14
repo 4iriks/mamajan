@@ -7,7 +7,7 @@ import { bookExtraDoorPanelOptions } from '../src/constants/book';
 import { BookCalcResults } from '../src/components/editor/BookCalcResults';
 import { BookRoomViewSVG, BookTopViewSVG } from '../src/components/editor/BookDiagrams';
 import { BookSystemTab } from '../src/components/editor/BookForm';
-import { apiToLocal, applyTemplateDataToSection, localToApi, localToTemplateData } from '../src/components/editor/converters';
+import { apiToLocal, localToApi } from '../src/components/editor/converters';
 import { EditorVisualizer } from '../src/components/editor/EditorVisualizer';
 import type { Section } from '../src/components/editor/types';
 
@@ -313,20 +313,5 @@ const legacy = apiToLocal({
 assert.equal(legacy.doorSide, 'left');
 assert.equal(legacy.bookLeftDoorHardware, 'lock');
 assert.equal(legacy.bookLeftDoorOpening, 'inside_out');
-
-const template = localToTemplateData(section);
-const applied = applyTemplateDataToSection(
-  {
-    ...section,
-    doorSide: 'right',
-    doors: 1,
-    bookLeftDoorHardware: undefined,
-    bookRightDoorHardware: 'handle',
-  },
-  template,
-);
-assert.equal(applied.doorSide, 'both');
-assert.equal(applied.bookLeftDoorHardware, 'handle');
-assert.equal(applied.bookRightDoorHardware, 'lock');
 
 console.log('Book calculator diagrams and compatibility smoke passed.');

@@ -7,14 +7,11 @@ SQLite не поддерживает IF NOT EXISTS для ALTER TABLE,
 Вызывается из main.py при старте приложения.
 """
 
-import json
-
 from sqlalchemy import text
 from database import engine
 from engine.glass_types import normalize_slide_glass_type
 from engine.legacy_values import (
     normalize_center_handle_offset,
-    normalize_section_data_values,
 )
 
 
@@ -43,19 +40,6 @@ _CREATE_TABLES = [
         note TEXT,
         created_at DATETIME,
         updated_at DATETIME
-    )
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS section_templates (
-        id INTEGER PRIMARY KEY,
-        name VARCHAR NOT NULL,
-        system VARCHAR NOT NULL,
-        template_data TEXT NOT NULL,
-        sort_order INTEGER NOT NULL DEFAULT 0,
-        created_by INTEGER,
-        created_at DATETIME,
-        updated_at DATETIME,
-        FOREIGN KEY(created_by) REFERENCES users(id)
     )
     """,
     """
@@ -321,38 +305,6 @@ _DATA_MIGRATIONS = [
 ]
 
 
-def _normalize_section_templates(conn):
-    """Обновить legacy-значения внутри JSON шаблонов секций."""
-    try:
-        templates = conn.execute(
-            text("SELECT id, template_data FROM section_templates")
-        ).fetchall()
-    except Exception:
-        return
-
-    for template_id, raw_data in templates:
-        try:
-            data = json.loads(raw_data or "{}")
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(data, dict):
-            continue
-        normalized = normalize_section_data_values(data)
-        if normalized == data:
-            continue
-        conn.execute(
-            text(
-                "UPDATE section_templates "
-                "SET template_data = :template_data "
-                "WHERE id = :template_id"
-            ),
-            {
-                "template_data": json.dumps(normalized, ensure_ascii=False),
-                "template_id": template_id,
-            },
-        )
-
-
 def _normalize_section_center_offsets(conn):
     """Удалить старые скрытые отступы C у неподдерживаемых ручек."""
     try:
@@ -438,6 +390,15 @@ def _normalize_glass_catalog_items(conn):
 
 def run_migrations():
     """Выполнить все миграции. Безопасно вызывать при каждом старте."""
+    # Прежние пользовательские шаблоны заменены фиксированным каталогом СЛАЙД.
+    # Удаление идемпотентно и очищает все сохранённые старые шаблоны.
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("DROP TABLE IF EXISTS section_templates"))
+            conn.commit()
+        except Exception:
+            pass
+
     with engine.connect() as conn:
         for table_sql in _CREATE_TABLES:
             try:
@@ -463,7 +424,6 @@ def run_migrations():
                 pass
 
         try:
-            _normalize_section_templates(conn)
             _normalize_section_center_offsets(conn)
             _normalize_glass_catalog_items(conn)
             conn.commit()

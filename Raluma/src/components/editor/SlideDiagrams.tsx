@@ -773,6 +773,9 @@ export function SlideRoomViewSVG({ section, calc }: { section: Section; calc?: S
         const centerBoundaryX = panelLayout[centerLeftIdx].x + panelLayout[centerLeftIdx].width;
         const isOverheadLatch = centerLock.toLowerCase().includes('rs206')
           || centerLock.toLowerCase().includes('накидн');
+        // Для RS112 допустима только нижняя накидная защёлка. Старые секции
+        // могли сохранить замок стекло-стекло и рисовали лишнее пятно по центру.
+        if (centerIsRs112 && !isOverheadLatch) return null;
         const centerHandleText = centerHandle.toLowerCase();
         const centerHandleHalfHeight = centerIsRs112
           ? 10
