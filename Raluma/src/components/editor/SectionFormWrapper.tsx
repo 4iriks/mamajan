@@ -117,8 +117,10 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
   return (
     <>
       {/* Хлебные крошки + заголовок */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-5 gap-3">
-        <div>
+      <div className={section.system === 'СЛАЙД'
+        ? 'mb-4 flex flex-col gap-3 xl:flex-row xl:items-start xl:gap-4'
+        : 'mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-center sm:justify-between'}>
+        <div className={section.system === 'СЛАЙД' ? 'xl:w-[240px] xl:flex-shrink-0' : ''}>
           <button onClick={onBack}
             className="flex items-center gap-1.5 text-fg/30 hover:text-accent transition-colors group mb-3 text-xs font-bold uppercase tracking-wider">
             <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
@@ -129,9 +131,12 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
             {systemLabel}
           </span>
         </div>
+        {section.system === 'СЛАЙД' && (
+          <div className="min-w-0 flex-1">
+            <SlidePresetsPanel section={section} onApply={onUpdate} />
+          </div>
+        )}
       </div>
-
-      <SlidePresetsPanel section={section} onApply={onUpdate} />
 
       {/* Flex-контейнер: форма слева, схема справа (на xl) */}
       <div className={['СЛАЙД', 'ЛИФТ', 'КНИЖКА'].includes(section.system) ? 'xl:flex xl:gap-5 xl:items-start' : ''}>

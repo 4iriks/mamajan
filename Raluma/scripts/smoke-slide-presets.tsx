@@ -64,6 +64,8 @@ const oneRowMarkup = renderToStaticMarkup(
 assert.equal((oneRowMarkup.match(/data-slide-layout-preset=/g) ?? []).length, 3);
 assert.equal((oneRowMarkup.match(/data-slide-hardware-preset=/g) ?? []).length, 0);
 assert.doesNotMatch(oneRowMarkup, /Добавить|0\/10|Переименовать|Удалить/);
+assert.doesNotMatch(oneRowMarkup, /Быстрый выбор|СЛАЙД · 1 ряд|>Схема</);
+assert.doesNotMatch(oneRowMarkup, /2000 × 3000 мм/);
 
 const brace = SLIDE_HARDWARE_PRESETS[1];
 const twoRowSection: Section = {
@@ -76,6 +78,8 @@ const twoRowMarkup = renderToStaticMarkup(
 );
 assert.equal((twoRowMarkup.match(/data-slide-layout-preset=/g) ?? []).length, 4);
 assert.equal((twoRowMarkup.match(/data-slide-hardware-preset=/g) ?? []).length, 3);
+assert.doesNotMatch(twoRowMarkup, /Быстрый выбор|СЛАЙД · 2 ряда|>Схема<|>Фурнитура</);
+assert.doesNotMatch(twoRowMarkup, /3500 × 3000 мм/);
 
 const layoutUpdates = slideLayoutUpdates(twoRowSection, SLIDE_TWO_ROW_LAYOUTS[2]);
 const applied = { ...twoRowSection, ...layoutUpdates };

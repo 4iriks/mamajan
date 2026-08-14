@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, ChevronRight } from 'lucide-react';
+import { Check } from 'lucide-react';
 
 import { SlideRoomViewSVG } from './SlideDiagrams';
 import {
@@ -59,27 +59,22 @@ function LayoutCard({
       data-slide-layout-preset={preset.id}
       aria-pressed={active}
       onClick={onApply}
-      className={`group relative min-w-0 overflow-hidden rounded-2xl border p-2 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${
+      className={`group relative min-w-0 overflow-hidden rounded-2xl border p-1.5 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${
         active
           ? 'border-accent/70 bg-accent/12 shadow-sm shadow-accent/10'
           : 'border-tint/25 bg-surface/35 hover:border-accent/45 hover:bg-accent/[0.07]'
       }`}
     >
-      <span className="block h-24 overflow-hidden rounded-xl bg-page/55 px-1 [&_svg]:h-full [&_svg]:w-full">
+      <span data-slide-preset-preview className="block h-[150px] overflow-hidden rounded-xl bg-page/55 [&_svg]:h-full [&_svg]:w-full">
         <SlideRoomViewSVG section={preview} />
       </span>
-      <span className="mt-2 flex items-center justify-between gap-2 px-1 pb-0.5">
-        <span className="min-w-0">
-          <span className="block truncate text-xs font-bold text-fg/85">{preset.title}</span>
-          <span className="block font-mono text-[10px] text-fg/40">
-            {preset.updates.width} × {preset.updates.height} мм
+      <span className="mt-1.5 flex h-7 items-center justify-between gap-2 px-1">
+        <span className="min-w-0 truncate text-[11px] font-bold text-fg/85">{preset.title}</span>
+        {active && (
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-white">
+            <Check className="h-3.5 w-3.5" />
           </span>
-        </span>
-        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors ${
-          active ? 'bg-accent text-white' : 'bg-tint/15 text-fg/25 group-hover:text-accent'
-        }`}>
-          {active ? <Check className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-        </span>
+        )}
       </span>
     </button>
   );
@@ -103,27 +98,9 @@ export function SlidePresetsPanel({
   const previewHardware = activeHardware ?? SLIDE_HARDWARE_PRESETS[0];
 
   return (
-    <section data-slide-presets className="mb-5 rounded-2xl border border-tint/25 bg-surface/20 p-3 sm:p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-accent/55">Быстрый выбор</span>
-          <span className="rounded-md border border-accent/30 bg-accent/10 px-2 py-0.5 text-[9px] font-bold text-accent">
-            СЛАЙД · {isTwoRows ? '2 ряда' : '1 ряд'}
-          </span>
-        </div>
-        {(!activeLayout || (isTwoRows && !activeHardware)) && (
-          <span className="rounded-full bg-tint/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-fg/35">
-            Настроено вручную
-          </span>
-        )}
-      </div>
-
-      <div className={isTwoRows ? 'grid gap-3 xl:grid-cols-[minmax(0,4fr)_minmax(220px,1fr)]' : ''}>
-        <div>
-          <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-fg/35">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent/15 text-accent">1</span>
-            Схема
-          </div>
+    <section data-slide-presets data-slide-presets-layout="beside-heading" className="min-w-0 rounded-2xl border border-tint/25 bg-surface/20 p-2">
+      <div className={isTwoRows ? 'grid gap-2 xl:grid-cols-[minmax(0,4fr)_minmax(210px,1fr)]' : ''}>
+        <div className="min-w-0">
           <div className={`grid gap-2 ${isTwoRows ? 'sm:grid-cols-2 xl:grid-cols-4' : 'sm:grid-cols-3'}`}>
             {layouts.map(preset => (
               <React.Fragment key={preset.id}>
@@ -140,11 +117,7 @@ export function SlidePresetsPanel({
         </div>
 
         {isTwoRows && (
-          <div className="xl:border-l xl:border-tint/20 xl:pl-3">
-            <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-fg/35">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent/15 text-accent">2</span>
-              Фурнитура
-            </div>
+          <div className="xl:border-l xl:border-tint/20 xl:pl-2">
             <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
               {SLIDE_HARDWARE_PRESETS.map(preset => {
                 const active = activeHardware?.id === preset.id;
