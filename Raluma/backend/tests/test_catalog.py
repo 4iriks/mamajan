@@ -1,3 +1,41 @@
+import sqlite3
+
+
+def test_rs1005_insert_migration_preserves_admin_changes():
+    from migrations import _CREATE_TABLES, _DATA_MIGRATIONS
+
+    connection = sqlite3.connect(":memory:")
+    catalog_table_sql = next(
+        sql for sql in _CREATE_TABLES if "CREATE TABLE IF NOT EXISTS catalog_items" in sql
+    )
+    rs1005_insert = next(
+        sql
+        for sql in _DATA_MIGRATIONS
+        if "INSERT OR IGNORE INTO catalog_items" in sql and "('RS1005'" in sql
+    )
+    connection.execute(catalog_table_sql)
+    connection.execute(rs1005_insert)
+    connection.execute(
+        'UPDATE catalog_items SET name = ?, "group" = ?, unit = ?, '
+        "image_file = ?, waste_percent = ? WHERE sku = 'RS1005'",
+        ("Название администратора", "Своя группа", "компл.", "custom.png", 17),
+    )
+
+    connection.execute(rs1005_insert)
+    row = connection.execute(
+        'SELECT name, "group", unit, image_file, waste_percent '
+        "FROM catalog_items WHERE sku = 'RS1005'"
+    ).fetchone()
+
+    assert row == (
+        "Название администратора",
+        "Своя группа",
+        "компл.",
+        "custom.png",
+        17,
+    )
+
+
 def test_hardware_catalog_requires_admin(client):
     r = client.get("/api/catalog/hardware")
 

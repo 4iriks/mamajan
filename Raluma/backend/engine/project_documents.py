@@ -760,8 +760,17 @@ def _delivery_key(prefix: str, *parts: object) -> str:
     return f"{prefix}-{digest}"
 
 
-def _delivery_place(places: dict[str, str], key: str) -> str:
-    return str(places.get(key) or "")
+def _delivery_place(
+    places: dict[str, str],
+    key: str,
+    *fallback_keys: str,
+) -> str:
+    # An explicitly saved empty value on the current key must win over legacy
+    # data, otherwise a user cannot clear an old "Кол-во мест" value.
+    for candidate in (key, *fallback_keys):
+        if candidate in places:
+            return str(places[candidate] or "")
+    return ""
 
 
 def _format_quantity(value: float) -> str:
@@ -1305,6 +1314,13 @@ def _build_delivery_hardware_rows(
         grouped.items(), key=lambda item: (item[1]["name"], item[1]["article"])
     ):
         place_key = _delivery_key("hardware", *component_key)
+        legacy_place_key = _delivery_key(
+            "hardware",
+            component["article"],
+            component["name"],
+            component["color"],
+            component["size"],
+        )
         rows.append(
             {
                 **component,
@@ -1313,7 +1329,11 @@ def _build_delivery_hardware_rows(
                     f"{_format_quantity(component['qty'])} {component['unit']}"
                 ),
                 "place_key": place_key,
-                "places": _delivery_place(places, place_key),
+                "places": _delivery_place(
+                    places,
+                    place_key,
+                    legacy_place_key,
+                ),
             }
         )
     return rows
@@ -1413,9 +1433,6 @@ def _build_delivery_context(project: object, sections: Iterable[object]) -> dict
         ),
         *({**row, "kind": "glass", "qty_text": str(row["qty"])} for row in glass_rows),
     ]
-    total_qty = sum(float(row["qty"]) for row in item1_rows) + sum(
-        float(row["qty"]) for row in hardware_rows
-    ) + sum(float(row["qty"]) for row in project_extra_rows)
     return {
         "doc_type": "delivery",
         "title": DOC_TITLES["delivery"],
@@ -1435,7 +1452,6 @@ def _build_delivery_context(project: object, sections: Iterable[object]) -> dict
         "delivery_project_extra_note": str(
             getattr(project, "extra_parts", "") or ""
         ).strip(),
-        "delivery_total_qty": _format_quantity(total_qty),
         "delivery_names_count": 2 + int(bool(project_extra_rows)),
         "document_warnings": _slide_document_warnings(sorted_sections),
     }
@@ -1446,6 +1462,7 @@ HARDWARE_ORDER_SYSTEMS = ("СЛАЙД", "ЛИФТ", "КНИЖКА", "ЦС")
 INSTALLED_HARDWARE_EXCLUDED_ARTICLES = {
     "RU003",
     "RU004",
+    "RU005",
     "RU006",
     "RU010",
     "RS103B",

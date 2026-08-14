@@ -3,6 +3,10 @@ import type { SectionOut } from '../../api/projects';
 import { bookExtraDoorPanelOptions, normalizeBookSystem } from '../../constants/book';
 import { normalizeGlassType } from '../../constants/glass';
 
+export function cloneExtraComponents(rows?: ExtraComponent[]): ExtraComponent[] {
+  return (rows ?? []).map(row => ({ ...row }));
+}
+
 export function parseExtraComponents(raw?: string): ExtraComponent[] {
   if (!raw) return [];
   try {

@@ -280,8 +280,8 @@ _DATA_MIGRATIONS = [
     "UPDATE catalog_items SET image_file = 'RS1006.png' WHERE sku = 'RS1006'",
     "UPDATE catalog_items SET image_file = 'RS2021.png' WHERE sku = 'RS2021'",
     "UPDATE catalog_items SET image_file = 'RS1002.png' WHERE sku = 'RS1002'",
+    # Insert-only migration: once RS1005 exists, administrator edits must win.
     "INSERT OR IGNORE INTO catalog_items (sku, name, \"group\", system, unit, purchase_price, markup_percent, weight, waste_percent, section_width_mm, section_height_mm, image_file, paint_mode, color_variants, supplier, is_active, note, created_at, updated_at) VALUES ('RS1005', 'h-уплотнитель 10 мм', 'Уплотнители', 'СЛАЙД', 'м.п.', 0, 35, 0, 4, 0, 0, 'RS1005.png', 'Не красится', '[\"Без цвета\"]', 'Склад', 1, 'Центральный стык СЛАЙД 2 ряда; складская заготовка 3000 мм', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-    "UPDATE catalog_items SET name = 'h-уплотнитель 10 мм', \"group\" = 'Уплотнители', unit = 'м.п.', image_file = 'RS1005.png', waste_percent = 4 WHERE sku = 'RS1005'",
     "UPDATE catalog_items SET image_file = 'RS205.png' WHERE sku = 'RS205'",
     "UPDATE catalog_items SET image_file = 'RS1083.png' WHERE sku = 'RS1083'",
     "UPDATE catalog_items SET image_file = 'RS108.png' WHERE sku = 'RS108'",

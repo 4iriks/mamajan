@@ -1703,7 +1703,7 @@ def _build_delivery_xlsx(context: dict) -> bytes:
         "Раздел",
         "Артикул / маркировка",
         "Наименование, размеры и примечания",
-        "Кол-во, шт.",
+        "Количество",
         "Кол-во мест",
     )
     header_row = row
@@ -1715,7 +1715,6 @@ def _build_delivery_xlsx(context: dict) -> bytes:
     row += 1
     data_start_row = row
     item_number = 1
-    calculated_total = 0.0
 
     def write_item(
         section_name: str,
@@ -1725,7 +1724,7 @@ def _build_delivery_xlsx(context: dict) -> bytes:
         qty: object,
         places: object,
     ) -> None:
-        nonlocal row, item_number, calculated_total
+        nonlocal row, item_number
         try:
             numeric_qty = float(qty or 0)
         except (TypeError, ValueError):
@@ -1738,7 +1737,6 @@ def _build_delivery_xlsx(context: dict) -> bytes:
         worksheet.write_number(row, 4, numeric_qty, quantity)
         worksheet.write(row, 5, str(places or ""), formats["center"])
         worksheet.set_row(row, max(24, 16 * (text.count("\n") + 1)))
-        calculated_total += numeric_qty
         item_number += 1
         row += 1
 
@@ -1847,19 +1845,9 @@ def _build_delivery_xlsx(context: dict) -> bytes:
         worksheet.write_blank(row, 5, None, formats["center"])
         row += 1
 
-    worksheet.merge_range(row, 0, row, 3, "ИТОГО", formats["total"])
-    if row > data_start_row:
-        worksheet.write_formula(
-            row,
-            4,
-            f"=SUM(E{data_start_row + 1}:E{row})",
-            formats["total"],
-            calculated_total,
-        )
-    else:
-        worksheet.write_number(row, 4, 0, formats["total"])
-    worksheet.write_blank(row, 5, None, formats["total"])
-    row += 2
+    # Quantities have different units (шт., м, компл.); a shared numeric total
+    # would be misleading, so the document intentionally has no total row.
+    row += 1
 
     worksheet.merge_range(
         row,

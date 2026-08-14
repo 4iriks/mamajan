@@ -5,6 +5,7 @@ import {
   filterCatalogOptions,
   naturalCatalogCompare,
 } from '../src/components/editor/extraComponentsCatalog';
+import { cloneExtraComponents } from '../src/components/editor/converters';
 
 const option = (
   id: number,
@@ -47,6 +48,24 @@ assert.equal(
   filterCatalogOptions(catalog, 'архив').length,
   0,
   'inactive catalog rows must stay hidden',
+);
+
+const savedExtras = [{
+  id: 'saved-1',
+  sku: 'RU005',
+  name: 'Ролик',
+  color: '',
+  size: '',
+  qty: '2',
+  unit: 'шт',
+  deliveryStage: 'both' as const,
+}];
+const modalDraft = cloneExtraComponents(savedExtras);
+modalDraft[0].qty = '9';
+assert.equal(
+  savedExtras[0].qty,
+  '2',
+  'editing or closing the modal draft must not mutate saved project extras',
 );
 
 const values = new Map<string, string>();

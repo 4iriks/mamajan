@@ -12,6 +12,7 @@ from xml.etree import ElementTree
 
 import pytest
 from docx import Document as DocxDocument
+from openpyxl import load_workbook
 from pypdf import PdfReader
 
 from engine.pdf import (
@@ -34,12 +35,14 @@ from engine.project_documents import (
     _build_glass_rows,
     _build_hardware_order_context,
     _build_paint_pages,
+    _delivery_key,
     _exclude_installed_hardware,
     _iter_calculated_sections,
     _iter_slide_sections,
     build_project_document_context,
     render_project_document_html,
 )
+from engine.office_xlsx import build_project_xlsx
 from schemas import SectionCreate
 
 
@@ -4099,7 +4102,7 @@ class TestDeliveryNote:
 
         assert hardware["RS1005"]["qty"] == 1
         assert "RS2081" not in hardware
-        assert context["delivery_total_qty"] == "22"
+        assert "delivery_total_qty" not in context
 
         html = render_project_document_html(self.project(), sections, "delivery")
         assert "RS1005" in html
@@ -4126,7 +4129,7 @@ class TestDeliveryNote:
         html = render_project_document_html(project, [section], "delivery")
         assert "RS2081" not in html
 
-    def test_reference_4027_total_is_33(self):
+    def test_reference_4027_keeps_expected_rows_without_mixed_total(self):
         project = self.project(
             number="В26-5-4027",
             delivery_note_data=json.dumps(
@@ -4229,7 +4232,7 @@ class TestDeliveryNote:
         assert hardware["RS3014"]["qty"] == 2
         assert hardware["RS205"]["qty"] == 2
         assert hardware["RS1005"]["qty"] == 1
-        assert context["delivery_total_qty"] == "33"
+        assert "delivery_total_qty" not in context
 
     def test_lift_uses_calculated_dimensions_while_unimplemented_systems_do_not(self):
         project = self.project(
@@ -4315,6 +4318,122 @@ class TestDeliveryNote:
         assert (
             restored["delivery_item1_rows"][0]["place_key"]
             != restored["delivery_item2_rows"][0]["place_key"]
+        )
+
+    def test_legacy_hardware_place_key_restores_saved_value(self):
+        extra = {
+            "sku": "LEGACY-PLACE",
+            "name": "Старая позиция",
+            "color": "RAL 9005",
+            "size": "1200 мм",
+            "qty": 2,
+            "unit": "компл.",
+            "imageFile": "RS112.png",
+            "deliveryStage": "2",
+        }
+        section = _delivery_section(
+            extra_components=json.dumps([extra], ensure_ascii=False)
+        )
+        initial = _build_delivery_context(self.project(), [section])
+        initial_row = next(
+            row
+            for row in initial["delivery_item2_rows"]
+            if row["article"] == extra["sku"]
+        )
+        legacy_key = _delivery_key(
+            "hardware",
+            extra["sku"],
+            extra["name"],
+            extra["color"],
+            extra["size"],
+        )
+        assert initial_row["place_key"] != legacy_key
+
+        legacy_project = self.project(
+            delivery_note_data=json.dumps(
+                {"includeGlass": False, "places": {legacy_key: "6"}},
+                ensure_ascii=False,
+            )
+        )
+        restored = _build_delivery_context(legacy_project, [section])
+        restored_row = next(
+            row
+            for row in restored["delivery_item2_rows"]
+            if row["article"] == extra["sku"]
+        )
+        assert restored_row["places"] == "6"
+
+        cleared_project = self.project(
+            delivery_note_data=json.dumps(
+                {
+                    "includeGlass": False,
+                    "places": {
+                        legacy_key: "6",
+                        initial_row["place_key"]: "",
+                    },
+                },
+                ensure_ascii=False,
+            )
+        )
+        cleared = _build_delivery_context(cleared_project, [section])
+        cleared_row = next(
+            row
+            for row in cleared["delivery_item2_rows"]
+            if row["article"] == extra["sku"]
+        )
+        assert cleared_row["places"] == ""
+
+    def test_delivery_has_no_total_across_mixed_units(self):
+        project = self.project(
+            extra_components=json.dumps(
+                [
+                    {
+                        "sku": "PROJECT-KIT",
+                        "name": "Комплект проекта",
+                        "qty": 2,
+                        "unit": "компл.",
+                    }
+                ],
+                ensure_ascii=False,
+            )
+        )
+        section = _delivery_section(
+            extra_components=json.dumps(
+                [
+                    {
+                        "sku": "SECTION-SEAL",
+                        "name": "Уплотнитель",
+                        "qty": 10,
+                        "unit": "м",
+                    }
+                ],
+                ensure_ascii=False,
+            )
+        )
+
+        context = _build_delivery_context(project, [section])
+        html = render_project_document_html(project, [section], "delivery")
+        workbook = load_workbook(
+            io.BytesIO(build_project_xlsx(project, [section], "delivery")),
+            data_only=False,
+        )
+        worksheet = workbook.active
+        cell_values = [
+            cell.value
+            for row in worksheet.iter_rows()
+            for cell in row
+            if cell.value is not None
+        ]
+
+        assert "delivery_total_qty" not in context
+        assert '<tr class="totals">' not in html
+        assert '<th class="quantity">Количество</th>' in html
+        assert "Количество" in cell_values
+        assert "ИТОГО" not in cell_values
+        assert not any(
+            cell.data_type == "f"
+            for row in worksheet.iter_rows()
+            for cell in row
         )
 
     def test_authenticated_preview_renders_saved_delivery_requisites(
@@ -4604,14 +4723,20 @@ class TestHardwareOrder:
         assert delivery["delivery_project_extra_rows"][0]["qty"] == 2
 
     def test_installed_mode_filters_only_calculated_stock_issue(self):
-        custom_ru003 = json.dumps(
+        custom_rollers = json.dumps(
             [
                 {
                     "sku": "RU003",
                     "name": "Пользовательский комплект роликов",
                     "qty": 7,
                     "unit": "компл.",
-                }
+                },
+                {
+                    "sku": "RU005",
+                    "name": "Пользовательский комплект усиленных роликов",
+                    "qty": 5,
+                    "unit": "компл.",
+                },
             ],
             ensure_ascii=False,
         )
@@ -4620,16 +4745,23 @@ class TestHardwareOrder:
             panels=4,
             slide_rows=2,
             center_handle="Ручки-профиль RS112 (2шт)",
-            extra_components=custom_ru003,
+            extra_components=custom_rollers,
+        )
+        wide_section = _delivery_section(
+            name="Секция 2",
+            order=2,
+            width=2400,
+            panels=3,
+            slide_rows=1,
         )
 
         not_installed = _build_hardware_order_context(
             self.project(hardware_installation="not_installed"),
-            [section],
+            [section, wide_section],
         )["hardware_order_pages"][0]["rows"]
         installed = _build_hardware_order_context(
             self.project(hardware_installation="installed"),
-            [section],
+            [section, wide_section],
         )["hardware_order_pages"][0]["rows"]
 
         assert any(row["article"] == "RU010" for row in not_installed)
@@ -4646,10 +4778,27 @@ class TestHardwareOrder:
         assert len(installed_ru003) == 1
         assert installed_ru003[0]["name"] == "Пользовательский комплект роликов"
         assert installed_ru003[0]["qty"] == 7
+        installed_ru005 = [row for row in installed if row["article"] == "RU005"]
+        assert len(installed_ru005) == 1
+        assert (
+            installed_ru005[0]["name"]
+            == "Пользовательский комплект усиленных роликов"
+        )
+        assert installed_ru005[0]["qty"] == 5
+        assert len([row for row in not_installed if row["article"] == "RU005"]) > 1
 
     @pytest.mark.parametrize(
         "article",
-        ["RU003", "RU004", "RU006", "RU010", "RS103B", "RS104B", "RS130"],
+        [
+            "RU003",
+            "RU004",
+            "RU005",
+            "RU006",
+            "RU010",
+            "RS103B",
+            "RS104B",
+            "RS130",
+        ],
     )
     def test_installed_mode_uses_complete_exclusion_list(self, article):
         assert _exclude_installed_hardware("installed", article, "Позиция")

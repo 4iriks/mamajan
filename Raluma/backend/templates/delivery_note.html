@@ -79,7 +79,6 @@
     .center { text-align: center; }
     .nowrap { white-space: nowrap; }
     .group-row + .group-row td:not(.item-number) { border-top-color: #777; }
-    .totals td { font-weight: 700; vertical-align: middle; }
     .names-total { margin-top: 2.5mm; font-weight: 700; }
     .acceptance { margin-top: 4mm; line-height: 1.4; }
     .acceptance-line {
@@ -141,7 +140,7 @@
         <tr>
           <th class="item-number">№</th>
           <th>Наименование</th>
-          <th class="quantity">Кол-во изд., шт.</th>
+          <th class="quantity">Количество</th>
           <th class="places">Кол-во мест</th>
         </tr>
       </thead>
@@ -254,11 +253,6 @@
         </tr>
         {% endfor %}
 
-        <tr class="totals">
-          <td colspan="2" style="text-align:right;">Итого</td>
-          <td class="quantity">{{ delivery_total_qty }}</td>
-          <td></td>
-        </tr>
       </tbody>
     </table>
 

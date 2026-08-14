@@ -31,6 +31,7 @@ import {
 } from './editor/types';
 import {
   apiToLocal,
+  cloneExtraComponents,
   localToApi,
   parseExtraComponents,
   stringifyExtraComponents,
@@ -110,6 +111,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(true);
   const [projectExtraParts, setProjectExtraParts] = useState('');
   const [projectExtraComponents, setProjectExtraComponents] = useState<ExtraComponent[]>([]);
+  const [projectExtraComponentsDraft, setProjectExtraComponentsDraft] = useState<ExtraComponent[]>([]);
   const [hardwareInstallation, setHardwareInstallation] = useState<'installed' | 'not_installed'>('not_installed');
   const [projectExtrasOpen, setProjectExtrasOpen] = useState(false);
   const [projectComments, setProjectComments] = useState('');
@@ -404,15 +406,26 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
 
   const handleSaveProjectExtras = async () => {
     if (!project) return;
+    const savedComponents = cloneExtraComponents(projectExtraComponentsDraft);
     try {
       await updateProject(project.id, {
-        extra_components: stringifyExtraComponents(projectExtraComponents),
+        extra_components: stringifyExtraComponents(savedComponents),
       });
+      setProjectExtraComponents(savedComponents);
       setProjectExtrasOpen(false);
       toast.success('Комплектующие проекта сохранены');
     } catch {
       toast.error('Не удалось сохранить комплектующие проекта');
     }
+  };
+
+  const openProjectExtras = () => {
+    setProjectExtraComponentsDraft(cloneExtraComponents(projectExtraComponents));
+    setProjectExtrasOpen(true);
+  };
+
+  const closeProjectExtras = () => {
+    setProjectExtrasOpen(false);
   };
 
   const changeHardwareInstallation = async (
@@ -587,7 +600,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           projectComments={projectComments}
           setProjectComments={setProjectComments}
           projectExtraComponentsCount={projectExtraComponents.length}
-          onOpenProjectExtraComponents={() => setProjectExtrasOpen(true)}
+          onOpenProjectExtraComponents={openProjectExtras}
           onSaveProjectNotes={handleSaveProjectNotes}
         />
 
@@ -794,7 +807,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   </div>
                   <button
                     type="button"
-                    onClick={() => setProjectExtrasOpen(true)}
+                    onClick={openProjectExtras}
                     className="mt-3 flex w-full items-center justify-between rounded-xl border border-tint/30 bg-tint/10 px-4 py-3 text-sm font-bold text-accent hover:bg-tint/20"
                   >
                     <span className="flex items-center gap-2"><PackagePlus className="h-4 w-4" /> Дополнительные комплектующие проекта</span>
@@ -850,7 +863,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-6">
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setProjectExtrasOpen(false)}
+              onClick={closeProjectExtras}
               className="absolute inset-0 bg-black/80 backdrop-blur-sm"
             />
             <motion.div
@@ -864,18 +877,18 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   <h2 className="text-xl font-bold sm:text-2xl">Комплектующие проекта</h2>
                   <p className="mt-1 text-xs text-fg/40">Учитываются один раз на весь проект</p>
                 </div>
-                <button type="button" onClick={() => setProjectExtrasOpen(false)} className="text-fg/30 hover:text-fg">
+                <button type="button" onClick={closeProjectExtras} className="text-fg/30 hover:text-fg">
                   <X className="h-6 w-6" />
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto p-4 sm:p-7">
                 <ExtraComponentsEditor
-                  items={projectExtraComponents}
-                  onChange={setProjectExtraComponents}
+                  items={projectExtraComponentsDraft}
+                  onChange={setProjectExtraComponentsDraft}
                 />
               </div>
               <div className="flex justify-end gap-3 border-t border-tint/20 bg-black/10 px-5 py-4 sm:px-8">
-                <button type="button" onClick={() => setProjectExtrasOpen(false)} className="rounded-xl border border-tint/25 px-5 py-2.5 text-sm font-bold text-fg/60 hover:bg-hi/5">Закрыть</button>
+                <button type="button" onClick={closeProjectExtras} className="rounded-xl border border-tint/25 px-5 py-2.5 text-sm font-bold text-fg/60 hover:bg-hi/5">Закрыть</button>
                 <button type="button" onClick={handleSaveProjectExtras} className="rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white hover:bg-primary-h">Сохранить</button>
               </div>
             </motion.div>
