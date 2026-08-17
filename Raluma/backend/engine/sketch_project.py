@@ -9,7 +9,7 @@ from typing import Iterable
 
 from engine.book_calc import calculate_book
 from engine.lift_calc import calculate_lift, lift_geometry_error
-from engine.office_diagrams import section_diagrams
+from engine.office_diagrams import render_slide_room, section_diagrams
 from engine.slide_calc import (
     _inter_glass_article,
     _resolve_inter_glass_profile,
@@ -101,7 +101,11 @@ def _book_warnings(calc: object) -> list[str]:
 
 
 def _slide_panels(section: object, calc: object) -> list[SketchPanelRow]:
-    filling = _text(getattr(calc, "glass_type", None))
+    filling = (
+        _text(getattr(calc, "glass_type", None))
+        if bool(getattr(section, "glass_supplied", True))
+        else "Без стекла"
+    )
     quantity = _positive_int(getattr(section, "quantity", 1))
     panel_numbers = list(getattr(calc, "panel_numbers", None) or [])
     return [
@@ -352,6 +356,8 @@ def _extra_components(owner: object, *, multiply: bool) -> list[dict]:
     for item in source:
         if not isinstance(item, dict):
             continue
+        if str(item.get("category") or "").strip().lower() == "service":
+            continue
         article = item.get("article") or item.get("art") or item.get("sku") or ""
         name = item.get("name") or ""
         if not any((article, name, item.get("size"), item.get("qty"))):
@@ -375,7 +381,12 @@ def _extra_components(owner: object, *, multiply: bool) -> list[dict]:
                 qty=total_qty,
                 unit=item.get("unit") or "шт",
                 note="",
-                color=item.get("color") or "",
+                color=(
+                    item.get("color")
+                    or item.get("finish_name")
+                    or item.get("finishName")
+                    or ""
+                ),
                 image=(
                     item.get("imageFile")
                     or item.get("image_file")
@@ -389,8 +400,29 @@ def _extra_components(owner: object, *, multiply: bool) -> list[dict]:
 
 
 def _diagram_rows(section: object, calc: object) -> list[dict]:
+    system = _text(getattr(section, "system", None), "").upper()
+    # The production-sheet SVG is intentionally a wide technical strip.  It is
+    # useful on the manufacturing form, but it distorts width/height when reused
+    # in an A4 sketch.  The dedicated room renderer keeps the physical aspect
+    # ratio and includes overall width/height dimension lines.
+    diagrams = (
+        [
+            (
+                "Вид из помещения",
+                render_slide_room(
+                    section,
+                    calc,
+                    include_title=False,
+                    crop=True,
+                ),
+            )
+        ]
+        if system == "СЛАЙД"
+        else section_diagrams(section, calc)
+    )
+    room_views = [row for row in diagrams if "из помещения" in row[0].casefold()]
     rows = []
-    for title, payload in section_diagrams(section, calc)[:2]:
+    for title, payload in (room_views[:1] or diagrams[:1]):
         rows.append(
             {
                 "title": title,
@@ -426,7 +458,11 @@ def _section_data(section: object, order: int) -> dict:
             if _inter_glass_article(selected_inter_glass)
             else "—"
         )
-        filling = _text(getattr(calc, "glass_type", None))
+        filling = (
+            _text(getattr(calc, "glass_type", None))
+            if bool(getattr(section, "glass_supplied", True))
+            else "Без стекла"
+        )
     elif system == "КНИЖКА":
         calc = calculate_book(section)
         panel_rows = _book_panels(calc)
@@ -459,10 +495,6 @@ def _section_data(section: object, order: int) -> dict:
         "inter_glass_profile": inter_glass,
         "filling": filling,
         "panels": panel_rows,
-        "components": [
-            *_calculated_components(calc, system),
-            *_extra_components(section, multiply=True),
-        ],
         "comments": _text(getattr(section, "comments", None), ""),
         "warnings": [f"{label}: {warning}" for warning in warnings],
         "diagrams": _diagram_rows(section, calc),
@@ -497,16 +529,22 @@ def build_sketch_project_context(
         except (TypeError, ValueError):
             order = 0
         prepared.append(_section_data(section, order or index))
+    invoice_number = _text(getattr(project, "invoice_number", None), "")
+    order_number = _text(
+        getattr(project, "order_number", None)
+        or getattr(project, "number", None),
+        "",
+    )
+    document_number = invoice_number or order_number
     return {
         "doc_type": "sketch",
         "title": "Эскизный проект",
-        "document_title": f"ЭСКИЗНЫЙ ПРОЕКТ № {_text(getattr(project, 'number', None), '')}",
-        "project_number": _text(getattr(project, "number", None), ""),
+        "document_title": f"ЭСКИЗНЫЙ ПРОЕКТ № {document_number}",
+        "project_number": document_number,
+        "invoice_number": invoice_number,
+        "order_number": order_number,
         "sections": prepared,
         "project_components": _extra_components(project, multiply=False),
-        "project_extra_parts_note": _text(
-            getattr(project, "extra_parts", None), ""
-        ),
         "document_warnings": [
             warning for section in prepared for warning in section["warnings"]
         ],

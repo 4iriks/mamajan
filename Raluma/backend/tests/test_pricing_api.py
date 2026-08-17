@@ -1,10 +1,12 @@
 import io
 import json
+import re
 import zipfile
 from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
+import pytest
 from openpyxl import Workbook
 from pypdf import PdfReader
 
@@ -163,6 +165,209 @@ def test_price_versions_future_history_bulk_and_rollback(client, admin_headers):
         _delete_catalog_item(item_id)
 
 
+def test_standalone_sale_uses_only_item_terms_variants_and_buyer_discount(
+    client, admin_headers
+):
+    actor_id = client.get("/api/auth/me", headers=admin_headers).json()["id"]
+    db = SessionLocal()
+    try:
+        regular = models.CatalogItem(
+            sku=_unique("SALE"),
+            name="Самостоятельный профиль",
+            group="Профили",
+            system="СЛАЙД",
+            unit="п.м.",
+            purchase_price=1,
+            markup_percent=1,
+            waste_percent=90,
+            is_active=True,
+        )
+        colored = models.CatalogItem(
+            sku=_unique("SALE-COLOR"),
+            name="Цветной профиль",
+            group="Профили",
+            system="СЛАЙД",
+            unit="п.м.",
+            purchase_price=999,
+            markup_percent=999,
+            waste_percent=99,
+            is_active=True,
+        )
+        colored.finish_variants.extend(
+            [
+                models.CatalogFinishVariant(
+                    name="Анод", price=200, cost=200, requires_paint=False
+                ),
+                models.CatalogFinishVariant(
+                    name="RAL 9005", price=250, cost=250, requires_paint=True
+                ),
+            ]
+        )
+        db.add_all([regular, colored])
+        db.flush()
+        db.add(
+            models.CatalogPriceVersion(
+                catalog_item_id=regular.id,
+                cost=100,
+                profile_markup_percent=20,
+                profile_discount_percent=10,
+                waste_markup_percent=80,
+                construction_markup_percent=300,
+                construction_discount_percent=75,
+                category="profile",
+                unit="п.м.",
+                min_margin_percent=0,
+                effective_from=datetime.utcnow() - timedelta(minutes=1),
+                created_by=actor_id,
+                reason="pytest standalone sale",
+            )
+        )
+        db.add(
+            models.CatalogPriceVersion(
+                catalog_item_id=colored.id,
+                cost=999,
+                profile_markup_percent=20,
+                profile_discount_percent=10,
+                waste_markup_percent=90,
+                construction_markup_percent=300,
+                construction_discount_percent=75,
+                category="profile",
+                unit="п.м.",
+                min_margin_percent=0,
+                effective_from=datetime.utcnow() - timedelta(minutes=1),
+                created_by=actor_id,
+                reason="pytest standalone finish price",
+            )
+        )
+        db.commit()
+        db.refresh(regular)
+        db.refresh(colored)
+        regular_id = regular.id
+        colored_id = colored.id
+        ral_id = next(
+            row.id for row in colored.finish_variants if row.name == "RAL 9005"
+        )
+    finally:
+        db.close()
+
+    try:
+        percent = client.post(
+            "/api/pricing/sale/quote",
+            headers=admin_headers,
+            json={
+                "items": [{"catalog_item_id": regular_id, "quantity": 2}],
+                "buyer_discount_mode": "percent",
+                "buyer_discount_value": 10,
+            },
+        )
+        assert percent.status_code == 200, percent.text
+        assert percent.json()["totals"] == {
+            "before_discount": "216.00",
+            "discount": "21.60",
+            "grand_total": "194.40",
+        }
+
+        fixed = client.post(
+            "/api/pricing/sale/quote",
+            headers=admin_headers,
+            json={
+                "items": [{"catalog_item_id": regular_id, "quantity": 2}],
+                "buyer_discount_mode": "fixed",
+                "buyer_discount_value": 16,
+            },
+        )
+        assert fixed.status_code == 200
+        assert fixed.json()["totals"]["grand_total"] == "200.00"
+
+        variant = client.post(
+            "/api/pricing/sale/quote",
+            headers=admin_headers,
+            json={
+                "items": [
+                    {
+                        "catalog_item_id": colored_id,
+                        "finish_variant_id": ral_id,
+                        "quantity": 2,
+                    }
+                ],
+                "buyer_discount_mode": "percent",
+                "buyer_discount_value": 10,
+            },
+        )
+        assert variant.status_code == 200, variant.text
+        assert variant.json()["totals"]["before_discount"] == "540.00"
+        assert variant.json()["totals"]["grand_total"] == "486.00"
+        assert variant.json()["lines"][0]["component_details"]["finish"] == (
+            "RAL 9005"
+        )
+
+        missing_variant = client.post(
+            "/api/pricing/sale/quote",
+            headers=admin_headers,
+            json={"items": [{"catalog_item_id": colored_id, "quantity": 1}]},
+        )
+        assert missing_variant.status_code == 400
+        assert "исполнение" in missing_variant.json()["detail"].lower()
+
+        serialized = json.dumps(percent.json(), ensure_ascii=False).lower()
+        for forbidden in (
+            "cost",
+            "purchase",
+            "margin",
+            "waste",
+            "production",
+            "cut",
+            "glue",
+        ):
+            assert forbidden not in serialized
+    finally:
+        _delete_catalog_item(regular_id)
+        _delete_catalog_item(colored_id)
+
+
+def test_construction_price_groups_are_admin_managed_and_publicly_safe(
+    client, admin_headers
+):
+    admin_list = client.get("/api/pricing/price-groups", headers=admin_headers)
+    assert admin_list.status_code == 200
+    assert {row["code"] for row in admin_list.json()} >= {"SLIDE", "BOOK", "LIFT"}
+
+    public_list = client.get("/api/catalog/construction-price-groups")
+    assert public_list.status_code == 200
+    assert {row["code"] for row in public_list.json()} >= {"SLIDE", "BOOK", "LIFT"}
+    assert all("markup_percent" not in row for row in public_list.json())
+
+    code = _unique("FUTURE").upper()
+    created = client.post(
+        "/api/pricing/price-groups",
+        headers=admin_headers,
+        json={
+            "code": code,
+            "name": "Будущая система",
+            "markup_percent": "33.5",
+            "is_active": True,
+        },
+    )
+    assert created.status_code == 201, created.text
+    group = created.json()
+    updated = client.put(
+        f"/api/pricing/price-groups/{group['id']}",
+        headers=admin_headers,
+        json={
+            "code": code,
+            "name": "Будущая система 2",
+            "markup_percent": "40",
+            "is_active": False,
+        },
+    )
+    assert updated.status_code == 200
+    assert updated.json()["markup_percent"] == "40"
+    assert all(
+        row["id"] != group["id"]
+        for row in client.get("/api/catalog/construction-price-groups").json()
+    )
+
+
 def test_excel_import_reads_formatted_percentages_and_applies_atomically(
     client,
     admin_headers,
@@ -259,10 +464,10 @@ def test_pricing_permission_and_dealer_quote_access(client, admin_headers):
         assert "dealer_discount_percent" not in dealer_me.json()
         assert client.get("/api/pricing/catalog", headers=manager_headers).status_code == 403
         assert client.get("/api/pricing/catalog", headers=dealer_headers).status_code == 403
-        assert client.get("/api/pricing/catalog", headers=price_headers).status_code == 200
+        assert client.get("/api/pricing/catalog", headers=price_headers).status_code == 403
         terms = client.put(
             f"/api/pricing/dealers/{dealer['id']}",
-            headers=price_headers,
+            headers=admin_headers,
             json={
                 "dealer_markup_percent": "20",
                 "profile_discount_percent": "5",
@@ -292,10 +497,14 @@ def test_pricing_permission_and_dealer_quote_access(client, admin_headers):
         )
         assert public_only.status_code == 200
         _assert_no_internal_pricing(public_only.json())
-        assert client.get(
+        manager_editor = client.get(
             f"/api/pricing/projects/{manager_project_id}",
             headers=manager_headers,
-        ).status_code == 403
+        )
+        assert manager_editor.status_code == 200
+        assert manager_editor.json()["calculation"] == {}
+        assert manager_editor.json()["missing_prices"] == []
+        assert manager_editor.json()["config"]["overrides"] == []
         config = {
             "vat_mode": "none",
             "vat_rate": "20",
@@ -308,11 +517,11 @@ def test_pricing_permission_and_dealer_quote_access(client, admin_headers):
             f"/api/projects/{manager_project_id}/quote/config",
             headers=manager_headers,
             json=config,
-        ).status_code == 403
+        ).status_code == 200
         assert client.post(
             f"/api/projects/{manager_project_id}/quote/refresh",
             headers=manager_headers,
-        ).status_code == 403
+        ).status_code == 200
         price_manager_project = client.post(
             "/api/projects",
             headers=price_headers,
@@ -320,10 +529,13 @@ def test_pricing_permission_and_dealer_quote_access(client, admin_headers):
         )
         assert price_manager_project.status_code == 201
         price_manager_project_id = price_manager_project.json()["id"]
-        assert client.get(
+        price_manager_editor = client.get(
             f"/api/pricing/projects/{price_manager_project_id}",
             headers=price_headers,
-        ).status_code == 200
+        )
+        assert price_manager_editor.status_code == 200
+        assert price_manager_editor.json()["calculation"] == {}
+        assert price_manager_editor.json()["missing_prices"] == []
         one_time_price = client.put(
             f"/api/projects/{price_manager_project_id}/quote/overrides",
             headers=price_headers,
@@ -337,14 +549,7 @@ def test_pricing_permission_and_dealer_quote_access(client, admin_headers):
                 ]
             },
         )
-        assert one_time_price.status_code == 200, one_time_price.text
-        refreshed_draft = client.post(
-            f"/api/projects/{price_manager_project_id}/quote/refresh",
-            headers=price_headers,
-        )
-        assert refreshed_draft.status_code == 200
-        assert refreshed_draft.json()["revision"] == 1
-        assert refreshed_draft.json()["status"] == "draft"
+        assert one_time_price.status_code == 403
         margin_override = client.put(
             f"/api/projects/{price_manager_project_id}/quote/overrides",
             headers=price_headers,
@@ -375,7 +580,7 @@ def test_pricing_permission_and_dealer_quote_access(client, admin_headers):
                 headers=dealer_headers,
                 json=config,
             ).status_code
-            == 403
+            == 200
         )
     finally:
         if manager_project_id is not None:
@@ -499,6 +704,299 @@ def _assert_no_internal_pricing(payload):
         "approved_by",
     ):
         assert forbidden not in serialized
+
+
+def test_quote_category_percent_and_order_ruble_discounts(
+    client, admin_headers, project, section
+):
+    admin_id = client.get("/api/auth/me", headers=admin_headers).json()["id"]
+    seed = _seed_quote_prices(project["id"], admin_id)
+    try:
+        completed = client.put(
+            f"/api/projects/{project['id']}/quote/overrides",
+            headers=admin_headers,
+            json={
+                "overrides": [
+                    {
+                        "sku": seed["skipped_sku"],
+                        "cost": "10",
+                        "comment": "Полный тестовый расчёт",
+                    }
+                ],
+                "margin_override_comment": "",
+            },
+        )
+        assert completed.status_code == 200, completed.text
+        baseline = Decimal(completed.json()["totals"]["subtotal"])
+
+        discounted = client.put(
+            f"/api/projects/{project['id']}/quote/config",
+            headers=admin_headers,
+            json={
+                "vat_mode": "none",
+                "vat_rate": "20",
+                "validity_days": 14,
+                "manufacturing_term": "",
+                "payment_terms": "",
+                "services": [],
+                "discounts": [
+                    {
+                        "id": "construction-percent",
+                        "name": "Скидка на конструкции",
+                        "scope": "construction",
+                        "mode": "percent",
+                        "value": "10",
+                    },
+                    {
+                        "id": "order-rubles",
+                        "name": "Скидка на заказ",
+                        "scope": "order",
+                        "mode": "fixed",
+                        "value": "25",
+                    },
+                ],
+            },
+        )
+        assert discounted.status_code == 200, discounted.text
+        payload = discounted.json()
+        expected = (baseline * Decimal("0.90") - Decimal("25")).quantize(
+            Decimal("0.01")
+        )
+        assert Decimal(payload["totals"]["subtotal"]) == expected
+        assert Decimal(payload["totals"]["discount"]) == baseline - expected
+        assert payload["discounts"] == [
+            {
+                "id": "construction-percent",
+                "name": "Скидка на конструкции",
+                "scope": "construction",
+                "mode": "percent",
+                "value": "10",
+            },
+            {
+                "id": "order-rubles",
+                "name": "Скидка на заказ",
+                "scope": "order",
+                "mode": "fixed",
+                "value": "25",
+            },
+        ]
+        _assert_no_internal_pricing(payload)
+    finally:
+        _cleanup_quote_prices(seed)
+
+
+def test_construction_price_group_bulk_updates_item_versions_without_double_markup(
+    client, admin_headers, project, section
+):
+    admin_id = client.get("/api/auth/me", headers=admin_headers).json()["id"]
+    groups = client.get("/api/pricing/price-groups", headers=admin_headers).json()
+    slide_group = next(row for row in groups if row["code"] == "SLIDE")
+    original_group = {
+        "code": slide_group["code"],
+        "name": slide_group["name"],
+        "markup_percent": slide_group["markup_percent"],
+        "is_active": slide_group["is_active"],
+    }
+    seed = _seed_quote_prices(project["id"], admin_id)
+    db = SessionLocal()
+    try:
+        price_version_ids_before_group_update = {
+            row[0] for row in db.query(models.CatalogPriceVersion.id).all()
+        }
+    finally:
+        db.close()
+    try:
+        completed = client.put(
+            f"/api/projects/{project['id']}/quote/overrides",
+            headers=admin_headers,
+            json={
+                "overrides": [
+                    {
+                        "sku": seed["skipped_sku"],
+                        "cost": "10",
+                        "comment": "Полный тестовый расчёт",
+                    }
+                ]
+            },
+        )
+        assert completed.status_code == 200
+        baseline = Decimal(completed.json()["totals"]["subtotal"])
+
+        db = SessionLocal()
+        try:
+            db.query(models.CatalogPriceVersion).filter(
+                models.CatalogPriceVersion.id.in_(seed["versions"])
+            ).update(
+                {
+                    models.CatalogPriceVersion.profile_markup_percent: Decimal(
+                        "500"
+                    ),
+                    models.CatalogPriceVersion.construction_markup_percent: Decimal(
+                        "900"
+                    ),
+                    models.CatalogPriceVersion.construction_discount_percent: Decimal(
+                        "80"
+                    ),
+                },
+                synchronize_session=False,
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        item_coefficients_changed = client.get(
+            f"/api/projects/{project['id']}/quote", headers=admin_headers
+        )
+        assert item_coefficients_changed.status_code == 200
+        changed_subtotal = Decimal(
+            item_coefficients_changed.json()["totals"]["subtotal"]
+        )
+        assert changed_subtotal > baseline
+
+        group_update = client.put(
+            f"/api/pricing/price-groups/{slide_group['id']}",
+            headers=admin_headers,
+            json={
+                "code": "SLIDE",
+                "name": slide_group["name"],
+                "markup_percent": "20",
+                "is_active": True,
+            },
+        )
+        assert group_update.status_code == 200
+        grouped = client.get(
+            f"/api/projects/{project['id']}/quote", headers=admin_headers
+        )
+        assert grouped.status_code == 200
+        grouped_subtotal = Decimal(grouped.json()["totals"]["subtotal"])
+        assert grouped_subtotal < changed_subtotal
+        assert grouped_subtotal != (
+            changed_subtotal * Decimal("1.20")
+        ).quantize(Decimal("0.01"))
+
+        db = SessionLocal()
+        try:
+            item_ids = {
+                row.catalog_item_id
+                for row in db.query(models.CatalogPriceVersion)
+                .filter(models.CatalogPriceVersion.id.in_(seed["versions"]))
+                .all()
+            }
+            for item_id in item_ids:
+                active = (
+                    db.query(models.CatalogPriceVersion)
+                    .filter(
+                        models.CatalogPriceVersion.catalog_item_id == item_id,
+                        models.CatalogPriceVersion.effective_from
+                        <= datetime.utcnow(),
+                    )
+                    .order_by(
+                        models.CatalogPriceVersion.effective_from.desc(),
+                        models.CatalogPriceVersion.id.desc(),
+                    )
+                    .first()
+                )
+                assert Decimal(active.construction_markup_percent) == Decimal("20")
+        finally:
+            db.close()
+    finally:
+        client.put(
+            f"/api/pricing/price-groups/{slide_group['id']}",
+            headers=admin_headers,
+            json=original_group,
+        )
+        db = SessionLocal()
+        try:
+            db.query(models.CatalogPriceVersion).filter(
+                ~models.CatalogPriceVersion.id.in_(
+                    price_version_ids_before_group_update
+                )
+            ).delete(synchronize_session=False)
+            db.commit()
+        finally:
+            db.close()
+        _cleanup_quote_prices(seed)
+
+
+def test_slide_without_glass_removes_glass_price_and_weight_but_keeps_geometry(
+    client, admin_headers, project, section
+):
+    admin_id = client.get("/api/auth/me", headers=admin_headers).json()["id"]
+    seed = _seed_quote_prices(project["id"], admin_id)
+    try:
+        with_glass = client.put(
+            f"/api/projects/{project['id']}/quote/overrides",
+            headers=admin_headers,
+            json={
+                "overrides": [
+                    {
+                        "sku": seed["skipped_sku"],
+                        "cost": "10",
+                        "comment": "Полный тестовый расчёт",
+                    }
+                ]
+            },
+        )
+        assert with_glass.status_code == 200, with_glass.text
+        with_payload = with_glass.json()
+        with_line = next(
+            row for row in with_payload["lines"] if row.get("section_details")
+        )
+        assert Decimal(with_line["section_details"]["glass_weight_kg"]) > 0
+
+        section_payload = {
+            key: value
+            for key, value in section.items()
+            if key not in {"id", "project_id"}
+        }
+        section_payload["glass_supplied"] = False
+        updated = client.put(
+            f"/api/projects/{project['id']}/sections/{section['id']}",
+            headers=admin_headers,
+            json=section_payload,
+        )
+        assert updated.status_code == 200, updated.text
+
+        without_glass = client.get(
+            f"/api/projects/{project['id']}/quote", headers=admin_headers
+        )
+        assert without_glass.status_code == 200
+        without_payload = without_glass.json()
+        without_line = next(
+            row for row in without_payload["lines"] if row.get("section_details")
+        )
+        details = without_line["section_details"]
+        assert details["glass_supplied"] is False
+        assert details["glass_type"] == "Без стекла"
+        assert Decimal(details["glass_weight_kg"]) == 0
+        assert details["panel_geometry"] == with_line["section_details"][
+            "panel_geometry"
+        ]
+        assert Decimal(without_payload["totals"]["subtotal"]) < Decimal(
+            with_payload["totals"]["subtotal"]
+        )
+
+        token = admin_headers["Authorization"].replace("Bearer ", "")
+        preview = client.get(
+            f"/api/projects/{project['id']}/documents/commercial/preview",
+            params={"token": token},
+        )
+        assert preview.status_code == 200
+        assert "Без стекла" in preview.text
+        assert str(round(float(details["panel_geometry"][0]["width_mm"]))) in (
+            preview.text
+        )
+        frame = re.search(
+            r'data-quote-room-frame="[^"]+"[^>]*width="([0-9.]+)" height="([0-9.]+)"',
+            preview.text,
+        )
+        assert frame is not None
+        assert float(frame.group(1)) / float(frame.group(2)) == pytest.approx(
+            2000 / 2400,
+            abs=0.01,
+        )
+    finally:
+        _cleanup_quote_prices(seed)
 
 
 def test_quote_missing_override_margin_vat_snapshot_and_safe_exports(
@@ -669,9 +1167,7 @@ def test_quote_missing_override_margin_vat_snapshot_and_safe_exports(
             "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
         )
         assert len(construction_line["section_details"]["panel_geometry"]) == 3
-        assert construction_line["breakdown"][-1]["name"] == (
-            "Стекло, покраска и изготовление"
-        )
+        assert construction_line["breakdown"][-1]["name"] == "Стекло"
         assert sum(
             row["line_total"] for row in construction_line["breakdown"]
         ) == construction_line["document_line_total"]
@@ -707,11 +1203,10 @@ def test_quote_missing_override_margin_vat_snapshot_and_safe_exports(
         assert "Разрешено руководителем для тендера" not in preview.text
         assert "margin_approval" not in preview.text
         assert "70% аванс" in preview.text
-        assert "Технические характеристики" in preview.text
-        assert "Масштабный вид из помещения" in preview.text
-        assert "Вид сверху" in preview.text
-        assert "Профили и фурнитура" in preview.text
-        assert "Стекло, покраска и изготовление" in preview.text
+        assert "Общие и центральные" in preview.text
+        assert "Вид на изделие со стороны помещения" in preview.text
+        assert "Вид сверху" not in preview.text
+        assert "/api/catalog/profile-assets/" not in preview.text
 
         word_draft = client.get(
             f"/api/projects/{project['id']}/documents/commercial/docx",
@@ -730,10 +1225,9 @@ def test_quote_missing_override_margin_vat_snapshot_and_safe_exports(
         assert "Разовая согласованная цена" not in word_xml
         assert "Разрешено руководителем для тендера" not in word_xml
         assert "margin_approval" not in word_xml
-        assert "Тип стекла" in word_xml
-        assert "ПРОФИЛИ И ФУРНИТУРА" in word_xml
-        assert "Стекло, покраска и изготовление" in word_xml
-        assert len(quote_images) >= 2
+        assert "Стекло" in word_xml
+        assert "ТЕХНИЧЕСКАЯ КОМПЛЕКТАЦИЯ" in word_xml
+        assert len(quote_images) == 1
 
         pdf = client.get(
             f"/api/projects/{project['id']}/documents/commercial/pdf",
@@ -745,8 +1239,7 @@ def test_quote_missing_override_margin_vat_snapshot_and_safe_exports(
             page.extract_text() or ""
             for page in PdfReader(io.BytesIO(pdf.content)).pages
         )
-        assert "ТЕХНИЧЕСКИЕ ХАРАКТЕРИСТИКИ" in pdf_text.upper()
-        assert "СТЕКЛО, ПОКРАСКА И ИЗГОТОВЛЕНИЕ" in pdf_text.upper()
+        assert "ОБЩИЕ И ЦЕНТРАЛЬНЫЕ" in pdf_text.upper()
         assert "РАЗРЕШЕНО РУКОВОДИТЕЛЕМ ДЛЯ ТЕНДЕРА" not in pdf_text.upper()
         fixed = client.get(
             f"/api/projects/{project['id']}/quote", headers=admin_headers
@@ -754,6 +1247,39 @@ def test_quote_missing_override_margin_vat_snapshot_and_safe_exports(
         assert fixed["status"] == "fixed"
         assert fixed["revision"] == 1
         original_total = fixed["totals"]["grand_total"]
+
+        appendix_preview = client.get(
+            f"/api/projects/{project['id']}/documents/contract_appendix/preview",
+            params={"token": token},
+        )
+        appendix_pdf = client.get(
+            f"/api/projects/{project['id']}/documents/contract_appendix/pdf",
+            headers=admin_headers,
+        )
+        appendix_docx = client.get(
+            f"/api/projects/{project['id']}/documents/contract_appendix/docx",
+            headers=admin_headers,
+        )
+        assert appendix_preview.status_code == 200
+        assert appendix_pdf.status_code == 200
+        assert appendix_docx.status_code == 200
+        assert "Приложение к договору" in appendix_preview.text
+        assert "2000 мм" in appendix_preview.text
+        assert "2400 мм" in appendix_preview.text
+        appendix_pdf_text = "\n".join(
+            page.extract_text() or ""
+            for page in PdfReader(io.BytesIO(appendix_pdf.content)).pages
+        )
+        assert "ПРИЛОЖЕНИЕ К ДОГОВОРУ" in appendix_pdf_text.upper()
+        with zipfile.ZipFile(io.BytesIO(appendix_docx.content)) as archive:
+            appendix_word_xml = archive.read("word/document.xml").decode("utf-8")
+        assert "ПРИЛОЖЕНИЕ К ДОГОВОРУ" in appendix_word_xml
+        assert "2000 мм" in appendix_word_xml
+        assert "2400 мм" in appendix_word_xml
+        assert client.get(
+            f"/api/projects/{project['id']}/quote", headers=admin_headers
+        ).json()["totals"]["grand_total"] == original_total
+
         unchanged_refresh = client.post(
             f"/api/projects/{project['id']}/quote/refresh",
             headers=admin_headers,
@@ -815,8 +1341,8 @@ def test_quote_missing_override_margin_vat_snapshot_and_safe_exports(
         with zipfile.ZipFile(io.BytesIO(stale_word.content)) as archive:
             stale_word_xml = archive.read("word/document.xml").decode("utf-8")
         assert "Расчёт устарел" in stale_word_xml
-        assert "2000 × 2400" in stale_word_xml
-        assert "2100 × 2400" not in stale_word_xml
+        assert "2000 мм" in stale_word_xml
+        assert "2100 мм" not in stale_word_xml
 
         blocked_refresh = client.post(
             f"/api/projects/{project['id']}/quote/refresh",
@@ -875,7 +1401,8 @@ def test_quote_missing_override_margin_vat_snapshot_and_safe_exports(
         assert refreshed_word.status_code == 200
         with zipfile.ZipFile(io.BytesIO(refreshed_word.content)) as archive:
             refreshed_word_xml = archive.read("word/document.xml").decode("utf-8")
-        assert "2100 × 2400" in refreshed_word_xml
+        assert "2100 мм" in refreshed_word_xml
+        assert "2400 мм" in refreshed_word_xml
     finally:
         _cleanup_quote_prices(seed)
 
@@ -1048,14 +1575,17 @@ def test_margin_approval_is_bound_to_every_pricing_input(client, admin_headers):
             "/api/pricing/settings",
             headers=admin_headers,
             json={
-                "include_waste_markup": not original_settings[
-                    "include_waste_markup"
-                ],
+                "include_waste_markup": False,
                 "default_vat_rate": original_settings["default_vat_rate"],
             },
         )
         assert settings_change.status_code == 200, settings_change.text
-        require_reapproval("настройка отходов")
+        assert settings_change.json()["include_waste_markup"] is True
+        unchanged_approval = client.get(
+            f"/api/pricing/projects/{project_id}", headers=admin_headers
+        ).json()["margin_approval"]
+        assert unchanged_approval["valid"] is True
+        assert unchanged_approval["target_revision"] == expected_revision
 
         db = SessionLocal()
         try:

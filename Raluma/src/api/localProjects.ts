@@ -25,15 +25,73 @@ function read(): ProjectFull[] {
   }
 }
 
+function parseExtraComponents(raw?: string): Array<Record<string, unknown>> {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === 'object')
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function extraComponentKey(row: Record<string, unknown>): string {
+  const value = (...keys: string[]) => {
+    const key = keys.find(candidate => row[candidate] !== undefined && row[candidate] !== null);
+    return key ? String(row[key]).trim().toLocaleLowerCase('ru') : '';
+  };
+  return JSON.stringify([
+    value('catalog_item_id', 'catalogItemId'),
+    value('finish_variant_id', 'finishVariantId'),
+    value('sku', 'art', 'article'),
+    value('name'),
+    value('color'),
+    value('finish_name', 'finishName'),
+    value('size'),
+    value('unit'),
+    value('deliveryStage', 'delivery_stage', 'stage'),
+  ]);
+}
+
+function migrateLocalSectionExtras(project: ProjectFull): string {
+  const merged = new Map<string, Record<string, unknown>>();
+  const add = (source: Record<string, unknown>, multiplier = 1) => {
+    const row = { ...source };
+    const quantity = Number(row.qty ?? row.quantity ?? 0);
+    const migratedQuantity = Number.isFinite(quantity) ? quantity * multiplier : 0;
+    row.qty = migratedQuantity;
+    delete row.quantity;
+    const key = extraComponentKey(row);
+    const existing = merged.get(key);
+    if (existing) {
+      existing.qty = Number(existing.qty ?? 0) + migratedQuantity;
+    } else {
+      merged.set(key, row);
+    }
+  };
+
+  parseExtraComponents(project.extra_components).forEach(row => add(row));
+  (project.sections || []).forEach(section => {
+    const multiplier = Math.max(1, Number(section.quantity) || 1);
+    parseExtraComponents(section.extra_components).forEach(row => add(row, multiplier));
+  });
+  return JSON.stringify([...merged.values()]);
+}
+
 function normalizeProject(project: ProjectFull): ProjectFull {
+  const sections = Array.isArray(project.sections)
+    ? project.sections.map(section => normalizeSection(project.id, section))
+    : [];
   return {
     ...project,
-    extra_components: project.extra_components ?? '[]',
+    order_number: project.order_number ?? project.number,
+    extra_parts: undefined,
+    extra_components: migrateLocalSectionExtras(project),
     // Projects saved before this field existed must keep their former work order.
     hardware_installation: project.hardware_installation ?? 'not_installed',
-    sections: Array.isArray(project.sections)
-      ? project.sections.map(section => normalizeSection(project.id, section))
-      : [],
+    sections,
   };
 }
 
@@ -90,6 +148,8 @@ function normalizeSection(
       section.glass_type?.trim() || defaultGlassType(section.system ?? 'СЛАЙД'),
       section.system ?? 'СЛАЙД',
     ),
+    glass_supplied: section.system === 'СЛАЙД' ? (section.glass_supplied ?? true) : true,
+    price_group_id: section.price_group_id,
     painting_type: section.painting_type ?? 'RAL стандарт',
     ral_color: section.ral_color ?? '9016 МАТОВЫЙ',
     corner_left: section.corner_left ?? false,
@@ -170,8 +230,8 @@ function normalizeSection(
     door_system: section.door_system,
     cs_shape: section.cs_shape,
     cs_width2: section.cs_width2,
-    extra_parts: section.extra_parts,
-    extra_components: section.extra_components ?? '[]',
+    extra_parts: undefined,
+    extra_components: '[]',
     comments: section.comments,
     document_overrides: section.document_overrides ?? '{}',
   };
@@ -197,12 +257,14 @@ export function getLocalProjectDocumentPayload(projectId: number) {
   };
 }
 
-export function createLocalProject(data: { number: string; customer: string; production_stages?: number }): ProjectFull {
+export function createLocalProject(data: { number?: string; order_number?: string; customer: string; production_stages?: number }): ProjectFull {
   const projects = read();
   const createdAt = nowIso();
   const project: ProjectFull = {
     id: makeId(),
-    number: data.number,
+    number: data.order_number ?? data.number ?? '',
+    invoice_number: null,
+    order_number: data.order_number ?? data.number ?? '',
     customer: data.customer,
     system: '',
     subtype: undefined,
@@ -255,7 +317,9 @@ export function copyLocalProject(id: number): ProjectFull {
   const copy: ProjectFull = {
     ...source,
     id: newId,
-    number: `${source.number}-копия`,
+    number: '',
+    invoice_number: null,
+    order_number: null,
     created_at: createdAt,
     updated_at: createdAt,
     created_by: 0,

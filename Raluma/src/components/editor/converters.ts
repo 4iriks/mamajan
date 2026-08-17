@@ -7,6 +7,12 @@ export function cloneExtraComponents(rows?: ExtraComponent[]): ExtraComponent[] 
   return (rows ?? []).map(row => ({ ...row }));
 }
 
+function optionalId(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === '') return undefined;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 export function parseExtraComponents(raw?: string): ExtraComponent[] {
   if (!raw) return [];
   try {
@@ -15,16 +21,24 @@ export function parseExtraComponents(raw?: string): ExtraComponent[] {
     return parsed
       .map((row, index) => ({
         id: typeof row?.id === 'string' ? row.id : `ec-${index}`,
+        catalogItemId: optionalId(row?.catalogItemId ?? row?.catalog_item_id),
+        finishVariantId: optionalId(row?.finishVariantId ?? row?.finish_variant_id),
         sku: String(row?.sku ?? row?.art ?? ''),
         name: String(row?.name ?? ''),
+        category: ['profile', 'component', 'service'].includes(row?.category)
+          ? row.category
+          : undefined,
         color: String(row?.color ?? ''),
+        finishName: String(row?.finishName ?? row?.finish_name ?? row?.color ?? ''),
+        requiresPaint: Boolean(row?.requiresPaint ?? row?.requires_paint),
+        unitPrice: String(row?.unitPrice ?? row?.unit_price ?? ''),
         size: String(row?.size ?? ''),
         qty: String(row?.qty ?? row?.quantity ?? ''),
         unit: String(row?.unit ?? 'шт'),
         imageFile: String(row?.imageFile ?? row?.image_file ?? ''),
         deliveryStage: (
-          row?.deliveryStage === '1' || row?.deliveryStage === '2'
-            ? row.deliveryStage
+          (row?.deliveryStage ?? row?.delivery_stage) === '1' || (row?.deliveryStage ?? row?.delivery_stage) === '2'
+            ? (row.deliveryStage ?? row.delivery_stage)
             : 'both'
         ) as ExtraComponent['deliveryStage'],
       }))
@@ -37,14 +51,19 @@ export function parseExtraComponents(raw?: string): ExtraComponent[] {
 export function stringifyExtraComponents(rows?: ExtraComponent[]): string {
   const normalized = (rows ?? [])
     .map(row => ({
+      catalog_item_id: row.catalogItemId,
+      finish_variant_id: row.finishVariantId,
       sku: row.sku.trim(),
       name: row.name.trim(),
+      category: row.category,
       color: row.color.trim(),
+      finish_name: (row.finishName || '').trim(),
+      requires_paint: Boolean(row.requiresPaint),
       size: row.size.trim(),
       qty: row.qty.trim(),
       unit: (row.unit || 'шт').trim() || 'шт',
       imageFile: (row.imageFile || '').trim(),
-      deliveryStage: row.deliveryStage || 'both',
+      delivery_stage: row.deliveryStage || 'both',
     }))
     .filter(row => row.sku || row.name || row.color || row.size || row.qty);
   return JSON.stringify(normalized);
@@ -156,6 +175,8 @@ export function apiToLocal(s: SectionOut): Section {
     panels: s.panels,
     quantity: s.quantity,
     glassType: normalizeGlassType(s.glass_type, rawSystem || 'СЛАЙД'),
+    glassSupplied: s.system === 'СЛАЙД' ? (s.glass_supplied ?? true) : true,
+    priceGroupId: s.price_group_id,
     paintingType: s.painting_type as Section['paintingType'],
     ralColor: s.ral_color,
     cornerLeft: s.corner_left,
@@ -234,8 +255,6 @@ export function apiToLocal(s: SectionOut): Section {
     doorSystem: s.door_system,
     csShape: s.cs_shape,
     csWidth2: s.cs_width2,
-    extraParts: s.extra_parts,
-    extraComponents: parseExtraComponents(s.extra_components),
     comments: s.comments,
     documentOverrides: s.document_overrides,
   };
@@ -261,6 +280,8 @@ export function localToApi(s: Section, order: number): Omit<SectionOut, 'id' | '
     system: s.system,
     width: s.width, height: s.height, panels: s.panels, quantity: s.quantity,
     glass_type: normalizeGlassType(s.glassType, s.system), painting_type: s.paintingType,
+    glass_supplied: s.system === 'СЛАЙД' ? (s.glassSupplied ?? true) : true,
+    price_group_id: s.priceGroupId,
     ral_color: s.ralColor, corner_left: s.cornerLeft, corner_right: s.cornerRight,
     external_width: s.externalWidth,
     rails: s.rails, threshold: s.threshold, first_panel_inside: s.firstPanelInside,
@@ -323,8 +344,8 @@ export function localToApi(s: Section, order: number): Omit<SectionOut, 'id' | '
     lift_cable_side: s.liftCableSide,
     lift_opening_type: s.liftOpeningType,
     door_system: s.doorSystem, cs_shape: s.csShape, cs_width2: s.csWidth2,
-    extra_parts: s.extraParts, comments: s.comments,
-    extra_components: stringifyExtraComponents(s.extraComponents),
+    extra_parts: undefined, comments: s.comments,
+    extra_components: '[]',
     document_overrides: s.documentOverrides,
   };
 }

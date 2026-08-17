@@ -12,7 +12,7 @@ import re
 from types import SimpleNamespace
 
 import cairosvg
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw
 
 from engine.office_common import load_font
 from engine.pdf import (
@@ -70,6 +70,24 @@ def _png(image: Image.Image) -> bytes:
     return output.getvalue()
 
 
+def _cropped_png(image: Image.Image, *, padding: int = 20) -> bytes:
+    """Trim unused white canvas while retaining a small printable margin."""
+    background = Image.new(image.mode, image.size, BACKGROUND)
+    bounds = ImageChops.difference(image, background).getbbox()
+    if bounds is None:
+        return _png(image)
+    left, top, right, bottom = bounds
+    cropped = image.crop(
+        (
+            max(0, left - padding),
+            max(0, top - padding),
+            min(image.width, right + padding),
+            min(image.height, bottom + padding),
+        )
+    )
+    return _png(cropped)
+
+
 def _text_size(draw: ImageDraw.ImageDraw, text: str, font) -> tuple[int, int]:
     box = draw.textbbox((0, 0), text, font=font)
     return box[2] - box[0], box[3] - box[1]
@@ -86,6 +104,14 @@ def _center_text(
     draw.text((xy[0] - width / 2, xy[1] - height / 2), text, font=font, fill=fill)
 
 
+def _fitted_font(draw: ImageDraw.ImageDraw, text: str, max_width: float, preferred: int):
+    for size in range(preferred, 12, -1):
+        font = load_font(size, bold=True)
+        if _text_size(draw, text, font)[0] <= max(max_width, 1):
+            return font
+    return load_font(13, bold=True)
+
+
 def _arrow(
     draw: ImageDraw.ImageDraw,
     start: tuple[float, float],
@@ -93,23 +119,37 @@ def _arrow(
     *,
     color=INK,
     width=4,
+    start_head: bool = False,
+    end_head: bool = True,
 ) -> None:
     draw.line((start, end), fill=color, width=width)
-    dx = end[0] - start[0]
-    dy = end[1] - start[1]
-    length = max((dx * dx + dy * dy) ** 0.5, 1)
-    ux, uy = dx / length, dy / length
-    px, py = -uy, ux
-    size = 13
-    p1 = (
-        end[0] - ux * size + px * size * 0.55,
-        end[1] - uy * size + py * size * 0.55,
-    )
-    p2 = (
-        end[0] - ux * size - px * size * 0.55,
-        end[1] - uy * size - py * size * 0.55,
-    )
-    draw.polygon((end, p1, p2), fill=color)
+
+    def head(tip: tuple[float, float], tail: tuple[float, float]) -> None:
+        dx = tip[0] - tail[0]
+        dy = tip[1] - tail[1]
+        length = max((dx * dx + dy * dy) ** 0.5, 1)
+        ux, uy = dx / length, dy / length
+        px, py = -uy, ux
+        size = 13
+        p1 = (
+            tip[0] - ux * size + px * size * 0.55,
+            tip[1] - uy * size + py * size * 0.55,
+        )
+        p2 = (
+            tip[0] - ux * size - px * size * 0.55,
+            tip[1] - uy * size - py * size * 0.55,
+        )
+        draw.polygon((tip, p1, p2), fill=color)
+
+    if end_head:
+        head(end, start)
+    if start_head:
+        head(start, end)
+
+
+def _is_no_option(value: object) -> bool:
+    text = " ".join(str(value or "").strip().lower().strip("—- ").split())
+    return not text or text.startswith(("без", "нет"))
 
 
 def _matte_pattern(
@@ -133,7 +173,13 @@ def _fit_rect(
     return max(1, round(source_width * scale)), max(1, round(source_height * scale))
 
 
-def render_slide_room(section: object, calc: object) -> bytes:
+def render_slide_room(
+    section: object,
+    calc: object,
+    *,
+    include_title: bool = True,
+    crop: bool = False,
+) -> bytes:
     canvas = Image.new("RGB", (1600, 700), BACKGROUND)
     draw = ImageDraw.Draw(canvas)
     title_font = load_font(30, bold=True)
@@ -141,7 +187,8 @@ def render_slide_room(section: object, calc: object) -> bytes:
     dim_font = load_font(23, bold=True)
     small_font = load_font(19)
 
-    _center_text(draw, (800, 34), "ВИД ИЗ ПОМЕЩЕНИЯ", title_font)
+    if include_title:
+        _center_text(draw, (800, 34), "ВИД ИЗ ПОМЕЩЕНИЯ", title_font)
     section_width = float(getattr(section, "width", 0) or 1)
     section_height = float(getattr(section, "height", 0) or 1)
     drawing_width, drawing_height = _fit_rect(section_width, section_height, 1340, 470)
@@ -161,13 +208,33 @@ def render_slide_room(section: object, calc: object) -> bytes:
         for value in expand_glass_widths(calc, panels, section_width)
     ]
     width_sum = sum(widths) or panels
-    fill = glass_fill(getattr(calc, "glass_type", ""))
-    matte = glass_is_matte(getattr(calc, "glass_type", ""))
+    glass_supplied = bool(getattr(section, "glass_supplied", True))
+    fill = glass_fill(getattr(calc, "glass_type", "")) if glass_supplied else BACKGROUND
+    matte = glass_supplied and glass_is_matte(getattr(calc, "glass_type", ""))
     slide_rows = int(getattr(section, "slide_rows", 1) or 1)
     first_value = str(getattr(section, "first_panel_inside", "") or "")
     first_right = first_value == "Справа"
-    first_center = str(getattr(section, "unused_track", "") or "Внешний") == "Внешний"
     panel_numbers = list(getattr(calc, "panel_numbers", None) or [])
+
+    left_handle = str(getattr(section, "handle_left", "") or "Без").lower()
+    right_handle = str(getattr(section, "handle_right", "") or "Без").lower()
+    left_deaf = (
+        ("глух" in left_handle or _is_no_option(left_handle))
+        and _is_no_option(getattr(section, "lock_left", None))
+        and not bool(getattr(section, "profile_left_handle_bar", False))
+    )
+    right_deaf = (
+        ("глух" in right_handle or _is_no_option(right_handle))
+        and _is_no_option(getattr(section, "lock_right", None))
+        and not bool(getattr(section, "profile_right_handle_bar", False))
+    )
+    center_handle = str(getattr(section, "center_handle", "") or "").lower()
+    center_deaf = slide_rows == 2 and (
+        not center_handle or "глух" in center_handle
+    )
+    center_left = panels // 2 - 1
+    center_right = panels // 2
+    room_bidirectional = slide_rows == 1 and not left_deaf and not right_deaf
 
     x = left + 12
     inner_width = drawing_width - 24
@@ -182,33 +249,84 @@ def render_slide_room(section: object, calc: object) -> bytes:
 
         if slide_rows == 2:
             number = panel_numbers[index] if index < len(panel_numbers) else index + 1
-            direction = -1 if index < panels / 2 else 1
-            if not first_center:
-                direction *= -1
+            arrow_left = index < panels / 2
+            bidirectional = (
+                (index < panels / 2 and not left_deaf)
+                or (index >= panels / 2 and not right_deaf)
+            )
         else:
             number = panels - index if first_right else index + 1
-            direction = -1 if first_right else 1
+            arrow_left = first_right
+            bidirectional = room_bidirectional
+
+        is_center = slide_rows == 2 and index in {center_left, center_right}
+        deaf = (
+            (index == 0 and left_deaf)
+            or (index == panels - 1 and right_deaf)
+            or (is_center and center_deaf)
+        )
 
         cx = (panel_left + panel_right) / 2
         cy = (top + bottom) / 2
         _center_text(draw, (cx, cy - 30), str(number), number_font)
-        _arrow(
-            draw,
-            (cx - direction * 28, cy + 18),
-            (cx + direction * 28, cy + 18),
-            width=4,
-        )
-        _center_text(draw, (cx, bottom + 35), str(glass_mm(panel_width)), dim_font)
+        if deaf:
+            draw.line(
+                (panel_left + 12, top + 22, panel_right - 12, bottom - 22),
+                fill=GRID,
+                width=3,
+            )
+            draw.line(
+                (panel_right - 12, top + 22, panel_left + 12, bottom - 22),
+                fill=GRID,
+                width=3,
+            )
+        else:
+            _arrow(
+                draw,
+                (cx - 28, cy + 18),
+                (cx + 28, cy + 18),
+                width=4,
+                start_head=arrow_left or bidirectional,
+                end_head=(not arrow_left) or bidirectional,
+            )
+        dimension = str(glass_mm(panel_width))
+        panel_font = _fitted_font(draw, dimension, panel_px - 8, 23)
+        _center_text(draw, (cx, bottom + 35), dimension, panel_font)
+        if not glass_supplied:
+            no_glass_font = _fitted_font(draw, "БЕЗ СТЕКЛА", panel_px - 10, 18)
+            _center_text(draw, (cx, cy + 62), "БЕЗ СТЕКЛА", no_glass_font, MUTED)
         x += panel_px
 
-    draw.line((left, bottom + 62, right, bottom + 62), fill=GRID, width=2)
+    width_dimension_y = bottom + 62
+    draw.line((left, width_dimension_y, right, width_dimension_y), fill=GRID, width=2)
+    draw.line(
+        (left, width_dimension_y - 9, left, width_dimension_y + 9),
+        fill=GRID,
+        width=2,
+    )
+    draw.line(
+        (right, width_dimension_y - 9, right, width_dimension_y + 9),
+        fill=GRID,
+        width=2,
+    )
     _center_text(
         draw,
         ((left + right) / 2, bottom + 95),
         str(glass_mm(section_width)),
         dim_font,
     )
-    draw.line((right + 40, top, right + 40, bottom), fill=GRID, width=2)
+    height_dimension_x = right + 40
+    draw.line((height_dimension_x, top, height_dimension_x, bottom), fill=GRID, width=2)
+    draw.line(
+        (height_dimension_x - 9, top, height_dimension_x + 9, top),
+        fill=GRID,
+        width=2,
+    )
+    draw.line(
+        (height_dimension_x - 9, bottom, height_dimension_x + 9, bottom),
+        fill=GRID,
+        width=2,
+    )
     _center_text(
         draw,
         (right + 75, (top + bottom) / 2),
@@ -219,7 +337,7 @@ def render_slide_room(section: object, calc: object) -> bytes:
     _center_text(
         draw, ((left + right) / 2, bottom + 130), "ПОМЕЩЕНИЕ", small_font, MUTED
     )
-    return _png(canvas)
+    return _cropped_png(canvas) if crop else _png(canvas)
 
 
 def render_slide_top(section: object, calc: object) -> bytes:
@@ -544,7 +662,12 @@ def render_book_room(section: object, calc: object) -> bytes:
             draw,
             (center_x, bottom + 38),
             _format_book_dimension(getattr(panel, "glass_width_mm", 0)),
-            dim_font,
+            _fitted_font(
+                draw,
+                _format_book_dimension(getattr(panel, "glass_width_mm", 0)),
+                panel_px - 8,
+                21,
+            ),
             RED,
         )
         x += panel_px

@@ -85,8 +85,6 @@ def require_price_manager(
     """Доступ к себестоимости, версиям цен и дилерским условиям."""
     if current_user.role in ("admin", "superadmin"):
         return current_user
-    if current_user.role == "user" and bool(current_user.can_manage_prices):
-        return current_user
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Недостаточно прав для управления ценами",

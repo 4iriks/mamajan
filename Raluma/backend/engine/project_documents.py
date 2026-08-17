@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import hashlib
 import json
 from math import ceil
@@ -23,11 +24,102 @@ from engine.sketch_project import build_sketch_project_context
 DOC_TITLES = {
     "sketch": "Эскизный проект",
     "commercial": "Коммерческое предложение",
+    "contract_appendix": "Приложение к договору",
     "paint": "Заявка на покраску",
     "glass": "Заказ стекла",
     "delivery": "Накладная",
     "hardware_order": "Наряд-заказ на фурнитуру",
 }
+
+COMPANY_NAME = 'ООО "СТУДИЯ СПК"'
+COMPANY_ADDRESS = "г. Москва, ул. Космонавта Волкова"
+
+
+def _plural(value: int, forms: tuple[str, str, str]) -> str:
+    value = abs(value) % 100
+    if 11 <= value <= 19:
+        return forms[2]
+    tail = value % 10
+    if tail == 1:
+        return forms[0]
+    if 2 <= tail <= 4:
+        return forms[1]
+    return forms[2]
+
+
+def _triplet_words(value: int, feminine: bool = False) -> list[str]:
+    hundreds = ("", "сто", "двести", "триста", "четыреста", "пятьсот", "шестьсот", "семьсот", "восемьсот", "девятьсот")
+    tens = ("", "", "двадцать", "тридцать", "сорок", "пятьдесят", "шестьдесят", "семьдесят", "восемьдесят", "девяносто")
+    teens = ("десять", "одиннадцать", "двенадцать", "тринадцать", "четырнадцать", "пятнадцать", "шестнадцать", "семнадцать", "восемнадцать", "девятнадцать")
+    ones = ("", "одна" if feminine else "один", "две" if feminine else "два", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять")
+    words = [hundreds[value // 100]] if value // 100 else []
+    remainder = value % 100
+    if 10 <= remainder <= 19:
+        words.append(teens[remainder - 10])
+    else:
+        if remainder // 10:
+            words.append(tens[remainder // 10])
+        if remainder % 10:
+            words.append(ones[remainder % 10])
+    return words
+
+
+def _money_in_words(value: object) -> str:
+    try:
+        amount = Decimal(str(value or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    except (InvalidOperation, TypeError, ValueError):
+        amount = Decimal("0")
+    rubles = int(amount)
+    kopecks = int((amount - rubles) * 100)
+    scales = (
+        (1_000_000_000, False, ("миллиард", "миллиарда", "миллиардов")),
+        (1_000_000, False, ("миллион", "миллиона", "миллионов")),
+        (1_000, True, ("тысяча", "тысячи", "тысяч")),
+    )
+    words: list[str] = []
+    rest = rubles
+    for scale, feminine, forms in scales:
+        part, rest = divmod(rest, scale)
+        if part:
+            words.extend(_triplet_words(part, feminine))
+            words.append(_plural(part, forms))
+    if rest or not words:
+        words.extend(_triplet_words(rest))
+    words.append(_plural(rubles, ("рубль", "рубля", "рублей")))
+    result = " ".join(words)
+    return f"{result[:1].upper()}{result[1:]} {kopecks:02d} {_plural(kopecks, ('копейка', 'копейки', 'копеек'))}"
+
+
+def _commercial_summary(lines: object) -> list[dict[str, object]]:
+    source = lines if isinstance(lines, list) else []
+    groups = (
+        ("Изделия", {"construction"}),
+        ("Профили", {"profile"}),
+        ("Аксессуары", {"component"}),
+        ("Услуги", {"service"}),
+    )
+    result = []
+    for label, categories in groups:
+        rows = [
+            row
+            for row in source
+            if isinstance(row, dict) and row.get("category") in categories
+        ]
+        if not rows:
+            continue
+        before = sum(
+            int(row.get("document_line_total_before_discount") or 0) for row in rows
+        )
+        total = sum(int(row.get("document_line_total") or 0) for row in rows)
+        result.append(
+            {
+                "label": label,
+                "before_discount": before,
+                "discount": max(0, before - total),
+                "total": total,
+            }
+        )
+    return result
 
 
 @dataclass
@@ -446,6 +538,45 @@ def _manual_paint_row(raw: dict) -> tuple[str, dict] | None:
     return color, row
 
 
+def _project_extra_paint_rows(project: object) -> list[dict]:
+    """Turn paint-required project extras into automatic request rows."""
+
+    rows = []
+    for extra in _parse_extra_components(getattr(project, "extra_components", None)):
+        requires_paint = extra.get("requires_paint")
+        if requires_paint is None:
+            requires_paint = extra.get("requiresPaint")
+        if not bool(requires_paint):
+            continue
+        size_text = str(extra.get("size") or "")
+        match = re.search(r"[-+]?\d+(?:[.,]\d+)?", size_text)
+        clean = _safe_float(match.group(0), 0) if match else 0
+        qty = _safe_float(extra.get("qty") or extra.get("quantity"), 0)
+        if qty <= 0:
+            continue
+        color = str(
+            extra.get("color")
+            or extra.get("finish_name")
+            or extra.get("finishName")
+            or ""
+        ).strip()
+        rows.append(
+            {
+                "article": extra.get("sku") or extra.get("article") or "",
+                "name": extra.get("name") or "Доп. комплектующее",
+                "color": color,
+                "qty": qty,
+                "clean": clean,
+                "allowance": clean + 50 if clean > 0 else 0,
+                "imageFile": extra.get("imageFile")
+                or extra.get("image_file")
+                or "",
+                "note": "Дополнительное комплектующее проекта",
+            }
+        )
+    return rows
+
+
 def _build_paint_pages(
     calculated: list[CalculatedSection], manual_rows: object | None = None
 ) -> list[dict]:
@@ -623,6 +754,10 @@ def _build_glass_rows(
 
     for item in calculated:
         system = str(getattr(item.section, "system", "") or "").strip().upper()
+        if system == "СЛАЙД" and not bool(
+            getattr(item.section, "glass_supplied", True)
+        ):
+            continue
         if system == "ЛИФТ":
             glass_index = 0
             for panel in item.calc.panels:
@@ -932,6 +1067,10 @@ def _build_delivery_glass_rows(
         system = str(getattr(section, "system", "") or "").strip().upper()
         if not system or system == "КОМПЛЕКТАЦИЯ":
             continue
+        if system == "СЛАЙД" and not bool(
+            getattr(section, "glass_supplied", True)
+        ):
+            continue
 
         section_rows: dict[tuple, dict] = {}
         if system == "СЛАЙД":
@@ -989,7 +1128,12 @@ def _build_delivery_glass_rows(
             }
 
         section_number = _delivery_section_number(section, fallback)
-        project_number = str(getattr(project, "number", "") or "").strip()
+        project_number = str(
+            getattr(project, "invoice_number", None)
+            or getattr(project, "order_number", None)
+            or getattr(project, "number", None)
+            or ""
+        ).strip()
         for row_index, row in enumerate(section_rows.values(), start=1):
             row_glass_type = row["glass_type"]
             outer_key = (color, row_glass_type)
@@ -1264,29 +1408,6 @@ def _build_delivery_hardware_rows(
         elif include_calculated_specials:
             _add_raw_special_hardware(grouped, section, section_qty)
 
-        for extra in _parse_extra_components(
-            getattr(section, "extra_components", None)
-        ):
-            if not _extra_matches_delivery_stage(extra, extra_stage):
-                continue
-            qty = _safe_float(extra.get("qty") or extra.get("quantity"), 0)
-            _add_delivery_component(
-                grouped,
-                article=str(extra.get("sku") or extra.get("article") or ""),
-                name=str(extra.get("name") or "Дополнительная комплектующая"),
-                color=str(extra.get("color") or ""),
-                size=str(extra.get("size") or ""),
-                qty=qty * section_qty,
-                unit=str(extra.get("unit") or "шт"),
-                image=str(
-                    extra.get("imageFile")
-                    or extra.get("image_file")
-                    or extra.get("image")
-                    or ""
-                ),
-                stage=_extra_delivery_stage(extra),
-            )
-
     for remote in lift_remote_controls.values():
         _add_delivery_component(
             grouped,
@@ -1346,13 +1467,20 @@ def _build_delivery_project_extra_rows(
 ) -> list[dict]:
     grouped: dict[tuple, dict] = {}
     for extra in _parse_extra_components(getattr(project, "extra_components", None)):
+        if str(extra.get("category") or "").strip().lower() == "service":
+            continue
         if not _extra_matches_delivery_stage(extra, extra_stage):
             continue
         _add_delivery_component(
             grouped,
             article=str(extra.get("sku") or extra.get("article") or ""),
             name=str(extra.get("name") or "Дополнительная комплектующая"),
-            color=str(extra.get("color") or ""),
+            color=str(
+                extra.get("color")
+                or extra.get("finish_name")
+                or extra.get("finishName")
+                or ""
+            ),
             size=str(extra.get("size") or ""),
             qty=_safe_float(extra.get("qty") or extra.get("quantity"), 0),
             unit=str(extra.get("unit") or "шт"),
@@ -1370,6 +1498,13 @@ def _build_delivery_project_extra_rows(
         grouped.items(), key=lambda item: (item[1]["article"], item[1]["name"])
     ):
         place_key = _delivery_key("project-extra", *component_key)
+        legacy_place_key = _delivery_key(
+            "hardware",
+            component["article"],
+            component["name"],
+            component["color"],
+            component["size"],
+        )
         qty_text = _format_quantity(component["qty"])
         rows.append(
             {
@@ -1377,7 +1512,7 @@ def _build_delivery_project_extra_rows(
                 "qty_text": qty_text,
                 "qty_display": f"{qty_text} {component['unit']}",
                 "place_key": place_key,
-                "places": _delivery_place(places, place_key),
+                "places": _delivery_place(places, place_key, legacy_place_key),
             }
         )
     return rows
@@ -1449,9 +1584,6 @@ def _build_delivery_context(project: object, sections: Iterable[object]) -> dict
         "delivery_item1_rows": item1_rows,
         "delivery_item2_rows": hardware_rows,
         "delivery_project_extra_rows": project_extra_rows,
-        "delivery_project_extra_note": str(
-            getattr(project, "extra_parts", "") or ""
-        ).strip(),
         "delivery_names_count": 2 + int(bool(project_extra_rows)),
         "document_warnings": _slide_document_warnings(sorted_sections),
     }
@@ -1635,31 +1767,6 @@ def _add_hardware_order_row(
         row["qty"] += numeric_qty
 
 
-def _add_hardware_order_extras(
-    grouped: dict[tuple[str, str, str, str, str, str], dict],
-    section: object,
-) -> None:
-    section_qty = max(1, _positive_int(getattr(section, "quantity", 1), 1))
-    for extra in _parse_extra_components(getattr(section, "extra_components", None)):
-        qty = _safe_float(extra.get("qty") or extra.get("quantity"), 0)
-        _add_hardware_order_row(
-            grouped,
-            article=extra.get("sku") or extra.get("article"),
-            name=extra.get("name") or "Дополнительная комплектующая",
-            qty=qty * section_qty,
-            unit=extra.get("unit") or "шт",
-            image=(
-                extra.get("imageFile")
-                or extra.get("image_file")
-                or extra.get("image")
-                or ""
-            ),
-            stage=_extra_delivery_stage(extra),
-            color=extra.get("color") or "",
-            size=extra.get("size") or "",
-        )
-
-
 def _build_hardware_order_page(
     system: str,
     sections: list[object],
@@ -1775,7 +1882,6 @@ def _build_hardware_order_page(
                     stage=_hardware_order_stage(system, article, ""),
                     size="3000 мм",
                 )
-            _add_hardware_order_extras(grouped, section)
     elif system == "ЛИФТ":
         for section in sections:
             calc = calculate_lift(section)
@@ -1808,7 +1914,6 @@ def _build_hardware_order_page(
                     ),
                     aggregate=aggregate,
                 )
-            _add_hardware_order_extras(grouped, section)
     elif system == "КНИЖКА":
         for section in sections:
             calc = calculate_book(section)
@@ -1831,14 +1936,11 @@ def _build_hardware_order_page(
                     image=f"{article}.png",
                     stage=getattr(item, "shipment_stage", ""),
                 )
-            _add_hardware_order_extras(grouped, section)
     else:
         warning = (
             f"Расчёт фурнитуры для системы {system} пока не реализован. "
-            "Позиции из дополнительных комплектующих показаны ниже."
+            "Проектные дополнительные позиции показаны отдельной страницей."
         )
-        for section in sections:
-            _add_hardware_order_extras(grouped, section)
 
     rows = sorted(
         grouped.values(),
@@ -1870,6 +1972,8 @@ def _build_hardware_order_page(
 def _build_project_hardware_extra_page(project: object) -> dict | None:
     grouped: dict[tuple[str, str, str, str, str, str], dict] = {}
     for extra in _parse_extra_components(getattr(project, "extra_components", None)):
+        if str(extra.get("category") or "").strip().lower() == "service":
+            continue
         _add_hardware_order_row(
             grouped,
             article=extra.get("sku") or extra.get("article"),
@@ -1883,7 +1987,12 @@ def _build_project_hardware_extra_page(project: object) -> dict | None:
                 or ""
             ),
             stage=_extra_delivery_stage(extra),
-            color=extra.get("color") or "",
+            color=(
+                extra.get("color")
+                or extra.get("finish_name")
+                or extra.get("finishName")
+                or ""
+            ),
             size=extra.get("size") or "",
         )
 
@@ -1901,14 +2010,13 @@ def _build_project_hardware_extra_page(project: object) -> dict | None:
         row["qty_text"] = _format_quantity(row["qty"])
         row["stage_text"] = ", ".join(sorted(row.pop("stages", set()))) or "—"
 
-    note = str(getattr(project, "extra_parts", "") or "").strip()
-    if not rows and not note:
+    if not rows:
         return None
     return {
         "system": "Дополнительные комплектующие проекта",
         "rows": rows,
         "warning": "",
-        "note": note,
+        "note": "",
         "is_project_extras": True,
     }
 
@@ -1976,7 +2084,7 @@ def build_project_document_context(
         return _build_delivery_context(project, sections)
     if doc_type == "hardware_order":
         return _build_hardware_order_context(project, sections)
-    if doc_type == "commercial" and quote is not None:
+    if doc_type in {"commercial", "contract_appendix"} and quote is not None:
         document_warnings = list(quote.get("warnings") or [])
         if quote.get("stale"):
             document_warnings.insert(
@@ -1990,12 +2098,18 @@ def build_project_document_context(
             else project
         )
         return {
-            "doc_type": "commercial",
-            "title": DOC_TITLES["commercial"],
+            "doc_type": doc_type,
+            "title": DOC_TITLES[doc_type],
             "project": frozen_project,
             "sections": [],
             "commercial_rows": list(quote.get("lines") or []),
             "commercial_quote": quote,
+            "commercial_summary": _commercial_summary(quote.get("lines")),
+            "amount_in_words": _money_in_words(
+                (quote.get("totals") or {}).get("document_grand_total", 0)
+            ),
+            "company_name": COMPANY_NAME,
+            "company_address": COMPANY_ADDRESS,
             "document_warnings": document_warnings,
         }
 
@@ -2022,9 +2136,11 @@ def build_project_document_context(
         else _iter_calculated_sections(section_rows)
     )
     commercial_rows = _build_commercial_rows(slide_calculated)
-    paint_pages = _build_paint_pages(
-        calculated, getattr(project, "paint_manual_rows", None)
-    )
+    paint_manual_rows = [
+        *_parse_paint_manual_rows(getattr(project, "paint_manual_rows", None)),
+        *_project_extra_paint_rows(project),
+    ]
+    paint_pages = _build_paint_pages(calculated, paint_manual_rows)
     glass_rows = _build_glass_rows(project, calculated)
     document_warnings.extend(_calculation_document_warnings(calculated))
 

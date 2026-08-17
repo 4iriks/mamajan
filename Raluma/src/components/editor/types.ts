@@ -6,9 +6,15 @@ export type SystemType = 'СЛАЙД' | 'КНИЖКА' | 'ЛИФТ' | 'ЦС' | '
 
 export interface ExtraComponent {
   id?: string;
+  catalogItemId?: number;
+  finishVariantId?: number;
   sku: string;
   name: string;
+  category?: 'profile' | 'component' | 'service';
   color: string;
+  finishName?: string;
+  requiresPaint?: boolean;
+  unitPrice?: string;
   size: string;
   qty: string;
   unit?: string;
@@ -25,6 +31,8 @@ export interface Section {
   panels: number;
   quantity: number;
   glassType: string;
+  glassSupplied?: boolean;
+  priceGroupId?: number;
   paintingType: 'RAL стандарт' | 'RAL нестандарт' | 'Анодированный';
   ralColor?: string;
   cornerLeft: boolean;
@@ -103,8 +111,10 @@ export interface Section {
   doorSystem?: string;
   csShape?: string;
   csWidth2?: number;
-  // Примечания к секции
+  // Обычный комментарий к секции. Допкомплектующие хранятся на проекте.
+  /** @deprecated legacy data is migrated to project level and no longer edited here. */
   extraParts?: string;
+  /** @deprecated legacy data is migrated to project level and no longer edited here. */
   extraComponents?: ExtraComponent[];
   comments?: string;
   documentOverrides?: string;

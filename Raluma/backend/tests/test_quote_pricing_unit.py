@@ -1,4 +1,3 @@
-import json
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -33,7 +32,7 @@ def _version(**overrides):
     return SimpleNamespace(**values)
 
 
-def test_catalog_formula_uses_ordered_percentage_chain_and_optional_waste():
+def test_construction_formula_uses_all_item_coefficients_and_automatic_waste():
     required = {
         "sku": "FORMULA-1",
         "name": "Проверка формулы",
@@ -44,17 +43,45 @@ def test_catalog_formula_uses_ordered_percentage_chain_and_optional_waste():
     }
     active = {"FORMULA-1": (SimpleNamespace(sku="FORMULA-1"), _version())}
 
-    without_waste, issue = _price_requirement(required, active, {}, False)
+    without_waste, issue = _price_requirement(
+        required, active, {}, False, mode="construction"
+    )
     assert issue is None
-    # 100 × 3 × (1 + 100%) × (1 − 25%) × (1 + 200%) × (1 − 35%)
-    assert without_waste["internal_total"] == "877.50"
+    # 100 × 3 × profile terms × construction terms × 30% waste.
+    assert without_waste["internal_total"] == "1140.75"
     assert without_waste["minimum_total"] == "330.00"
-    assert without_waste["waste_markup_applied"] is False
+    assert without_waste["waste_markup_applied"] is True
 
-    with_waste, issue = _price_requirement(required, active, {}, True)
+    with_waste, issue = _price_requirement(
+        required, active, {}, True, mode="construction"
+    )
     assert issue is None
     assert with_waste["internal_total"] == "1140.75"
     assert with_waste["waste_markup_applied"] is True
+
+
+def test_standalone_requirement_uses_only_profile_terms():
+    required = {
+        "sku": "FORMULA-STANDALONE",
+        "name": "Отдельная продажа",
+        "category": "profile",
+        "unit": "п.м.",
+        "quantity": Decimal("3"),
+        "source": "profile",
+    }
+    active = {
+        "FORMULA-STANDALONE": (
+            SimpleNamespace(sku="FORMULA-STANDALONE"),
+            _version(),
+        )
+    }
+
+    priced, issue = _price_requirement(required, active, {}, True)
+
+    assert issue is None
+    # 100 × 3 × (1 + 100%) × (1 − 25%); no waste/production coefficients.
+    assert priced["internal_total"] == "450.00"
+    assert priced["waste_markup_applied"] is False
 
 
 def test_dealer_markup_then_visible_category_discount():
@@ -259,7 +286,7 @@ def test_public_breakdown_uses_construction_sale_factor_and_exact_ruble_target()
     assert [row["name"] for row in breakdown] == [
         "Профиль",
         "Фурнитура",
-        "Стекло, покраска и изготовление",
+        "Стекло",
     ]
     assert all("GLASS" not in row["sku"] for row in breakdown)
 
@@ -292,15 +319,19 @@ def _slide_section(**overrides):
     return SimpleNamespace(id=1, project_id=1, **payload)
 
 
-def test_slide_bom_has_profiles_glass_components_paint_work_but_no_screws():
+def test_slide_bom_uses_finish_prices_without_synthetic_paint_or_work_rows():
     calc, requirements = _section_requirements(_slide_section())
     sources = {row["source"] for row in requirements}
 
-    assert {"profile", "component", "glass", "paint", "fabrication"} <= sources
+    assert {"profile", "component", "glass"} <= sources
+    assert "paint" not in sources
+    assert "fabrication" not in sources
+    assert all(row["sku"] != "WORK-SLIDE" for row in requirements)
+    assert all(not row["sku"].startswith("PAINT|") for row in requirements)
     assert all(
-        "|RAL СТАНДАРТ|RAL 9005" in row["sku"]
+        row.get("finish")
         for row in requirements
-        if row["source"] == "paint"
+        if row["source"] == "profile"
     )
     assert not {screw.article for screw in calc.screws} & {
         row["sku"] for row in requirements
@@ -309,15 +340,11 @@ def test_slide_bom_has_profiles_glass_components_paint_work_but_no_screws():
 
 
 def test_slide_quantities_scale_for_multiple_products_and_two_rows():
-    extras = json.dumps(
-        [{"sku": "EXTRA-1", "name": "Дополнение", "qty": "1.5", "unit": "шт"}]
-    )
     _, single = _section_requirements(
         _slide_section(
             quantity=1,
             slide_rows=2,
             rails=5,
-            extra_components=extras,
         )
     )
     _, doubled = _section_requirements(
@@ -325,7 +352,6 @@ def test_slide_quantities_scale_for_multiple_products_and_two_rows():
             quantity=2,
             slide_rows=2,
             rails=5,
-            extra_components=extras,
         )
     )
     single_by_key = {
@@ -337,8 +363,4 @@ def test_slide_quantities_scale_for_multiple_products_and_two_rows():
 
     assert single_by_key.keys() == doubled_by_key.keys()
     for key, quantity in single_by_key.items():
-        if key[1] == "paint":
-            # Existing paint statement rounds each grouped total to 0.1 m.
-            assert abs(doubled_by_key[key] - quantity * 2) <= Decimal("0.1")
-        else:
-            assert doubled_by_key[key] == quantity * 2
+        assert doubled_by_key[key] == quantity * 2

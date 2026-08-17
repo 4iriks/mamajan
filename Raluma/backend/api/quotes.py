@@ -37,7 +37,7 @@ def _project_or_404(
     project = db.query(models.Project).filter_by(id=project_id).first()
     if project is None:
         raise HTTPException(status_code=404, detail="Проект не найден")
-    if current_user.role not in ADMIN_ROLES and project.created_by != current_user.id:
+    if current_user.role == "dealer" and project.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Нет доступа к проекту")
     return project
 
@@ -59,9 +59,9 @@ def update_quote_config(
     project_id: int,
     data: schemas.QuoteConfigUpdate,
     db: Session = Depends(get_db),
-    price_manager: models.User = Depends(require_price_manager),
+    current_user: models.User = Depends(get_current_user),
 ):
-    project = _project_or_404(project_id, db, price_manager)
+    project = _project_or_404(project_id, db, current_user)
     invalid_services = [
         service
         for service in data.services
@@ -86,7 +86,22 @@ def update_quote_config(
         ],
         ensure_ascii=False,
     )
+    discounts_payload = json.dumps(
+        [
+            {
+                "id": rule.id.strip(),
+                "name": rule.name.strip() or "Скидка",
+                "scope": rule.scope,
+                "mode": rule.mode,
+                "value": decimal_text(rule.value),
+            }
+            for rule in data.discounts
+            if rule.value > 0
+        ],
+        ensure_ascii=False,
+    )
     services_changed = state.services_payload != services_payload
+    discounts_changed = state.discounts_payload != discounts_payload
     config_changed = any(
         (
             state.vat_mode != data.vat_mode,
@@ -96,6 +111,7 @@ def update_quote_config(
             state.manufacturing_term != data.manufacturing_term.strip(),
             state.payment_terms != data.payment_terms.strip(),
             services_changed,
+            discounts_changed,
         )
     )
     if config_changed:
@@ -105,7 +121,8 @@ def update_quote_config(
         state.manufacturing_term = data.manufacturing_term.strip()
         state.payment_terms = data.payment_terms.strip()
         state.services_payload = services_payload
-        if services_changed:
+        state.discounts_payload = discounts_payload
+        if services_changed or discounts_changed:
             invalidate_margin_override(state)
         state.source_signature = ""
         state.updated_at = datetime.utcnow()
@@ -214,11 +231,11 @@ def update_quote_overrides(
 def refresh_quote(
     project_id: int,
     db: Session = Depends(get_db),
-    price_manager: models.User = Depends(require_price_manager),
+    current_user: models.User = Depends(get_current_user),
 ):
-    project = _project_or_404(project_id, db, price_manager)
+    project = _project_or_404(project_id, db, current_user)
     try:
-        payload = refresh_quote_revision(db, project, price_manager)
+        payload = refresh_quote_revision(db, project, current_user)
         db.commit()
         return payload
     except QuoteExportBlocked as exc:

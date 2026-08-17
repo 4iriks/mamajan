@@ -16,21 +16,183 @@ from sqlalchemy.orm import Session
 import models
 import schemas
 from api.catalog import _ensure_catalog_seed
-from auth import require_price_manager
+from auth import get_current_user, require_price_manager
 from database import get_db
 from engine.quote_pricing import (
     MANUAL_SERVICE_UNITS,
     PRICE_CATEGORIES,
+    QuotePricingError,
+    calculate_standalone_sale,
     decimal_text,
     decimal_value,
     get_pricing_settings,
     internal_quote_state,
     money,
     money_text,
+    public_quote,
 )
 
 
 router = APIRouter(prefix="/api/pricing", tags=["pricing"])
+
+
+def _price_group_dict(group: models.ConstructionPriceGroup) -> dict:
+    return {
+        "id": group.id,
+        "code": group.code,
+        "name": group.name,
+        "markup_percent": decimal_text(decimal_value(group.markup_percent)),
+        "is_active": bool(group.is_active),
+    }
+
+
+def _item_belongs_to_price_group(
+    item: models.CatalogItem,
+    group_code: str,
+) -> bool:
+    system = " ".join(str(item.system or "").strip().upper().split())
+    aliases = {
+        "SLIDE": ("SLIDE", "СЛАЙД"),
+        "BOOK": ("BOOK", "КНИЖ"),
+        "LIFT": ("LIFT", "ЛИФТ"),
+    }.get(group_code.strip().upper(), (group_code.strip().upper(),))
+    return any(alias and alias in system for alias in aliases)
+
+
+def _apply_group_markup_to_catalog(
+    db: Session,
+    group: models.ConstructionPriceGroup,
+    actor: models.User,
+) -> int:
+    """Apply a system markup through immutable item price versions.
+
+    A construction price group is a bulk editor for the existing
+    ``construction_markup_percent`` field. It must not become a second hidden
+    multiplier on top of the item pricing chain.
+    """
+
+    now = datetime.utcnow()
+    changed = 0
+    items = db.query(models.CatalogItem).filter_by(is_active=True).all()
+    for item in items:
+        if not _item_belongs_to_price_group(item, group.code):
+            continue
+        current, _upcoming = _active_and_next_versions(
+            list(item.price_versions),
+            now,
+        )
+        if current is None or decimal_value(
+            current.construction_markup_percent
+        ) == decimal_value(group.markup_percent):
+            continue
+        item.price_versions.append(
+            models.CatalogPriceVersion(
+                cost=current.cost,
+                profile_markup_percent=current.profile_markup_percent,
+                profile_discount_percent=current.profile_discount_percent,
+                waste_markup_percent=current.waste_markup_percent,
+                construction_markup_percent=group.markup_percent,
+                construction_discount_percent=current.construction_discount_percent,
+                category=current.category,
+                unit=current.unit,
+                min_margin_percent=current.min_margin_percent,
+                effective_from=now,
+                created_at=now,
+                created_by=actor.id,
+                reason=f"Наценка ценовой группы {group.name}",
+            )
+        )
+        changed += 1
+    return changed
+
+
+@router.post("/sale/quote")
+def standalone_sale_quote(
+    data: schemas.StandaloneSaleRequest,
+    db: Session = Depends(get_db),
+    _current_user: models.User = Depends(get_current_user),
+):
+    try:
+        return calculate_standalone_sale(
+            db,
+            data.items,
+            buyer_discount_mode=data.buyer_discount_mode,
+            buyer_discount_value=data.buyer_discount_value,
+        )
+    except QuotePricingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/price-groups")
+def list_price_groups(
+    db: Session = Depends(get_db),
+    _: models.User = Depends(require_price_manager),
+):
+    rows = (
+        db.query(models.ConstructionPriceGroup)
+        .order_by(models.ConstructionPriceGroup.name, models.ConstructionPriceGroup.id)
+        .all()
+    )
+    return [_price_group_dict(row) for row in rows]
+
+
+@router.post("/price-groups", status_code=201)
+def create_price_group(
+    data: schemas.ConstructionPriceGroupBase,
+    db: Session = Depends(get_db),
+    actor: models.User = Depends(require_price_manager),
+):
+    code = data.code.strip().upper()
+    if db.query(models.ConstructionPriceGroup).filter_by(code=code).first():
+        raise HTTPException(status_code=400, detail="Ценовая группа уже существует")
+    group = models.ConstructionPriceGroup(
+        code=code,
+        name=data.name.strip(),
+        markup_percent=data.markup_percent,
+        is_active=data.is_active,
+        updated_by=actor.id,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db.add(group)
+    db.flush()
+    _apply_group_markup_to_catalog(db, group, actor)
+    db.commit()
+    db.refresh(group)
+    return _price_group_dict(group)
+
+
+@router.put("/price-groups/{group_id}")
+def update_price_group(
+    group_id: int,
+    data: schemas.ConstructionPriceGroupBase,
+    db: Session = Depends(get_db),
+    actor: models.User = Depends(require_price_manager),
+):
+    group = db.query(models.ConstructionPriceGroup).filter_by(id=group_id).first()
+    if group is None:
+        raise HTTPException(status_code=404, detail="Ценовая группа не найдена")
+    code = data.code.strip().upper()
+    duplicate = (
+        db.query(models.ConstructionPriceGroup)
+        .filter(
+            models.ConstructionPriceGroup.code == code,
+            models.ConstructionPriceGroup.id != group.id,
+        )
+        .first()
+    )
+    if duplicate:
+        raise HTTPException(status_code=400, detail="Ценовая группа уже существует")
+    group.code = code
+    group.name = data.name.strip()
+    group.markup_percent = data.markup_percent
+    group.is_active = data.is_active
+    group.updated_by = actor.id
+    group.updated_at = datetime.utcnow()
+    _apply_group_markup_to_catalog(db, group, actor)
+    db.commit()
+    db.refresh(group)
+    return _price_group_dict(group)
 
 
 def _normalize_datetime(value: datetime) -> datetime:
@@ -702,7 +864,9 @@ def update_settings(
     actor: models.User = Depends(require_price_manager),
 ):
     settings = get_pricing_settings(db)
-    settings.include_waste_markup = data.include_waste_markup
+    # Waste is an item-level construction coefficient and is always applied to
+    # non-piece units. Keep the legacy flag fixed for API/database compatibility.
+    settings.include_waste_markup = True
     settings.default_vat_rate = data.default_vat_rate
     settings.updated_at = datetime.utcnow()
     settings.updated_by = actor.id
@@ -714,13 +878,45 @@ def update_settings(
 def get_internal_project_quote(
     project_id: int,
     db: Session = Depends(get_db),
-    actor: models.User = Depends(require_price_manager),
+    actor: models.User = Depends(get_current_user),
 ):
     project = db.query(models.Project).filter_by(id=project_id).first()
     if project is None:
         raise HTTPException(status_code=404, detail="Проект не найден")
-    if actor.role not in {"admin", "superadmin"} and project.created_by != actor.id:
+    if actor.role == "dealer":
         raise HTTPException(status_code=403, detail="Нет доступа к проекту")
     result = internal_quote_state(db, project)
+    if actor.role not in {"admin", "superadmin"}:
+        public = public_quote(db, project)
+        config = result["config"]
+        result = {
+            "revision": result["revision"],
+            "status": result["status"],
+            "stale": result["stale"],
+            "config": {
+                "vat_mode": config["vat_mode"],
+                "vat_rate": config["vat_rate"],
+                "validity_days": config["validity_days"],
+                "manufacturing_term": config["manufacturing_term"],
+                "payment_terms": config["payment_terms"],
+                "services": config["services"],
+                "discounts": config["discounts"],
+                "overrides": [],
+                "margin_override_comment": "",
+            },
+            "missing_prices": [],
+            "pending_warnings": list(public.get("warnings") or []),
+            "margin_approval": {
+                "required": False,
+                "valid": False,
+                "context_signature": "",
+                "target_revision": result["revision"],
+                "approved_revision": None,
+                "comment": "",
+                "approved_by": None,
+                "approved_at": None,
+            },
+            "calculation": {},
+        }
     db.commit()
     return result

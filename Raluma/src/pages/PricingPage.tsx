@@ -22,12 +22,14 @@ import {
   applyBulkPriceChange,
   applyPriceImport,
   createPriceVersion,
+  ConstructionPriceGroup,
   DealerPricingTerms,
   getDealerPricingTerms,
   getPriceHistory,
   getPricedCatalog,
   getPricingSettings,
   listPricingDealers,
+  listConstructionPriceGroups,
   previewBulkPriceChange,
   previewPriceImport,
   PricedCatalogItem,
@@ -37,6 +39,7 @@ import {
   PricingSettings,
   rollbackPrice,
   updateDealerPricingTerms,
+  updateConstructionPriceGroup,
   updatePricingSettings,
 } from '../api/pricing';
 import { toast } from '../store/toastStore';
@@ -116,7 +119,7 @@ function money(value?: string | number | null) {
 export default function PricingPage() {
   const navigate = useNavigate();
   const { user, canManagePrices } = useAuthStore();
-  const [tab, setTab] = useState<Tab>('catalog');
+  const [tab, setTab] = useState<Tab>('dealers');
   const [items, setItems] = useState<PricedCatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -140,6 +143,7 @@ export default function PricingPage() {
   const [dealers, setDealers] = useState<Array<{ id: number; display_name: string; company: string }>>([]);
   const [dealerId, setDealerId] = useState<number | null>(null);
   const [dealerTerms, setDealerTerms] = useState<DealerPricingTerms | null>(null);
+  const [priceGroups, setPriceGroups] = useState<ConstructionPriceGroup[]>([]);
 
   const loadCatalog = async () => {
     setLoading(true);
@@ -161,6 +165,7 @@ export default function PricingPage() {
     void Promise.all([
       loadCatalog(),
       getPricingSettings().then(setSettings),
+      listConstructionPriceGroups().then(setPriceGroups),
       listPricingDealers().then(rows => {
         setDealers(rows);
         if (rows.length) setDealerId(current => current ?? rows[0].id);
@@ -310,7 +315,7 @@ export default function PricingPage() {
     if (!dealerTerms || !dealerId) return;
     try {
       const updated = await updateDealerPricingTerms(dealerId, {
-        dealer_markup_percent: dealerTerms.dealer_markup_percent,
+        dealer_markup_percent: '0',
         profile_discount_percent: dealerTerms.profile_discount_percent,
         construction_discount_percent: dealerTerms.construction_discount_percent,
         component_discount_percent: dealerTerms.component_discount_percent,
@@ -320,6 +325,21 @@ export default function PricingPage() {
       toast.success('Условия дилера сохранены');
     } catch (error) {
       toast.error(errorMessage(error, 'Не удалось сохранить условия дилера'));
+    }
+  };
+
+  const savePriceGroup = async (group: ConstructionPriceGroup) => {
+    try {
+      const updated = await updateConstructionPriceGroup(group.id, {
+        code: group.code,
+        name: group.name,
+        markup_percent: group.markup_percent,
+        is_active: group.is_active,
+      });
+      setPriceGroups(rows => rows.map(row => row.id === group.id ? updated : row));
+      toast.success('Ценовая группа сохранена');
+    } catch (error) {
+      toast.error(errorMessage(error, 'Не удалось сохранить ценовую группу'));
     }
   };
 
@@ -345,7 +365,7 @@ export default function PricingPage() {
           </div>
           <div>
             <div className="text-lg font-bold">Ценообразование</div>
-            <div className="text-[11px] text-fg/40">Версии цен и коммерческие условия</div>
+            <div className="text-[11px] text-fg/40">Дилерские условия и группы конструкций</div>
           </div>
         </div>
         <div className="text-right text-xs text-fg/45">
@@ -362,7 +382,6 @@ export default function PricingPage() {
           </button>
           <div className="flex rounded-2xl border border-tint/25 bg-surface/25 p-1">
             {([
-              ['catalog', 'Каталог', BadgePercent],
               ['dealers', 'Дилеры', Users],
               ['settings', 'Настройки', Settings],
             ] as const).map(([value, label, Icon]) => (
@@ -463,11 +482,10 @@ export default function PricingPage() {
             </div>
             <div className="rounded-2xl border border-tint/25 bg-surface/25 p-5 sm:p-7">
               <h2 className="text-xl font-bold">Условия дилера</h2>
-              <p className="mt-1 text-sm text-fg/45">Наценка скрыта. Для готовой конструкции SLIDE применяется скидка конструкции; скидка услуг действует только на добавленные вручную услуги.</p>
+              <p className="mt-1 text-sm text-fg/45">Используются только явно заданные скидки по категориям. Общая скрытая наценка не применяется.</p>
               {dealerTerms ? (
                 <div className="mt-6 grid gap-4 sm:grid-cols-2">
                   {([
-                    ['dealer_markup_percent', 'Скрытая общая наценка'],
                     ['profile_discount_percent', 'Скидка: профиль (резерв для отдельной продажи)'],
                     ['construction_discount_percent', 'Скидка: изделие / конструкция'],
                     ['component_discount_percent', 'Скидка: комплектующие (резерв для отдельной продажи)'],
@@ -481,16 +499,34 @@ export default function PricingPage() {
         )}
 
         {tab === 'settings' && settings && (
+          <div className="space-y-5">
           <div className="max-w-2xl rounded-2xl border border-tint/25 bg-surface/25 p-6">
             <h2 className="text-xl font-bold">Настройки калькулятора</h2>
             <div className="mt-6 space-y-5">
-              <div className="flex items-center justify-between gap-4 rounded-xl border border-tint/20 bg-hi/[0.03] p-4">
-                <div><div className="font-bold">Включать наценку на отходы</div><div className="mt-1 text-xs text-fg/45">По согласованному default выключено; коэффициент хранится в версиях цен.</div></div>
-                <button onClick={() => setSettings(current => current ? { ...current, include_waste_markup: !current.include_waste_markup } : current)} className={`relative h-7 w-13 rounded-full ${settings.include_waste_markup ? 'bg-primary' : 'bg-hi/15'}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-transform ${settings.include_waste_markup ? 'translate-x-7' : 'translate-x-1'}`} /></button>
+              <div className="rounded-xl border border-tint/20 bg-hi/[0.03] p-4">
+                <div className="font-bold">Наценка на отходы</div>
+                <div className="mt-1 text-xs text-fg/45">Применяется автоматически к позициям в погонных метрах, квадратных метрах и килограммах. Для штук и комплектов не применяется.</div>
               </div>
               <label className="block max-w-xs space-y-1"><span className="text-xs font-bold text-fg/55">Ставка НДС по умолчанию, %</span><input type="number" min="0" max="100" step="0.1" value={settings.default_vat_rate} onChange={event => setSettings(current => current ? { ...current, default_vat_rate: event.target.value } : current)} className={INPUT} /></label>
               <button onClick={() => void saveSettings()} className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 font-bold text-white"><Save className="h-4 w-4" /> Сохранить настройки</button>
             </div>
+          </div>
+          <div className="max-w-4xl rounded-2xl border border-tint/25 bg-surface/25 p-6">
+            <div>
+              <h2 className="text-xl font-bold">Наценка по системам</h2>
+              <p className="mt-1 text-xs text-fg/45">Сохранение меняет поле «Наценка на конструкцию» у всех позиций выбранной системы. Второй наценки поверх состава нет.</p>
+            </div>
+            <div className="mt-5 space-y-2">
+              {priceGroups.map(group => (
+                <div key={group.id} className="grid gap-2 rounded-xl border border-tint/20 bg-hi/[0.03] p-3 sm:grid-cols-[120px_minmax(180px,1fr)_150px_120px] sm:items-center">
+                  <span className="font-mono text-xs font-bold text-accent">{group.code}</span>
+                  <span className="text-sm font-bold">{group.name}</span>
+                  <label className="flex items-center gap-2"><input type="number" min="0" step="0.1" value={group.markup_percent} onChange={event => setPriceGroups(rows => rows.map(row => row.id === group.id ? { ...row, markup_percent: event.target.value } : row))} className={INPUT} /><span className="text-xs text-fg/40">%</span></label>
+                  <button onClick={() => void savePriceGroup(group)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-white"><Save className="h-4 w-4" /> Сохранить</button>
+                </div>
+              ))}
+            </div>
+          </div>
           </div>
         )}
       </main>

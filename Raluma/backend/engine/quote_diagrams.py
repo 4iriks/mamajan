@@ -34,6 +34,8 @@ def _number(value: Any, default: float = 0.0) -> float:
 
 def _glass_fill(value: Any) -> str:
     text = str(value or "").upper()
+    if "БЕЗ СТЕКЛА" in text:
+        return BACKGROUND
     if "БРОНЗ" in text:
         return GLASS_COLORS["bronze"]
     if "СЕРО" in text:
@@ -67,6 +69,15 @@ def _center_text(
 ) -> None:
     width, height = _text_size(draw, text, font)
     draw.text((xy[0] - width / 2, xy[1] - height / 2), text, font=font, fill=fill)
+
+
+def _fitted_font(draw: ImageDraw.ImageDraw, text: str, max_width: float, *, preferred: int = 24):
+    """Return the largest readable dimension font which fits its panel."""
+    for size in range(preferred, 12, -1):
+        font = load_font(size, bold=True)
+        if _text_size(draw, text, font)[0] <= max(max_width, 1):
+            return font
+    return load_font(13, bold=True)
 
 
 def _arrow(
@@ -175,7 +186,9 @@ def render_quote_room_png(details: dict[str, Any]) -> bytes:
                 start_head=direction in {"left", "both"},
                 end_head=direction in {"right", "both"},
             )
-        _center_text(draw, (cx, bottom + 34), str(round(width_mm)), dimension_font)
+        width_label = str(round(width_mm))
+        panel_dimension_font = _fitted_font(draw, width_label, panel_px - 8)
+        _center_text(draw, (cx, bottom + 34), width_label, panel_dimension_font)
         x += panel_px
 
     draw.line((left, bottom + 61, right, bottom + 61), fill=GRID, width=2)

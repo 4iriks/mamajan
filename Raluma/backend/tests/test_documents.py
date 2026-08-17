@@ -911,7 +911,7 @@ class TestLocalPreview:
         assert "</span> шт</td>" in r.text
         assert "Промежуточные" not in r.text
 
-    def test_local_preview_extra_components_from_section(self, client):
+    def test_local_preview_ignores_legacy_section_extra_components(self, client):
         r = client.post(
             "/api/projects/local/sections/preview",
             json={
@@ -943,15 +943,12 @@ class TestLocalPreview:
         )
 
         assert r.status_code == 200
-        assert "ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ" in r.text
-        assert "BOX-1" in r.text
-        assert "RAL 9016" in r.text
-        assert 'contenteditable="true" data-field="ec_' not in r.text
-        assert '<div class="ec-section">' in r.text
-        ec_index = r.text.index("ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ")
-        assert 'class="page-break"' not in r.text[:ec_index]
+        assert "ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ" not in r.text
+        assert "BOX-1" not in r.text
+        assert "RAL 9016" not in r.text
+        assert '<div class="ec-section">' not in r.text
 
-    def test_local_pdf_keeps_ten_extra_components_on_first_page(self, client):
+    def test_local_pdf_ignores_legacy_section_extra_components(self, client):
         pytest.importorskip("weasyprint")
 
         extra_components = [
@@ -995,8 +992,8 @@ class TestLocalPreview:
         pages = PdfReader(io.BytesIO(r.content)).pages
         assert len(pages) == 2
         first_page_text = pages[0].extract_text()
-        assert "EXTRA-01" in first_page_text
-        assert "EXTRA-10" in first_page_text
+        assert "EXTRA-01" not in first_page_text
+        assert "EXTRA-10" not in first_page_text
         second_page_text = pages[1].extract_text()
         assert "EXTRA-10" not in second_page_text
         assert "Нарезка профиля по ТЗ" in second_page_text
@@ -1355,9 +1352,9 @@ class TestSketchProject:
     @pytest.mark.parametrize(
         ("section", "expected_diagram"),
         [
-            (_slide.__func__(), "СХЕМА · ВИД СВЕРХУ"),
-            (_book.__func__(), "СХЕМА · ВИД СВЕРХУ"),
-            (_lift.__func__(), "КИНЕМАТИЧЕСКАЯ СХЕМА"),
+            (_slide.__func__(), "ВИД ИЗ ПОМЕЩЕНИЯ"),
+            (_book.__func__(), "ВИД ИЗ ПОМЕЩЕНИЯ"),
+            (_lift.__func__(), "ВИД ИЗ ПОМЕЩЕНИЯ"),
         ],
     )
     def test_guest_preview_supports_each_system(
@@ -1373,7 +1370,8 @@ class TestSketchProject:
         assert expected_diagram.lower() in response.text.lower()
         assert "data-sketch-section=" in response.text
         assert "Размеры стекол" in response.text
-        assert "Комплектация" in response.text
+        assert "вид сверху" not in response.text.lower()
+        assert "Комплектация" not in response.text
 
     def test_mixed_preview_pdf_and_docx_share_order_geometry_and_components(
         self, client
@@ -1406,8 +1404,6 @@ class TestSketchProject:
             "3043",
             "3300",
             "RS2061",
-            "RU008",
-            "RL2087",
         )
         for text in texts.values():
             compact = re.sub(r"\s+", "", text)
@@ -1497,7 +1493,7 @@ class TestSketchProject:
         assert preview.status_code == 200
         assert pdf.status_code == 200
         assert docx.status_code == 200
-        assert "ЭСКИЗНЫЙ ПРОЕКТ № TEST-001" in preview.text
+        assert f"ЭСКИЗНЫЙ ПРОЕКТ № {project['invoice_number']}" in preview.text
 
     def test_context_json_has_no_price_or_internal_fields(self):
         project = SimpleNamespace(number="SAFE-001")
@@ -1551,7 +1547,7 @@ class TestSketchProject:
             response.text,
         )
 
-    def test_sketch_extra_component_quantity_follows_section_quantity(self, client):
+    def test_legacy_section_extra_components_are_not_rendered(self, client):
         response = client.post(
             "/api/projects/local/documents/sketch/preview",
             json=self._payload(
@@ -1568,10 +1564,9 @@ class TestSketchProject:
         )
 
         assert response.status_code == 200, response.text
-        assert "EXTRA-SKETCH" in response.text
-        assert re.search(r">6 шт<", response.text)
+        assert "EXTRA-SKETCH" not in response.text
 
-    def test_slide_sketch_keeps_core_hardware_and_filters_minor_items(self, client):
+    def test_slide_sketch_keeps_comments_but_omits_component_catalog(self, client):
         response = client.post(
             "/api/projects/local/documents/sketch/preview",
             json=self._payload(
@@ -1600,17 +1595,10 @@ class TestSketchProject:
         )
 
         assert response.status_code == 200, response.text
-        for expected in (
-            "RS3014",
-            "RS3018",
-            "RS205",
-            "RS1002",
-            "Выбранный пользователем комплект роликов",
-            "Монтаж вести со стороны помещения",
-        ):
-            assert expected in response.text
-        for excluded in ("RSD1", "RSD2", "RS1121", "RS122", "RU003"):
-            assert excluded not in response.text
+        assert "Монтаж вести со стороны помещения" in response.text
+        assert "Выбранный пользователем комплект роликов" not in response.text
+        assert "RU005" not in response.text
+        assert "/api/catalog/profile-assets/" not in response.text
 
     def test_project_sketch_extras_are_rendered_once_without_section_multiplier(
         self, client
@@ -1645,9 +1633,70 @@ class TestSketchProject:
         assert response.status_code == 200, response.text
         assert response.text.count("PROJECT-SKETCH") == 1
         assert "data-project-components" in response.text
-        assert "Старое примечание проекта" in response.text
+        assert "Старое примечание проекта" not in response.text
         assert "Этап: 1, 2" in response.text
         assert re.search(r">2 компл\.<", response.text)
+        assert "/api/catalog/profile-assets/" not in response.text
+
+    def test_project_extras_flow_to_paint_delivery_order_and_sketch(self, client):
+        payload = self._payload([self._slide()])
+        payload["project"]["extra_components"] = json.dumps(
+            [
+                {
+                    "catalog_item_id": 101,
+                    "finish_variant_id": 1001,
+                    "sku": "RAL-EXTRA",
+                    "name": "Окрашиваемый дополнительный профиль",
+                    "finish_name": "RAL 9005",
+                    "requires_paint": True,
+                    "size": "1200 мм",
+                    "qty": 2,
+                    "unit": "шт",
+                    "unit_price": "175.50",
+                    "delivery_stage": "both",
+                },
+                {
+                    "catalog_item_id": 101,
+                    "finish_variant_id": 1002,
+                    "sku": "ANOD-EXTRA",
+                    "name": "Анодированный дополнительный профиль",
+                    "finish_name": "Анод",
+                    "requires_paint": False,
+                    "size": "900 мм",
+                    "qty": 1,
+                    "unit": "шт",
+                    "unit_price": "120.00",
+                    "delivery_stage": "both",
+                },
+            ],
+            ensure_ascii=False,
+        )
+
+        paint = client.post(
+            "/api/projects/local/documents/paint/preview", json=payload
+        )
+        delivery = client.post(
+            "/api/projects/local/documents/delivery/preview", json=payload
+        )
+        hardware = client.post(
+            "/api/projects/local/documents/hardware_order/preview", json=payload
+        )
+        sketch = client.post(
+            "/api/projects/local/documents/sketch/preview", json=payload
+        )
+
+        assert paint.status_code == 200
+        assert "RAL-EXTRA" in paint.text
+        assert "RAL 9005" in paint.text
+        assert "1200" in paint.text
+        assert "1250" in paint.text
+        assert "ANOD-EXTRA" not in paint.text
+        for response in (delivery, hardware, sketch):
+            assert response.status_code == 200
+            assert "RAL-EXTRA" in response.text
+            assert "ANOD-EXTRA" in response.text
+            assert "RAL 9005" in response.text
+            assert "Анод" in response.text
 
     def test_sketch_sections_and_docx_start_on_new_pages(self, client):
         payload = self._payload([self._slide(), self._book(), self._lift()])
@@ -1669,6 +1718,37 @@ class TestSketchProject:
             document_xml = archive.read("word/document.xml").decode("utf-8")
         assert document_xml.count('w:type="page"') >= 2
         assert "РАЗМЕРЫ СТЕКОЛ" in self._docx_text(docx.content)
+
+    def test_slide_without_glass_keeps_calculated_sizes_but_skips_orders(
+        self, client
+    ):
+        payload = self._payload(
+            [self._slide(glass_supplied=False, width=2000, height=2400)]
+        )
+        payload["project"]["delivery_note_data"] = json.dumps(
+            {"includeGlass": True, "places": {}}, ensure_ascii=False
+        )
+
+        sketch = client.post(
+            "/api/projects/local/documents/sketch/preview", json=payload
+        )
+        glass = client.post(
+            "/api/projects/local/documents/glass/preview", json=payload
+        )
+        delivery = client.post(
+            "/api/projects/local/documents/delivery/preview", json=payload
+        )
+
+        assert sketch.status_code == 200
+        assert "Без стекла" in sketch.text
+        assert "Размеры стекол" in sketch.text
+        assert "2000" in sketch.text
+        assert "2400" in sketch.text
+        assert glass.status_code == 200
+        assert "В проекте нет расчетных стекол" in glass.text
+        assert delivery.status_code == 200
+        assert 'class="glass-table"' not in delivery.text
+        assert "Raluma SLIDE" in delivery.text
 
     def test_project_paint_preview_returns_html(self, client, admin_headers, project):
         _create_slide_section(
@@ -3758,6 +3838,8 @@ class TestDeliveryNote:
             lock_left="ЗАМОК-ЗАЩЕЛКА 1стор RS3018",
             lock_right="ЗАМОК двухсторонний с ключом RS3020",
             floor_latches_left=True,
+        )
+        project = self.project(
             extra_components=json.dumps(
                 [
                     {
@@ -3772,8 +3854,12 @@ class TestDeliveryNote:
             ),
         )
 
-        context = _build_delivery_context(self.project(), [section])
+        context = _build_delivery_context(project, [section])
         rows = {row["article"]: row for row in context["delivery_item2_rows"]}
+        project_rows = {
+            row["article"]: row
+            for row in context["delivery_project_extra_rows"]
+        }
 
         assert (
             context["delivery_item2_rows"][0]["name"]
@@ -3782,7 +3868,7 @@ class TestDeliveryNote:
         assert rows["RS3014"]["qty"] == 2
         assert rows["RS3017"]["qty"] == 2
         assert rows["RS205"]["qty"] == 2
-        assert rows["BOX-1"]["qty"] == 6
+        assert project_rows["BOX-1"]["qty"] == 3
         assert "RS3018" not in rows
         assert "RS3020" not in rows
 
@@ -3831,34 +3917,35 @@ class TestDeliveryNote:
         section = _delivery_section(
             panels=2,
             profile_left_bubble=True,
-            extra_components=json.dumps(
-                [
-                    {
-                        "sku": "STAGE-1",
-                        "name": "Комплект первого этапа",
-                        "qty": 2,
-                        "deliveryStage": "1",
-                    },
-                    {
-                        "sku": "STAGE-2",
-                        "name": "Комплект второго этапа",
-                        "qty": 3,
-                        "deliveryStage": "2",
-                    },
-                    {
-                        "sku": "LEGACY",
-                        "name": "Старая комплектующая",
-                        "qty": 1,
-                    },
-                ],
-                ensure_ascii=False,
-            ),
+        )
+        project_extras = json.dumps(
+            [
+                {
+                    "sku": "STAGE-1",
+                    "name": "Комплект первого этапа",
+                    "qty": 2,
+                    "deliveryStage": "1",
+                },
+                {
+                    "sku": "STAGE-2",
+                    "name": "Комплект второго этапа",
+                    "qty": 3,
+                    "deliveryStage": "2",
+                },
+                {
+                    "sku": "LEGACY",
+                    "name": "Старая комплектующая",
+                    "qty": 1,
+                },
+            ],
+            ensure_ascii=False,
         )
 
         stage_one = _build_delivery_context(
             self.project(
                 production_stages=2,
                 current_stage=1,
+                extra_components=project_extras,
                 delivery_note_data=json.dumps(
                     {"includeGlass": True, "places": {}},
                     ensure_ascii=False,
@@ -3867,20 +3954,24 @@ class TestDeliveryNote:
             [section],
         )
         stage_one_kinds = {row["kind"] for row in stage_one["delivery_item1_rows"]}
-        stage_one_hardware = {
-            row["article"]: row for row in stage_one["delivery_item2_rows"]
+        stage_one_extras = {
+            row["article"]: row
+            for row in stage_one["delivery_project_extra_rows"]
         }
 
         assert stage_one_kinds == {"construction"}
-        assert "STAGE-1" in stage_one_hardware
-        assert "LEGACY" in stage_one_hardware
-        assert "STAGE-2" not in stage_one_hardware
-        assert "RS1002" not in stage_one_hardware
+        assert "STAGE-1" in stage_one_extras
+        assert "LEGACY" in stage_one_extras
+        assert "STAGE-2" not in stage_one_extras
+        assert "RS1002" not in {
+            row["article"] for row in stage_one["delivery_item2_rows"]
+        }
 
         stage_two = _build_delivery_context(
             self.project(
                 production_stages=2,
                 current_stage=2,
+                extra_components=project_extras,
                 delivery_note_data=json.dumps(
                     {"includeGlass": False, "places": {}},
                     ensure_ascii=False,
@@ -3889,19 +3980,36 @@ class TestDeliveryNote:
             [section],
         )
         stage_two_kinds = {row["kind"] for row in stage_two["delivery_item1_rows"]}
-        stage_two_hardware = {
-            row["article"]: row for row in stage_two["delivery_item2_rows"]
+        stage_two_extras = {
+            row["article"]: row
+            for row in stage_two["delivery_project_extra_rows"]
         }
 
         assert stage_two_kinds == {"glass"}
-        assert "STAGE-2" in stage_two_hardware
-        assert "LEGACY" in stage_two_hardware
-        assert "STAGE-1" not in stage_two_hardware
+        assert "STAGE-2" in stage_two_extras
+        assert "LEGACY" in stage_two_extras
+        assert "STAGE-1" not in stage_two_extras
+        stage_two_hardware = {
+            row["article"]: row for row in stage_two["delivery_item2_rows"]
+        }
         assert stage_two_hardware["RS1002"]["qty"] == 1
 
     def test_one_stage_delivery_contains_constructions_glass_and_all_extras(self):
         sections = [
+            _delivery_section(),
             _delivery_section(
+                name="Секция 2",
+                order=2,
+                system="ЛИФТ",
+                panels=3,
+                lift_control_type="Кнопка",
+            ),
+        ]
+
+        context = _build_delivery_context(
+            self.project(
+                production_stages=1,
+                current_stage=1,
                 extra_components=json.dumps(
                     [
                         {
@@ -3920,24 +4028,17 @@ class TestDeliveryNote:
                     ensure_ascii=False,
                 ),
             ),
-            _delivery_section(
-                name="Секция 2",
-                order=2,
-                system="ЛИФТ",
-                panels=3,
-                lift_control_type="Кнопка",
-            ),
-        ]
-
-        context = _build_delivery_context(
-            self.project(production_stages=1, current_stage=1),
             sections,
         )
         kinds = {row["kind"] for row in context["delivery_item1_rows"]}
         hardware = {row["article"] for row in context["delivery_item2_rows"]}
+        extras = {
+            row["article"] for row in context["delivery_project_extra_rows"]
+        }
 
         assert kinds == {"construction", "glass"}
-        assert {"ONLY-1", "ONLY-2", "RL2092"} <= hardware
+        assert "RL2092" in hardware
+        assert {"ONLY-1", "ONLY-2"} <= extras
 
     @pytest.mark.parametrize(
         "stage_values",
@@ -3978,27 +4079,25 @@ class TestDeliveryNote:
         assert "Комплект направляющих и пристеночных профилей" in two_stage_html
 
     def test_two_stage_mixed_slide_and_lift_delivery_has_strict_stage_content(self):
+        project_extras = json.dumps(
+            [
+                {
+                    "sku": "SLIDE-STAGE-1",
+                    "name": "Комплект первого этапа",
+                    "qty": 1,
+                    "deliveryStage": "1",
+                },
+                {
+                    "sku": "SLIDE-STAGE-2",
+                    "name": "Комплект второго этапа",
+                    "qty": 1,
+                    "deliveryStage": "2",
+                },
+            ],
+            ensure_ascii=False,
+        )
         sections = [
-            _delivery_section(
-                profile_left_bubble=True,
-                extra_components=json.dumps(
-                    [
-                        {
-                            "sku": "SLIDE-STAGE-1",
-                            "name": "Комплект СЛАЙД первого этапа",
-                            "qty": 1,
-                            "deliveryStage": "1",
-                        },
-                        {
-                            "sku": "SLIDE-STAGE-2",
-                            "name": "Комплект СЛАЙД второго этапа",
-                            "qty": 1,
-                            "deliveryStage": "2",
-                        },
-                    ],
-                    ensure_ascii=False,
-                ),
-            ),
+            _delivery_section(profile_left_bubble=True),
             _delivery_section(
                 name="Секция 2",
                 order=2,
@@ -4006,56 +4105,46 @@ class TestDeliveryNote:
                 panels=3,
                 lift_control_type="Пульт ДУ",
                 lift_remote_1ch_qty=2,
-                extra_components=json.dumps(
-                    [
-                        {
-                            "sku": "LIFT-STAGE-1",
-                            "name": "Комплект ЛИФТ первого этапа",
-                            "qty": 1,
-                            "deliveryStage": "1",
-                        },
-                        {
-                            "sku": "LIFT-STAGE-2",
-                            "name": "Комплект ЛИФТ второго этапа",
-                            "qty": 1,
-                            "deliveryStage": "2",
-                        },
-                    ],
-                    ensure_ascii=False,
-                ),
             ),
         ]
 
         stage_one = _build_delivery_context(
-            self.project(production_stages=2, current_stage=1),
+            self.project(
+                production_stages=2,
+                current_stage=1,
+                extra_components=project_extras,
+            ),
             sections,
         )
         assert {row["kind"] for row in stage_one["delivery_item1_rows"]} == {
             "construction"
         }
-        stage_one_articles = {
+        stage_one_hardware = {
             row["article"] for row in stage_one["delivery_item2_rows"]
         }
-        assert {"SLIDE-STAGE-1", "LIFT-STAGE-1"} <= stage_one_articles
-        assert {
-            "SLIDE-STAGE-2",
-            "LIFT-STAGE-2",
-            "RS1002",
-            "RL2087",
-        }.isdisjoint(stage_one_articles)
+        stage_one_extras = {
+            row["article"] for row in stage_one["delivery_project_extra_rows"]
+        }
+        assert stage_one_extras == {"SLIDE-STAGE-1"}
+        assert {"RS1002", "RL2087"}.isdisjoint(stage_one_hardware)
 
         stage_two = _build_delivery_context(
-            self.project(production_stages=2, current_stage=2),
+            self.project(
+                production_stages=2,
+                current_stage=2,
+                extra_components=project_extras,
+            ),
             sections,
         )
         assert {row["kind"] for row in stage_two["delivery_item1_rows"]} == {"glass"}
-        stage_two_articles = {
+        stage_two_hardware = {
             row["article"] for row in stage_two["delivery_item2_rows"]
         }
-        assert {"SLIDE-STAGE-2", "LIFT-STAGE-2", "RS1002", "RL2087"} <= (
-            stage_two_articles
-        )
-        assert {"SLIDE-STAGE-1", "LIFT-STAGE-1"}.isdisjoint(stage_two_articles)
+        stage_two_extras = {
+            row["article"] for row in stage_two["delivery_project_extra_rows"]
+        }
+        assert stage_two_extras == {"SLIDE-STAGE-2"}
+        assert {"RS1002", "RL2087"} <= stage_two_hardware
 
     def test_reference_4108_keeps_rs1005_but_excludes_rs2081(self):
         sections = [
@@ -4331,13 +4420,14 @@ class TestDeliveryNote:
             "imageFile": "RS112.png",
             "deliveryStage": "2",
         }
-        section = _delivery_section(
+        section = _delivery_section()
+        base_project = self.project(
             extra_components=json.dumps([extra], ensure_ascii=False)
         )
-        initial = _build_delivery_context(self.project(), [section])
+        initial = _build_delivery_context(base_project, [section])
         initial_row = next(
             row
-            for row in initial["delivery_item2_rows"]
+            for row in initial["delivery_project_extra_rows"]
             if row["article"] == extra["sku"]
         )
         legacy_key = _delivery_key(
@@ -4350,6 +4440,7 @@ class TestDeliveryNote:
         assert initial_row["place_key"] != legacy_key
 
         legacy_project = self.project(
+            extra_components=json.dumps([extra], ensure_ascii=False),
             delivery_note_data=json.dumps(
                 {"includeGlass": False, "places": {legacy_key: "6"}},
                 ensure_ascii=False,
@@ -4358,12 +4449,13 @@ class TestDeliveryNote:
         restored = _build_delivery_context(legacy_project, [section])
         restored_row = next(
             row
-            for row in restored["delivery_item2_rows"]
+            for row in restored["delivery_project_extra_rows"]
             if row["article"] == extra["sku"]
         )
         assert restored_row["places"] == "6"
 
         cleared_project = self.project(
+            extra_components=json.dumps([extra], ensure_ascii=False),
             delivery_note_data=json.dumps(
                 {
                     "includeGlass": False,
@@ -4378,7 +4470,7 @@ class TestDeliveryNote:
         cleared = _build_delivery_context(cleared_project, [section])
         cleared_row = next(
             row
-            for row in cleared["delivery_item2_rows"]
+            for row in cleared["delivery_project_extra_rows"]
             if row["article"] == extra["sku"]
         )
         assert cleared_row["places"] == ""
@@ -4467,7 +4559,7 @@ class TestDeliveryNote:
         )
 
         assert response.status_code == 200
-        assert "Накладная № TEST-001" in response.text
+        assert f"Накладная № {project['invoice_number']}" in response.text
         assert "15.07.2026" in response.text
         assert "Отгрузка по звонку" in response.text
         assert "Иван Иванов" in response.text
@@ -4543,7 +4635,7 @@ class TestHardwareOrder:
         values.update(overrides)
         return SimpleNamespace(**values)
 
-    def test_aggregates_slide_lift_and_extra_components_by_system(self):
+    def test_aggregates_slide_lift_and_keeps_project_extras_separate(self):
         shared_extra = {
             "sku": "EXTRA-1",
             "name": "Уголок алюминиевый",
@@ -4554,17 +4646,10 @@ class TestHardwareOrder:
             "imageFile": "RS112.png",
         }
         sections = [
-            _delivery_section(
-                quantity=2,
-                extra_components=json.dumps([shared_extra], ensure_ascii=False),
-            ),
+            _delivery_section(quantity=2),
             _delivery_section(
                 name="Секция 2",
                 order=2,
-                extra_components=json.dumps(
-                    [{**shared_extra, "qty": 1}],
-                    ensure_ascii=False,
-                ),
             ),
             _delivery_section(
                 name="Секция 3",
@@ -4586,11 +4671,17 @@ class TestHardwareOrder:
             ),
         ]
 
-        context = _build_hardware_order_context(self.project(), sections)
+        context = _build_hardware_order_context(
+            self.project(
+                extra_components=json.dumps([shared_extra], ensure_ascii=False)
+            ),
+            sections,
+        )
 
         assert [page["system"] for page in context["hardware_order_pages"]] == [
             "СЛАЙД",
             "ЛИФТ",
+            "Дополнительные комплектующие проекта",
         ]
         slide_rows = {
             row["article"]: row for row in context["hardware_order_pages"][0]["rows"]
@@ -4598,13 +4689,17 @@ class TestHardwareOrder:
         lift_rows = {
             row["article"]: row for row in context["hardware_order_pages"][1]["rows"]
         }
+        project_rows = {
+            row["article"]: row for row in context["hardware_order_pages"][2]["rows"]
+        }
 
-        assert slide_rows["EXTRA-1"]["qty"] == 5
-        assert slide_rows["EXTRA-1"]["unit"] == "компл."
-        assert slide_rows["EXTRA-1"]["image"] == "RS112.png"
-        assert slide_rows["EXTRA-1"]["color"] == "RAL 7024"
-        assert slide_rows["EXTRA-1"]["size"] == "450 мм"
-        assert slide_rows["EXTRA-1"]["stage_text"] == "1, 2"
+        assert "EXTRA-1" not in slide_rows
+        assert project_rows["EXTRA-1"]["qty"] == 2
+        assert project_rows["EXTRA-1"]["unit"] == "компл."
+        assert project_rows["EXTRA-1"]["image"] == "RS112.png"
+        assert project_rows["EXTRA-1"]["color"] == "RAL 7024"
+        assert project_rows["EXTRA-1"]["size"] == "450 мм"
+        assert project_rows["EXTRA-1"]["stage_text"] == "1, 2"
         assert any(row["image"] for row in slide_rows.values())
         assert lift_rows["RL2087"]["qty"] == 3
         assert lift_rows["RL2087"]["stage_text"] == "2"
@@ -4620,6 +4715,8 @@ class TestHardwareOrder:
         section = _delivery_section(
             system="КНИЖКА",
             panels=4,
+        )
+        project = self.project(
             extra_components=json.dumps(
                 [
                     {
@@ -4633,13 +4730,15 @@ class TestHardwareOrder:
             ),
         )
 
-        context = _build_hardware_order_context(self.project(), [section])
+        context = _build_hardware_order_context(project, [section])
         page = context["hardware_order_pages"][0]
+        extras_page = context["hardware_order_pages"][1]
 
         assert page["system"] == "КНИЖКА"
         assert page["warning"] == ""
         rows = {row["article"]: row for row in page["rows"]}
-        assert rows["BOOK-EXTRA"]["stage_text"] == "1, 2"
+        extra_rows = {row["article"]: row for row in extras_page["rows"]}
+        assert extra_rows["BOOK-EXTRA"]["stage_text"] == "1, 2"
         assert rows["RBP0004"]["stage_text"] == "1"
         assert rows["RBA0040"]["stage_text"] == "2"
 
@@ -4662,7 +4761,7 @@ class TestHardwareOrder:
         assert rows[0]["qty"] == 2
         assert rows[0]["stage_text"] == "2"
 
-    def test_project_extras_are_once_and_section_extras_follow_section_quantity(self):
+    def test_project_extras_are_once_and_legacy_section_extras_are_ignored(self):
         project = self.project(
             extra_parts="Старое примечание к комплектации",
             extra_components=json.dumps(
@@ -4707,20 +4806,21 @@ class TestHardwareOrder:
         }
         project_page = context["hardware_order_pages"][1]
         project_rows = {row["article"]: row for row in project_page["rows"]}
-        assert section_rows["SECTION-EXTRA"]["qty"] == 7
+        assert "SECTION-EXTRA" not in section_rows
         assert project_rows["PROJECT-ONLY"]["qty"] == 2
         assert project_rows["PROJECT-ONLY"]["color"] == "RAL 9005"
         assert project_rows["PROJECT-ONLY"]["size"] == "1250 мм"
         assert project_rows["PROJECT-ONLY"]["unit"] == "компл."
         assert project_rows["PROJECT-ONLY"]["image"] == "RS112.png"
         assert project_rows["PROJECT-ONLY"]["stage_text"] == "1"
-        assert project_page["note"] == "Старое примечание к комплектации"
+        assert project_page["note"] == ""
 
         delivery = _build_delivery_context(project, sections)
-        assert {
+        assert "SECTION-EXTRA" not in {
             row["article"]: row for row in delivery["delivery_item2_rows"]
-        }["SECTION-EXTRA"]["qty"] == 7
+        }
         assert delivery["delivery_project_extra_rows"][0]["qty"] == 2
+        assert "delivery_project_extra_note" not in delivery
 
     def test_installed_mode_filters_only_calculated_stock_issue(self):
         custom_rollers = json.dumps(
@@ -4745,7 +4845,6 @@ class TestHardwareOrder:
             panels=4,
             slide_rows=2,
             center_handle="Ручки-профиль RS112 (2шт)",
-            extra_components=custom_rollers,
         )
         wide_section = _delivery_section(
             name="Секция 2",
@@ -4755,14 +4854,22 @@ class TestHardwareOrder:
             slide_rows=1,
         )
 
-        not_installed = _build_hardware_order_context(
-            self.project(hardware_installation="not_installed"),
+        not_installed_context = _build_hardware_order_context(
+            self.project(
+                hardware_installation="not_installed",
+                extra_components=custom_rollers,
+            ),
             [section, wide_section],
-        )["hardware_order_pages"][0]["rows"]
-        installed = _build_hardware_order_context(
-            self.project(hardware_installation="installed"),
+        )
+        installed_context = _build_hardware_order_context(
+            self.project(
+                hardware_installation="installed",
+                extra_components=custom_rollers,
+            ),
             [section, wide_section],
-        )["hardware_order_pages"][0]["rows"]
+        )
+        not_installed = not_installed_context["hardware_order_pages"][0]["rows"]
+        installed = installed_context["hardware_order_pages"][0]["rows"]
 
         assert any(row["article"] == "RU010" for row in not_installed)
         assert any(
@@ -4774,18 +4881,25 @@ class TestHardwareOrder:
             "DIN7982" in row["name"] and "4,8×25" in row["name"]
             for row in installed
         )
-        installed_ru003 = [row for row in installed if row["article"] == "RU003"]
+        assert not any(row["article"] == "RU003" for row in installed)
+        assert not any(row["article"] == "RU005" for row in installed)
+        project_rows = installed_context["hardware_order_pages"][-1]["rows"]
+        installed_ru003 = [
+            row for row in project_rows if row["article"] == "RU003"
+        ]
         assert len(installed_ru003) == 1
         assert installed_ru003[0]["name"] == "Пользовательский комплект роликов"
         assert installed_ru003[0]["qty"] == 7
-        installed_ru005 = [row for row in installed if row["article"] == "RU005"]
+        installed_ru005 = [
+            row for row in project_rows if row["article"] == "RU005"
+        ]
         assert len(installed_ru005) == 1
         assert (
             installed_ru005[0]["name"]
             == "Пользовательский комплект усиленных роликов"
         )
         assert installed_ru005[0]["qty"] == 5
-        assert len([row for row in not_installed if row["article"] == "RU005"]) > 1
+        assert any(row["article"] == "RU005" for row in not_installed)
 
     @pytest.mark.parametrize(
         "article",
@@ -4880,7 +4994,10 @@ class TestHardwareOrder:
         )
 
         assert authenticated.status_code == 200
-        assert "Наряд-заказ на фурнитуру — TEST-001" in authenticated.text
+        assert (
+            f"Наряд-заказ на фурнитуру — {project['invoice_number']}"
+            in authenticated.text
+        )
         assert "СЛАЙД" in authenticated.text
 
 

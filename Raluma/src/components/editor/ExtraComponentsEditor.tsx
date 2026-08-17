@@ -16,9 +16,15 @@ const makeId = () => `ec-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 function normalizeItem(item?: Partial<ExtraComponent>): ExtraComponent {
   return {
     id: item?.id ?? makeId(),
+    catalogItemId: item?.catalogItemId,
+    finishVariantId: item?.finishVariantId,
     sku: item?.sku ?? '',
     name: item?.name ?? '',
+    category: item?.category,
     color: item?.color ?? '',
+    finishName: item?.finishName ?? item?.color ?? '',
+    requiresPaint: item?.requiresPaint ?? false,
+    unitPrice: item?.unitPrice ?? '',
     size: item?.size ?? '',
     qty: item?.qty ?? '1',
     unit: item?.unit ?? 'шт',
@@ -39,6 +45,7 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
 }) => {
   const [catalog, setCatalog] = useState<HardwareCatalogOption[]>([]);
   const [query, setQuery] = useState('');
+  const [catalogOpen, setCatalogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [reloadToken, setReloadToken] = useState(0);
@@ -81,14 +88,24 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
   };
 
   const addCatalogItem = (item: HardwareCatalogOption) => {
+    const availableVariants = (item.finishVariants || []).filter(variant => variant.isActive);
+    const firstVariant = availableVariants[0];
     commit([...rows, normalizeItem({
+      catalogItemId: item.id,
+      finishVariantId: firstVariant?.id,
       sku: item.sku,
       name: item.name,
+      category: item.category,
+      color: '',
+      finishName: firstVariant?.name === 'Без цвета' ? '' : firstVariant?.name || '',
+      requiresPaint: firstVariant?.requiresPaint ?? false,
+      unitPrice: undefined,
       unit: item.unit || 'шт',
       imageFile: item.imageFile || '',
       qty: '1',
     })]);
     setQuery('');
+    setCatalogOpen(false);
   };
 
   return (
@@ -100,6 +117,11 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
           <input
             value={query}
             onChange={event => setQuery(event.target.value)}
+            onFocus={() => setCatalogOpen(true)}
+            onBlur={() => setCatalogOpen(false)}
+            onKeyDown={event => {
+              if (event.key === 'Escape') setCatalogOpen(false);
+            }}
             className={`${INP} pl-10`}
             placeholder="Например, RS1005 или уплотнитель"
             aria-label="Поиск комплектующих"
@@ -124,12 +146,13 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
             </button>
           </div>
         )}
-        {!loading && !loadError && (query.trim() || matches.length > 0) && (
+        {!loading && !loadError && catalogOpen && (
           <div className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded-xl border border-tint/20 bg-page/60 p-1.5">
             {matches.map(item => (
               <button
                 key={item.id}
                 type="button"
+                onMouseDown={event => event.preventDefault()}
                 onClick={() => addCatalogItem(item)}
                 className="grid w-full grid-cols-[44px_105px_minmax(0,1fr)_28px] items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-tint/15"
               >
@@ -158,7 +181,12 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
       </div>
 
       <div className="space-y-3">
-        {rows.map(row => (
+        {rows.map(row => {
+            const catalogItem = catalog.find(item => item.id === row.catalogItemId);
+            const finishVariants = (catalogItem?.finishVariants || []).filter(
+              variant => variant.isActive,
+            );
+            return (
           <article
             key={row.id}
             className="rounded-2xl border border-tint/25 bg-surface/30 p-3 sm:p-4"
@@ -189,10 +217,40 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
             </div>
 
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              <label className="space-y-1">
-                <span className={LBL}>Цвет</span>
-                <input value={row.color} onChange={event => updateRow(row.id!, { color: event.target.value })} className={INP} placeholder="RAL / анод" />
-              </label>
+              {finishVariants.length > 0 && (
+                <label className="space-y-1">
+                  <span className={LBL}>Исполнение</span>
+                  <select
+                    value={row.finishVariantId || ''}
+                    onChange={event => {
+                      const variant = finishVariants.find(item => item.id === Number(event.target.value));
+                      updateRow(row.id!, {
+                        finishVariantId: variant?.id,
+                        finishName: variant?.name || '',
+                        color: variant?.requiresPaint ? row.color : '',
+                        requiresPaint: variant?.requiresPaint ?? false,
+                        unitPrice: undefined,
+                      });
+                    }}
+                    className={SEL}
+                  >
+                    {finishVariants.map(variant => (
+                      <option key={variant.id ?? variant.name} value={variant.id}>{variant.name}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {row.requiresPaint && (
+                <label className="space-y-1">
+                  <span className={LBL}>Цвет</span>
+                  <input
+                    value={row.color}
+                    onChange={event => updateRow(row.id!, { color: event.target.value })}
+                    className={INP}
+                    placeholder="Например, RAL 9016"
+                  />
+                </label>
+              )}
               <label className="space-y-1">
                 <span className={LBL}>Размер</span>
                 <input value={row.size} onChange={event => updateRow(row.id!, { size: event.target.value })} className={INP} placeholder="1200 мм" />
@@ -203,7 +261,9 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
               </label>
               <label className="space-y-1">
                 <span className={LBL}>Единица</span>
-                <input value={row.unit || ''} onChange={event => updateRow(row.id!, { unit: event.target.value })} className={INP} placeholder="шт" />
+                <div className={`${INP} flex min-h-[42px] items-center text-fg/60`}>
+                  {row.unit || 'шт'}
+                </div>
               </label>
               <label className="space-y-1">
                 <span className={LBL}>Этап</span>
@@ -221,7 +281,8 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
               </label>
             </div>
           </article>
-        ))}
+            );
+          })}
       </div>
 
       {rows.length === 0 && (

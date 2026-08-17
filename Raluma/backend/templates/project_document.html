@@ -2,9 +2,9 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>{{ title }} {{ project.number }}</title>
+  <title>{{ title }} {{ project.invoice_number or project.order_number or project.number }}</title>
   <style>
-    {% if doc_type == 'commercial' %}
+    {% if doc_type in ['commercial', 'contract_appendix'] %}
     @page { size: A4 landscape; margin: 9mm; }
     {% else %}
     @page { size: A4 portrait; margin: 10mm; }
@@ -19,7 +19,7 @@
       font-size: 10pt;
     }
     .page {
-      {% if doc_type == 'commercial' %}
+      {% if doc_type in ['commercial', 'contract_appendix'] %}
       width: 279mm;
       min-height: 192mm;
       {% else %}
@@ -202,7 +202,7 @@
     }
     .commercial-sketches {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap: 4mm;
       margin-bottom: 4mm;
     }
@@ -218,7 +218,57 @@
       font-weight: 900;
       text-transform: uppercase;
     }
-    .commercial-sketch svg { display: block; width: 100%; height: 56mm; }
+    .commercial-sketch svg { display: block; width: 100%; height: 92mm; }
+    .quote-brand {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8mm;
+      margin-bottom: 5mm;
+      padding-bottom: 3mm;
+      border-bottom: 2px solid #123f47;
+    }
+    .quote-brand-name { color: #123f47; font-size: 15pt; font-weight: 900; }
+    .quote-brand-address { margin-top: 1mm; color: #667b80; font-size: 8pt; }
+    .quote-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 2mm;
+      margin-bottom: 4mm;
+    }
+    .quote-meta-item { border: 1px solid #a7b7bb; padding: 2mm 2.5mm; }
+    .quote-meta-label { color: #667b80; font-size: 7pt; font-weight: 700; text-transform: uppercase; }
+    .quote-meta-value { margin-top: 0.7mm; font-size: 9pt; font-weight: 700; }
+    .quote-product-grid { display: grid; grid-template-columns: 72mm 1fr; gap: 5mm; }
+    .quote-product-data { align-self: start; }
+    .quote-product-data table { font-size: 8pt; }
+    .quote-product-data td:first-child { width: 32mm; color: #53696f; font-weight: 700; }
+    .quote-product-note {
+      margin-top: 3mm;
+      min-height: 15mm;
+      border-left: 3px solid #123f47;
+      background: #f2f6f7;
+      padding: 2mm 3mm;
+      font-size: 8pt;
+      white-space: pre-wrap;
+    }
+    .quote-technical { margin-top: 4mm; table-layout: fixed; font-size: 7.5pt; }
+    .quote-technical td { vertical-align: top; padding: 2mm; }
+    .quote-tech-side { margin-bottom: 1.5mm; color: #123f47; font-size: 8pt; font-weight: 900; text-transform: uppercase; }
+    .quote-tech-row { padding: 0.8mm 0; border-bottom: 1px solid #e1e7e9; }
+    .quote-tech-row:last-child { border-bottom: 0; }
+    .quote-tech-sku { display: inline-block; min-width: 20mm; font-family: monospace; font-weight: 900; }
+    .quote-summary-title { margin-bottom: 4mm; color: #123f47; font-size: 16pt; font-weight: 900; text-transform: uppercase; }
+    .quote-category-summary { margin: 4mm 0 0 auto; width: 115mm; font-size: 8.5pt; }
+    .quote-words { margin-top: 4mm; padding: 3mm; border: 1px solid #123f47; font-size: 9pt; font-weight: 700; }
+    .quote-parties { margin: 0 0 5mm; table-layout: fixed; }
+    .quote-parties td { width: 50%; height: 21mm; vertical-align: top; }
+    .contract-product-page .quote-parties { margin-bottom: 2mm; }
+    .contract-product-page .quote-parties td { height: 10mm; padding: 1.2mm 2mm; }
+    .contract-product-page .commercial-sketch svg { height: 82mm; }
+    .quote-signatures { margin-top: 8mm; table-layout: fixed; }
+    .quote-signatures td { width: 50%; height: 24mm; vertical-align: bottom; }
+    .quote-notice { margin-top: 5mm; padding: 3mm; border: 1px solid #123f47; background: #f7fafb; font-size: 8pt; }
     .commercial-breakdown {
       table-layout: fixed;
       font-size: 7.5pt;
@@ -293,35 +343,68 @@
 {% macro editable(field, value) %}{% if not is_pdf %}contenteditable="true" data-field="{{ field }}" data-original="{{ value }}"{% endif %}{% endmacro %}
 {% macro quote_room(details, key) %}
   {% set total = details.panel_width_total_mm|float if details.panel_width_total_mm else 1 %}
+  {% set section_width = details.width_mm|float if details.width_mm else 1 %}
+  {% set section_height = details.height_mm|float if details.height_mm else 1 %}
+  {% set drawing_scale = [640 / section_width, 200 / section_height] | min %}
+  {% set frame_width = section_width * drawing_scale %}
+  {% set frame_height = section_height * drawing_scale %}
+  {% set frame_x = 40 + (640 - frame_width) / 2 %}
+  {% set frame_y = 25 + (200 - frame_height) / 2 %}
+  {% set frame_right = frame_x + frame_width %}
+  {% set frame_bottom = frame_y + frame_height %}
+  {% set frame_center_x = frame_x + frame_width / 2 %}
+  {% set frame_center_y = frame_y + frame_height / 2 %}
+  {% set panel_dimension_y = frame_bottom + 8 %}
+  {% set overall_dimension_y = frame_bottom + 46 %}
+  {% set height_dimension_x = frame_right + 16 %}
   {% set glass = details.glass_type|upper %}
-  {% set fill = '#e4c39f' if 'БРОНЗ' in glass else '#c9d0d3' if 'СЕРО' in glass else '#e5e8e7' if 'МАТ' in glass else '#eefaf8' if 'ПРОСВЕТ' in glass else '#d3eadb' if 'ТРИПЛЕКС' in glass else '#dceff3' %}
-  <svg viewBox="0 0 720 270" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Вид из помещения">
+  {% set fill = '#ffffff' if 'БЕЗ СТЕКЛА' in glass else '#e4c39f' if 'БРОНЗ' in glass else '#c9d0d3' if 'СЕРО' in glass else '#e5e8e7' if 'МАТ' in glass else '#eefaf8' if 'ПРОСВЕТ' in glass else '#d3eadb' if 'ТРИПЛЕКС' in glass else '#dceff3' %}
+  <svg viewBox="0 0 740 305" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Вид из помещения">
     <defs>
       <marker id="arrow-{{ key }}" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto-start-reverse" markerUnits="strokeWidth">
         <path d="M0,0 L0,6 L7,3 z" fill="#123f47"/>
       </marker>
     </defs>
-    <text x="360" y="12" text-anchor="middle" font-size="8" font-family="Arial" fill="#667b80">УЛИЦА</text>
-    <rect x="40" y="25" width="640" height="200" fill="none" stroke="#123f47" stroke-width="2"/>
-    {% set room = namespace(x=40) %}
+    <text x="{{ frame_center_x }}" y="{{ frame_y - 8 }}" text-anchor="middle" font-size="8" font-family="Arial" fill="#667b80">УЛИЦА</text>
+    <rect data-quote-room-frame="{{ key }}" data-section-width-mm="{{ details.width_mm }}" data-section-height-mm="{{ details.height_mm }}"
+          x="{{ frame_x }}" y="{{ frame_y }}" width="{{ frame_width }}" height="{{ frame_height }}" fill="none" stroke="#123f47" stroke-width="2"/>
+    {% set room = namespace(x=frame_x) %}
     {% for panel in details.panel_geometry %}
-      {% set panel_width = 640 * (panel.width_mm|float) / total %}
-      <rect x="{{ room.x }}" y="25" width="{{ panel_width }}" height="200" fill="{{ fill }}" stroke="#a8bbc0" stroke-width="1"/>
-      <text x="{{ room.x + panel_width / 2 }}" y="116" text-anchor="middle" font-size="17" font-family="Arial" font-weight="bold" fill="#123f47">{{ panel.number }}</text>
-      <text x="{{ room.x + panel_width / 2 }}" y="218" text-anchor="middle" font-size="8" font-family="Arial" fill="#667b80">{{ panel.width_mm|float|round|int }} мм</text>
+      {% set panel_width = frame_width * (panel.width_mm|float) / total %}
+      {% set panel_center_x = room.x + panel_width / 2 %}
+      {% set number_font = 9 if panel_width < 45 else 12 if panel_width < 75 else 17 %}
+      {% set dimension_font = 7 if panel_width < 45 else 8 if panel_width < 72 else 10 if panel_width < 125 else 12 %}
+      {% set arrow_half = [20, panel_width * 0.26] | min %}
+      <rect x="{{ room.x }}" y="{{ frame_y }}" width="{{ panel_width }}" height="{{ frame_height }}" fill="{{ fill }}" stroke="#a8bbc0" stroke-width="1"/>
+      <text x="{{ panel_center_x }}" y="{{ frame_center_y - 7 }}" text-anchor="middle" font-size="{{ number_font }}" font-family="Arial" font-weight="bold" fill="#123f47">{{ panel.number }}</text>
+      <line x1="{{ room.x + 2 }}" y1="{{ panel_dimension_y }}" x2="{{ room.x + panel_width - 2 }}" y2="{{ panel_dimension_y }}" stroke="#667b80" stroke-width="0.8"/>
+      <line x1="{{ room.x + 2 }}" y1="{{ panel_dimension_y - 5 }}" x2="{{ room.x + 2 }}" y2="{{ panel_dimension_y + 5 }}" stroke="#667b80" stroke-width="0.8"/>
+      <line x1="{{ room.x + panel_width - 2 }}" y1="{{ panel_dimension_y - 5 }}" x2="{{ room.x + panel_width - 2 }}" y2="{{ panel_dimension_y + 5 }}" stroke="#667b80" stroke-width="0.8"/>
+      <text x="{{ panel_center_x }}" y="{{ panel_dimension_y + 16 }}" text-anchor="middle" font-size="{{ dimension_font }}" font-family="Arial" font-weight="bold" fill="#123f47">{{ panel.width_mm|float|round|int }}</text>
       {% if panel.deaf or panel.direction == 'none' %}
-        <line x1="{{ room.x + 7 }}" y1="34" x2="{{ room.x + panel_width - 7 }}" y2="216" stroke="#a8bbc0" stroke-width="1"/>
-        <line x1="{{ room.x + panel_width - 7 }}" y1="34" x2="{{ room.x + 7 }}" y2="216" stroke="#a8bbc0" stroke-width="1"/>
+        <line x1="{{ room.x + 7 }}" y1="{{ frame_y + 9 }}" x2="{{ room.x + panel_width - 7 }}" y2="{{ frame_bottom - 9 }}" stroke="#a8bbc0" stroke-width="1"/>
+        <line x1="{{ room.x + panel_width - 7 }}" y1="{{ frame_y + 9 }}" x2="{{ room.x + 7 }}" y2="{{ frame_bottom - 9 }}" stroke="#a8bbc0" stroke-width="1"/>
       {% else %}
-        <line x1="{{ room.x + panel_width / 2 - 20 }}" y1="140" x2="{{ room.x + panel_width / 2 + 20 }}" y2="140"
+        <line x1="{{ panel_center_x - arrow_half }}" y1="{{ frame_center_y + 16 }}" x2="{{ panel_center_x + arrow_half }}" y2="{{ frame_center_y + 16 }}"
               stroke="#123f47" stroke-width="1.4"
               {% if panel.direction in ['left', 'both'] %}marker-start="url(#arrow-{{ key }})"{% endif %}
               {% if panel.direction in ['right', 'both'] %}marker-end="url(#arrow-{{ key }})"{% endif %}/>
       {% endif %}
+      {% if 'БЕЗ СТЕКЛА' in glass %}
+        {% set no_glass_font = 5 if panel_width < 55 else 6 if panel_width < 85 else 7 %}
+        <text x="{{ panel_center_x }}" y="{{ frame_center_y + 42 }}" text-anchor="middle" font-size="{{ no_glass_font }}" font-family="Arial" font-weight="bold" fill="#667b80">БЕЗ СТЕКЛА</text>
+      {% endif %}
       {% set room.x = room.x + panel_width %}
     {% endfor %}
-    <text x="360" y="246" text-anchor="middle" font-size="9" font-family="Arial" font-weight="bold" fill="#123f47">{{ details.width_mm }} × {{ details.height_mm }} мм</text>
-    <text x="360" y="263" text-anchor="middle" font-size="8" font-family="Arial" fill="#667b80">ПОМЕЩЕНИЕ</text>
+    <line x1="{{ frame_x }}" y1="{{ overall_dimension_y }}" x2="{{ frame_right }}" y2="{{ overall_dimension_y }}" stroke="#123f47" stroke-width="1"/>
+    <line x1="{{ frame_x }}" y1="{{ overall_dimension_y - 7 }}" x2="{{ frame_x }}" y2="{{ overall_dimension_y + 7 }}" stroke="#123f47" stroke-width="1"/>
+    <line x1="{{ frame_right }}" y1="{{ overall_dimension_y - 7 }}" x2="{{ frame_right }}" y2="{{ overall_dimension_y + 7 }}" stroke="#123f47" stroke-width="1"/>
+    <text x="{{ frame_center_x }}" y="{{ overall_dimension_y + 18 }}" text-anchor="middle" font-size="12" font-family="Arial" font-weight="bold" fill="#123f47">{{ details.width_mm }} мм</text>
+    <line x1="{{ height_dimension_x }}" y1="{{ frame_y }}" x2="{{ height_dimension_x }}" y2="{{ frame_bottom }}" stroke="#123f47" stroke-width="1"/>
+    <line x1="{{ height_dimension_x - 7 }}" y1="{{ frame_y }}" x2="{{ height_dimension_x + 7 }}" y2="{{ frame_y }}" stroke="#123f47" stroke-width="1"/>
+    <line x1="{{ height_dimension_x - 7 }}" y1="{{ frame_bottom }}" x2="{{ height_dimension_x + 7 }}" y2="{{ frame_bottom }}" stroke="#123f47" stroke-width="1"/>
+    <text x="{{ height_dimension_x + 21 }}" y="{{ frame_center_y }}" text-anchor="middle" font-size="12" font-family="Arial" font-weight="bold" fill="#123f47" transform="rotate(-90 {{ height_dimension_x + 21 }} {{ frame_center_y }})">{{ details.height_mm }} мм</text>
+    <text x="{{ frame_center_x }}" y="{{ overall_dimension_y + 32 }}" text-anchor="middle" font-size="8" font-family="Arial" fill="#667b80">ПОМЕЩЕНИЕ</text>
   </svg>
 {% endmacro %}
 {% macro quote_top(details, key) %}
@@ -355,187 +438,170 @@
     <text x="360" y="258" text-anchor="middle" font-size="8" font-family="Arial" fill="#667b80">НАПРАВЛЕНИЕ СДВИГА</text>
   </svg>
 {% endmacro %}
-{% if doc_type == 'commercial' %}
-  <div class="page">
-    <div class="topline">
-      <table class="meta">
-        <tr><td><b>Заявка</b></td><td>{{ project.number }}</td></tr>
-        <tr><td><b>Заказчик</b></td><td>{{ project.customer }}</td></tr>
-      </table>
-      <div class="topline-title">
-        <h1>Коммерческое предложение</h1>
-        <div class="muted">Проект {{ project.number }}</div>
-        {% if commercial_quote %}
-        <div class="commercial-status">
-          Редакция {{ commercial_quote.revision }} ·
-          {% if commercial_quote.status == 'fixed' %}зафиксировано{% else %}черновой расчёт{% endif %}
-        </div>
-        {% endif %}
-      </div>
-    </div>
-
-    {% for warning in document_warnings or [] %}
-      <div class="document-warning">{{ warning }}</div>
-    {% endfor %}
-
-    {% if commercial_quote and commercial_rows %}
-    {% set construction_rows = commercial_rows | selectattr('section_details', 'defined') | list %}
-    {% if construction_rows %}
-    <div class="section-title">Технические характеристики</div>
-    <table class="commercial-technical">
-      <thead>
-        <tr>
-          <th>Изделие</th>
-          <th style="width:24mm;">Габарит, мм</th>
-          <th style="width:13mm;">Панели</th>
-          <th style="width:14mm;">Кол-во</th>
-          <th style="width:19mm;">Стекло, м²</th>
-          <th style="width:25mm;">Цвет</th>
-          <th style="width:22mm;">Система</th>
-          <th style="width:42mm;">Тип стекла</th>
-          <th style="width:30mm;">Порог</th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for row in construction_rows %}
-        {% set details = row.section_details %}
-        <tr>
-          <td><b>{{ row.name|e }}</b></td>
-          <td class="center">{{ details.width_mm }} × {{ details.height_mm }}</td>
-          <td class="center">{{ details.panels }}</td>
-          <td class="center">{{ details.quantity }}</td>
-          <td class="right">{{ details.glass_area_m2 }}</td>
-          <td>{{ details.color|e }}</td>
-          <td class="center">{{ details.system|e }} · {{ details.rails }} р.</td>
-          <td>{{ details.glass_type|e }}</td>
-          <td>{{ details.threshold|e }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% endif %}
-    <table class="commercial-table">
-      <thead>
-        <tr>
-          <th style="width:7mm;">№</th>
-          <th>Изделие</th>
-          <th style="width:22mm;">Цена до скидки, ₽</th>
-          <th style="width:14mm;">Скидка</th>
-          <th style="width:20mm;">Сумма скидки, ₽</th>
-          <th style="width:21mm;">Цена, ₽</th>
-          <th style="width:17mm;">Кол-во</th>
-          <th style="width:22mm;">Итого, ₽</th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for row in commercial_rows %}
-        <tr>
-          <td class="center">{{ loop.index }}</td>
-          <td><b>{{ row.name }}</b></td>
-          <td class="right">{{ "{:,}".format(row.document_unit_price_before_discount)|replace(",", " ") }}</td>
-          <td class="center">{{ row.discount_percent }}%</td>
-          <td class="right">{{ "{:,}".format(row.document_unit_discount_amount)|replace(",", " ") }}</td>
-          <td class="right">{{ "{:,}".format(row.document_unit_final_price)|replace(",", " ") }}</td>
-          <td class="center">{{ row.quantity }} {{ row.unit }}</td>
-          <td class="right"><b>{{ "{:,}".format(row.document_line_total)|replace(",", " ") }}</b></td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-
-    <table class="commercial-total">
-      <tr>
-        <td><b>До скидки</b></td>
-        <td class="right">{{ "{:,}".format(commercial_quote.totals.document_before_discount)|replace(",", " ") }} ₽</td>
-      </tr>
-      <tr>
-        <td><b>Скидка</b></td>
-        <td class="right">−{{ "{:,}".format(commercial_quote.totals.document_discount)|replace(",", " ") }} ₽</td>
-      </tr>
-      {% if commercial_quote.vat.mode == 'included' %}
-      <tr>
-        <td>В том числе НДС {{ commercial_quote.vat.rate }}%</td>
-        <td class="right">{{ "{:,}".format(commercial_quote.vat.document_amount)|replace(",", " ") }} ₽</td>
-      </tr>
-      {% elif commercial_quote.vat.mode == 'on_top' %}
-      <tr>
-        <td>НДС {{ commercial_quote.vat.rate }}% сверху</td>
-        <td class="right">{{ "{:,}".format(commercial_quote.vat.document_amount)|replace(",", " ") }} ₽</td>
-      </tr>
-      {% else %}
-      <tr><td colspan="2">Без НДС</td></tr>
-      {% endif %}
-      <tr>
-        <td><b>ИТОГО</b></td>
-        <td class="right"><b>{{ "{:,}".format(commercial_quote.totals.document_grand_total)|replace(",", " ") }} ₽</b></td>
-      </tr>
-    </table>
-
-    <div class="commercial-terms">
-      <div><b>Предложение действительно до:</b> {{ commercial_quote.valid_until }}</div>
-      <div><b>Срок изготовления:</b> {{ commercial_quote.manufacturing_term or 'по согласованию' }}</div>
-      <div><b>Условия оплаты:</b> {{ commercial_quote.payment_terms or 'по согласованию' }}</div>
-    </div>
-    {% elif commercial_rows %}
-      <div class="commercial-note">
-        Для этого документа требуется новый расчёт стоимости.
-      </div>
-    {% else %}
-      <div class="empty">В проекте нет секций СЛАЙД для коммерческого предложения.</div>
-    {% endif %}
-  </div>
+{% if doc_type in ['commercial', 'contract_appendix'] %}
   {% if commercial_quote %}
-    {% for row in commercial_rows %}
-      {% if row.section_details is defined %}
+    {% set construction_rows = commercial_rows | selectattr('section_details', 'defined') | list %}
+    {% for row in construction_rows %}
       {% set details = row.section_details %}
-      <div class="page">
-        <div class="commercial-section-title">{{ row.name|e }}</div>
-        <div class="commercial-section-meta">
-          {{ details.width_mm }} × {{ details.height_mm }} мм · {{ details.panels }} пан. · {{ details.quantity }} изд. ·
-          {{ details.system|e }}, {{ details.rails }} рельс. · {{ details.glass_type|e }} · {{ details.color|e }}
+      <div class="page{% if doc_type == 'contract_appendix' %} contract-product-page{% endif %}" data-commercial-product="{{ loop.index }}">
+        {% if loop.first %}
+        <div class="quote-brand">
+          <div>
+            <div class="quote-brand-name">{{ company_name|e }}</div>
+            <div class="quote-brand-address">{{ company_address|e }}</div>
+          </div>
+          <div class="right">
+            <h1>{{ title }}</h1>
+            <div class="commercial-status">Редакция {{ commercial_quote.revision }} · {{ 'зафиксировано' if commercial_quote.status == 'fixed' else 'черновой расчет' }}</div>
+          </div>
         </div>
-        <div class="commercial-sketches">
+        <div class="quote-meta-grid">
+          <div class="quote-meta-item"><div class="quote-meta-label">Счет №</div><div class="quote-meta-value">{{ project.invoice_number or project.number }}</div></div>
+          <div class="quote-meta-item"><div class="quote-meta-label">Дата</div><div class="quote-meta-value">{{ commercial_quote.quote_date or '—' }}</div></div>
+          <div class="quote-meta-item"><div class="quote-meta-label">Менеджер</div><div class="quote-meta-value">{{ commercial_quote.manager or '—' }}</div></div>
+          <div class="quote-meta-item"><div class="quote-meta-label">Заказчик</div><div class="quote-meta-value">{{ project.customer or '—' }}</div></div>
+          <div class="quote-meta-item"><div class="quote-meta-label">Номер заказа</div><div class="quote-meta-value">{{ project.order_number or 'не присвоен' }}</div></div>
+          <div class="quote-meta-item"><div class="quote-meta-label">Площадь заказа</div><div class="quote-meta-value">{{ commercial_quote.total_area_m2 or 0 }} м²</div></div>
+        </div>
+        {% if doc_type == 'contract_appendix' %}
+        <table class="quote-parties">
+          <tr><td><b>ЗАКАЗЧИК:</b><br>{{ project.customer or '—' }}</td><td><b>ИСПОЛНИТЕЛЬ:</b><br>{{ company_name|e }}</td></tr>
+        </table>
+        {% endif %}
+        {% for warning in document_warnings or [] %}<div class="document-warning">{{ warning }}</div>{% endfor %}
+        {% endif %}
+
+        <div class="commercial-section-title">Изделие № {{ loop.index }} · {{ row.name|e }}</div>
+        <div class="quote-product-grid">
+          <div class="quote-product-data">
+            <table>
+              <tr><td>Ширина</td><td><b>{{ details.width_mm }} мм</b></td></tr>
+              <tr><td>Высота</td><td><b>{{ details.height_mm }} мм</b></td></tr>
+              <tr><td>Система</td><td>{{ details.system|e }}, {{ details.rails }} рельс., {{ details.slide_rows }} ряд</td></tr>
+              <tr><td>Цвет</td><td>{{ details.color|e }}</td></tr>
+              <tr><td>Стекло</td><td><b>{{ details.glass_type|e }}</b></td></tr>
+              <tr><td>Количество</td><td>{{ details.quantity }} шт.</td></tr>
+              <tr><td>Площадь</td><td>{{ details.area_m2 }} м²</td></tr>
+              <tr><td>Вес изделия</td><td>{{ details.weight_kg }} кг</td></tr>
+              <tr><td>Порог</td><td>{{ details.threshold|e }}</td></tr>
+            </table>
+            <div class="quote-product-note"><b>Примечание:</b><br>{{ details.comments|e if details.comments else '—' }}</div>
+          </div>
           <div class="commercial-sketch">
-            <div class="commercial-sketch-title">Масштабный вид из помещения</div>
+            <div class="commercial-sketch-title">Вид на изделие со стороны помещения</div>
             {{ quote_room(details, loop.index) }}
           </div>
-          <div class="commercial-sketch">
-            <div class="commercial-sketch-title">Вид сверху</div>
-            {{ quote_top(details, loop.index) }}
-          </div>
         </div>
-        <div class="section-title">Профили и фурнитура</div>
-        <table class="commercial-breakdown">
-          <thead>
-            <tr>
-              <th style="width:27mm;">Артикул</th>
-              <th>Название</th>
-              <th style="width:22mm;">Количество</th>
-              <th style="width:20mm;">Единица</th>
-              <th style="width:27mm;">Продажная цена, ₽</th>
-              <th style="width:29mm;">Сумма, ₽</th>
-            </tr>
-          </thead>
-          <tbody>
-          {% for item in row.breakdown or [] %}
-            <tr>
-              <td class="center">{{ item.sku|e }}</td>
-              <td>{{ item.name|e }}</td>
-              <td class="right">{{ item.quantity }}</td>
-              <td class="center">{{ item.unit|e }}</td>
-              <td class="right">{{ "{:,}".format(item.unit_price)|replace(",", " ") }}</td>
-              <td class="right"><b>{{ "{:,}".format(item.line_total)|replace(",", " ") }}</b></td>
-            </tr>
-          {% endfor %}
-            <tr class="commercial-breakdown-total">
-              <td colspan="5" class="right">Итого по секции</td>
-              <td class="right">{{ "{:,}".format(row.document_line_total)|replace(",", " ") }} ₽</td>
-            </tr>
-          </tbody>
+
+        <table class="quote-technical">
+          <tr>
+            {% for label, items in [('Слева', details.technical_left), ('Общие и центральные', details.technical_common), ('Справа', details.technical_right)] %}
+            <td>
+              <div class="quote-tech-side">{{ label }}</div>
+              {% for item in items or [] %}
+                <div class="quote-tech-row"><span class="quote-tech-sku">{{ item.article|e }}</span>{{ item.name|e }}</div>
+              {% else %}
+                <div class="muted">Без дополнительных элементов</div>
+              {% endfor %}
+            </td>
+            {% endfor %}
+          </tr>
         </table>
       </div>
-      {% endif %}
     {% endfor %}
+
+    <div class="page" data-commercial-summary>
+      {% if not construction_rows %}
+      <div class="quote-brand">
+        <div>
+          <div class="quote-brand-name">{{ company_name|e }}</div>
+          <div class="quote-brand-address">{{ company_address|e }}</div>
+        </div>
+        <div class="right">
+          <h1>{{ title }}</h1>
+          <div class="commercial-status">Редакция {{ commercial_quote.revision }} · {{ 'зафиксировано' if commercial_quote.status == 'fixed' else 'черновой расчёт' }}</div>
+        </div>
+      </div>
+      <div class="quote-meta-grid">
+        <div class="quote-meta-item"><div class="quote-meta-label">Счет №</div><div class="quote-meta-value">{{ project.invoice_number or project.number }}</div></div>
+        <div class="quote-meta-item"><div class="quote-meta-label">Дата</div><div class="quote-meta-value">{{ commercial_quote.quote_date or '—' }}</div></div>
+        <div class="quote-meta-item"><div class="quote-meta-label">Менеджер</div><div class="quote-meta-value">{{ commercial_quote.manager or '—' }}</div></div>
+        <div class="quote-meta-item"><div class="quote-meta-label">Заказчик</div><div class="quote-meta-value">{{ project.customer or '—' }}</div></div>
+        <div class="quote-meta-item"><div class="quote-meta-label">Номер заказа</div><div class="quote-meta-value">{{ project.order_number or 'не присвоен' }}</div></div>
+        <div class="quote-meta-item"><div class="quote-meta-label">Площадь заказа</div><div class="quote-meta-value">{{ commercial_quote.total_area_m2 or 0 }} м²</div></div>
+      </div>
+      {% if doc_type == 'contract_appendix' %}
+      <table class="quote-parties">
+        <tr><td><b>ЗАКАЗЧИК:</b><br>{{ project.customer or '—' }}</td><td><b>ИСПОЛНИТЕЛЬ:</b><br>{{ company_name|e }}</td></tr>
+      </table>
+      {% endif %}
+      {% for warning in document_warnings or [] %}<div class="document-warning">{{ warning }}</div>{% endfor %}
+      {% endif %}
+      <div class="quote-summary-title">Итоговая спецификация</div>
+      <table class="commercial-table">
+        <thead><tr><th style="width:7mm;">№</th><th>Изделие / аксессуар / услуга</th><th style="width:25mm;">Цена, ₽</th><th style="width:19mm;">Кол-во</th><th style="width:24mm;">До скидки, ₽</th><th style="width:22mm;">Скидка, ₽</th><th style="width:26mm;">Итого, ₽</th></tr></thead>
+        <tbody>
+        {% for row in commercial_rows %}
+          <tr><td class="center">{{ loop.index }}</td><td><b>{{ row.name|e }}</b></td><td class="right">{{ "{:,}".format(row.document_unit_final_price)|replace(",", " ") }}</td><td class="center">{{ row.quantity }} {{ row.unit|e }}</td><td class="right">{{ "{:,}".format(row.document_line_total_before_discount)|replace(",", " ") }}</td><td class="right">{{ "{:,}".format(row.document_line_discount_amount)|replace(",", " ") }}</td><td class="right"><b>{{ "{:,}".format(row.document_line_total)|replace(",", " ") }}</b></td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <table class="quote-category-summary">
+        <thead><tr><th>Раздел</th><th>До скидки</th><th>Скидка</th><th>Итого</th></tr></thead>
+        <tbody>
+        {% for group in commercial_summary %}
+          <tr><td><b>{{ group.label }}</b></td><td class="right">{{ "{:,}".format(group.before_discount)|replace(",", " ") }} ₽</td><td class="right">{{ "{:,}".format(group.discount)|replace(",", " ") }} ₽</td><td class="right"><b>{{ "{:,}".format(group.total)|replace(",", " ") }} ₽</b></td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <table class="commercial-total">
+        <tr><td><b>До скидки</b></td><td class="right">{{ "{:,}".format(commercial_quote.totals.document_before_discount)|replace(",", " ") }} ₽</td></tr>
+        <tr><td><b>Скидка</b></td><td class="right">−{{ "{:,}".format(commercial_quote.totals.document_discount)|replace(",", " ") }} ₽</td></tr>
+        {% if commercial_quote.vat.mode == 'included' %}<tr><td>В том числе НДС {{ commercial_quote.vat.rate }}%</td><td class="right">{{ "{:,}".format(commercial_quote.vat.document_amount)|replace(",", " ") }} ₽</td></tr>
+        {% elif commercial_quote.vat.mode == 'on_top' %}<tr><td>НДС {{ commercial_quote.vat.rate }}% сверху</td><td class="right">{{ "{:,}".format(commercial_quote.vat.document_amount)|replace(",", " ") }} ₽</td></tr>
+        {% else %}<tr><td colspan="2">Без НДС</td></tr>{% endif %}
+        <tr><td><b>ИТОГО</b></td><td class="right"><b>{{ "{:,}".format(commercial_quote.totals.document_grand_total)|replace(",", " ") }} ₽</b></td></tr>
+      </table>
+      <div class="quote-words">Итого прописью: {{ amount_in_words|e }}</div>
+      <div class="commercial-terms">
+        <div><b>Предложение действительно до:</b> {{ commercial_quote.valid_until }}</div>
+        <div><b>Срок изготовления:</b> {{ commercial_quote.manufacturing_term or 'по согласованию' }}</div>
+        <div><b>Условия оплаты:</b> {{ commercial_quote.payment_terms or 'по согласованию' }}</div>
+      </div>
+      {% if doc_type == 'contract_appendix' %}
+      <div class="quote-notice"><b>Обращаем ваше внимание:</b> состав, цвет, размеры и комплектация изделий должны быть проверены заказчиком до подписания приложения.</div>
+      <table class="quote-signatures"><tr><td><b>ЗАКАЗЧИК</b><br><br>________________ / __________________</td><td><b>ИСПОЛНИТЕЛЬ: {{ company_name|e }}</b><br><br>________________ / Расходчиков В.И. /</td></tr></table>
+      {% endif %}
+    </div>
+
+    {% set project_extra_rows = commercial_rows | selectattr('component_details', 'defined') | rejectattr('category', 'equalto', 'service') | list %}
+    {% if project_extra_rows %}
+    <div class="page" data-commercial-project-components>
+      <div class="commercial-section-title">Дополнительные комплектующие проекта</div>
+      <table class="commercial-breakdown">
+        <thead><tr><th>Артикул</th><th>Наименование / исполнение</th><th>Размер</th><th>Кол-во</th><th>Цена, ₽</th><th>Сумма, ₽</th></tr></thead>
+        <tbody>
+        {% for row in project_extra_rows %}
+          {% set details = row.component_details %}
+          <tr>
+            <td class="center">{{ details.sku|e }}</td>
+            <td>
+              {{ details.name|e }}
+              {% if details.finish %}<div class="muted">Исполнение: {{ details.finish|e }}</div>{% endif %}
+              {% if details.color %}<div class="muted">Цвет: {{ details.color|e }}</div>{% endif %}
+            </td>
+            <td class="center">{{ details.size|e or '—' }}</td>
+            <td class="center">{{ row.quantity }} {{ row.unit|e }}</td>
+            <td class="right">{{ "{:,}".format(row.document_unit_final_price)|replace(",", " ") }}</td>
+            <td class="right"><b>{{ "{:,}".format(row.document_line_total)|replace(",", " ") }}</b></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  {% else %}
+    <div class="page"><div class="empty">Для документа требуется расчет стоимости.</div></div>
   {% endif %}
 {% elif doc_type == 'paint' %}
   {% if paint_pages %}
@@ -549,7 +615,7 @@
           </td>
           <td class="head-meta">
             <table class="meta paint-meta">
-              <tr><td><b>Заявка №</b></td><td class="paint-meta-value">{{ project.number }}</td></tr>
+              <tr><td><b>Счёт №</b></td><td class="paint-meta-value">{{ project.invoice_number or project.order_number or project.number }}</td></tr>
               <tr><td><b>Заказчик</b></td><td>{{ project.customer }}</td></tr>
               <tr><td><b>Цвет</b></td><td class="paint-meta-value paint-color-value">{{ page.color }}</td></tr>
             </table>
@@ -630,7 +696,7 @@
         </td>
         <td class="head-meta">
           <table class="meta glass-meta">
-            <tr><td><b>Заявка</b></td><td {{ editable('project_number', project.number) }}>{{ project.number }}</td></tr>
+            <tr><td><b>Счёт №</b></td><td {{ editable('project_number', project.invoice_number or project.order_number or project.number) }}>{{ project.invoice_number or project.order_number or project.number }}</td></tr>
             <tr><td><b>Заказчик</b></td><td {{ editable('project_customer', project.customer) }}>{{ project.customer }}</td></tr>
           </table>
         </td>

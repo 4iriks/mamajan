@@ -1,4 +1,11 @@
 import sqlite3
+import json
+import io
+import zipfile
+from decimal import Decimal
+
+from database import SessionLocal
+import models
 
 
 def test_rs1005_insert_migration_preserves_admin_changes():
@@ -58,6 +65,43 @@ def test_hardware_catalog_options_are_public(client):
     assert "RL2085" in skus
     assert all(item["unit"] for item in data)
     assert "purchasePrice" not in data[0]
+
+
+def test_no_color_catalog_item_auto_selects_hidden_execution_snapshot(
+    client, admin_headers
+):
+    options = client.get("/api/catalog/hardware/options").json()
+    item = next(
+        row
+        for row in options
+        if row["finishVariants"]
+        and all(
+            variant["name"].strip().casefold() == "без цвета"
+            for variant in row["finishVariants"]
+        )
+    )
+    response = client.post(
+        "/api/projects",
+        headers=admin_headers,
+        json={
+            "order_number": "NO-COLOR",
+            "customer": "Тест",
+            "extra_components": json.dumps(
+                [{"catalog_item_id": item["id"], "qty": 1}],
+                ensure_ascii=False,
+            ),
+        },
+    )
+    assert response.status_code == 201, response.text
+    try:
+        snapshot = json.loads(response.json()["extra_components"])[0]
+        assert snapshot["finish_variant_id"] == item["finishVariants"][0]["id"]
+        assert snapshot["finish_name"] == ""
+        assert snapshot["requires_paint"] is False
+    finally:
+        client.delete(
+            f"/api/projects/{response.json()['id']}", headers=admin_headers
+        )
 
 
 def test_hardware_catalog_options_use_natural_sku_order(client, admin_headers):
@@ -158,10 +202,13 @@ def test_hardware_catalog_create_duplicate_and_archive(client, admin_headers):
         "unit": "шт",
         "purchasePrice": 12.5,
         "markupPercent": 20,
+        "profileDiscountPercent": 7,
         "weight": 0.1,
-        "wastePercent": 0,
-        "sectionWidthMm": 0,
-        "sectionHeightMm": 0,
+        "wastePercent": 30,
+        "constructionMarkupPercent": 200,
+        "constructionDiscountPercent": 35,
+        "sectionWidthMm": 72,
+        "sectionHeightMm": 53,
         "imageFile": "",
         "paintMode": "Не красится",
         "colorVariants": ["Без цвета"],
@@ -174,6 +221,37 @@ def test_hardware_catalog_create_duplicate_and_archive(client, admin_headers):
     assert created.status_code == 201
     item = created.json()
     assert item["sku"] == payload["sku"]
+    for field in (
+        "unit",
+        "purchasePrice",
+        "markupPercent",
+        "profileDiscountPercent",
+        "weight",
+        "wastePercent",
+        "constructionMarkupPercent",
+        "constructionDiscountPercent",
+        "sectionWidthMm",
+        "sectionHeightMm",
+    ):
+        assert item[field] == payload[field]
+
+    db = SessionLocal()
+    try:
+        version = (
+            db.query(models.CatalogPriceVersion)
+            .filter_by(catalog_item_id=item["id"])
+            .order_by(models.CatalogPriceVersion.id.desc())
+            .first()
+        )
+        assert Decimal(version.cost) == Decimal("12.5")
+        assert Decimal(version.profile_markup_percent) == Decimal("20")
+        assert Decimal(version.profile_discount_percent) == Decimal("7")
+        assert Decimal(version.waste_markup_percent) == Decimal("30")
+        assert Decimal(version.construction_markup_percent) == Decimal("200")
+        assert Decimal(version.construction_discount_percent) == Decimal("35")
+        assert version.unit == "шт"
+    finally:
+        db.close()
 
     duplicate = client.post(
         "/api/catalog/hardware", headers=admin_headers, json=payload
@@ -186,6 +264,243 @@ def test_hardware_catalog_create_duplicate_and_archive(client, admin_headers):
     )
     assert archived.status_code == 200
     assert archived.json()["isActive"] is False
+
+
+def test_finish_variants_have_public_prices_and_project_snapshots(
+    client, admin_headers
+):
+    payload = {
+        "sku": "TEST-FINISH-001",
+        "name": "Профиль с исполнениями",
+        "group": "Профили",
+        "system": "СЛАЙД",
+        "unit": "п.м.",
+        "purchasePrice": 50,
+        "markupPercent": 99,
+        "weight": 1.2,
+        "wastePercent": 15,
+        "sectionWidthMm": 10,
+        "sectionHeightMm": 20,
+        "imageFile": "",
+        "paintMode": "Красится",
+        "colorVariants": ["Анод", "RAL 9005"],
+        "finishVariants": [
+            {"name": "Анод", "cost": 120, "requiresPaint": False},
+            {"name": "RAL 9005", "cost": 175.5, "requiresPaint": True},
+        ],
+        "supplier": "Скрытый поставщик",
+        "isActive": True,
+        "note": "pytest variants",
+    }
+    created = client.post(
+        "/api/catalog/hardware", headers=admin_headers, json=payload
+    )
+    assert created.status_code == 201, created.text
+    item = created.json()
+    project_id = None
+    try:
+        variants = {row["name"]: row for row in item["finishVariants"]}
+        assert variants["Анод"]["cost"] == "120.00"
+        assert variants["Анод"]["requiresPaint"] is False
+        assert variants["RAL 9005"]["cost"] == "175.50"
+        assert variants["RAL 9005"]["requiresPaint"] is True
+
+        options = client.get("/api/catalog/hardware/options")
+        assert options.status_code == 200
+        public = next(row for row in options.json() if row["id"] == item["id"])
+        assert public["paintMode"] == "Красится"
+        assert public["requiresPaint"] is True
+        assert public["finishVariants"] == [
+            {
+                key: variant[key]
+                for key in ("id", "name", "requiresPaint", "isActive")
+            }
+            for variant in item["finishVariants"]
+        ]
+        assert all("cost" not in variant for variant in public["finishVariants"])
+        for internal_key in (
+            "purchasePrice",
+            "markupPercent",
+            "wastePercent",
+            "weight",
+            "supplier",
+        ):
+            assert internal_key not in public
+
+        selected = variants["RAL 9005"]
+        project_response = client.post(
+            "/api/projects",
+            headers=admin_headers,
+            json={
+                "order_number": "FINISH-SNAPSHOT",
+                "customer": "Тест",
+                "extra_components": json.dumps(
+                    [
+                        {
+                            "catalog_item_id": item["id"],
+                            "finish_variant_id": selected["id"],
+                            "qty": 2,
+                            "size": "1200 мм",
+                            "unit": "п.м.",
+                            "delivery_stage": "2",
+                            "color": "RAL 9016",
+                        }
+                    ],
+                    ensure_ascii=False,
+                ),
+            },
+        )
+        assert project_response.status_code == 201, project_response.text
+        project_id = project_response.json()["id"]
+        snapshot = json.loads(project_response.json()["extra_components"])[0]
+        assert snapshot == {
+            "catalog_item_id": item["id"],
+            "finish_variant_id": selected["id"],
+            "sku": "TEST-FINISH-001",
+            "name": "Профиль с исполнениями",
+            "category": "profile",
+            "finish_name": "RAL 9005",
+            "color": "RAL 9016",
+            "requires_paint": True,
+            "size": "1200 мм",
+            "qty": "2",
+            "unit": "п.м.",
+            "unit_price": "349.25",
+            "image_file": "",
+            "delivery_stage": "2",
+        }
+
+        quote = client.get(
+            f"/api/projects/{project_id}/quote", headers=admin_headers
+        )
+        assert quote.status_code == 200
+        component_line = next(
+            row for row in quote.json()["lines"] if row["category"] == "profile"
+        )
+        assert component_line["line_total"] == "698.50"
+        assert component_line["component_details"]["finish"] == "RAL 9005"
+        assert component_line["component_details"]["color"] == "RAL 9016"
+        token = admin_headers["Authorization"].replace("Bearer ", "")
+        commercial = client.get(
+            f"/api/projects/{project_id}/documents/commercial/preview",
+            params={"token": token},
+        )
+        assert commercial.status_code == 200
+        assert "TEST-FINISH-001" in commercial.text
+        assert "Профиль с исполнениями" in commercial.text
+        assert "RAL 9005" in commercial.text
+        assert "RAL 9016" in commercial.text
+        assert "699" in commercial.text
+        assert "Профили" in commercial.text
+        assert 'class="quote-brand-name"' in commercial.text
+        assert "Счет №" in commercial.text
+        assert project_response.json()["invoice_number"] in commercial.text
+
+        commercial_docx = client.get(
+            f"/api/projects/{project_id}/documents/commercial/docx",
+            headers=admin_headers,
+        )
+        assert commercial_docx.status_code == 200
+        with zipfile.ZipFile(io.BytesIO(commercial_docx.content)) as archive:
+            document_xml = archive.read("word/document.xml").decode("utf-8")
+        assert "Менеджер" in document_xml
+        assert "Дата" in document_xml
+        assert "Тест" in document_xml
+
+        missing_variant = client.put(
+            f"/api/projects/{project_id}",
+            headers=admin_headers,
+            json={
+                "extra_components": json.dumps(
+                    [{"catalog_item_id": item["id"], "qty": 1}]
+                )
+            },
+        )
+        assert missing_variant.status_code == 400
+        assert "исполнение" in missing_variant.json()["detail"].lower()
+    finally:
+        if project_id is not None:
+            client.delete(f"/api/projects/{project_id}", headers=admin_headers)
+        client.delete(f"/api/catalog/hardware/{item['id']}", headers=admin_headers)
+
+
+def test_catalog_service_is_priced_in_quote_but_not_shipped_as_hardware(
+    client, admin_headers
+):
+    payload = {
+        "sku": "TEST-SERVICE-001",
+        "name": "Доставка для теста",
+        "group": "Услуги",
+        "system": "Все",
+        "unit": "шт",
+        "purchasePrice": 100,
+        "markupPercent": 20,
+        "profileDiscountPercent": 0,
+        "weight": 0,
+        "wastePercent": 0,
+        "constructionMarkupPercent": 0,
+        "constructionDiscountPercent": 0,
+        "sectionWidthMm": 0,
+        "sectionHeightMm": 0,
+        "imageFile": "",
+        "paintMode": "Не красится",
+        "colorVariants": [],
+        "finishVariants": [],
+        "supplier": "",
+        "isActive": True,
+        "note": "pytest service",
+    }
+    created = client.post(
+        "/api/catalog/hardware", headers=admin_headers, json=payload
+    )
+    assert created.status_code == 201, created.text
+    item = created.json()
+    project_id = None
+    try:
+        project = client.post(
+            "/api/projects",
+            headers=admin_headers,
+            json={
+                "customer": "Тестовый заказчик",
+                "extra_components": json.dumps(
+                    [{"catalog_item_id": item["id"], "qty": 2}],
+                    ensure_ascii=False,
+                ),
+            },
+        )
+        assert project.status_code == 201, project.text
+        project_id = project.json()["id"]
+
+        quote = client.get(
+            f"/api/projects/{project_id}/quote", headers=admin_headers
+        )
+        assert quote.status_code == 200, quote.text
+        service_line = next(
+            row for row in quote.json()["lines"] if row["category"] == "service"
+        )
+        assert service_line["component_details"]["sku"] == "TEST-SERVICE-001"
+        assert service_line["line_total"] == "240.00"
+
+        token = admin_headers["Authorization"].replace("Bearer ", "")
+        commercial = client.get(
+            f"/api/projects/{project_id}/documents/commercial/preview",
+            params={"token": token},
+        )
+        assert commercial.status_code == 200
+        assert "Доставка для теста" in commercial.text
+        assert 'class="quote-brand-name"' in commercial.text
+
+        for document_type in ("delivery", "hardware_order", "sketch"):
+            document = client.get(
+                f"/api/projects/{project_id}/documents/{document_type}/preview",
+                params={"token": token},
+            )
+            assert document.status_code == 200, document.text
+            assert "TEST-SERVICE-001" not in document.text
+    finally:
+        if project_id is not None:
+            client.delete(f"/api/projects/{project_id}", headers=admin_headers)
+        client.delete(f"/api/catalog/hardware/{item['id']}", headers=admin_headers)
 
 
 def test_profile_asset_returns_existing_image(client):

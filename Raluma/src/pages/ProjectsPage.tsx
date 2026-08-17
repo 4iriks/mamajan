@@ -85,7 +85,6 @@ export default function ProjectsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<ProjectList | null>(null);
 
-  const [newNumber, setNewNumber] = useState('');
   const [newCustomer, setNewCustomer] = useState('');
   const [newStages, setNewStages] = useState<1 | 2>(1);
   const [showCustomerDrop, setShowCustomerDrop] = useState(false);
@@ -93,13 +92,6 @@ export default function ProjectsPage() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [localImportSignature, setLocalImportSignature] = useState('');
-
-  const formatProjectNumber = (raw: string) => {
-    const clean = raw.replace(/[^a-zA-ZА-Яа-яёЁ0-9]/gi, '').slice(0, 8);
-    if (clean.length <= 3) return clean;
-    if (clean.length === 4) return clean.slice(0, 3) + '-' + clean[3];
-    return clean.slice(0, 3) + '-' + clean[3] + '-' + clean.slice(4);
-  };
 
   const [isCreating, setIsCreating] = useState(false);
   const [renamingId, setRenamingId] = useState<number | null>(null);
@@ -127,7 +119,13 @@ export default function ProjectsPage() {
 
   const filteredProjects = useMemo(() => {
     const byTab = projects.filter(p => viewTab === 'archive' ? p.status === 'Архив' : p.status !== 'Архив');
-    return byTab.filter(p => p.number.includes(searchQuery) || p.customer.toLowerCase().includes(searchQuery.toLowerCase()));
+    const query = searchQuery.toLowerCase();
+    return byTab.filter(p => (
+      p.number.toLowerCase().includes(query)
+      || (p.order_number || '').toLowerCase().includes(query)
+      || (p.invoice_number || '').includes(searchQuery)
+      || p.customer.toLowerCase().includes(query)
+    ));
   }, [projects, searchQuery, viewTab]);
 
   const customerOptions = useMemo(() => {
@@ -140,7 +138,6 @@ export default function ProjectsPage() {
   );
 
   const openCreateModal = () => {
-    setNewNumber('');
     setNewCustomer('');
     setNewStages(1);
     setShowCustomerDrop(false);
@@ -151,7 +148,7 @@ export default function ProjectsPage() {
     if (isCreating) return;
     setIsCreating(true);
     try {
-      const project = await createProject({ number: newNumber, customer: newCustomer, production_stages: newStages });
+      const project = await createProject({ customer: newCustomer, production_stages: newStages });
       setIsCreateModalOpen(false);
       navigate(`/projects/${project.id}`);
     } catch (e: any) {
@@ -177,15 +174,19 @@ export default function ProjectsPage() {
   const startRename = (e: React.MouseEvent, project: ProjectList) => {
     e.stopPropagation();
     setRenamingId(project.id);
-    setRenameValue(project.number);
+    setRenameValue(project.order_number ?? project.number);
     setTimeout(() => renameInputRef.current?.select(), 50);
   };
 
   const commitRename = async () => {
-    if (!renamingId || !renameValue.trim()) { setRenamingId(null); return; }
+    if (!renamingId) return;
     try {
-      await updateProject(renamingId, { number: renameValue.trim() });
-      setProjects(ps => ps.map(p => p.id === renamingId ? { ...p, number: renameValue.trim() } : p));
+      await updateProject(renamingId, { order_number: renameValue.trim() || undefined });
+      setProjects(ps => ps.map(p => p.id === renamingId ? {
+        ...p,
+        number: renameValue.trim(),
+        order_number: renameValue.trim() || null,
+      } : p));
     } catch (e: any) {
       toast.error(e.response?.data?.detail || 'Не удалось переименовать');
     }
@@ -334,7 +335,7 @@ export default function ProjectsPage() {
             <table className="w-full min-w-[840px] text-left border-collapse">
               <thead>
                 <tr className="border-b border-tint/20 bg-hi/[0.02]">
-                  <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/40">Проект</th>
+                  <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/40">Счёт / заказ</th>
                   <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/40">Заказчик</th>
                   <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/40">Дата</th>
                   <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/40">Этап</th>
@@ -370,7 +371,8 @@ export default function ProjectsPage() {
                           </div>
                         ) : (
                           <span className="cursor-pointer hover:text-fg transition-colors group-hover:underline" onDoubleClick={e => startRename(e, project)}>
-                            {project.number}
+                            <span className="block">{project.invoice_number || 'Без счёта'}</span>
+                            {project.order_number && <span className="mt-0.5 block font-sans text-[11px] font-medium text-fg/40">Заказ: {project.order_number}</span>}
                           </span>
                         )}
                       </td>
@@ -485,14 +487,6 @@ export default function ProjectsPage() {
               <h2 className="text-2xl sm:text-3xl font-bold mb-5 sm:mb-8">Новый проект</h2>
               <div className="space-y-5 sm:space-y-8">
                 <div className="space-y-3">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-accent/40 ml-1">Номер проекта</label>
-                  <input type="text" value={newNumber}
-                    onChange={e => setNewNumber(formatProjectNumber(e.target.value))}
-                    className="w-full bg-hi/8 border border-tint/35 rounded-2xl px-6 py-4 outline-none focus:border-accent/50 transition-all font-mono text-lg text-fg tracking-widest"
-                    placeholder="Х00-0-0000"
-                  />
-                </div>
-                <div className="space-y-3">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-accent/40 ml-1">Производство</label>
                   <div className="flex gap-3">
                     {([1, 2] as const).map(n => (
@@ -530,7 +524,7 @@ export default function ProjectsPage() {
               </div>
               <div className="flex gap-4 mt-6 sm:mt-10">
                 <button onClick={() => setIsCreateModalOpen(false)} className="flex-1 py-4 rounded-2xl bg-hi/5 hover:bg-hi/10 font-bold transition-all">Отмена</button>
-                <button onClick={handleCreate} disabled={!newNumber.trim() || isCreating}
+                <button onClick={handleCreate} disabled={isCreating}
                   className="flex-1 py-4 rounded-2xl bg-primary hover:bg-primary-h text-white font-bold transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {isCreating ? (

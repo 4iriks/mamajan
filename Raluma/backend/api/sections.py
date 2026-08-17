@@ -12,7 +12,28 @@ from engine.legacy_values import normalize_section_data_values
 
 router = APIRouter(prefix="/api/projects", tags=["sections"])
 
-ADMIN_ROLES = ("admin", "superadmin")
+def _assign_price_group(section_data: dict, db: Session) -> None:
+    if str(section_data.get("system") or "").strip().upper() != "СЛАЙД":
+        section_data["glass_supplied"] = True
+    group_id = section_data.get("price_group_id")
+    if group_id is not None:
+        if db.get(models.ConstructionPriceGroup, group_id) is None:
+            raise HTTPException(status_code=400, detail="Ценовая группа не найдена")
+        return
+    system_code = {
+        "СЛАЙД": "SLIDE",
+        "КНИЖКА": "BOOK",
+        "ЛИФТ": "LIFT",
+    }.get(str(section_data.get("system") or "").strip().upper())
+    if not system_code:
+        return
+    group = (
+        db.query(models.ConstructionPriceGroup)
+        .filter_by(code=system_code, is_active=True)
+        .first()
+    )
+    if group is not None:
+        section_data["price_group_id"] = group.id
 
 
 def _get_project_or_403(
@@ -21,7 +42,7 @@ def _get_project_or_403(
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Проект не найден")
-    if current_user.role not in ADMIN_ROLES and project.created_by != current_user.id:
+    if current_user.role == "dealer" and project.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Нет доступа")
     return project
 
@@ -58,6 +79,7 @@ def create_section(
         .scalar()
     )
     section_data = normalize_section_data_values(data.model_dump())
+    _assign_price_group(section_data, db)
     section_data["order"] = (max_order or 0) + 1
     section = models.Section(project_id=project_id, **section_data)
     db.add(section)
@@ -87,6 +109,7 @@ def update_section(
     if not section:
         raise HTTPException(status_code=404, detail="Секция не найдена")
     section_data = normalize_section_data_values(data.model_dump())
+    _assign_price_group(section_data, db)
     for field, value in section_data.items():
         setattr(section, field, value)
     project.updated_at = datetime.utcnow()

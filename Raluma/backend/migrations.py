@@ -7,6 +7,8 @@ SQLite не поддерживает IF NOT EXISTS для ALTER TABLE,
 Вызывается из main.py при старте приложения.
 """
 
+import json
+
 from sqlalchemy import text
 from database import engine
 from engine.glass_types import normalize_slide_glass_type
@@ -18,6 +20,12 @@ from engine.legacy_values import (
 # ── Новые таблицы ─────────────────────────────────────────────────────────────
 
 _CREATE_TABLES = [
+    """
+    CREATE TABLE IF NOT EXISTS migration_markers (
+        name VARCHAR PRIMARY KEY,
+        applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+    """,
     """
     CREATE TABLE IF NOT EXISTS catalog_items (
         id INTEGER PRIMARY KEY,
@@ -102,6 +110,7 @@ _CREATE_TABLES = [
         public_payload TEXT NOT NULL DEFAULT '{}',
         internal_payload TEXT NOT NULL DEFAULT '{}',
         services_payload TEXT NOT NULL DEFAULT '[]',
+        discounts_payload TEXT NOT NULL DEFAULT '[]',
         overrides_payload TEXT NOT NULL DEFAULT '[]',
         vat_mode VARCHAR NOT NULL DEFAULT 'none',
         vat_rate NUMERIC(6, 3) NOT NULL DEFAULT 20,
@@ -123,6 +132,46 @@ _CREATE_TABLES = [
         FOREIGN KEY(fixed_by) REFERENCES users(id),
         FOREIGN KEY(margin_override_approved_by) REFERENCES users(id)
     )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS catalog_finish_variants (
+        id INTEGER PRIMARY KEY,
+        catalog_item_id INTEGER NOT NULL,
+        name VARCHAR NOT NULL,
+        price NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        requires_paint BOOLEAN NOT NULL DEFAULT 0,
+        is_active BOOLEAN NOT NULL DEFAULT 1,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(catalog_item_id) REFERENCES catalog_items(id)
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS ix_catalog_finish_variants_item
+    ON catalog_finish_variants (catalog_item_id)
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS construction_price_groups (
+        id INTEGER PRIMARY KEY,
+        code VARCHAR NOT NULL UNIQUE,
+        name VARCHAR NOT NULL,
+        markup_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
+        is_active BOOLEAN NOT NULL DEFAULT 1,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_by INTEGER,
+        FOREIGN KEY(updated_by) REFERENCES users(id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS invoice_counters (
+        name VARCHAR PRIMARY KEY,
+        value INTEGER NOT NULL DEFAULT 0
+    )
+    """,
+    """
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_projects_invoice_number
+    ON projects (invoice_number) WHERE invoice_number IS NOT NULL
     """,
 ]
 
@@ -149,7 +198,11 @@ _ADD_COLUMNS = [
     "ALTER TABLE project_quote_states ADD COLUMN margin_override_target_revision INTEGER",
     "ALTER TABLE project_quote_states ADD COLUMN margin_override_approved_by INTEGER",
     "ALTER TABLE project_quote_states ADD COLUMN margin_override_approved_at DATETIME",
+    "ALTER TABLE project_quote_states ADD COLUMN discounts_payload TEXT NOT NULL DEFAULT '[]'",
+    "ALTER TABLE catalog_finish_variants ADD COLUMN cost NUMERIC(14, 2) NOT NULL DEFAULT 0",
     # projects
+    "ALTER TABLE projects ADD COLUMN invoice_number VARCHAR",
+    "ALTER TABLE projects ADD COLUMN order_number VARCHAR",
     "ALTER TABLE projects ADD COLUMN subtype VARCHAR",
     "ALTER TABLE projects ADD COLUMN extra_parts VARCHAR",
     "ALTER TABLE projects ADD COLUMN extra_components TEXT NOT NULL DEFAULT '[]'",
@@ -169,6 +222,8 @@ _ADD_COLUMNS = [
     "ALTER TABLE projects ADD COLUMN delivery_note_data TEXT DEFAULT '{}'",
     # sections
     "ALTER TABLE sections ADD COLUMN system VARCHAR",
+    "ALTER TABLE sections ADD COLUMN glass_supplied BOOLEAN NOT NULL DEFAULT 1",
+    "ALTER TABLE sections ADD COLUMN price_group_id INTEGER",
     "ALTER TABLE sections ADD COLUMN door_system VARCHAR",
     "ALTER TABLE sections ADD COLUMN cs_shape VARCHAR",
     "ALTER TABLE sections ADD COLUMN cs_width2 FLOAT",
@@ -230,18 +285,32 @@ _ADD_COLUMNS = [
 # ── Миграции данных ────────────────────────────────────────────────────────────
 
 _DATA_MIGRATIONS = [
-    "INSERT OR IGNORE INTO pricing_settings (id, include_waste_markup, default_vat_rate, updated_at) VALUES (1, 0, 20, CURRENT_TIMESTAMP)",
+    "INSERT OR IGNORE INTO pricing_settings (id, include_waste_markup, default_vat_rate, updated_at) VALUES (1, 1, 20, CURRENT_TIMESTAMP)",
+    "UPDATE pricing_settings SET include_waste_markup = 1 WHERE id = 1",
     # Старые проекты без корректно сохранённой этапности считаются одноэтапными.
     "UPDATE projects SET production_stages = 1 WHERE production_stages IS NULL OR production_stages NOT IN (1, 2)",
     "UPDATE projects SET current_stage = 1 WHERE current_stage IS NULL OR current_stage NOT IN (1, 2)",
     "UPDATE projects SET extra_components = '[]' WHERE extra_components IS NULL OR TRIM(extra_components) = ''",
+    # Historical ``number`` is the manually entered order reference.  Invoice
+    # numbers intentionally remain NULL for every pre-migration project.
+    "UPDATE projects SET order_number = number WHERE order_number IS NULL",
     "UPDATE projects SET hardware_installation = 'not_installed' WHERE hardware_installation IS NULL OR hardware_installation NOT IN ('installed', 'not_installed')",
+    "UPDATE sections SET glass_supplied = 1 WHERE glass_supplied IS NULL",
+    "INSERT OR IGNORE INTO construction_price_groups (code, name, markup_percent, is_active, created_at, updated_at) VALUES ('SLIDE', 'СЛАЙД', 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+    "INSERT OR IGNORE INTO construction_price_groups (code, name, markup_percent, is_active, created_at, updated_at) VALUES ('BOOK', 'КНИЖКА', 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+    "INSERT OR IGNORE INTO construction_price_groups (code, name, markup_percent, is_active, created_at, updated_at) VALUES ('LIFT', 'ЛИФТ', 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+    "UPDATE sections SET price_group_id = (SELECT id FROM construction_price_groups WHERE code = 'SLIDE') WHERE price_group_id IS NULL AND UPPER(TRIM(system)) = 'СЛАЙД'",
+    "UPDATE sections SET price_group_id = (SELECT id FROM construction_price_groups WHERE code = 'BOOK') WHERE price_group_id IS NULL AND UPPER(TRIM(system)) = 'КНИЖКА'",
+    "UPDATE sections SET price_group_id = (SELECT id FROM construction_price_groups WHERE code = 'LIFT') WHERE price_group_id IS NULL AND UPPER(TRIM(system)) = 'ЛИФТ'",
     # Перенос system из project в sections для старых данных
     (
         "UPDATE sections SET system = "
         "(SELECT system FROM projects WHERE projects.id = sections.project_id) "
         "WHERE system IS NULL"
     ),
+    "UPDATE sections SET price_group_id = (SELECT id FROM construction_price_groups WHERE code = 'SLIDE') WHERE price_group_id IS NULL AND UPPER(TRIM(system)) = 'СЛАЙД'",
+    "UPDATE sections SET price_group_id = (SELECT id FROM construction_price_groups WHERE code = 'BOOK') WHERE price_group_id IS NULL AND UPPER(TRIM(system)) = 'КНИЖКА'",
+    "UPDATE sections SET price_group_id = (SELECT id FROM construction_price_groups WHERE code = 'LIFT') WHERE price_group_id IS NULL AND UPPER(TRIM(system)) = 'ЛИФТ'",
     # Переименование замков (ТЗ6)
     "UPDATE sections SET lock_left = 'ЗАМОК-ЗАЩЕЛКА 1стор RS3018' WHERE lock_left IN ('1-сторонний RS3018', 'ЗАМОК-ЗАЩЕЛКА 1стор')",
     "UPDATE sections SET lock_left = 'ЗАМОК двухсторонний с ключом RS3020' WHERE lock_left IN ('2-сторонний с ключом RS3019', 'ЗАМОК-ЗАЩЕЛКА 2стор с ключом')",
@@ -394,6 +463,237 @@ def _normalize_glass_catalog_items(conn):
         by_sku.pop(sku, None)
 
 
+def _json_list(value: object) -> list[dict]:
+    try:
+        parsed = json.loads(value or "[]") if not isinstance(value, list) else value
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [dict(row) for row in parsed if isinstance(row, dict)]
+
+
+def _extra_quantity(value: object) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        return max(0.0, float(str(value).strip().replace(",", ".")))
+    except (TypeError, ValueError):
+        return None
+
+
+def _quantity_text(value: float) -> str:
+    rounded = round(value, 6)
+    return str(int(rounded)) if rounded.is_integer() else f"{rounded:g}"
+
+
+def _extra_key(row: dict) -> tuple[str, ...]:
+    def clean(*names: str) -> str:
+        for name in names:
+            value = row.get(name)
+            if value not in (None, ""):
+                return " ".join(str(value).strip().casefold().split())
+        return ""
+
+    return (
+        clean("catalog_item_id", "catalogItemId"),
+        clean("finish_variant_id", "finishVariantId"),
+        clean("sku", "art", "article"),
+        clean("name"),
+        clean("finish_name", "finishName", "color"),
+        clean("size"),
+        clean("unit"),
+        clean("deliveryStage", "delivery_stage", "stage"),
+    )
+
+
+def _merge_extra_rows(target: list[dict], row: dict) -> None:
+    key = _extra_key(row)
+    existing = next((item for item in target if _extra_key(item) == key), None)
+    if existing is None:
+        target.append(row)
+        return
+    old_qty = _extra_quantity(existing.get("qty", existing.get("quantity")))
+    new_qty = _extra_quantity(row.get("qty", row.get("quantity")))
+    if old_qty is not None and new_qty is not None:
+        existing["qty"] = _quantity_text(old_qty + new_qty)
+        existing.pop("quantity", None)
+
+
+def _migrate_section_extras_to_project(conn) -> None:
+    """Move legacy section extras once and clear their legacy source rows.
+
+    Quantities in a section were specified per product, so migration multiplies
+    them by ``Section.quantity``.  Matching snapshots are merged, preventing
+    duplicate shipment/paint/document rows.
+    """
+
+    try:
+        projects = conn.execute(
+            text("SELECT id, extra_components FROM projects ORDER BY id")
+        ).fetchall()
+    except Exception:
+        return
+    for project_id, project_raw in projects:
+        section_rows = conn.execute(
+            text(
+                "SELECT id, quantity, extra_components FROM sections "
+                "WHERE project_id = :project_id ORDER BY id"
+            ),
+            {"project_id": project_id},
+        ).fetchall()
+        migrated = False
+        merged: list[dict] = []
+        for existing in _json_list(project_raw):
+            _merge_extra_rows(merged, existing)
+        for section_id, section_quantity, raw in section_rows:
+            legacy = _json_list(raw)
+            if not legacy:
+                continue
+            multiplier = _extra_quantity(section_quantity) or 1.0
+            for source in legacy:
+                row = dict(source)
+                qty = _extra_quantity(row.get("qty", row.get("quantity")))
+                if qty is not None:
+                    row["qty"] = _quantity_text(qty * multiplier)
+                    row.pop("quantity", None)
+                _merge_extra_rows(merged, row)
+            conn.execute(
+                text("UPDATE sections SET extra_components = '[]' WHERE id = :id"),
+                {"id": section_id},
+            )
+            migrated = True
+        if migrated:
+            conn.execute(
+                text(
+                    "UPDATE projects SET extra_components = :payload "
+                    "WHERE id = :project_id"
+                ),
+                {
+                    "payload": json.dumps(merged, ensure_ascii=False),
+                    "project_id": project_id,
+                },
+            )
+
+
+def _backfill_finish_variants(conn) -> None:
+    """Convert legacy color-name arrays into first-class finish variants."""
+
+    try:
+        items = conn.execute(
+            text(
+                "SELECT id, color_variants, purchase_price, markup_percent, "
+                "paint_mode FROM catalog_items ORDER BY id"
+            )
+        ).fetchall()
+    except Exception:
+        return
+    for item_id, raw, purchase_price, markup_percent, paint_mode in items:
+        existing = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM catalog_finish_variants "
+                "WHERE catalog_item_id = :item_id"
+            ),
+            {"item_id": item_id},
+        ).scalar_one()
+        if existing:
+            continue
+        try:
+            names = json.loads(raw or "[]")
+        except (TypeError, ValueError, json.JSONDecodeError):
+            names = []
+        if not isinstance(names, list):
+            continue
+        base_price = max(0.0, float(purchase_price or 0)) * (
+            1 + max(0.0, float(markup_percent or 0)) / 100
+        )
+        mode = str(paint_mode or "").casefold()
+        for value in names:
+            name = " ".join(str(value or "").split())
+            if not name:
+                continue
+            normalized = name.casefold()
+            requires_paint = (
+                ("ral" in normalized or "окрас" in normalized)
+                or (
+                    ("красится" in mode or "частично" in mode)
+                    and "не красится" not in mode
+                    and "анод" not in normalized
+                    and "без цвета" not in normalized
+                )
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO catalog_finish_variants "
+                    "(catalog_item_id, name, price, cost, requires_paint, is_active, "
+                    "created_at, updated_at) VALUES "
+                    "(:item_id, :name, :price, :cost, :requires_paint, 1, "
+                    "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                ),
+                {
+                    "item_id": item_id,
+                    "name": name,
+                    "price": round(base_price, 2),
+                    "cost": max(0.0, float(purchase_price or 0)),
+                    "requires_paint": bool(requires_paint),
+                },
+            )
+
+
+def _backfill_finish_variant_costs_once(conn) -> None:
+    marker = "catalog-finish-variant-cost-v1"
+    applied = conn.execute(
+        text("SELECT 1 FROM migration_markers WHERE name = :name"),
+        {"name": marker},
+    ).first()
+    if applied:
+        return
+    conn.execute(
+        text(
+            "UPDATE catalog_finish_variants SET cost = CASE "
+            "WHEN ABS(price - (SELECT COALESCE(purchase_price, 0) * "
+            "(1 + COALESCE(markup_percent, 0) / 100.0) FROM catalog_items "
+            "WHERE catalog_items.id = catalog_finish_variants.catalog_item_id)) < 0.01 "
+            "THEN (SELECT COALESCE(purchase_price, 0) FROM catalog_items "
+            "WHERE catalog_items.id = catalog_finish_variants.catalog_item_id) "
+            "ELSE price END WHERE cost = 0"
+        )
+    )
+    conn.execute(
+        text("INSERT INTO migration_markers (name) VALUES (:name)"),
+        {"name": marker},
+    )
+
+
+def _sync_invoice_counter(conn) -> None:
+    """Never let the atomic allocator move behind an already issued invoice."""
+
+    try:
+        maximum = conn.execute(
+            text(
+                "SELECT COALESCE(MAX(CAST(invoice_number AS INTEGER)), 0) "
+                "FROM projects WHERE invoice_number IS NOT NULL "
+                "AND invoice_number <> ''"
+            )
+        ).scalar_one()
+    except Exception:
+        maximum = 0
+    conn.execute(
+        text(
+            "INSERT OR IGNORE INTO invoice_counters (name, value) "
+            "VALUES ('project_invoice', :value)"
+        ),
+        {"value": int(maximum or 0)},
+    )
+    conn.execute(
+        text(
+            "UPDATE invoice_counters SET value = :value "
+            "WHERE name = 'project_invoice' AND value < :value"
+        ),
+        {"value": int(maximum or 0)},
+    )
+
+
 def run_migrations():
     """Выполнить все миграции. Безопасно вызывать при каждом старте."""
     # Прежние пользовательские шаблоны заменены фиксированным каталогом СЛАЙД.
@@ -421,6 +721,19 @@ def run_migrations():
             except Exception:
                 pass  # колонка уже существует
 
+        # The partial unique index cannot be created before the legacy table
+        # receives ``invoice_number``; retry it after all ALTER statements.
+        try:
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ux_projects_invoice_number "
+                    "ON projects (invoice_number) WHERE invoice_number IS NOT NULL"
+                )
+            )
+            conn.commit()
+        except Exception:
+            pass
+
     with engine.connect() as conn:
         for sql in _DATA_MIGRATIONS:
             try:
@@ -432,6 +745,10 @@ def run_migrations():
         try:
             _normalize_section_center_offsets(conn)
             _normalize_glass_catalog_items(conn)
+            _backfill_finish_variant_costs_once(conn)
+            _backfill_finish_variants(conn)
+            _migrate_section_extras_to_project(conn)
+            _sync_invoice_counter(conn)
             conn.commit()
         except Exception:
             pass

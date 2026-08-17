@@ -25,7 +25,6 @@ from engine.office_common import (
 from engine.office_diagrams import section_diagrams
 from engine.office_docx import CHECKLIST_ROWS
 from engine.office_section_data import hardware_rows, profile_rows, section_summary_rows
-from engine.pdf import section_extra_components
 from engine.project_documents import build_project_document_context
 
 
@@ -840,38 +839,6 @@ def _write_compact_hardware(
     )
 
 
-def _write_extra_components(
-    worksheet: xlsxwriter.worksheet.Worksheet,
-    formats: dict[str, Any],
-    row: int,
-    section: object,
-    overrides: dict[str, Any],
-) -> int:
-    items = section_extra_components(section, overrides)
-    if not items:
-        return row
-    row = _write_bar(worksheet, formats, row, "Дополнительные комплектующие")
-    spans = ((0, 2), (3, 5), (6, 7), (8, 9), (10, 11))
-    headers = ("Артикул", "Название", "Размер", "Кол-во", "Цвет")
-    row = _write_headers(worksheet, formats, row, headers, spans)
-    for item in items:
-        for value, (first, last) in zip(
-            (
-                item.get("art", ""),
-                item.get("name", ""),
-                item.get("size", ""),
-                item.get("qty", ""),
-                item.get("color", ""),
-            ),
-            spans,
-            strict=True,
-        ):
-            worksheet.merge_range(row, first, row, last, value, formats["cell"])
-        worksheet.set_row(row, 22)
-        row += 1
-    return row
-
-
 def _build_details_sheet(
     workbook: xlsxwriter.Workbook,
     formats: dict[str, Any],
@@ -892,7 +859,6 @@ def _build_details_sheet(
     )
     row = _write_compact_profiles(worksheet, formats, row, calc, overrides)
     row = _write_compact_hardware(worksheet, formats, row, calc, overrides)
-    row = _write_extra_components(worksheet, formats, row, section, overrides)
     if hasattr(calc, "torque") and getattr(calc, "torque", None):
         row = _write_bar(worksheet, formats, row, "Расчет привода")
         torque = calc.torque
@@ -1133,7 +1099,6 @@ def build_section_xlsx(project: object, section: object, calc: object) -> bytes:
     if system == "СЛАЙД":
         row = _write_compact_profiles(worksheet, formats, row, calc, overrides)
         row = _write_compact_hardware(worksheet, formats, row, calc, overrides)
-        row = _write_extra_components(worksheet, formats, row, section, overrides)
     worksheet.print_area(0, 0, max(row - 1, 1), 11)
 
     if system == "ЛИФТ":
@@ -1471,7 +1436,13 @@ def _build_hardware_order_xlsx(context: dict) -> bytes:
         for column, width in enumerate(widths):
             worksheet.set_column(column, column, width)
 
-        project_number = str(getattr(context["project"], "number", "") or "")
+        project = context["project"]
+        project_number = str(
+            getattr(project, "invoice_number", None)
+            or getattr(project, "order_number", None)
+            or getattr(project, "number", None)
+            or ""
+        )
         worksheet.merge_range(
             0,
             0,
@@ -1514,18 +1485,6 @@ def _build_hardware_order_xlsx(context: dict) -> bytes:
             )
             worksheet.set_row(row, 24)
             row += 1
-        if page.get("note"):
-            worksheet.merge_range(
-                row,
-                0,
-                row,
-                7,
-                f"Примечание к комплектации: {page['note']}",
-                formats["note"],
-            )
-            worksheet.set_row(row, 24)
-            row += 1
-
         headers = (
             "Артикул",
             "Эскиз",
@@ -1590,7 +1549,12 @@ def _build_delivery_xlsx(context: dict) -> bytes:
     workbook = xlsxwriter.Workbook(output, {"in_memory": True})
     project = context["project"]
     delivery = context["delivery"]
-    project_number = str(getattr(project, "number", "") or "")
+    project_number = str(
+        getattr(project, "invoice_number", None)
+        or getattr(project, "order_number", None)
+        or getattr(project, "number", None)
+        or ""
+    )
     workbook.set_properties(
         {
             "title": f"Накладная {project_number}",
@@ -1810,9 +1774,7 @@ def _build_delivery_xlsx(context: dict) -> bytes:
             item.get("places"),
         )
 
-    for item_index, item in enumerate(
-        context.get("delivery_project_extra_rows") or []
-    ):
+    for item in context.get("delivery_project_extra_rows") or []:
         details_text = "\n".join(
             filter(
                 None,
@@ -1821,12 +1783,6 @@ def _build_delivery_xlsx(context: dict) -> bytes:
                     f"Размер: {item.get('size')}" if item.get("size") else "",
                     f"Единица: {item.get('unit')}" if item.get("unit") else "",
                     f"Этап: {item.get('stage')}" if item.get("stage") else "",
-                    (
-                        f"Примечание к комплектации: {context.get('delivery_project_extra_note')}"
-                        if item_index == 0
-                        and context.get("delivery_project_extra_note")
-                        else ""
-                    ),
                 ),
             )
         )

@@ -177,8 +177,9 @@ function sideAssemblyVariant(
 
 export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: SlideCalcPreview | null }) {
   const sideAssemblyFilterPrefix = React.useId().replace(/:/g, '');
-  const glassFill = diagramGlassFillColor(section.glassType);
-  const matteGlass = isMatteGlass(section.glassType);
+  const glassSupplied = section.glassSupplied !== false;
+  const glassFill = glassSupplied ? diagramGlassFillColor(section.glassType) : '#FFFFFF';
+  const matteGlass = glassSupplied && isMatteGlass(section.glassType);
   const mattePatternId = `${sideAssemblyFilterPrefix}-matte-glass-top`;
   const {
     panels, rails = 3, firstPanelInside = 'Справа', unusedTrack,
@@ -453,15 +454,16 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
         const rRight = bounds.right;
         const rw = Math.max(1, rRight - rx);
         const cx = px + panelW / 2;
+        const panelLabel = layout.widthMm ? `${layout.widthMm} · №${panelNum}` : String(panelNum);
+        const panelLabelFontSize = Math.max(
+          6,
+          Math.min(11, panelW / Math.max(2.5, panelLabel.length * 0.62)),
+        );
         return (
           <g key={pi}>
             <rect data-scheme-panel={pi + 1} x={rx} y={cy - 6} width={rw} height={12} data-glass-fill={glassFill} data-glass-pattern={matteGlass ? 'matte' : undefined} rx="2"
               fill={matteGlass ? `url(#${mattePatternId})` : glassFill} fillOpacity="0.52" stroke="var(--diagram-line)" strokeWidth="1.4" strokeOpacity="0.9" />
-            {layout.widthMm ? (
-              <text x={cx} y={cy + 5} textAnchor="middle" fontSize="8" fill="var(--diagram-symbol)" fillOpacity="1" fontWeight="bold">{layout.widthMm} · №{panelNum}</text>
-            ) : (
-              <text x={cx} y={cy + 5} textAnchor="middle" fontSize="9" fill="var(--diagram-symbol)" fillOpacity="1" fontWeight="bold">{panelNum}</text>
-            )}
+            <text x={cx} y={cy + 5} textAnchor="middle" fontSize={panelLabelFontSize} fill="var(--diagram-symbol)" fillOpacity="1" fontWeight="bold">{panelLabel}</text>
           </g>
         );
       })}
@@ -558,8 +560,9 @@ export function SlideRoomViewSVG({
   const diagramId = React.useId().replace(/:/g, '');
   const panels  = section.panels;
   const is2row = (section.slideRows ?? 1) === 2;
-  const glassFill = diagramGlassFillColor(section.glassType);
-  const matteGlass = isMatteGlass(section.glassType);
+  const glassSupplied = section.glassSupplied !== false;
+  const glassFill = glassSupplied ? diagramGlassFillColor(section.glassType) : '#FFFFFF';
+  const matteGlass = glassSupplied && isMatteGlass(section.glassType);
   const mattePatternId = `${diagramId}-matte-glass-room`;
   const firstRight = (section.firstPanelInside ?? 'Справа') === 'Справа';
   const rails = section.rails ?? 3;
@@ -775,6 +778,19 @@ export function SlideRoomViewSVG({
                 )}
               </>
             )}
+            {!glassSupplied && (
+              <text
+                x={cx}
+                y={cy + 34}
+                textAnchor="middle"
+                fontSize={Math.max(6, Math.min(10, pW / 8))}
+                fill="var(--theme-accent)"
+                fillOpacity="0.6"
+                fontWeight="bold"
+              >
+                БЕЗ СТЕКЛА
+              </text>
+            )}
             {isCenterPanel && !centerIsDeaf && !centerIsRs112 && (() => {
               const inset = Math.min(pW * 0.35, Math.max(9, 130 * drawingScale));
               const anchorX = firstPanelsInCenter
@@ -850,12 +866,16 @@ export function SlideRoomViewSVG({
         const dy  = fY + fH + 18;
         const cx  = (dx1 + dx2) / 2;
         const panelWmm = layout.widthMm;
+        const dimensionFontSize = Math.max(
+          9,
+          Math.min(17, layout.width / Math.max(2.8, String(panelWmm).length * 0.72)),
+        );
         return (
           <g key={i} data-room-panel-dimension={i + 1}>
             <line x1={dx1 + 3} y1={dy} x2={dx2 - 3} y2={dy} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.35" />
             <line x1={dx1 + 3} y1={dy - 4} x2={dx1 + 3} y2={dy + 4} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.35" />
             <line x1={dx2 - 3} y1={dy - 4} x2={dx2 - 3} y2={dy + 4} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.35" />
-            <text x={cx} y={dy + 14} textAnchor="middle" fontSize="14" fontWeight="bold" fill="var(--theme-accent)" fillOpacity="0.55">{panelWmm}</text>
+            <text x={cx} y={dy + 14} textAnchor="middle" fontSize={dimensionFontSize} fontWeight="bold" fill="var(--theme-accent)" fillOpacity="0.65">{panelWmm}</text>
           </g>
         );
       })}
@@ -871,14 +891,14 @@ export function SlideRoomViewSVG({
           <line x1={iX} y1={fY + fH + 38} x2={iX + iW} y2={fY + fH + 38} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
           <line x1={iX}      y1={fY + fH + 32} x2={iX}      y2={fY + fH + 44} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
           <line x1={iX + iW} y1={fY + fH + 32} x2={iX + iW} y2={fY + fH + 44} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
-          <text x={iX + iW / 2} y={fY + fH + 52} textAnchor="middle" fontSize="10" fill="var(--theme-accent)" fillOpacity="0.5">{W}</text>
+          <text x={iX + iW / 2} y={fY + fH + 52} textAnchor="middle" fontSize="16" fontWeight="bold" fill="var(--theme-accent)" fillOpacity="0.7">{W}</text>
 
           <line x1={fX + fW + 18} y1={fY} x2={fX + fW + 18} y2={fY + fH} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
           <line x1={fX + fW + 12} y1={fY}      x2={fX + fW + 24} y2={fY}      stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
           <line x1={fX + fW + 12} y1={fY + fH} x2={fX + fW + 24} y2={fY + fH} stroke="var(--theme-accent)" strokeWidth="0.8" strokeOpacity="0.3" />
           <text
             x={fX + fW + 34} y={fY + fH / 2}
-            textAnchor="middle" fontSize="10" fill="var(--theme-accent)" fillOpacity="0.5"
+            textAnchor="middle" fontSize="16" fontWeight="bold" fill="var(--theme-accent)" fillOpacity="0.7"
             transform={`rotate(90,${fX + fW + 34},${fY + fH / 2})`}
           >{Hh}</text>
         </g>

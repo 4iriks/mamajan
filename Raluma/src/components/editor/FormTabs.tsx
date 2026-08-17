@@ -15,6 +15,7 @@ import {
 } from '../../constants/glass';
 
 const CUSTOM_GLASS_OPTION = '__custom_glass__';
+const NO_GLASS_OPTION = '__no_glass__';
 
 // ── Tab: Основное (общая для всех систем) ─────────────────────────────────────
 
@@ -70,21 +71,33 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
         <div className="space-y-1.5">
           <label className={LBL}>Стекло</label>
           <select
-            value={isCustomGlass ? CUSTOM_GLASS_OPTION : s.glassType}
+            value={s.system === 'СЛАЙД' && s.glassSupplied === false
+              ? NO_GLASS_OPTION
+              : isCustomGlass ? CUSTOM_GLASS_OPTION : s.glassType}
             onChange={e => {
+              if (e.target.value === NO_GLASS_OPTION) {
+                setIsCustomGlass(false);
+                update({ glassSupplied: false });
+                return;
+              }
               if (e.target.value === CUSTOM_GLASS_OPTION) {
                 setIsCustomGlass(true);
+                if (s.system === 'СЛАЙД') update({ glassSupplied: true });
                 return;
               }
               setIsCustomGlass(false);
-              update({ glassType: e.target.value });
+              update({
+                glassType: e.target.value,
+                ...(s.system === 'СЛАЙД' ? { glassSupplied: true } : {}),
+              });
             }}
             className={SEL}
           >
+            {s.system === 'СЛАЙД' && <option value={NO_GLASS_OPTION}>Без стекла</option>}
             {glassOptions.map(option => <option key={option} value={option}>{option}</option>)}
             <option value={CUSTOM_GLASS_OPTION}>Другое</option>
           </select>
-          {isCustomGlass && (
+          {isCustomGlass && !(s.system === 'СЛАЙД' && s.glassSupplied === false) && (
             <input
               type="text"
               value={hasCustomGlass ? s.glassType : ''}

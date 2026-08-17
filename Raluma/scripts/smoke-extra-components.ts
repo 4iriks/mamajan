@@ -16,6 +16,7 @@ const option = (
   id,
   sku,
   name,
+  category: sku.startsWith('RS') ? 'profile' : 'component',
   unit: 'шт',
   imageFile: '',
   isActive,
@@ -101,10 +102,11 @@ const created = localProjects.createLocalProject({
 assert.equal(created.hardware_installation, 'installed');
 assert.equal(created.extra_components, '[]');
 
-const savedComponents = JSON.stringify([{ sku: 'RS1005', qty: '2', unit: 'шт' }]);
+const legacyComponents = JSON.stringify([{ sku: 'RS1005', qty: '2', unit: 'шт' }]);
+const savedComponents = JSON.stringify([{ sku: 'RS1005', qty: 2, unit: 'шт' }]);
 localProjects.updateLocalProject(created.id, {
   hardware_installation: 'not_installed',
-  extra_components: savedComponents,
+  extra_components: legacyComponents,
 });
 const copied = localProjects.copyLocalProject(created.id);
 assert.equal(copied.hardware_installation, 'not_installed');

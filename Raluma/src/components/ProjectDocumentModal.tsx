@@ -31,7 +31,7 @@ import {
   getPublicQuote,
   InternalQuoteState,
   PublicQuote,
-  QuoteManualService,
+  QuoteDiscountRule,
   refreshQuote,
   updateQuoteConfig,
   updateQuoteOverrides,
@@ -73,10 +73,16 @@ interface DeliveryNoteData {
 }
 
 const makePaintRowId = () => `paint-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-const makeServiceId = () => `service-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+const makeDiscountId = () => `discount-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
-function emptyService(): QuoteManualService {
-  return { id: makeServiceId(), name: '', quantity: '1', unit: 'шт.', base_cost: '0' };
+function emptyDiscount(): QuoteDiscountRule {
+  return {
+    id: makeDiscountId(),
+    name: 'Скидка',
+    scope: 'order',
+    mode: 'percent',
+    value: '0',
+  };
 }
 
 function formatQuoteMoney(value?: string | number) {
@@ -185,10 +191,10 @@ export default function ProjectDocumentModal({
   const isGuest = !token;
   const isPaintDocument = docType === 'paint';
   const isDeliveryDocument = docType === 'delivery';
-  const isCommercialDocument = docType === 'commercial';
+  const isCommercialDocument = docType === 'commercial' || docType === 'contract_appendix';
   const isSketchDocument = docType === 'sketch';
-  const canEditCommercial = canManagePrices();
-  const canOverrideCommercial = canEditCommercial;
+  const canEditCommercial = Boolean(user && user.role !== 'dealer');
+  const canOverrideCommercial = canManagePrices();
   const canOverrideMargin = user?.role === 'admin' || user?.role === 'superadmin';
   const missingPrices = internalQuote?.missing_prices ?? [];
   const commercialWarnings: string[] = Array.from(new Set<string>(
@@ -443,24 +449,26 @@ export default function ProjectDocumentModal({
     setIsDirty(true);
   };
 
-  const updateService = (id: string, updates: Partial<QuoteManualService>) => {
+  const updateDiscount = (id: string, updates: Partial<QuoteDiscountRule>) => {
     if (!internalQuote) return;
     patchCommercialConfig({
-      services: internalQuote.config.services.map(service => (
-        service.id === id ? { ...service, ...updates } : service
+      discounts: (internalQuote.config.discounts || []).map(discount => (
+        discount.id === id ? { ...discount, ...updates } : discount
       )),
     });
   };
 
-  const addService = () => {
-    if (!internalQuote) return;
-    patchCommercialConfig({ services: [...internalQuote.config.services, emptyService()] });
-  };
-
-  const removeService = (id: string) => {
+  const addDiscount = () => {
     if (!internalQuote) return;
     patchCommercialConfig({
-      services: internalQuote.config.services.filter(service => service.id !== id),
+      discounts: [...(internalQuote.config.discounts || []), emptyDiscount()],
+    });
+  };
+
+  const removeDiscount = (id: string) => {
+    if (!internalQuote) return;
+    patchCommercialConfig({
+      discounts: (internalQuote.config.discounts || []).filter(discount => discount.id !== id),
     });
   };
 
@@ -495,6 +503,7 @@ export default function ProjectDocumentModal({
         manufacturing_term: config.manufacturing_term,
         payment_terms: config.payment_terms,
         services: config.services,
+        discounts: config.discounts || [],
       });
       if (canOverrideCommercial) {
         await updateQuoteOverrides(
@@ -937,26 +946,32 @@ export default function ProjectDocumentModal({
                         </div>
 
                         <div>
-                          <div className="flex items-center justify-between gap-3 mb-2">
+                          <div className="mb-2 flex items-center justify-between gap-3">
                             <div>
-                              <div className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Ручные услуги</div>
-                              <div className="text-[10px] text-fg/30 mt-0.5">Базовая цена является внутренней и не попадает в дилерское КП.</div>
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Скидки</div>
+                              <div className="mt-0.5 text-[10px] text-fg/30">На весь заказ или выбранную категорию, в процентах либо рублях.</div>
                             </div>
-                            <button type="button" onClick={addService} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-tint/25 text-xs text-accent hover:bg-tint/10">
-                              <Plus className="w-3.5 h-3.5" /> Услуга
+                            <button type="button" onClick={addDiscount} className="inline-flex items-center gap-1.5 rounded-lg border border-tint/25 px-2.5 py-1.5 text-xs text-accent hover:bg-tint/10">
+                              <Plus className="h-3.5 w-3.5" /> Скидка
                             </button>
                           </div>
-                          {internalQuote.config.services.length > 0 && (
+                          {(internalQuote.config.discounts || []).length > 0 && (
                             <div className="space-y-2">
-                              {internalQuote.config.services.map(service => (
-                                <div key={service.id} className="grid grid-cols-[minmax(150px,1fr)_80px_110px_120px_34px] gap-2">
-                                  <input value={service.name} onChange={event => updateService(service.id, { name: event.target.value })} placeholder="Наименование" className="h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50" />
-                                  <input type="number" min="0.01" step="0.01" value={service.quantity} onChange={event => updateService(service.id, { quantity: event.target.value })} placeholder="Кол-во" className="h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50" />
-                                  <select value={service.unit} onChange={event => updateService(service.id, { unit: event.target.value })} className="h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50">
-                                    {['п.м.', 'шт.', 'кв.м.'].map(unit => <option key={unit} value={unit}>{unit}</option>)}
+                              {(internalQuote.config.discounts || []).map(discount => (
+                                <div key={discount.id} className="grid grid-cols-[minmax(130px,1fr)_150px_105px_34px] gap-2">
+                                  <input value={discount.name} onChange={event => updateDiscount(discount.id, { name: event.target.value })} placeholder="Название" className="h-9 rounded-lg border border-tint/20 bg-black/15 px-2 text-xs outline-none focus:border-accent/50" />
+                                  <select value={discount.scope} onChange={event => updateDiscount(discount.id, { scope: event.target.value as QuoteDiscountRule['scope'] })} className="h-9 rounded-lg border border-tint/20 bg-black/15 px-2 text-xs outline-none focus:border-accent/50">
+                                    <option value="order">Весь заказ</option>
+                                    <option value="construction">Конструкции</option>
+                                    <option value="profile">Профили</option>
+                                    <option value="component">Комплектующие</option>
+                                    <option value="service">Услуги</option>
                                   </select>
-                                  <input type="number" min="0" step="0.01" value={service.base_cost} onChange={event => updateService(service.id, { base_cost: event.target.value })} placeholder="Базовая цена" className="h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50" />
-                                  <button type="button" onClick={() => removeService(service.id)} aria-label="Удалить услугу" className="h-9 w-9 rounded-lg border border-red-500/25 text-red-400/75 hover:bg-red-500/10 flex items-center justify-center"><Trash2 className="w-4 h-4" /></button>
+                                  <div className="flex overflow-hidden rounded-lg border border-tint/20 bg-black/15">
+                                    <input type="number" min="0" step="0.01" value={discount.value} onChange={event => updateDiscount(discount.id, { value: event.target.value })} className="min-w-0 flex-1 bg-transparent px-2 text-xs outline-none" />
+                                    <button type="button" onClick={() => updateDiscount(discount.id, { mode: discount.mode === 'percent' ? 'fixed' : 'percent' })} className="border-l border-tint/20 px-2 text-xs font-bold text-accent">{discount.mode === 'percent' ? '%' : '₽'}</button>
+                                  </div>
+                                  <button type="button" onClick={() => removeDiscount(discount.id)} aria-label="Удалить скидку" className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-500/25 text-red-400/75 hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button>
                                 </div>
                               ))}
                             </div>

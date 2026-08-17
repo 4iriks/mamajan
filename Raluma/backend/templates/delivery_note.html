@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Накладная {{ project.number }}</title>
+  <title>Накладная {{ project.invoice_number or project.order_number or project.number }}</title>
   <style>
     @page { size: A4 portrait; margin: 11mm 10mm 12mm; }
     * { box-sizing: border-box; }
@@ -120,7 +120,7 @@
     <table class="document-head">
       <tr>
         <td class="executor">Исполнитель: ООО «ПРОЗРАЧНЫЕ РЕШЕНИЯ»</td>
-        <td class="document-title">Накладная № {{ project.number|e }}<span class="document-date">от {{ delivery.dateText|e }}</span></td>
+        <td class="document-title">Накладная № {{ (project.invoice_number or project.order_number or project.number)|e }}<span class="document-date">от {{ delivery.dateText|e }}</span></td>
       </tr>
     </table>
 
@@ -246,7 +246,6 @@
             {% if row.color %}<div class="row-meta">Цвет: {{ row.color|e }}</div>{% endif %}
             {% if row.size %}<div class="row-meta">Размер: {{ row.size|e }}</div>{% endif %}
             {% if row.stage %}<div class="row-meta">Этап: {{ row.stage|e }}</div>{% endif %}
-            {% if loop.first and delivery_project_extra_note %}<div class="row-note">Примечание к комплектации: {{ delivery_project_extra_note|e }}</div>{% endif %}
           </td>
           <td class="quantity">{{ row.qty_display }}</td>
           <td class="places" {% if not is_pdf %}contenteditable="true" data-delivery-place-key="{{ row.place_key }}" data-original="{{ row.places|e }}"{% endif %}>{{ row.places|e }}</td>

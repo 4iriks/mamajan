@@ -116,21 +116,38 @@ class ResetPasswordResponse(BaseModel):
 # ── Catalog ───────────────────────────────────────────────────────────────────
 
 
+class CatalogFinishVariantInput(BaseModel):
+    id: Optional[int] = None
+    name: str = Field(min_length=1, max_length=160)
+    price: Decimal = Field(default=Decimal("0"), ge=0)
+    cost: Optional[Decimal] = Field(default=None, ge=0)
+    requiresPaint: bool = False
+    isActive: bool = True
+
+
+class CatalogFinishVariantOut(CatalogFinishVariantInput):
+    id: int
+
+
 class CatalogItemBase(BaseModel):
     sku: str
     name: str
     group: str = "Профили"
     system: str = "СЛАЙД"
     unit: str = "шт"
-    purchasePrice: float = 0
-    markupPercent: float = 0
-    weight: float = 0
-    wastePercent: float = 0
-    sectionWidthMm: float = 0
-    sectionHeightMm: float = 0
+    purchasePrice: float = Field(default=0, ge=0)
+    markupPercent: float = Field(default=0, ge=0)
+    profileDiscountPercent: float = Field(default=0, ge=0, le=100)
+    weight: float = Field(default=0, ge=0)
+    wastePercent: float = Field(default=0, ge=0)
+    constructionMarkupPercent: float = Field(default=0, ge=0)
+    constructionDiscountPercent: float = Field(default=0, ge=0, le=100)
+    sectionWidthMm: float = Field(default=0, ge=0)
+    sectionHeightMm: float = Field(default=0, ge=0)
     imageFile: Optional[str] = None
     paintMode: str = "Не красится"
     colorVariants: List[str] = Field(default_factory=list)
+    finishVariants: List[CatalogFinishVariantInput] = Field(default_factory=list)
     supplier: Optional[str] = None
     isActive: bool = True
     note: Optional[str] = None
@@ -148,6 +165,8 @@ class CatalogItemUpdate(CatalogItemBase):
 
 PriceCategory = Literal["profile", "construction", "component", "service"]
 VatMode = Literal["none", "included", "on_top"]
+DiscountMode = Literal["percent", "fixed"]
+DiscountScope = Literal["profile", "construction", "component", "service", "order"]
 
 
 class CatalogPriceVersionBase(BaseModel):
@@ -236,12 +255,51 @@ class PricingSettingsOut(PricingSettingsUpdate):
     model_config = {"from_attributes": True}
 
 
+class ConstructionPriceGroupBase(BaseModel):
+    code: str = Field(min_length=1, max_length=80)
+    name: str = Field(min_length=1, max_length=160)
+    markup_percent: Decimal = Field(default=Decimal("0"), ge=0)
+    is_active: bool = True
+
+
+class ConstructionPriceGroupOut(ConstructionPriceGroupBase):
+    id: int
+
+    model_config = {"from_attributes": True}
+
+
+class StandaloneSaleItem(BaseModel):
+    catalog_item_id: int
+    finish_variant_id: Optional[int] = None
+    quantity: Decimal = Field(gt=0)
+
+
+class StandaloneSaleRequest(BaseModel):
+    items: list[StandaloneSaleItem] = Field(min_length=1)
+    buyer_discount_mode: Optional[DiscountMode] = None
+    buyer_discount_value: Decimal = Field(default=Decimal("0"), ge=0)
+
+
 class QuoteManualService(BaseModel):
     id: str
     name: str = Field(min_length=1, max_length=300)
     quantity: Decimal = Field(gt=0)
     unit: str = Field(min_length=1, max_length=40)
     base_cost: Decimal = Field(ge=0)
+
+
+class QuoteDiscountRule(BaseModel):
+    id: str = Field(default="", max_length=120)
+    name: str = Field(default="Скидка", max_length=300)
+    scope: DiscountScope
+    mode: DiscountMode
+    value: Decimal = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_percent(self):
+        if self.mode == "percent" and self.value > 100:
+            raise ValueError("Процентная скидка не может быть больше 100")
+        return self
 
 
 class QuotePriceOverride(BaseModel):
@@ -257,6 +315,7 @@ class QuoteConfigUpdate(BaseModel):
     manufacturing_term: str = Field(default="", max_length=500)
     payment_terms: str = Field(default="", max_length=1000)
     services: list[QuoteManualService] = Field(default_factory=list)
+    discounts: list[QuoteDiscountRule] = Field(default_factory=list)
 
 
 class QuoteOverridesUpdate(BaseModel):
@@ -276,6 +335,8 @@ class SectionBase(BaseModel):
     panels: int = 3
     quantity: int = 1
     glass_type: str = NON_SLIDE_DEFAULT_GLASS_TYPE
+    glass_supplied: bool = True
+    price_group_id: Optional[int] = None
     painting_type: str = "RAL стандарт"
     ral_color: Optional[str] = None
     corner_left: bool = False
@@ -427,7 +488,11 @@ class SectionOut(SectionBase):
 
 
 class ProjectBase(BaseModel):
-    number: str
+    # ``number`` remains a compatibility alias.  ``order_number`` is the
+    # manually entered reference; invoice_number is server-assigned.
+    number: Optional[str] = None
+    invoice_number: Optional[str] = None
+    order_number: Optional[str] = None
     customer: str
     system: Optional[str] = None
     subtype: Optional[str] = None
@@ -448,6 +513,18 @@ class ProjectBase(BaseModel):
     paint_manual_rows: Optional[str] = None
     delivery_note_data: Optional[str] = None
 
+    @model_validator(mode="after")
+    def synchronize_legacy_number(self):
+        order = str(self.order_number or "").strip() or None
+        legacy = str(self.number or "").strip() or None
+        if order is None and legacy is not None:
+            order = legacy
+        if legacy is None:
+            legacy = order or ""
+        self.order_number = order
+        self.number = legacy
+        return self
+
 
 class ProjectCreate(ProjectBase):
     pass
@@ -455,6 +532,7 @@ class ProjectCreate(ProjectBase):
 
 class ProjectUpdate(BaseModel):
     number: Optional[str] = None
+    order_number: Optional[str] = None
     customer: Optional[str] = None
     system: Optional[str] = None
     subtype: Optional[str] = None

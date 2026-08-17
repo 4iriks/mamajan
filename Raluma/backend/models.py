@@ -48,7 +48,13 @@ class Project(Base):
     __tablename__ = "projects"
 
     id = Column(Integer, primary_key=True, index=True)
+    # ``number`` is retained as a compatibility alias for integrations and
+    # historical local projects.  New code uses ``order_number`` for the
+    # manually entered project/order reference and ``invoice_number`` for the
+    # immutable global sequence.
     number = Column(String, nullable=False)
+    invoice_number = Column(String, unique=True, index=True, nullable=True)
+    order_number = Column(String, nullable=True)
     customer = Column(String, nullable=False)
     system = Column(
         String, nullable=True
@@ -108,6 +114,12 @@ class Section(Base):
     panels = Column(Integer, default=3)
     quantity = Column(Integer, default=1)
     glass_type = Column(String, default="10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ")
+    # A SLIDE section keeps its 10 mm calculation geometry even when glass is
+    # not supplied.  This flag only controls price, weight and documents.
+    glass_supplied = Column(Boolean, default=True, nullable=False)
+    price_group_id = Column(
+        Integer, ForeignKey("construction_price_groups.id"), nullable=True
+    )
     painting_type = Column(String, default="RAL стандарт")
     ral_color = Column(String, nullable=True)
     corner_left = Column(Boolean, default=False)
@@ -244,6 +256,63 @@ class CatalogItem(Base):
         cascade="all, delete-orphan",
         order_by="CatalogPriceVersion.effective_from.desc()",
     )
+    finish_variants = relationship(
+        "CatalogFinishVariant",
+        back_populates="catalog_item",
+        cascade="all, delete-orphan",
+        order_by="CatalogFinishVariant.id",
+    )
+
+
+class CatalogFinishVariant(Base):
+    """Selectable execution/finish with its own internal cost."""
+
+    __tablename__ = "catalog_finish_variants"
+
+    id = Column(Integer, primary_key=True, index=True)
+    catalog_item_id = Column(
+        Integer, ForeignKey("catalog_items.id"), nullable=False, index=True
+    )
+    name = Column(String, nullable=False)
+    # ``price`` is retained for compatibility with the first finish-variant
+    # rollout. New calculations use ``cost`` and apply the catalog pricing
+    # formula exactly once.
+    price = Column(Numeric(14, 2), default=0, nullable=False)
+    cost = Column(Numeric(14, 2), default=0, nullable=False)
+    requires_paint = Column(Boolean, default=False, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+    catalog_item = relationship("CatalogItem", back_populates="finish_variants")
+
+
+class ConstructionPriceGroup(Base):
+    """Administrator-managed markup for a finished construction system."""
+
+    __tablename__ = "construction_price_groups"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    markup_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+    updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+
+class InvoiceCounter(Base):
+    """Database-serialized counters used for globally unique invoice numbers."""
+
+    __tablename__ = "invoice_counters"
+
+    name = Column(String, primary_key=True)
+    value = Column(Integer, default=0, nullable=False)
 
 
 class CatalogPriceVersion(Base):
@@ -302,7 +371,7 @@ class PricingSettings(Base):
     __tablename__ = "pricing_settings"
 
     id = Column(Integer, primary_key=True, default=1)
-    include_waste_markup = Column(Boolean, default=False, nullable=False)
+    include_waste_markup = Column(Boolean, default=True, nullable=False)
     default_vat_rate = Column(Numeric(6, 3), default=20, nullable=False)
     updated_at = Column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
@@ -324,6 +393,7 @@ class ProjectQuoteState(Base):
     public_payload = Column(Text, default="{}", nullable=False)
     internal_payload = Column(Text, default="{}", nullable=False)
     services_payload = Column(Text, default="[]", nullable=False)
+    discounts_payload = Column(Text, default="[]", nullable=False)
     overrides_payload = Column(Text, default="[]", nullable=False)
     vat_mode = Column(String, default="none", nullable=False)
     vat_rate = Column(Numeric(6, 3), default=20, nullable=False)

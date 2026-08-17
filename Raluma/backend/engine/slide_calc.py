@@ -434,7 +434,9 @@ def _inter_glass_profile_name(article: str) -> str:
 
 def _side_profile_offset_mm(lock_bar: bool, p_bar: bool, bubble: bool = False) -> float:
     if lock_bar:
-        return 60
+        # RS2081: agreed lock-profile correction for both one- and two-rail
+        # calculations.  Keep RS1082 (the P-profile branch below) at 28 mm.
+        return 59.5
     if p_bar and not bubble:
         return 28
     return 0

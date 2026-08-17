@@ -11,9 +11,9 @@ import {
   listHardwareCatalog,
   updateHardwareCatalogItem,
   type CatalogUnit,
+  type CatalogFinishVariant,
   type HardwareCatalogItem,
   type HardwareGroup,
-  type PaintMode,
 } from '../api/catalog';
 import { useAuthStore } from '../store/authStore';
 import { toast } from '../store/toastStore';
@@ -22,9 +22,8 @@ type HardwareItem = HardwareCatalogItem;
 
 const STORAGE_KEY = 'raluma-hardware-catalog-draft-v1';
 
-const GROUPS: HardwareGroup[] = ['Профили', 'Фурнитура', 'Ручки', 'Замки', 'Защёлки', 'Уплотнители', 'Крепёж', 'Расходники'];
-const UNITS: CatalogUnit[] = ['шт', 'м.п.', 'компл.', 'кг'];
-const PAINT_MODES: PaintMode[] = ['Красится', 'Не красится', 'Частично'];
+const GROUPS: HardwareGroup[] = ['Профили', 'Фурнитура', 'Ручки', 'Замки', 'Защёлки', 'Уплотнители', 'Крепёж', 'Расходники', 'Услуги'];
+const UNITS: CatalogUnit[] = ['шт', 'м.п.', 'м²', 'компл.', 'кг'];
 const DEFAULT_COLOR_VARIANTS = ['Анод', 'RAL стандарт', 'RAL нестандарт'];
 
 const GROUP_COLORS: Record<HardwareGroup, string> = {
@@ -36,6 +35,7 @@ const GROUP_COLORS: Record<HardwareGroup, string> = {
   'Уплотнители': 'bg-cyan-500/15 text-cyan-300 border-cyan-500/25',
   'Крепёж': 'bg-violet-500/15 text-violet-300 border-violet-500/25',
   'Расходники': 'bg-rose-500/15 text-rose-300 border-rose-500/25',
+  'Услуги': 'bg-lime-500/15 text-lime-300 border-lime-500/25',
 };
 
 const INPUT_CLS = 'w-full bg-hi/8 border border-tint/35 rounded-2xl px-5 py-3.5 outline-none focus:border-accent/60 transition-all text-fg';
@@ -55,8 +55,11 @@ const seedItems: HardwareItem[] = [
     unit: 'м.п.',
     purchasePrice: 420,
     markupPercent: 35,
+    profileDiscountPercent: 0,
     weight: 0.72,
     wastePercent: 4,
+    constructionMarkupPercent: 0,
+    constructionDiscountPercent: 0,
     sectionWidthMm: 72,
     sectionHeightMm: 53,
     imageFile: 'RS1313.png',
@@ -561,13 +564,22 @@ const emptyDraft = (): HardwareItem => ({
   unit: 'шт',
   purchasePrice: 0,
   markupPercent: 0,
+  profileDiscountPercent: 0,
   weight: 0,
   wastePercent: 0,
+  constructionMarkupPercent: 0,
+  constructionDiscountPercent: 0,
   sectionWidthMm: 0,
   sectionHeightMm: 0,
   imageFile: '',
   paintMode: 'Красится',
   colorVariants: DEFAULT_COLOR_VARIANTS,
+  finishVariants: DEFAULT_COLOR_VARIANTS.map(name => ({
+    name,
+    cost: 0,
+    requiresPaint: name.toLowerCase().includes('ral'),
+    isActive: true,
+  })),
   supplier: '',
   isActive: true,
   updatedAt: new Date().toISOString().slice(0, 10),
@@ -575,6 +587,8 @@ const emptyDraft = (): HardwareItem => ({
 });
 
 function normalizeItem(item: Partial<HardwareItem>): HardwareItem {
+  const legacyColors = item.colorVariants?.length ? item.colorVariants : DEFAULT_COLOR_VARIANTS;
+  const fallbackPrice = (item.purchasePrice ?? 0) * (1 + (item.markupPercent ?? 0) / 100);
   return {
     id: item.id ?? Date.now(),
     sku: item.sku ?? '',
@@ -584,13 +598,24 @@ function normalizeItem(item: Partial<HardwareItem>): HardwareItem {
     unit: item.unit ?? 'шт',
     purchasePrice: item.purchasePrice ?? 0,
     markupPercent: item.markupPercent ?? 0,
+    profileDiscountPercent: item.profileDiscountPercent ?? 0,
     weight: item.weight ?? 0,
     wastePercent: item.wastePercent ?? 0,
+    constructionMarkupPercent: item.constructionMarkupPercent ?? 0,
+    constructionDiscountPercent: item.constructionDiscountPercent ?? 0,
     sectionWidthMm: item.sectionWidthMm ?? 0,
     sectionHeightMm: item.sectionHeightMm ?? 0,
     imageFile: item.imageFile ?? '',
     paintMode: item.paintMode ?? 'Красится',
-    colorVariants: item.colorVariants?.length ? item.colorVariants : DEFAULT_COLOR_VARIANTS,
+    colorVariants: legacyColors,
+    finishVariants: item.finishVariants?.length
+      ? item.finishVariants.map(variant => ({ ...variant }))
+      : legacyColors.map(name => ({
+          name,
+          cost: Number((item.purchasePrice ?? fallbackPrice).toFixed(2)),
+          requiresPaint: name.toLowerCase().includes('ral') || name.toLowerCase().includes('окрас'),
+          isActive: true,
+        })),
     supplier: item.supplier ?? '',
     isActive: item.isActive ?? true,
     updatedAt: item.updatedAt ?? new Date().toISOString().slice(0, 10),
@@ -621,16 +646,50 @@ function formatMoney(value: number) {
   }).format(value);
 }
 
-function salePrice(item: HardwareItem) {
-  return item.purchasePrice * (1 + item.markupPercent / 100);
+function pricingCosts(item: HardwareItem) {
+  const variants = (item.finishVariants || [])
+    .filter(row => row.isActive)
+    .map(row => Number(row.cost))
+    .filter(Number.isFinite);
+  return variants.length > 0 ? variants : [item.purchasePrice];
+}
+
+function salePrice(item: HardwareItem, cost = pricingCosts(item)[0]) {
+  return cost
+    * (1 + item.markupPercent / 100)
+    * (1 - (item.profileDiscountPercent ?? 0) / 100);
+}
+
+function costWithWaste(item: HardwareItem, cost = pricingCosts(item)[0]) {
+  return salePrice(item, cost) * (1 + item.wastePercent / 100);
+}
+
+function constructionPrice(item: HardwareItem, cost = pricingCosts(item)[0]) {
+  return costWithWaste(item, cost)
+    * (1 + (item.constructionMarkupPercent ?? 0) / 100)
+    * (1 - (item.constructionDiscountPercent ?? 0) / 100);
+}
+
+function formatPriceRange(values: number[]) {
+  const ordered = [...values].sort((left, right) => left - right);
+  const first = ordered[0] ?? 0;
+  const last = ordered[ordered.length - 1] ?? first;
+  return first === last
+    ? formatMoney(first)
+    : `${formatMoney(first)} – ${formatMoney(last)}`;
+}
+
+function priceRange(item: HardwareItem, transform: (item: HardwareItem, cost: number) => number) {
+  return formatPriceRange(pricingCosts(item).map(cost => transform(item, cost)));
 }
 
 function NumberInput({
-  label, value, suffix, onChange,
+  label, value, suffix, max, onChange,
 }: {
   label: string;
   value: number;
   suffix?: string;
+  max?: number;
   onChange: (value: number) => void;
 }) {
   return (
@@ -643,6 +702,7 @@ function NumberInput({
           onChange={event => onChange(Number(event.target.value))}
           className={`${INPUT_CLS} pr-14 font-mono`}
           min={0}
+          max={max}
           step="0.01"
         />
         {suffix && <span className="absolute right-5 top-1/2 -translate-y-1/2 text-xs font-bold text-fg/35">{suffix}</span>}
@@ -698,9 +758,9 @@ export default function HardwareCatalogPage() {
       const matchesSearch = !q ||
         item.sku.toLowerCase().includes(q) ||
         item.name.toLowerCase().includes(q) ||
-        item.supplier.toLowerCase().includes(q) ||
         item.paintMode.toLowerCase().includes(q) ||
-        item.colorVariants.some(variant => variant.toLowerCase().includes(q));
+        item.colorVariants.some(variant => variant.toLowerCase().includes(q)) ||
+        (item.finishVariants || []).some(variant => variant.name.toLowerCase().includes(q));
       const matchesGroup = group === 'Все' || item.group === group;
       const matchesStatus =
         status === 'all' ||
@@ -736,7 +796,15 @@ export default function HardwareCatalogPage() {
       ...draft,
       sku: draft.sku.trim(),
       name: draft.name.trim(),
-      supplier: draft.supplier.trim(),
+      paintMode: (draft.finishVariants || []).some(variant => variant.requiresPaint)
+        ? (draft.finishVariants || []).some(variant => !variant.requiresPaint) ? 'Частично' : 'Красится'
+        : 'Не красится',
+      colorVariants: (draft.finishVariants || []).map(variant => variant.name.trim()).filter(Boolean),
+      finishVariants: (draft.finishVariants || []).map(variant => ({
+        ...variant,
+        name: variant.name.trim(),
+        cost: Number(variant.cost) || 0,
+      })).filter(variant => variant.name),
       updatedAt: new Date().toISOString().slice(0, 10),
     };
     const exists = items.some(item => item.id === normalized.id);
@@ -786,7 +854,7 @@ export default function HardwareCatalogPage() {
           <div className="w-10 h-10 rounded-xl bg-tint/25 border border-tint/40 flex items-center justify-center">
             <Package className="w-6 h-6 text-accent" />
           </div>
-          <span className="text-xl font-bold tracking-tight uppercase">Каталог фурнитуры</span>
+          <span className="text-xl font-bold tracking-tight uppercase">Каталог</span>
         </div>
         <div className="flex items-center gap-3 text-sm text-fg/50">
           <span>{me?.display_name}</span>
@@ -844,7 +912,7 @@ export default function HardwareCatalogPage() {
             <input
               value={search}
               onChange={event => setSearch(event.target.value)}
-              placeholder="Поиск по артикулу, названию или поставщику..."
+              placeholder="Поиск по артикулу, названию или исполнению..."
               className="w-full bg-surface/30 border border-tint/30 rounded-2xl pl-12 pr-4 py-4 outline-none focus:border-accent/50 transition-all text-fg"
             />
           </div>
@@ -946,9 +1014,9 @@ export default function HardwareCatalogPage() {
                       </span>
                     </td>
                     <td className="px-5 py-4 text-sm font-bold text-fg/60">{item.unit}</td>
-                    <td className="px-5 py-4 text-sm font-mono">{formatMoney(item.purchasePrice)}</td>
+                    <td className="px-5 py-4 text-sm font-mono">{formatPriceRange(pricingCosts(item))}</td>
                     <td className="px-5 py-4 text-sm font-mono text-amber-300">{item.markupPercent}%</td>
-                    <td className="px-5 py-4 text-sm font-mono text-emerald-300">{formatMoney(salePrice(item))}</td>
+                    <td className="px-5 py-4 text-sm font-mono text-emerald-300">{priceRange(item, salePrice)}</td>
                     <td className="px-5 py-4 text-sm font-mono text-fg/60">{item.weight} кг</td>
                     <td className="px-5 py-4 text-sm font-mono text-fg/60">{item.wastePercent}%</td>
                     <td className="px-5 py-4 text-right">
@@ -1017,7 +1085,7 @@ export default function HardwareCatalogPage() {
                       className={INPUT_CLS} placeholder="Ручка-профиль" />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Группа</label>
                       <select value={draft.group} onChange={event => setDraft({ ...draft, group: event.target.value as HardwareGroup })}
@@ -1032,43 +1100,31 @@ export default function HardwareCatalogPage() {
                         {UNITS.map(item => <option key={item} value={item}>{item}</option>)}
                       </select>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Поставщик</label>
-                      <input value={draft.supplier} onChange={event => setDraft({ ...draft, supplier: event.target.value })}
-                        className={INPUT_CLS} placeholder="Склад" />
-                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px_120px] gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Картинка сечения</label>
-                      <input value={draft.imageFile} onChange={event => setDraft({ ...draft, imageFile: event.target.value })}
-                        className={`${INPUT_CLS} font-mono`} placeholder="RS112.png" />
-                    </div>
-                    <NumberInput label="Ширина сечения" value={draft.sectionWidthMm} suffix="мм" onChange={value => setDraft({ ...draft, sectionWidthMm: value })} />
-                    <NumberInput label="Высота сечения" value={draft.sectionHeightMm} suffix="мм" onChange={value => setDraft({ ...draft, sectionHeightMm: value })} />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <NumberInput label="Ширина" value={draft.sectionWidthMm} suffix="мм" onChange={value => setDraft({ ...draft, sectionWidthMm: value })} />
+                    <NumberInput label="Высота" value={draft.sectionHeightMm} suffix="мм" onChange={value => setDraft({ ...draft, sectionHeightMm: value })} />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Покраска</label>
-                      <select value={draft.paintMode} onChange={event => setDraft({ ...draft, paintMode: event.target.value as PaintMode })}
-                        className={SELECT_CLS}>
-                        {PAINT_MODES.map(item => <option key={item} value={item}>{item}</option>)}
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Варианты цвета</label>
-                      <input
-                        value={draft.colorVariants.join(', ')}
-                        onChange={event => setDraft({
-                          ...draft,
-                          colorVariants: event.target.value.split(',').map(item => item.trim()).filter(Boolean),
-                        })}
-                        className={INPUT_CLS}
-                        placeholder="Анод, RAL стандарт, RAL нестандарт"
-                      />
-                    </div>
+                  <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Исполнения и себестоимость</label>
+                        <button type="button" onClick={() => setDraft({ ...draft, finishVariants: [...(draft.finishVariants || []), { name: '', cost: draft.purchasePrice, requiresPaint: false, isActive: true }] })} className="inline-flex items-center gap-1 rounded-lg border border-accent/30 px-2 py-1 text-[10px] font-bold text-accent"><Plus className="h-3 w-3" /> Вариант</button>
+                      </div>
+                      <div className="grid grid-cols-[minmax(120px,1fr)_110px_95px_34px] gap-2 px-1 text-[9px] font-bold uppercase tracking-wider text-fg/30">
+                        <span>Исполнение</span><span>Себестоимость</span><span>Покраска</span><span />
+                      </div>
+                      <div className="space-y-2">
+                        {(draft.finishVariants || []).map((variant: CatalogFinishVariant, index) => (
+                          <div key={variant.id ?? index} className="grid grid-cols-[minmax(120px,1fr)_110px_95px_34px] gap-2">
+                            <input value={variant.name} onChange={event => setDraft({ ...draft, finishVariants: (draft.finishVariants || []).map((row, rowIndex) => rowIndex === index ? { ...row, name: event.target.value } : row) })} className={INPUT_CLS} placeholder="Анод / RAL" />
+                            <input type="number" min="0" step="0.01" value={variant.cost ?? ''} onChange={event => setDraft({ ...draft, finishVariants: (draft.finishVariants || []).map((row, rowIndex) => rowIndex === index ? { ...row, cost: event.target.value } : row) })} className={INPUT_CLS} aria-label="Себестоимость исполнения" />
+                            <button type="button" onClick={() => setDraft({ ...draft, finishVariants: (draft.finishVariants || []).map((row, rowIndex) => rowIndex === index ? { ...row, requiresPaint: !row.requiresPaint } : row) })} className={`rounded-xl border px-2 text-[10px] font-bold ${variant.requiresPaint ? 'border-amber-500/30 bg-amber-500/10 text-amber-300' : 'border-tint/20 text-fg/35'}`}>{variant.requiresPaint ? 'Покраска' : 'Без покраски'}</button>
+                            <button type="button" onClick={() => setDraft({ ...draft, finishVariants: (draft.finishVariants || []).filter((_, rowIndex) => rowIndex !== index) })} className="flex items-center justify-center rounded-xl border border-red-500/25 text-red-400"><Trash2 className="h-4 w-4" /></button>
+                          </div>
+                        ))}
+                      </div>
                   </div>
 
                   <div className="space-y-2">
@@ -1096,18 +1152,22 @@ export default function HardwareCatalogPage() {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
-                    <NumberInput label="Закупочная цена" value={draft.purchasePrice} suffix="₽" onChange={value => setDraft({ ...draft, purchasePrice: value })} />
-                    <NumberInput label="Наценка" value={draft.markupPercent} suffix="%" onChange={value => setDraft({ ...draft, markupPercent: value })} />
+                    {(draft.finishVariants || []).length === 0 && (
+                      <NumberInput label="Себестоимость" value={draft.purchasePrice} suffix="₽" onChange={value => setDraft({ ...draft, purchasePrice: value })} />
+                    )}
+                    <NumberInput label="Наценка на профиль" value={draft.markupPercent} suffix="%" onChange={value => setDraft({ ...draft, markupPercent: value })} />
+                    <NumberInput label="Скидка на профиль" value={draft.profileDiscountPercent ?? 0} suffix="%" max={100} onChange={value => setDraft({ ...draft, profileDiscountPercent: value })} />
                     <NumberInput label="Вес на единицу" value={draft.weight} suffix="кг" onChange={value => setDraft({ ...draft, weight: value })} />
-                    <NumberInput label="Норма отхода" value={draft.wastePercent} suffix="%" onChange={value => setDraft({ ...draft, wastePercent: value })} />
+                    <NumberInput label="Наценка на отходы" value={draft.wastePercent} suffix="%" onChange={value => setDraft({ ...draft, wastePercent: value })} />
+                    <NumberInput label="Наценка на конструкцию" value={draft.constructionMarkupPercent ?? 0} suffix="%" onChange={value => setDraft({ ...draft, constructionMarkupPercent: value })} />
+                    <NumberInput label="Скидка на конструкцию" value={draft.constructionDiscountPercent ?? 0} suffix="%" max={100} onChange={value => setDraft({ ...draft, constructionDiscountPercent: value })} />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     {[
-                      { label: 'Продажа', value: formatMoney(salePrice(draft)), icon: BadgePercent },
-                      { label: 'Вес', value: `${draft.weight} кг/${draft.unit}`, icon: Scale },
-                      { label: 'Отход', value: `${draft.wastePercent}%`, icon: Ruler },
-                      { label: 'Дата', value: draft.updatedAt, icon: SlidersHorizontal },
+                      { label: 'Цена профиля', value: priceRange(draft, salePrice), icon: BadgePercent },
+                      { label: 'С отходами', value: priceRange(draft, costWithWaste), icon: Ruler },
+                      { label: 'Цена в конструкции', value: priceRange(draft, constructionPrice), icon: Scale },
                     ].map(card => (
                       <div key={card.label} className="bg-hi/[0.04] border border-tint/25 rounded-2xl p-4">
                         <div className="flex items-center justify-between mb-2">

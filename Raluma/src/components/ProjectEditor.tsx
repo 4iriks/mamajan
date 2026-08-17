@@ -55,7 +55,13 @@ export type { Section };
 export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack }) => {
   const navigate = useNavigate();
   const { token, user } = useAuthStore();
-  const [project, setProject] = useState<{ id: number; number: string; customer: string } | null>(null);
+  const [project, setProject] = useState<{
+    id: number;
+    number: string;
+    invoiceNumber?: string | null;
+    orderNumber?: string | null;
+    customer: string;
+  } | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
   const savedSectionsRef = useRef<Section[]>([]);
   const [loadingProject, setLoadingProject] = useState(true);
@@ -65,9 +71,14 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
 
   useEffect(() => {
     getProject(projectId).then(p => {
-      setProject({ id: p.id, number: p.number, customer: p.customer });
+      setProject({
+        id: p.id,
+        number: p.number,
+        invoiceNumber: p.invoice_number,
+        orderNumber: p.order_number,
+        customer: p.customer,
+      });
       setProjectCustomerDraft(p.customer || '');
-      setProjectExtraParts(p.extra_parts || '');
       setProjectExtraComponents(parseExtraComponents(p.extra_components));
       setHardwareInstallation(p.hardware_installation || 'not_installed');
       setProjectComments(p.comments || '');
@@ -109,7 +120,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(true);
-  const [projectExtraParts, setProjectExtraParts] = useState('');
   const [projectExtraComponents, setProjectExtraComponents] = useState<ExtraComponent[]>([]);
   const [projectExtraComponentsDraft, setProjectExtraComponentsDraft] = useState<ExtraComponent[]>([]);
   const [hardwareInstallation, setHardwareInstallation] = useState<'installed' | 'not_installed'>('not_installed');
@@ -209,6 +219,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       width: 2000, height: 2400, panels: 3, quantity: 1,
       threshold: 'Стандартный окраш',
       glassType: defaultGlassType(system),
+      glassSupplied: true,
       paintingType: 'RAL стандарт', ralColor: '9016 МАТОВЫЙ',
       cornerLeft: false, cornerRight: false,
       floorLatchesLeft: false, floorLatchesRight: false,
@@ -384,7 +395,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     if (!project) return;
     try {
       await updateProject(project.id, {
-        extra_parts: projectExtraParts,
         extra_components: stringifyExtraComponents(projectExtraComponents),
         hardware_installation: hardwareInstallation,
         comments: projectComments,
@@ -466,6 +476,23 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     }
   };
 
+  const saveOrderNumber = async () => {
+    if (!project) return;
+    const orderNumber = (project.orderNumber || '').trim();
+    try {
+      const savedProject = await updateProject(project.id, {
+        order_number: orderNumber,
+      });
+      setProject(previous => previous ? {
+        ...previous,
+        number: savedProject.number,
+        orderNumber: savedProject.order_number,
+      } : previous);
+    } catch {
+      toast.error('Не удалось сохранить номер заказа');
+    }
+  };
+
   const addOrderItem = () => {
     const newItem: OrderItem = { id: `oi-${Date.now()}`, name: '', invoice: '', paidDate: '', deliveredDate: '' };
     const next = [...orderItems, newItem];
@@ -517,8 +544,13 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
               aria-label="Открыть проект"
               title="Документы и параметры проекта"
             >
-              № {project.number}
+              Счёт № {project.invoiceNumber || 'не присвоен'}
             </button>
+            {project.orderNumber && (
+              <span className="hidden md:inline max-w-[180px] truncate text-xs font-semibold text-fg/45">
+                Заказ: {project.orderNumber}
+              </span>
+            )}
             <div className="hidden lg:flex items-center gap-2 flex-shrink-0">
               <span className="text-fg/20">·</span>
               <span className="text-fg/60 truncate max-w-[200px]">{project.customer}</span>
@@ -563,6 +595,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           {[
             { name: 'Эскизный проект', icon: FileText, projectDoc: 'sketch' as const },
             { name: 'Коммерческое предложение', icon: FileText, projectDoc: 'commercial' as const },
+            { name: 'Приложение к договору', icon: FileText, projectDoc: 'contract_appendix' as const },
             {
               name: 'Наряд-заказ на фурнитуру',
               icon: FileText,
@@ -571,7 +604,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             { name: 'Накладная', icon: ClipboardList, projectDoc: 'delivery' as const },
             { name: 'Заказ стекла', icon: WindowIcon, projectDoc: 'glass' as const },
             { name: 'Заявка на покраску', icon: Palette, projectDoc: 'paint' as const },
-          ].filter(doc => Boolean(token) || doc.projectDoc !== 'commercial').map(doc => (
+          ].filter(doc => Boolean(token) || !['commercial', 'contract_appendix'].includes(doc.projectDoc)).map(doc => (
             <button
               key={doc.name}
               onClick={() => doc.projectDoc ? openProjectDocument(doc.projectDoc, doc.name) : openPreview(doc.name)}
@@ -595,8 +628,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           onDeleteSection={section => { setSectionToDelete(section); setIsDeleteModalOpen(true); }}
           mobileSidebarOpen={mobileSidebarOpen}
           setMobileSidebarOpen={setMobileSidebarOpen}
-          projectExtraParts={projectExtraParts}
-          setProjectExtraParts={setProjectExtraParts}
           projectComments={projectComments}
           setProjectComments={setProjectComments}
           projectExtraComponentsCount={projectExtraComponents.length}
@@ -630,6 +661,23 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                     </div>
                   </div>
                 )}
+
+                <div className="mb-4 grid grid-cols-1 gap-3 rounded-2xl border border-tint/30 bg-surface/40 p-5 sm:grid-cols-2 sm:p-6">
+                  <div className="space-y-2">
+                    <label className={LBL}>Номер счёта</label>
+                    <div className={`${INP} font-mono font-bold text-fg/70`}>{project.invoiceNumber || 'Назначается автоматически'}</div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className={LBL}>Номер заказа</label>
+                    <input
+                      value={project.orderNumber || ''}
+                      onChange={event => setProject(previous => previous ? { ...previous, orderNumber: event.target.value } : previous)}
+                      onBlur={saveOrderNumber}
+                      className={INP}
+                      placeholder="Указывается после передачи в работу"
+                    />
+                  </div>
+                </div>
 
                 {/* Customer */}
                 {!project.customer.trim() && (
@@ -687,34 +735,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                     <option>Архив</option>
                   </select>
                 </div>
-
-                {/* Glass */}
-                {!(productionStages === 2 && currentStage === 1) && (
-                  <div className="bg-surface/40 border border-tint/30 rounded-2xl p-5 sm:p-6 mb-4">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40 block mb-4">Стекла</span>
-                    <div className="mb-4">
-                      <select value={glassStatus} onChange={e => { setGlassStatus(e.target.value); saveStatus({ glass_status: e.target.value }); }} className={SEL}>
-                        <option value="">—</option>
-                        <option>Без стекла</option>
-                        <option>Стекла заказаны</option>
-                        <option>Стекла в цеху</option>
-                      </select>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className={LBL}>Счёт №</label>
-                        <input value={glassInvoice} onChange={e => setGlassInvoice(e.target.value)}
-                          onBlur={() => saveStatus({ glass_invoice: glassInvoice || undefined })}
-                          className={INP} placeholder="Номер счёта" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className={LBL}>Ориентир готовности</label>
-                        <input type="date" value={glassReadyDate} onChange={e => { setGlassReadyDate(e.target.value); saveStatus({ glass_ready_date: e.target.value || undefined }); }}
-                          className={INP} />
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {/* Paint */}
                 <div className="bg-surface/40 border border-tint/30 rounded-2xl p-5 sm:p-6 mb-4">
@@ -813,18 +833,28 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                     <span className="flex items-center gap-2"><PackagePlus className="h-4 w-4" /> Дополнительные комплектующие проекта</span>
                     <span className="rounded-full bg-accent/15 px-2.5 py-0.5 font-mono text-xs">{projectExtraComponents.length}</span>
                   </button>
+                  {projectExtraComponents.length > 0 && (
+                    <div className="mt-3 divide-y divide-tint/15 overflow-hidden rounded-xl border border-tint/20 bg-hi/[0.025]">
+                      {projectExtraComponents.map((item, index) => (
+                        <div key={item.id || `${item.sku}-${index}`} className="grid grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 text-xs">
+                          <span className="font-mono font-bold text-accent">{item.sku || '—'}</span>
+                          <span className="min-w-0 text-fg/65">
+                            <span className="block truncate font-semibold">{item.name}</span>
+                            {(item.color || item.finishName) && (
+                              <span className="mt-0.5 block truncate text-[10px] text-fg/35">{item.color || item.finishName}</span>
+                            )}
+                          </span>
+                          <span className="whitespace-nowrap font-mono font-bold text-fg/55">{item.qty || '0'} {item.unit || 'шт'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Notes */}
                 <div className="bg-surface/40 border border-tint/30 rounded-2xl p-5 sm:p-6 mb-4">
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40 mb-5">Примечания к проекту</p>
                   <div className="space-y-4">
-                    <div>
-                      <label className="text-[11px] text-fg/35 uppercase tracking-wider block mb-2">Примечание к комплектации</label>
-                      <textarea value={projectExtraParts} onChange={e => setProjectExtraParts(e.target.value)}
-                        onBlur={handleSaveProjectNotes} rows={2} placeholder="Сохранённый текст из старого поля..."
-                        className="w-full bg-hi/[0.03] border border-tint/25 rounded-2xl px-4 py-3 text-sm text-fg/70 placeholder-fg/20 resize-none focus:outline-none focus:border-accent/40 transition-colors" />
-                    </div>
                     <div>
                       <label className="text-[11px] text-fg/35 uppercase tracking-wider block mb-2">Комментарии</label>
                       <textarea value={projectComments} onChange={e => setProjectComments(e.target.value)}
@@ -968,7 +998,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           onClose={() => setIsPreviewModalOpen(false)}
           projectId={projectId}
           sectionId={Number(activeSection.id)}
-          projectNumber={project.number}
+          projectNumber={project.invoiceNumber || project.orderNumber || project.number}
           sectionOrder={activeSection.id ? sections.findIndex(s => s.id === activeSection.id) + 1 : 1}
         />
       )}
@@ -978,7 +1008,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           isOpen={Boolean(projectDoc)}
           onClose={() => setProjectDoc(null)}
           projectId={projectId}
-          projectNumber={project.number}
+          projectNumber={project.invoiceNumber || project.orderNumber || project.number}
           docType={projectDoc.type}
           title={projectDoc.title}
         />

@@ -91,7 +91,6 @@ function UserDetails({ user }: { user: UserOut }) {
         <div className="text-sm font-medium text-fg/80">{user.position || 'Должность не указана'}</div>
         <div className="text-[11px] text-fg/35 mt-1">
           {user.employee_number ? `ID ${user.employee_number}` : 'ID не указан'}
-          {user.can_manage_prices ? ' · управление ценами' : ''}
         </div>
       </div>
     );
@@ -184,7 +183,7 @@ export default function AdminPage() {
           dealer_inn: form.dealer_inn || null,
           dealer_discount_percent: form.dealer_discount_percent || 0,
           dealer_notes: form.dealer_notes || null,
-          can_manage_prices: Boolean(form.can_manage_prices && form.role === 'user'),
+          can_manage_prices: false,
           is_active: form.is_active,
         };
         if (form.password) upd.password = form.password;
@@ -192,7 +191,7 @@ export default function AdminPage() {
       } else {
         await createUser({
           ...form,
-          can_manage_prices: Boolean(form.can_manage_prices && form.role === 'user'),
+          can_manage_prices: false,
         });
       }
       setIsEditOpen(false);
@@ -585,22 +584,6 @@ export default function AdminPage() {
                         placeholder="Условия, особенности оплаты, логистика..."
                       />
                     </div>
-                  </div>
-                )}
-
-                {form.role === 'user' && (
-                  <div className="flex items-center justify-between rounded-2xl border border-tint/25 bg-tint/10 px-5 py-4">
-                    <div>
-                      <div className="text-sm font-bold text-fg/85">Управление ценами</div>
-                      <div className="mt-1 text-xs text-fg/45">Себестоимость, версии цен, условия дилеров и исключения КП</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setForm(f => ({ ...f, can_manage_prices: !f.can_manage_prices }))}
-                      className={`relative h-6 w-12 rounded-full transition-colors ${form.can_manage_prices ? 'bg-primary' : 'bg-hi/15'}`}
-                    >
-                      <span className={`absolute top-1 h-4 w-4 rounded-full bg-hi shadow transition-transform ${form.can_manage_prices ? 'translate-x-7' : 'translate-x-1'}`} />
-                    </button>
                   </div>
                 )}
 

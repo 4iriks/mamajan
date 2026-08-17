@@ -1,8 +1,16 @@
 import client from './client';
 
-export type HardwareGroup = 'Профили' | 'Фурнитура' | 'Ручки' | 'Замки' | 'Защёлки' | 'Уплотнители' | 'Крепёж' | 'Расходники';
-export type CatalogUnit = 'шт' | 'м.п.' | 'компл.' | 'кг';
+export type HardwareGroup = 'Профили' | 'Фурнитура' | 'Ручки' | 'Замки' | 'Защёлки' | 'Уплотнители' | 'Крепёж' | 'Расходники' | 'Услуги';
+export type CatalogUnit = 'шт' | 'м.п.' | 'м²' | 'компл.' | 'кг';
 export type PaintMode = 'Красится' | 'Не красится' | 'Частично';
+
+export interface CatalogFinishVariant {
+  id?: number;
+  name: string;
+  cost?: string | number;
+  requiresPaint: boolean;
+  isActive: boolean;
+}
 
 export interface HardwareCatalogItem {
   id: number;
@@ -13,13 +21,17 @@ export interface HardwareCatalogItem {
   unit: CatalogUnit;
   purchasePrice: number;
   markupPercent: number;
+  profileDiscountPercent?: number;
   weight: number;
   wastePercent: number;
+  constructionMarkupPercent?: number;
+  constructionDiscountPercent?: number;
   sectionWidthMm: number;
   sectionHeightMm: number;
   imageFile: string;
   paintMode: PaintMode;
   colorVariants: string[];
+  finishVariants?: CatalogFinishVariant[];
   supplier: string;
   isActive: boolean;
   updatedAt: string;
@@ -30,9 +42,19 @@ export interface HardwareCatalogOption {
   id: number;
   sku: string;
   name: string;
+  category: 'profile' | 'component' | 'service';
   unit: string;
   imageFile?: string;
+  paintMode?: PaintMode;
+  finishVariants?: CatalogFinishVariant[];
+  requiresPaint?: boolean;
   isActive: boolean;
+}
+
+export interface ConstructionPriceGroupOption {
+  id: number;
+  code: string;
+  name: string;
 }
 
 export const listHardwareCatalog = async () => {
@@ -42,6 +64,11 @@ export const listHardwareCatalog = async () => {
 
 export const listHardwareCatalogOptions = async () => {
   const resp = await client.get<HardwareCatalogOption[]>('/api/catalog/hardware/options');
+  return resp.data;
+};
+
+export const listConstructionPriceGroupOptions = async () => {
+  const resp = await client.get<ConstructionPriceGroupOption[]>('/api/catalog/construction-price-groups');
   return resp.data;
 };
 

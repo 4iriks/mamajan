@@ -86,7 +86,7 @@
       page-break-inside: avoid;
     }
     .diagram {
-      min-height: 62mm;
+      min-height: 92mm;
       padding: 1.5mm;
       border: 0.25mm solid #a8bbc0;
       text-align: center;
@@ -101,7 +101,7 @@
     .diagram img {
       display: block;
       width: 100%;
-      height: 57mm;
+      height: 86mm;
       object-fit: contain;
     }
     .section-comment {
@@ -111,15 +111,6 @@
       background: #f3f6f7;
       font-size: 7.5pt;
       white-space: pre-wrap;
-    }
-    .component-image {
-      float: left;
-      width: auto;
-      max-width: 16mm;
-      height: auto;
-      max-height: 8mm;
-      margin: 0.2mm 1.5mm 0.2mm 0;
-      object-fit: contain;
     }
     .component-meta { margin-top: 0.5mm; color: #607b81; font-size: 6.8pt; }
     .project-components { break-before: page; page-break-before: always; }
@@ -231,40 +222,12 @@
       </tbody>
     </table>
 
-    <div class="table-title">Комплектация</div>
-    {% if section.components %}
-    <table class="component-table">
-      <colgroup><col style="width: 17%"><col style="width: 41%"><col style="width: 17%"><col style="width: 10%"><col style="width: 15%"></colgroup>
-      <thead><tr><th>Артикул</th><th>Наименование</th><th>Размер</th><th>Кол-во</th><th>Примечание</th></tr></thead>
-      <tbody>
-      {% for item in section.components %}
-        <tr>
-          <td class="center">{{ item.article|e or '—' }}</td>
-          <td>
-            {% if item.image %}<img class="component-image" src="{{ item.image|img_b64 }}" alt="">{% endif %}
-            {{ item.name|e }}
-            {% if item.color %}<div class="component-meta">Цвет: {{ item.color|e }}</div>{% endif %}
-            {% if item.stage %}<div class="component-meta">Этап: {{ item.stage|e }}</div>{% endif %}
-          </td>
-          <td class="center">{{ item.size|e }}</td>
-          <td class="center">{{ item.qty|e }} {{ item.unit|e }}</td>
-          <td>{{ item.note|e or '—' }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-      <div class="empty">Комплектация не выбрана.</div>
-    {% endif %}
   </section>
   {% endfor %}
 
-  {% if project_components or project_extra_parts_note %}
+  {% if project_components %}
   <section class="project-components" data-project-components>
     <h2 class="section-heading">Дополнительные комплектующие проекта</h2>
-    {% if project_extra_parts_note %}
-      <div class="section-comment"><strong>Примечание к комплектации:</strong> {{ project_extra_parts_note|e }}</div>
-    {% endif %}
     {% if project_components %}
     <table class="component-table">
       <colgroup><col style="width: 17%"><col style="width: 41%"><col style="width: 17%"><col style="width: 10%"><col style="width: 15%"></colgroup>
@@ -274,7 +237,6 @@
         <tr>
           <td class="center">{{ item.article|e or '—' }}</td>
           <td>
-            {% if item.image %}<img class="component-image" src="{{ item.image|img_b64 }}" alt="">{% endif %}
             {{ item.name|e }}
             {% if item.color %}<div class="component-meta">Цвет: {{ item.color|e }}</div>{% endif %}
             {% if item.stage %}<div class="component-meta">Этап: {{ item.stage|e }}</div>{% endif %}

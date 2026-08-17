@@ -48,9 +48,14 @@ from engine.quote_pricing import (
 
 router = APIRouter(prefix="/api/projects", tags=["documents"])
 
-ADMIN_ROLES = ("admin", "superadmin")
 PRODUCTION_SHEET_SYSTEMS = {"СЛАЙД", "ЛИФТ"}
-DOCX_PROJECT_DOCUMENTS = {"sketch", "glass", "paint", "hardware_order"}
+COMMERCIAL_DOCUMENTS = {"commercial", "contract_appendix"}
+DOCX_PROJECT_DOCUMENTS = {
+    "sketch",
+    "glass",
+    "paint",
+    "hardware_order",
+}
 XLSX_PROJECT_DOCUMENTS = {"glass", "paint", "hardware_order", "delivery"}
 OFFICE_PROJECT_DOCUMENTS = DOCX_PROJECT_DOCUMENTS | XLSX_PROJECT_DOCUMENTS
 PRODUCTION_PROJECT_DOCUMENTS = {"glass", "paint", "delivery", "hardware_order"}
@@ -58,6 +63,15 @@ OFFICE_MEDIA_TYPES = {
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 }
+
+
+def _project_document_number(project: object) -> str:
+    return str(
+        getattr(project, "invoice_number", None)
+        or getattr(project, "order_number", None)
+        or getattr(project, "number", None)
+        or "project"
+    )
 
 
 def _calculate_section(section):
@@ -163,7 +177,7 @@ def _get_section_or_404(
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Проект не найден")
-    if current_user.role not in ADMIN_ROLES and project.created_by != current_user.id:
+    if current_user.role == "dealer" and project.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Нет доступа")
     section = (
         db.query(models.Section)
@@ -182,7 +196,7 @@ def _get_project_or_404(project_id: int, db: Session, current_user: models.User)
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Проект не найден")
-    if current_user.role not in ADMIN_ROLES and project.created_by != current_user.id:
+    if current_user.role == "dealer" and project.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Нет доступа")
     return project
 
@@ -409,7 +423,7 @@ def calculate_local_section(payload: LocalDocumentPayload):
 @router.post("/local/documents/{doc_type}/preview", response_class=HTMLResponse)
 def preview_local_project_document(doc_type: str, payload: LocalProjectDocumentPayload):
     doc_type = _validate_project_doc_type(doc_type)
-    if doc_type == "commercial":
+    if doc_type in COMMERCIAL_DOCUMENTS:
         raise HTTPException(
             status_code=403,
             detail="Гостю недоступны цены и коммерческое предложение",
@@ -428,7 +442,7 @@ def download_local_pdf(payload: LocalDocumentPayload):
     html = render_pdf_html(project, section, calc)
     pdf_bytes = generate_pdf(html)
     pdf_bytes = append_pdf_drawings(pdf_bytes, drawing_files_for_sections([section]))
-    filename = f"ПЛ_{project.number}_{section.name}.pdf"
+    filename = f"ПЛ_{_project_document_number(project)}_{section.name}.pdf"
     from urllib.parse import quote
 
     encoded = quote(filename)
@@ -446,7 +460,7 @@ def _download_local_section_office(
     project, section = _build_local_document_objects(payload)
     _ensure_book_section_documents_supported(section)
     content = _build_section_office(project, section, file_format)
-    filename = f"ПЛ_{project.number}_{section.name}.{file_format}"
+    filename = f"ПЛ_{_project_document_number(project)}_{section.name}.{file_format}"
     return _office_response(content, filename, file_format)
 
 
@@ -466,7 +480,7 @@ def download_local_project_document_pdf(
     payload: LocalProjectDocumentPayload,
 ):
     doc_type = _validate_project_doc_type(doc_type)
-    if doc_type == "commercial":
+    if doc_type in COMMERCIAL_DOCUMENTS:
         raise HTTPException(
             status_code=403,
             detail="Гостю недоступно коммерческое предложение",
@@ -482,7 +496,7 @@ def download_local_project_document_pdf(
     pdf_bytes = generate_pdf(html)
     if doc_type == "glass":
         pdf_bytes = append_pdf_drawings(pdf_bytes, drawing_files_for_sections(sections))
-    filename = f"{DOC_TITLES[doc_type]}_{project.number}.pdf"
+    filename = f"{DOC_TITLES[doc_type]}_{_project_document_number(project)}.pdf"
     from urllib.parse import quote
 
     encoded = quote(filename)
@@ -507,7 +521,7 @@ def _download_local_project_office(
         doc_type,
         file_format,
     )
-    filename = f"{DOC_TITLES[doc_type]}_{project.number}.{file_format}"
+    filename = f"{DOC_TITLES[doc_type]}_{_project_document_number(project)}.{file_format}"
     return _office_response(content, filename, file_format)
 
 
@@ -539,7 +553,7 @@ def preview_project_document(
     project = _get_project_or_404(project_id, db, current_user)
     _ensure_book_project_documents_supported(doc_type, project.sections)
     quote = None
-    if doc_type == "commercial":
+    if doc_type in COMMERCIAL_DOCUMENTS:
         quote = public_quote(db, project)
         db.commit()
     html = _render_project_document_or_error(
@@ -559,7 +573,7 @@ def download_project_document_pdf(
     project = _get_project_or_404(project_id, db, current_user)
     _ensure_book_project_documents_supported(doc_type, project.sections)
     quote = None
-    if doc_type == "commercial":
+    if doc_type in COMMERCIAL_DOCUMENTS:
         try:
             quote = freeze_quote(db, project, current_user)
         except QuoteExportBlocked as exc:
@@ -577,9 +591,9 @@ def download_project_document_pdf(
         pdf_bytes = append_pdf_drawings(
             pdf_bytes, drawing_files_for_sections(project.sections)
         )
-    if doc_type == "commercial":
+    if doc_type in COMMERCIAL_DOCUMENTS:
         db.commit()
-    filename = f"{DOC_TITLES[doc_type]}_{project.number}.pdf"
+    filename = f"{DOC_TITLES[doc_type]}_{_project_document_number(project)}.pdf"
     from urllib.parse import quote
 
     encoded = quote(filename)
@@ -597,7 +611,7 @@ def _download_project_office(
     db: Session,
     current_user: models.User,
 ):
-    if doc_type == "commercial":
+    if doc_type in COMMERCIAL_DOCUMENTS:
         if file_format != "docx":
             raise HTTPException(
                 status_code=400,
@@ -609,7 +623,7 @@ def _download_project_office(
     project = _get_project_or_404(project_id, db, current_user)
     _ensure_book_project_documents_supported(doc_type, project.sections)
     quote = None
-    if doc_type == "commercial":
+    if doc_type in COMMERCIAL_DOCUMENTS:
         try:
             quote = draft_quote_for_word(db, project)
             db.commit()
@@ -623,7 +637,7 @@ def _download_project_office(
         file_format,
         quote=quote,
     )
-    filename = f"{DOC_TITLES[doc_type]}_{project.number}.{file_format}"
+    filename = f"{DOC_TITLES[doc_type]}_{_project_document_number(project)}.{file_format}"
     return _office_response(content, filename, file_format)
 
 
@@ -691,7 +705,7 @@ def download_pdf(
     html = render_pdf_html(project, section, calc)
     pdf_bytes = generate_pdf(html)
     pdf_bytes = append_pdf_drawings(pdf_bytes, drawing_files_for_sections([section]))
-    filename = f"ПЛ_{project.number}_сек{section.order}.pdf"
+    filename = f"ПЛ_{_project_document_number(project)}_сек{section.order}.pdf"
     from urllib.parse import quote
 
     encoded = quote(filename)
@@ -718,7 +732,7 @@ def _download_section_office(
     _ensure_book_section_documents_supported(section)
     content = _build_section_office(project, section, file_format)
     section_number = getattr(section, "order", None) or getattr(section, "name", "")
-    filename = f"ПЛ_{project.number}_сек{section_number}.{file_format}"
+    filename = f"ПЛ_{_project_document_number(project)}_сек{section_number}.{file_format}"
     return _office_response(content, filename, file_format)
 
 

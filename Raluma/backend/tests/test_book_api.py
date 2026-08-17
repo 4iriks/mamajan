@@ -243,15 +243,17 @@ def test_book_does_not_block_supported_parts_of_mixed_project_documents(client):
 
 
 def test_book_hardware_order_contains_calculated_and_manual_rows(client):
-    book = book_payload(
-        extra_components=(
-            '[{"sku":"BOOK-MANUAL","name":"Ручная позиция","qty":2}]'
-        )
-    )
+    book = book_payload()
     response = client.post(
         "/api/projects/local/documents/hardware_order/preview",
         json={
-            "project": {"number": "BOOK-HARDWARE", "customer": "Тест"},
+            "project": {
+                "number": "BOOK-HARDWARE",
+                "customer": "Тест",
+                "extra_components": (
+                    '[{"sku":"BOOK-MANUAL","name":"Ручная позиция","qty":2}]'
+                ),
+            },
             "sections": [book],
         },
     )

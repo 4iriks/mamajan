@@ -21,6 +21,8 @@ import {
 export interface ProjectList {
   id: number;
   number: string;
+  invoice_number?: string | null;
+  order_number?: string | null;
   customer: string;
   system?: string;
   subtype?: string;
@@ -60,6 +62,8 @@ export interface SectionOut {
   panels: number;
   quantity: number;
   glass_type: string;
+  glass_supplied?: boolean;
+  price_group_id?: number;
   painting_type: string;
   ral_color?: string;
   corner_left: boolean;
@@ -143,6 +147,7 @@ const hasAuthToken = () => Boolean(localStorage.getItem('access_token'));
 export type ProjectDocumentType =
   | 'sketch'
   | 'commercial'
+  | 'contract_appendix'
   | 'paint'
   | 'glass'
   | 'delivery'
@@ -456,7 +461,7 @@ export const getProject = (id: number) =>
     ? client.get<ProjectFull>(`/api/projects/${id}`).then(r => r.data)
     : Promise.resolve(getLocalProject(id));
 
-export const createProject = (data: { number: string; customer: string; production_stages?: number }) =>
+export const createProject = (data: { number?: string; order_number?: string; customer: string; production_stages?: number }) =>
   hasAuthToken()
     ? client.post<ProjectFull>('/api/projects', data).then(r => r.data)
     : Promise.resolve(createLocalProject(data));
@@ -503,7 +508,7 @@ export const importLocalProjectsToServer = async () => {
 
   for (const project of localProjects) {
     const created = await client.post<ProjectFull>('/api/projects', {
-      number: project.number,
+      order_number: project.order_number ?? project.number,
       customer: project.customer,
       production_stages: project.production_stages,
       extra_components: project.extra_components ?? '[]',
@@ -511,7 +516,6 @@ export const importLocalProjectsToServer = async () => {
     }).then(r => r.data);
 
     await client.put<ProjectFull>(`/api/projects/${created.id}`, {
-      extra_parts: project.extra_parts,
       extra_components: project.extra_components ?? '[]',
       hardware_installation: project.hardware_installation ?? 'not_installed',
       comments: project.comments,

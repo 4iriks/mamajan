@@ -213,7 +213,7 @@
 <!-- ══════ ШАПКА ══════ -->
 <table class="hdr">
   <tr>
-    <td style="width:35%">ПРОЕКТ №&nbsp; {{ project.number }}</td>
+    <td style="width:35%">{% if project.invoice_number %}СЧЁТ №&nbsp; {{ project.invoice_number }}{% else %}ПРОЕКТ №&nbsp; {{ project.order_number or project.number }}{% endif %}</td>
     <td style="width:30%; text-align:center">{{ section.name }}</td>
     <td style="width:35%; text-align:right">{{ calc.system_text }}</td>
   </tr>
@@ -678,7 +678,7 @@
           </td>
           <td class="params-notes">
             <div class="params-notes-title">ПРИМЕЧАНИЕ</div>
-            <div class="params-notes-text">{{ ov('section_comments', section.comments or '') }}{% if section.extra_parts %}<br>Доп. комплектующие: {{ section.extra_parts }}{% endif %}&nbsp;</div>
+            <div class="params-notes-text">{{ ov('section_comments', section.comments or '') }}&nbsp;</div>
           </td>
         </tr>
       </table>
@@ -903,39 +903,6 @@
   {% endfor %}
 </table>
 
-<!-- ══════ ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ ══════ -->
-{% set ec_rows = section_extra_components(section, overrides) %}
-{% set has_ec = ec_rows | length > 0 %}
-{% if has_ec %}
-<div class="ec-section">
-  <div class="bar" style="margin-bottom:0;">
-    ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ - ПРОЕКТ №{{ project.number }}, {{ section.name }}
-  </div>
-  <table class="ec-tbl" id="ec-table">
-    <thead>
-      <tr>
-        <th style="width:15%;">артикул</th>
-        <th style="width:37%;">название</th>
-        <th style="width:18%;">размер</th>
-        <th style="width:12%;">кол-во</th>
-        <th style="width:18%;">цвет</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in ec_rows %}
-      <tr class="ec-row">
-        <td>{{ row.get('art','') }}</td>
-        <td>{{ row.get('name','') }}</td>
-        <td>{{ row.get('size','') }}</td>
-        <td>{{ row.get('qty','') }}</td>
-        <td>{{ row.get('color','') }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}{# has_ec #}
-
 </div><!-- production-page-end -->
 
 <!-- ══════ СТРАНИЦА 2: ПРОИЗВОДСТВЕННЫЙ ЧЕК-ЛИСТ ══════ -->
@@ -956,7 +923,7 @@
   {'num':'7', 'action':'Упаковка панелей в пузырьковую пленку и картон', 'note':''}
 ] %}
 <div class="check-page">
-  <div class="check-title">ПРОЕКТ № {{ project.number }} — {{ section.name }}</div>
+  <div class="check-title">{% if project.invoice_number %}СЧЁТ № {{ project.invoice_number }}{% else %}ПРОЕКТ № {{ project.order_number or project.number }}{% endif %} — {{ section.name }}</div>
 
   <table class="check-table">
     <thead>
@@ -983,7 +950,7 @@
   </table>
 
   <div class="special-notes-title">Примечания и особые отметки при производстве или проверке ОТК</div>
-  <div class="special-notes-box" {{ ce('section_comments', section.comments or '') }}>{{ ov('section_comments', section.comments or '') }}{% if section.extra_parts %}<br>Доп. комплектующие: {{ section.extra_parts }}{% endif %}&nbsp;</div>
+  <div class="special-notes-box" {{ ce('section_comments', section.comments or '') }}>{{ ov('section_comments', section.comments or '') }}&nbsp;</div>
 
   <div class="responsibles-title">Ответственные за заказ на производстве</div>
   <table class="responsibles-table">

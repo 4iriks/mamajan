@@ -37,7 +37,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       user && (
         user.role === 'admin'
         || user.role === 'superadmin'
-        || (user.role === 'user' && user.can_manage_prices)
       )
     );
   },

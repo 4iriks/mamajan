@@ -24,8 +24,6 @@ export interface EditorSidebarProps {
   onDeleteSection: (section: Section) => void;
   mobileSidebarOpen: boolean;
   setMobileSidebarOpen: (v: boolean | ((prev: boolean) => boolean)) => void;
-  projectExtraParts: string;
-  setProjectExtraParts: (v: string) => void;
   projectComments: string;
   setProjectComments: (v: string) => void;
   projectExtraComponentsCount: number;
@@ -42,8 +40,6 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
   onDeleteSection,
   mobileSidebarOpen,
   setMobileSidebarOpen,
-  projectExtraParts,
-  setProjectExtraParts,
   projectComments,
   setProjectComments,
   projectExtraComponentsCount,
@@ -285,17 +281,6 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
                 className="overflow-hidden"
               >
                 <div className="space-y-2.5 pt-3">
-                  <div>
-                    <label className="text-[10px] text-fg/25 uppercase tracking-wider block mb-1.5">Примечание к комплектации</label>
-                    <textarea
-                      value={projectExtraParts}
-                      onChange={e => setProjectExtraParts(e.target.value)}
-                      onBlur={onSaveProjectNotes}
-                      rows={2}
-                      placeholder="..."
-                      className="w-full bg-hi/[0.02] border border-tint/20 rounded-xl px-3 py-2 text-[11px] text-fg/60 placeholder-fg/15 resize-none focus:outline-none focus:border-accent/40 transition-colors"
-                    />
-                  </div>
                   <div>
                     <label className="text-[10px] text-fg/25 uppercase tracking-wider block mb-1.5">Комментарии</label>
                     <textarea

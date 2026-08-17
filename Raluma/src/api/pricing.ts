@@ -68,6 +68,14 @@ export interface PricingSettings {
   updated_by: number | null;
 }
 
+export interface ConstructionPriceGroup {
+  id: number;
+  code: string;
+  name: string;
+  markup_percent: string;
+  is_active: boolean;
+}
+
 export const getPricedCatalog = () =>
   client.get<{ items: PricedCatalogItem[]; categories: PriceCategory[]; manual_service_units: string[] }>('/api/pricing/catalog')
     .then(response => response.data);
@@ -129,3 +137,12 @@ export const getPricingSettings = () =>
 
 export const updatePricingSettings = (data: Pick<PricingSettings, 'include_waste_markup' | 'default_vat_rate'>) =>
   client.put<PricingSettings>('/api/pricing/settings', data).then(response => response.data);
+
+export const listConstructionPriceGroups = () =>
+  client.get<ConstructionPriceGroup[]>('/api/pricing/price-groups').then(response => response.data);
+
+export const createConstructionPriceGroup = (data: Omit<ConstructionPriceGroup, 'id'>) =>
+  client.post<ConstructionPriceGroup>('/api/pricing/price-groups', data).then(response => response.data);
+
+export const updateConstructionPriceGroup = (id: number, data: Omit<ConstructionPriceGroup, 'id'>) =>
+  client.put<ConstructionPriceGroup>(`/api/pricing/price-groups/${id}`, data).then(response => response.data);

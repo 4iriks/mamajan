@@ -19,6 +19,8 @@ export interface QuoteSectionDetails {
   panels: number;
   quantity: number;
   glass_area_m2: string;
+  glass_supplied?: boolean;
+  glass_weight_kg?: string;
   color: string;
   system: string;
   glass_type: string;
@@ -62,10 +64,20 @@ export interface QuoteLine {
   document_unit_final_price: number;
   section_details?: QuoteSectionDetails;
   breakdown?: QuoteBreakdownLine[];
+  component_details?: {
+    catalog_item_id?: number;
+    finish_variant_id?: number;
+    sku: string;
+    name: string;
+    size: string;
+    finish: string;
+    unit: string;
+    stage: string;
+  };
 }
 
 export interface PublicQuote {
-  project: { id: number; number: string; customer: string };
+  project: { id: number; number: string; invoice_number?: string | null; order_number?: string | null; customer: string };
   revision: number;
   status: 'draft' | 'fixed';
   fixed_at: string | null;
@@ -86,6 +98,7 @@ export interface PublicQuote {
   valid_until: string;
   manufacturing_term: string;
   payment_terms: string;
+  discounts: QuoteDiscountRule[];
   missing_price_count: number;
   warnings: string[];
   export_allowed: boolean;
@@ -106,6 +119,14 @@ export interface QuotePriceOverride {
   comment: string;
 }
 
+export interface QuoteDiscountRule {
+  id: string;
+  name: string;
+  scope: 'order' | 'profile' | 'construction' | 'component' | 'service';
+  mode: 'percent' | 'fixed';
+  value: string;
+}
+
 export interface QuoteConfig {
   vat_mode: VatMode;
   vat_rate: string;
@@ -113,6 +134,7 @@ export interface QuoteConfig {
   manufacturing_term: string;
   payment_terms: string;
   services: QuoteManualService[];
+  discounts: QuoteDiscountRule[];
   overrides: QuotePriceOverride[];
   margin_override_comment: string;
 }

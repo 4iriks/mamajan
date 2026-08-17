@@ -363,15 +363,15 @@ class TestGlassTotalCorrection:
         result = calculate_slide(section)
 
         assert [panel.width_mm for panel in result.panel_glass] == [
-            1068.0,
-            1061.0,
-            1068.0,
+            1069.0,
+            1060.0,
+            1069.0,
         ]
-        assert sum(panel.width_mm for panel in result.panel_glass) == 3197
+        assert sum(panel.width_mm for panel in result.panel_glass) == 3198
         assert [
             (profile.length_mm, profile.qty)
             for profile in _find_profile(result, "RS2021")
-        ] == [(1084.0, 2), (1058.0, 1)]
+        ] == [(1085.0, 2), (1057.0, 1)]
         assert not result.warnings
 
         grouped = Counter()
@@ -383,7 +383,7 @@ class TestGlassTotalCorrection:
         )
         assert _find_hardware(result, "RU005")[0].value == 6
         ordered = _expand_glass_for_order(section, result)
-        assert [item.width_mm for item in ordered] == [1068.0, 1061.0, 1068.0]
+        assert [item.width_mm for item in ordered] == [1069.0, 1060.0, 1069.0]
 
     def test_two_row_dimensions_remain_on_the_existing_formula(self):
         result = calculate_slide(
@@ -584,13 +584,34 @@ class TestProfileVariables:
         assert mid.width_mm == expected
 
     def test_rpl_lock_bar(self):
-        """Профиль-замок RS2081 слева → rpl = 60."""
+        """Профиль-замок RS2081 слева → rpl = 59.5."""
         s = _make_section(
             profile_left_lock_bar=True,
         )
         r = calculate_slide(s)
         edge = _find_glass(r, "Крайние")[0]
         assert edge.width_mm == 642
+
+    def test_two_row_rs2081_uses_same_59_5_mm_offset(self):
+        result = calculate_slide(
+            _make_section(
+                width=1800,
+                height=2600,
+                panels=4,
+                slide_rows=2,
+                profile_left_lock_bar=True,
+                profile_right_lock_bar=True,
+                profile_left_handle_bar=True,
+                profile_right_handle_bar=True,
+            )
+        )
+
+        assert [panel.width_mm for panel in result.panel_glass] == [
+            420.2,
+            412.2,
+            412.2,
+            420.2,
+        ]
 
     def test_rpl_p_bar(self):
         """П-профиль RS1082 слева → rpl = 28."""
@@ -1560,7 +1581,7 @@ class TestGlassProfile:
         assert rs2021 == [928, 931]
 
     def test_customer_two_panel_handle_bar_rs2021_matches_scheme_rounding(self):
-        """Схема и таблица RS2021 должны давать одну цифру: 879 (895)."""
+        """Схема и таблица RS2021 должны давать одну цифру: 880 (896)."""
         r = calculate_slide(
             _make_section(
                 width=1900,
@@ -1576,14 +1597,14 @@ class TestGlassProfile:
                 lock_right="ЗАМОК двухсторонний с ключом RS3020",
             )
         )
-        assert [ceil(panel.width_mm) for panel in r.panel_glass] == [879, 879]
+        assert [ceil(panel.width_mm) for panel in r.panel_glass] == [880, 880]
         assert [ceil(panel.glass_profile_length) for panel in r.panel_glass] == [
-            895,
-            895,
+            896,
+            896,
         ]
         assert sorted(
             ceil(profile.length_mm) for profile in _find_profile(r, "RS2021")
-        ) == [895]
+        ) == [896]
 
 
 class TestCustomerSections0107:
@@ -2610,8 +2631,8 @@ class TestInterGlassProfileDefaults:
             )
         )
 
-        assert _ceil_panel_widths(result) == [626, 618, 626]
-        assert _ceil_panel_profile_lengths(result) == [642, 615, 642]
+        assert _ceil_panel_widths(result) == [626, 619, 626]
+        assert _ceil_panel_profile_lengths(result) == [642, 616, 642]
         assert _find_profile(result, "RS2061")[0].qty == 2
 
     def test_explicit_no_profile_keeps_zero_overlap(self):
@@ -2632,8 +2653,8 @@ class TestInterGlassProfileDefaults:
             )
         )
 
-        assert _ceil_panel_widths(result) == [620, 611, 620]
-        assert _ceil_panel_profile_lengths(result) == [636, 611, 636]
+        assert _ceil_panel_widths(result) == [620, 612, 620]
+        assert _ceil_panel_profile_lengths(result) == [636, 612, 636]
         assert not _find_profile(result, "RS2061")
 
     def test_five_panel_reference_keeps_side_specific_offsets(self):

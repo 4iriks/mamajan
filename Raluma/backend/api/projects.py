@@ -1,5 +1,8 @@
 from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
+import json
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -10,7 +13,181 @@ from engine.legacy_values import normalize_center_handle_offset
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
-ADMIN_ROLES = ("admin", "superadmin")
+def _next_invoice_number(db: Session) -> str:
+    """Allocate one global number with a single atomic database statement.
+
+    The counter update and project INSERT share the same transaction, so a
+    failed project creation does not consume a number.  SQLite and PostgreSQL
+    both serialize the ``ON CONFLICT ... RETURNING`` update.
+    """
+
+    value = db.execute(
+        text(
+            "INSERT INTO invoice_counters (name, value) "
+            "VALUES ('project_invoice', 1) "
+            "ON CONFLICT(name) DO UPDATE SET value = invoice_counters.value + 1 "
+            "RETURNING value"
+        )
+    ).scalar_one()
+    return f"{int(value):08d}"
+
+
+def _extra_int(row: dict, snake: str, camel: str) -> int | None:
+    value = row.get(snake, row.get(camel))
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalize_project_extras(raw: str | None, db: Session) -> str:
+    """Validate catalog selections and refresh catalog-owned row fields."""
+
+    try:
+        rows = json.loads(raw or "[]")
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail="Некорректный список комплектующих") from exc
+    if not isinstance(rows, list):
+        raise HTTPException(status_code=400, detail="Некорректный список комплектующих")
+
+    normalized: list[dict] = []
+    has_catalog_selection = False
+    for source in rows:
+        if not isinstance(source, dict):
+            continue
+        row = dict(source)
+        item_id = _extra_int(row, "catalog_item_id", "catalogItemId")
+        variant_id = _extra_int(row, "finish_variant_id", "finishVariantId")
+        if item_id is None:
+            # Preserve old manually entered snapshots until their one-off migration
+            # can be reconciled with a catalog article.
+            normalized.append(row)
+            continue
+        has_catalog_selection = True
+        item = db.get(models.CatalogItem, item_id)
+        if item is None or not item.is_active:
+            raise HTTPException(status_code=400, detail="Позиция каталога недоступна")
+        variants = [variant for variant in item.finish_variants if variant.is_active]
+        variant = next((entry for entry in variants if entry.id == variant_id), None)
+        visible_variants = [
+            entry for entry in variants if entry.name.strip().casefold() != "без цвета"
+        ]
+        if variant_id is not None and variant is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Исполнение не относится к выбранному артикулу",
+            )
+        if variant is None and visible_variants:
+            raise HTTPException(status_code=400, detail="Выберите исполнение из каталога")
+        if variant is None and variants:
+            variant = variants[0]
+
+        active_price = (
+            db.query(models.CatalogPriceVersion)
+            .filter(
+                models.CatalogPriceVersion.catalog_item_id == item.id,
+                models.CatalogPriceVersion.effective_from <= datetime.utcnow(),
+            )
+            .order_by(
+                models.CatalogPriceVersion.effective_from.desc(),
+                models.CatalogPriceVersion.id.desc(),
+            )
+            .first()
+        )
+        base_cost = Decimal(
+            str(
+                (
+                    variant.cost
+                    if variant.cost is not None
+                    else variant.price
+                )
+                if variant is not None
+                else active_price.cost
+                if active_price is not None
+                else item.purchase_price
+                or 0
+            )
+        )
+        markup = Decimal(
+            str(
+                active_price.profile_markup_percent
+                if active_price is not None
+                else item.markup_percent
+                or 0
+            )
+        )
+        discount = Decimal(
+            str(
+                active_price.profile_discount_percent
+                if active_price is not None
+                else 0
+            )
+        )
+        unit_price = (
+            base_cost
+            * (Decimal("1") + markup / Decimal("100"))
+            * (Decimal("1") - discount / Decimal("100"))
+        )
+
+        if variant is not None:
+            finish_name = (
+                "" if variant.name.strip().casefold() == "без цвета" else variant.name
+            )
+            requires_paint = bool(variant.requires_paint)
+            variant_id = variant.id
+        else:
+            finish_name = ""
+            requires_paint = False
+
+        color = str(row.get("color") or "").strip() if requires_paint else ""
+        if requires_paint and not color:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Укажите цвет для {item.sku} {item.name}",
+            )
+
+        normalized.append(
+            {
+                "catalog_item_id": item.id,
+                "finish_variant_id": variant_id,
+                "sku": item.sku,
+                "name": item.name,
+                "category": (
+                    active_price.category
+                    if active_price is not None
+                    and active_price.category in {"profile", "component", "service"}
+                    else "service"
+                    if "услуг" in str(item.group or "").casefold()
+                    else "profile"
+                    if any(
+                        marker in str(item.group or "").casefold()
+                        for marker in ("проф", "уплотн")
+                    )
+                    else "component"
+                ),
+                "finish_name": finish_name,
+                "color": color,
+                "requires_paint": requires_paint,
+                "size": str(row.get("size") or "").strip(),
+                "qty": str(row.get("qty", row.get("quantity", "1"))).strip(),
+                "unit": str(item.unit or "шт").strip(),
+                "unit_price": (
+                    f"{unit_price.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):.2f}"
+                ),
+                "image_file": item.image_file or "",
+                "delivery_stage": (
+                    str(row.get("delivery_stage") or row.get("deliveryStage"))
+                    if str(row.get("delivery_stage") or row.get("deliveryStage"))
+                    in {"1", "2"}
+                    else "both"
+                ),
+            }
+        )
+    if not has_catalog_selection:
+        return raw or "[]"
+    return json.dumps(normalized, ensure_ascii=False)
 
 
 def _get_project_or_404(
@@ -19,8 +196,7 @@ def _get_project_or_404(
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Проект не найден")
-    # admin/superadmin видят все; остальные роли видят только свои проекты
-    if current_user.role not in ADMIN_ROLES and project.created_by != current_user.id:
+    if current_user.role == "dealer" and project.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Нет доступа к проекту")
     return project
 
@@ -31,7 +207,7 @@ def list_projects(
     current_user: models.User = Depends(get_current_user),
 ):
     query = db.query(models.Project)
-    if current_user.role not in ADMIN_ROLES:
+    if current_user.role == "dealer":
         query = query.filter(models.Project.created_by == current_user.id)
     return query.order_by(models.Project.created_at.desc()).all()
 
@@ -43,8 +219,20 @@ def create_project(
     current_user: models.User = Depends(get_current_user),
 ):
     values = data.model_dump()
+    # Invoice numbers are immutable and always issued by the server.
+    values.pop("invoice_number", None)
+    order_number = str(values.get("order_number") or values.get("number") or "").strip()
+    values["order_number"] = order_number or None
+    values["number"] = order_number  # legacy compatibility alias
+    values["extra_components"] = _normalize_project_extras(
+        values.get("extra_components"), db
+    )
     values["system"] = values.get("system") or ""  # legacy NOT NULL constraint
-    project = models.Project(**values, created_by=current_user.id)
+    project = models.Project(
+        **values,
+        invoice_number=_next_invoice_number(db),
+        created_by=current_user.id,
+    )
     db.add(project)
     db.commit()
     db.refresh(project)
@@ -68,7 +256,21 @@ def update_project(
     current_user: models.User = Depends(get_current_user),
 ):
     project = _get_project_or_404(project_id, db, current_user)
-    for field, value in data.model_dump(exclude_unset=True).items():
+    values = data.model_dump(exclude_unset=True)
+    if "extra_components" in values:
+        values["extra_components"] = _normalize_project_extras(
+            values.get("extra_components"), db
+        )
+    if "order_number" in values or "number" in values:
+        raw_order_number = (
+            values.get("order_number")
+            if "order_number" in values
+            else values.get("number")
+        )
+        order_number = str(raw_order_number or "").strip()
+        values["order_number"] = order_number or None
+        values["number"] = order_number
+    for field, value in values.items():
         setattr(project, field, value)
     project.updated_at = datetime.utcnow()
     db.commit()
@@ -95,7 +297,11 @@ def copy_project(
 ):
     source = _get_project_or_404(project_id, db, current_user)
     new_project = models.Project(
-        number=source.number + "-копия",
+        # A copy is a new estimate with its own invoice. The production order
+        # number is assigned only after the copied estimate is approved.
+        number="",
+        order_number=None,
+        invoice_number=_next_invoice_number(db),
         customer=source.customer,
         system=source.system,
         subtype=source.subtype,
@@ -130,6 +336,8 @@ def copy_project(
             panels=s.panels,
             quantity=s.quantity,
             glass_type=s.glass_type,
+            glass_supplied=s.glass_supplied,
+            price_group_id=s.price_group_id,
             painting_type=s.painting_type,
             ral_color=s.ral_color,
             corner_left=s.corner_left,
