@@ -793,7 +793,14 @@ def _seed_quote_prices(project_id: int, actor_id: int):
         by_sku = {}
         for required in requirements:
             by_sku.setdefault(required["sku"], required)
-        skipped_sku = next(iter(by_sku))
+        active_priced_skus = {
+            row.sku
+            for row in db.query(models.CatalogItem)
+            .join(models.CatalogPriceVersion)
+            .filter(models.CatalogPriceVersion.effective_from <= datetime.utcnow())
+            .all()
+        }
+        skipped_sku = next(sku for sku in by_sku if sku not in active_priced_skus)
         margin_sku = next(sku for sku in by_sku if sku != skipped_sku)
         for sku, required in by_sku.items():
             if sku == skipped_sku:

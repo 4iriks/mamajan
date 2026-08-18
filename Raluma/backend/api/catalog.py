@@ -67,7 +67,7 @@ def _decode_system_groups(raw: str | None, system: str | None = None) -> list[st
 def _variant_requires_paint(name: str, paint_mode: str) -> bool:
     normalized = name.casefold()
     mode = paint_mode.casefold()
-    if "анод" in normalized or "без цвета" in normalized:
+    if "анод" in normalized or "без цвета" in normalized or "без окраски" in normalized:
         return False
     return (
         "ral" in normalized
@@ -83,18 +83,24 @@ def _variant_to_dict(
         "id": variant.id,
         "code": _finish_code(variant.name, getattr(variant, "code", None)),
         "name": variant.name,
-        "profileMarkupPercent": float(variant.profile_markup_percent or 0),
-        "profileDiscountPercent": float(variant.profile_discount_percent or 0),
-        "constructionMarkupPercent": float(variant.construction_markup_percent or 0),
-        "constructionDiscountPercent": float(
-            variant.construction_discount_percent or 0
-        ),
         "requiresPaint": bool(variant.requires_paint),
         "isActive": bool(variant.is_active),
     }
     if include_cost:
         cost = variant.cost if variant.cost is not None else variant.price
-        result["cost"] = f"{cost:.2f}"
+        result.update(
+            {
+                "cost": f"{cost:.2f}",
+                "profileMarkupPercent": float(variant.profile_markup_percent or 0),
+                "profileDiscountPercent": float(variant.profile_discount_percent or 0),
+                "constructionMarkupPercent": float(
+                    variant.construction_markup_percent or 0
+                ),
+                "constructionDiscountPercent": float(
+                    variant.construction_discount_percent or 0
+                ),
+            }
+        )
     return result
 
 
@@ -289,7 +295,12 @@ def _item_to_dict(item: models.CatalogItem) -> dict:
 
 
 def _item_to_option(item: models.CatalogItem) -> dict:
-    variants = [_variant_to_dict(row) for row in item.finish_variants if row.is_active]
+    variants = [
+        _variant_to_dict(row)
+        for row in item.finish_variants
+        if row.is_active
+        and _finish_code(row.name, getattr(row, "code", None)) != "BASE"
+    ]
     return {
         "id": item.id,
         "sku": item.sku,

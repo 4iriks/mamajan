@@ -13,6 +13,7 @@ from engine.legacy_values import normalize_center_handle_offset
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
+
 def _next_invoice_number(db: Session) -> str:
     """Allocate one global number with a single atomic database statement.
 
@@ -48,7 +49,9 @@ def _normalize_project_extras(raw: str | None, db: Session) -> str:
     try:
         rows = json.loads(raw or "[]")
     except (TypeError, json.JSONDecodeError) as exc:
-        raise HTTPException(status_code=400, detail="Некорректный список комплектующих") from exc
+        raise HTTPException(
+            status_code=400, detail="Некорректный список комплектующих"
+        ) from exc
     if not isinstance(rows, list):
         raise HTTPException(status_code=400, detail="Некорректный список комплектующих")
 
@@ -72,7 +75,10 @@ def _normalize_project_extras(raw: str | None, db: Session) -> str:
         variants = [variant for variant in item.finish_variants if variant.is_active]
         variant = next((entry for entry in variants if entry.id == variant_id), None)
         visible_variants = [
-            entry for entry in variants if entry.name.strip().casefold() != "без цвета"
+            entry
+            for entry in variants
+            if str(getattr(entry, "code", "") or "").strip().upper() != "BASE"
+            and entry.name.strip().casefold() not in {"без цвета", "без окраски"}
         ]
         if variant_id is not None and variant is None:
             raise HTTPException(
@@ -80,48 +86,48 @@ def _normalize_project_extras(raw: str | None, db: Session) -> str:
                 detail="Исполнение не относится к выбранному артикулу",
             )
         if variant is None and visible_variants:
-            raise HTTPException(status_code=400, detail="Выберите исполнение из каталога")
+            raise HTTPException(
+                status_code=400, detail="Выберите исполнение из каталога"
+            )
         if variant is None and variants:
             variant = variants[0]
 
-        active_price = (
-            db.query(models.CatalogPriceVersion)
-            .filter(
-                models.CatalogPriceVersion.catalog_item_id == item.id,
-                models.CatalogPriceVersion.effective_from <= datetime.utcnow(),
-            )
-            .order_by(
-                models.CatalogPriceVersion.effective_from.desc(),
-                models.CatalogPriceVersion.id.desc(),
-            )
-            .first()
+        price_query = db.query(models.CatalogPriceVersion).filter(
+            models.CatalogPriceVersion.catalog_item_id == item.id,
+            models.CatalogPriceVersion.effective_from <= datetime.utcnow(),
         )
+        if variant is not None:
+            price_query = price_query.filter(
+                models.CatalogPriceVersion.finish_variant_id == variant.id
+            )
+        active_price = price_query.order_by(
+            models.CatalogPriceVersion.effective_from.desc(),
+            models.CatalogPriceVersion.id.desc(),
+        ).first()
         base_cost = Decimal(
             str(
-                (
-                    variant.cost
-                    if variant.cost is not None
-                    else variant.price
-                )
+                (variant.cost if variant.cost is not None else variant.price)
                 if variant is not None
                 else active_price.cost
                 if active_price is not None
-                else item.purchase_price
-                or 0
+                else item.purchase_price or 0
             )
         )
         markup = Decimal(
             str(
                 active_price.profile_markup_percent
                 if active_price is not None
-                else item.markup_percent
-                or 0
+                else variant.profile_markup_percent
+                if variant is not None
+                else item.markup_percent or 0
             )
         )
         discount = Decimal(
             str(
                 active_price.profile_discount_percent
                 if active_price is not None
+                else variant.profile_discount_percent
+                if variant is not None
                 else 0
             )
         )
@@ -133,7 +139,10 @@ def _normalize_project_extras(raw: str | None, db: Session) -> str:
 
         if variant is not None:
             finish_name = (
-                "" if variant.name.strip().casefold() == "без цвета" else variant.name
+                ""
+                if str(getattr(variant, "code", "") or "").strip().upper() == "BASE"
+                or variant.name.strip().casefold() in {"без цвета", "без окраски"}
+                else variant.name
             )
             requires_paint = bool(variant.requires_paint)
             variant_id = variant.id

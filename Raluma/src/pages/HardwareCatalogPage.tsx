@@ -63,15 +63,15 @@ function defaultFinish(code: FinishCode, cost = 0): CatalogFinishVariant {
 }
 
 const GROUP_COLORS: Record<HardwareGroup, string> = {
-  'Профили': 'bg-teal-500/15 text-teal-300 border-teal-500/25',
-  'Фурнитура': 'bg-sky-500/15 text-sky-300 border-sky-500/25',
-  'Ручки': 'bg-blue-500/15 text-blue-300 border-blue-500/25',
-  'Замки': 'bg-amber-500/15 text-amber-300 border-amber-500/25',
-  'Защёлки': 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25',
-  'Уплотнители': 'bg-cyan-500/15 text-cyan-300 border-cyan-500/25',
-  'Крепёж': 'bg-violet-500/15 text-violet-300 border-violet-500/25',
-  'Расходники': 'bg-rose-500/15 text-rose-300 border-rose-500/25',
-  'Услуги': 'bg-lime-500/15 text-lime-300 border-lime-500/25',
+  'Профили': 'bg-teal-500/20 text-fg border-teal-500/45',
+  'Фурнитура': 'bg-sky-500/20 text-fg border-sky-500/45',
+  'Ручки': 'bg-blue-500/20 text-fg border-blue-500/45',
+  'Замки': 'bg-amber-500/20 text-fg border-amber-500/45',
+  'Защёлки': 'bg-emerald-500/20 text-fg border-emerald-500/45',
+  'Уплотнители': 'bg-cyan-500/20 text-fg border-cyan-500/45',
+  'Крепёж': 'bg-violet-500/20 text-fg border-violet-500/45',
+  'Расходники': 'bg-rose-500/20 text-fg border-rose-500/45',
+  'Услуги': 'bg-lime-500/20 text-fg border-lime-500/45',
 };
 
 const INPUT_CLS = 'w-full bg-hi/8 border border-tint/35 rounded-2xl px-5 py-3.5 outline-none focus:border-accent/60 transition-all text-fg';
@@ -806,7 +806,9 @@ export default function HardwareCatalogPage() {
   const [catalogError, setCatalogError] = useState(false);
   const [search, setSearch] = useState('');
   const [group, setGroup] = useState<'Все' | HardwareGroup>('Все');
+  const [systemGroup, setSystemGroup] = useState<'Все' | SystemGroupCode>('Все');
   const [status, setStatus] = useState<'all' | 'active' | 'inactive'>('active');
+  const [activeCatalogTab, setActiveCatalogTab] = useState<'items' | 'markups'>('items');
   const [draft, setDraft] = useState<HardwareItem | null>(null);
   const [systemMarkups, setSystemMarkups] = useState<SystemMarkup[]>([]);
   const [systemMarkupDrafts, setSystemMarkupDrafts] = useState<Record<SystemGroupCode, string>>({ SLIDE_1: '', SLIDE_2: '' });
@@ -859,13 +861,14 @@ export default function HardwareCatalogPage() {
         item.colorVariants.some(variant => variant.toLowerCase().includes(q)) ||
         (item.finishVariants || []).some(variant => variant.name.toLowerCase().includes(q));
       const matchesGroup = group === 'Все' || item.group === group;
+      const matchesSystemGroup = systemGroup === 'Все' || (item.systemGroups || []).includes(systemGroup);
       const matchesStatus =
         status === 'all' ||
         (status === 'active' && item.isActive) ||
         (status === 'inactive' && !item.isActive);
-      return matchesSearch && matchesGroup && matchesStatus;
+      return matchesSearch && matchesGroup && matchesSystemGroup && matchesStatus;
     });
-  }, [group, items, search, status]);
+  }, [group, items, search, status, systemGroup]);
 
   const stats = useMemo(() => {
     const active = items.filter(item => item.isActive);
@@ -1025,7 +1028,30 @@ export default function HardwareCatalogPage() {
           </div>
         </div>
 
-        <div className="flex flex-col xl:flex-row gap-3 mb-5">
+        <div className="mb-5 inline-flex rounded-2xl border border-tint/30 bg-surface/30 p-1">
+          <button
+            type="button"
+            onClick={() => setActiveCatalogTab('items')}
+            className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition-colors ${
+              activeCatalogTab === 'items' ? 'bg-primary text-white shadow-sm' : 'text-fg/55 hover:bg-hi/[0.04] hover:text-fg'
+            }`}
+          >
+            <Package className="h-4 w-4" />
+            Позиции
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveCatalogTab('markups')}
+            className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition-colors ${
+              activeCatalogTab === 'markups' ? 'bg-primary text-white shadow-sm' : 'text-fg/55 hover:bg-hi/[0.04] hover:text-fg'
+            }`}
+          >
+            <BadgePercent className="h-4 w-4" />
+            Наценки систем
+          </button>
+        </div>
+
+        {activeCatalogTab === 'items' && <div className="flex flex-col xl:flex-row gap-3 mb-5">
           <div className="relative flex-1 group">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-fg/25 group-focus-within:text-accent transition-colors" />
             <input
@@ -1035,13 +1061,23 @@ export default function HardwareCatalogPage() {
               className="w-full bg-surface/30 border border-tint/30 rounded-2xl pl-12 pr-4 py-4 outline-none focus:border-accent/50 transition-all text-fg"
             />
           </div>
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <div className="flex items-center gap-2 bg-surface/30 border border-tint/30 rounded-2xl px-3 py-2">
               <SlidersHorizontal className="w-4 h-4 text-accent/60" />
               <select value={group} onChange={event => setGroup(event.target.value as typeof group)}
-                className="bg-transparent outline-none text-sm font-bold text-fg min-w-[150px]">
-                <option value="Все">Все группы</option>
+                aria-label="Тип детали"
+                className="bg-transparent outline-none text-sm font-bold text-fg min-w-[160px]">
+                <option value="Все">Все типы деталей</option>
                 {GROUPS.map(item => <option key={item} value={item}>{item}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-2 bg-surface/30 border border-tint/30 rounded-2xl px-3 py-2">
+              <Package className="w-4 h-4 text-accent/60" />
+              <select value={systemGroup} onChange={event => setSystemGroup(event.target.value as typeof systemGroup)}
+                aria-label="Тип секции"
+                className="bg-transparent outline-none text-sm font-bold text-fg min-w-[160px]">
+                <option value="Все">Все типы секций</option>
+                {SYSTEM_GROUPS.map(item => <option key={item.code} value={item.code}>{item.label}</option>)}
               </select>
             </div>
             <div className="grid grid-cols-3 rounded-2xl bg-surface/30 border border-tint/30 p-1 min-w-[270px]">
@@ -1059,23 +1095,28 @@ export default function HardwareCatalogPage() {
               ))}
             </div>
           </div>
-        </div>
+        </div>}
 
-        <section className="mb-4 flex flex-col gap-3 rounded-2xl border border-tint/25 bg-surface/25 p-3 lg:flex-row lg:items-center">
-          <div className="flex items-center gap-2 px-1 lg:w-48 lg:flex-shrink-0">
-            <BadgePercent className="h-4 w-4 text-accent" />
-            <h2 className="text-sm font-bold">Наценка конструкции</h2>
+        {activeCatalogTab === 'markups' && <section className="mx-auto mb-5 w-full max-w-5xl rounded-2xl border border-tint/25 bg-surface/30 p-5 sm:p-6">
+          <div className="mb-5 flex items-start gap-3 border-b border-tint/20 pb-4">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent">
+              <BadgePercent className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold">Наценка на конструкцию</h2>
+              <p className="mt-1 text-sm text-fg/45">Общее значение применяется ко всем позициям выбранной системы.</p>
+            </div>
           </div>
-          <div className="grid flex-1 gap-2 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             {SYSTEM_GROUPS.map(systemGroup => {
               const state = systemMarkups.find(row => row.code === systemGroup.code);
               return (
-                <div key={systemGroup.code} className="flex min-w-0 items-center gap-2 rounded-xl border border-tint/20 bg-hi/[0.025] p-2">
+                <div key={systemGroup.code} className="flex min-w-0 items-center gap-3 rounded-xl border border-tint/25 bg-hi/[0.025] p-3">
                   <div className="min-w-0 flex-1 px-1">
-                    <div className="truncate text-xs font-bold">{systemGroup.label}</div>
+                    <div className="truncate text-sm font-bold">{systemGroup.label}</div>
                     {state?.mixed && <div className="text-[10px] text-amber-300">Разные значения</div>}
                   </div>
-                  <div className="relative w-24 flex-shrink-0">
+                  <div className="relative w-28 flex-shrink-0">
                     <input
                       type="number"
                       min="0"
@@ -1100,33 +1141,33 @@ export default function HardwareCatalogPage() {
               );
             })}
           </div>
-        </section>
+        </section>}
 
-        <div className="bg-surface/30 backdrop-blur-xl border border-tint/25 rounded-[2rem] overflow-hidden shadow-2xl">
+        {activeCatalogTab === 'items' && <div className="bg-surface/30 backdrop-blur-xl border border-tint/25 rounded-[2rem] overflow-hidden shadow-2xl">
           <div>
             <table className="w-full table-fixed text-left border-collapse">
               <colgroup>
                 <col className="w-[8%]" />
-                <col className="w-[32%]" />
+                <col className="w-[27%]" />
                 <col className="w-[11%]" />
                 <col className="w-[10%]" />
-                <col className="w-[8%]" />
                 <col className="w-[10%]" />
-                <col className="w-[7%]" />
-                <col className="w-[6%]" />
+                <col className="w-[10%]" />
                 <col className="w-[8%]" />
+                <col className="w-[7%]" />
+                <col className="w-[9%]" />
               </colgroup>
               <thead>
                 <tr className="border-b border-tint/20 bg-hi/[0.03]">
-                  <th className="px-3 py-4 text-[9px] font-bold uppercase tracking-wider text-fg/45">Артикул</th>
-                  <th className="px-3 py-4 text-[9px] font-bold uppercase tracking-wider text-fg/45">Позиция</th>
-                  <th className="px-3 py-4 text-[9px] font-bold uppercase tracking-wider text-fg/45">Группа</th>
-                  <th className="px-3 py-4 text-[9px] font-bold uppercase tracking-wider text-fg/45">Закупка</th>
-                  <th className="px-3 py-4 text-[9px] font-bold uppercase tracking-wider text-fg/45">Наценка</th>
-                  <th className="px-3 py-4 text-[9px] font-bold uppercase tracking-wider text-fg/45">Продажа</th>
-                  <th className="px-3 py-4 text-[9px] font-bold uppercase tracking-wider text-fg/45">Вес</th>
-                  <th className="px-3 py-4 text-[9px] font-bold uppercase tracking-wider text-fg/45">Отход</th>
-                  <th className="px-3 py-4 text-[9px] font-bold uppercase tracking-wider text-fg/45 text-right">Действия</th>
+                  <th className="px-2.5 py-3.5 text-[10px] font-bold uppercase tracking-wider text-fg/45">Артикул</th>
+                  <th className="px-2.5 py-3.5 text-[10px] font-bold uppercase tracking-wider text-fg/45">Позиция</th>
+                  <th className="px-2.5 py-3.5 text-[10px] font-bold uppercase tracking-wider text-fg/45">Группа</th>
+                  <th className="px-2.5 py-3.5 text-[10px] font-bold uppercase tracking-wider text-fg/45">Закупка</th>
+                  <th className="px-2.5 py-3.5 text-[10px] font-bold uppercase tracking-wider text-fg/45">Наценка</th>
+                  <th className="px-2.5 py-3.5 text-[10px] font-bold uppercase tracking-wider text-fg/45">Продажа</th>
+                  <th className="px-2.5 py-3.5 text-[10px] font-bold uppercase tracking-wider text-fg/45">Вес</th>
+                  <th className="px-2.5 py-3.5 text-[10px] font-bold uppercase tracking-wider text-fg/45">Отход</th>
+                  <th className="px-2.5 py-3.5 text-right text-[10px] font-bold uppercase tracking-wider text-fg/45">Действия</th>
                 </tr>
               </thead>
               <tbody>
@@ -1147,8 +1188,8 @@ export default function HardwareCatalogPage() {
                 ) : filtered.map(item => (
                   <motion.tr key={item.id} initial={{ opacity: 0 }} animate={{ opacity: item.isActive ? 1 : 0.45 }}
                     className="border-b border-tint/10 hover:bg-hi/[0.03] transition-colors group">
-                    <td className="break-words px-3 py-3 font-mono text-xs text-accent font-bold">{item.sku}</td>
-                    <td className="px-3 py-3">
+                    <td className="break-words px-2.5 py-3 font-mono text-sm font-bold text-accent">{item.sku}</td>
+                    <td className="px-2.5 py-3">
                       <div className="flex items-center gap-2 min-w-0">
                         <div className="w-12 h-10 rounded-lg bg-white border border-tint/20 flex items-center justify-center overflow-hidden flex-shrink-0">
                           {item.imageFile ? (
@@ -1158,7 +1199,7 @@ export default function HardwareCatalogPage() {
                           )}
                         </div>
                         <div className="min-w-0">
-                          <div className="text-xs font-bold leading-snug text-fg">{item.name}</div>
+                          <div className="text-sm font-bold leading-snug text-fg">{item.name}</div>
                           <div className="mt-0.5 truncate text-[10px] text-fg/35">
                             {(item.systemGroups || []).map(code => SYSTEM_GROUPS.find(row => row.code === code)?.label).filter(Boolean).join(' · ') || 'Без группы'}
                           </div>
@@ -1172,17 +1213,17 @@ export default function HardwareCatalogPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-3">
-                      <span className={`inline-flex max-w-full items-center rounded-full border px-2 py-1 text-[9px] font-bold ${GROUP_COLORS[item.group]}`}>
+                    <td className="px-2.5 py-3">
+                      <span className={`inline-flex max-w-full items-center rounded-full border px-2 py-1 text-[10px] font-bold ${GROUP_COLORS[item.group]}`}>
                         {item.group}
                       </span>
                     </td>
-                    <td className="px-3 py-3 text-xs font-mono">{formatPriceRange(pricingCosts(item))}</td>
-                    <td className="px-3 py-3 text-xs font-mono text-amber-300">{percentRange(item, 'profileMarkupPercent')}</td>
-                    <td className="px-3 py-3 text-xs font-mono text-emerald-300">{priceRange(item, (_item, variant) => profileSale(variant))}</td>
-                    <td className="px-3 py-3 text-xs font-mono text-fg/60">{item.weight}</td>
-                    <td className="px-3 py-3 text-xs font-mono text-fg/60">{item.wastePercent}%</td>
-                    <td className="px-2 py-3 text-right">
+                    <td className="px-2.5 py-3 font-mono text-sm">{formatPriceRange(pricingCosts(item))}</td>
+                    <td className="px-2.5 py-3 font-mono text-sm text-amber-400">{percentRange(item, 'profileMarkupPercent')}</td>
+                    <td className="px-2.5 py-3 font-mono text-sm text-emerald-400">{priceRange(item, (_item, variant) => profileSale(variant))}</td>
+                    <td className="px-2.5 py-3 font-mono text-sm text-fg/65">{item.weight}</td>
+                    <td className="px-2.5 py-3 font-mono text-sm text-fg/65">{item.wastePercent}%</td>
+                    <td className="px-1.5 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => setDraft(item)}
                           className="p-2 rounded-lg hover:bg-tint/25 text-accent transition-colors" title="Изменить">
@@ -1202,7 +1243,7 @@ export default function HardwareCatalogPage() {
           <div className="px-8 py-4 bg-hi/[0.02] border-t border-tint/20 text-xs text-fg/40">
             Показано <span className="text-fg font-bold">{filtered.length}</span> из <span className="text-fg font-bold">{items.length}</span>
           </div>
-        </div>
+        </div>}
       </main>
 
       <AnimatePresence>
