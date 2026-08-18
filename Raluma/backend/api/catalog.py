@@ -173,12 +173,13 @@ def _ensure_catalog_seed(db: Session) -> None:
             model.id = None
         db.add(model)
     db.flush()
-    actor_id = (
-        db.query(models.User.id)
+    actor = (
+        db.query(models.User)
         .filter(models.User.role.in_(("admin", "superadmin")))
         .order_by(models.User.id)
-        .scalar()
+        .first()
     )
+    actor_id = actor.id if actor is not None else None
     if actor_id is not None:
         now = datetime.utcnow()
         for catalog_item in db.query(models.CatalogItem).all():

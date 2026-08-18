@@ -90,6 +90,16 @@ def _price_payload(cost: str, effective_from: datetime, reason="Тест цен�
     }
 
 
+def test_public_catalog_supports_multiple_admins(client, admin_headers):
+    second_admin, _ = _create_user(client, admin_headers, role="admin")
+    try:
+        response = client.get("/api/catalog/hardware/options")
+        assert response.status_code == 200, response.text
+        assert response.json()
+    finally:
+        client.delete(f"/api/users/{second_admin['id']}", headers=admin_headers)
+
+
 def test_price_versions_future_history_bulk_and_rollback(client, admin_headers):
     item_id, sku = _new_catalog_item()
     try:
