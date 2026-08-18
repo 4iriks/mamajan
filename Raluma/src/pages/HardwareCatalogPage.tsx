@@ -1143,19 +1143,19 @@ export default function HardwareCatalogPage() {
           </div>
         </section>}
 
-        {activeCatalogTab === 'items' && <div className="bg-surface/30 backdrop-blur-xl border border-tint/25 rounded-[2rem] overflow-hidden shadow-2xl">
-          <div>
-            <table className="w-full table-fixed text-left border-collapse">
+        {activeCatalogTab === 'items' && <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-[2rem] border border-tint/25 bg-surface/30 shadow-2xl backdrop-blur-xl">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1080px] table-fixed border-collapse text-left">
               <colgroup>
                 <col className="w-[8%]" />
-                <col className="w-[27%]" />
+                <col className="w-[31%]" />
                 <col className="w-[11%]" />
                 <col className="w-[10%]" />
-                <col className="w-[10%]" />
+                <col className="w-[9%]" />
                 <col className="w-[10%]" />
                 <col className="w-[8%]" />
                 <col className="w-[7%]" />
-                <col className="w-[9%]" />
+                <col className="w-[6%]" />
               </colgroup>
               <thead>
                 <tr className="border-b border-tint/20 bg-hi/[0.03]">
@@ -1190,8 +1190,8 @@ export default function HardwareCatalogPage() {
                     className="border-b border-tint/10 hover:bg-hi/[0.03] transition-colors group">
                     <td className="break-words px-2.5 py-3 font-mono text-sm font-bold text-accent">{item.sku}</td>
                     <td className="px-2.5 py-3">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-12 h-10 rounded-lg bg-white border border-tint/20 flex items-center justify-center overflow-hidden flex-shrink-0">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-14 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-tint/20 bg-white p-1">
                           {item.imageFile ? (
                             <img src={profileAssetUrl(item.imageFile)} alt={item.sku} className="max-w-full max-h-full object-contain" />
                           ) : (
@@ -1202,13 +1202,6 @@ export default function HardwareCatalogPage() {
                           <div className="text-sm font-bold leading-snug text-fg">{item.name}</div>
                           <div className="mt-0.5 truncate text-[10px] text-fg/35">
                             {(item.systemGroups || []).map(code => SYSTEM_GROUPS.find(row => row.code === code)?.label).filter(Boolean).join(' · ') || 'Без группы'}
-                          </div>
-                          <div className="mt-1 flex flex-wrap items-center gap-1">
-                            {(item.sectionWidthMm > 0 || item.sectionHeightMm > 0) && (
-                              <span className="rounded-md border border-tint/25 bg-tint/15 px-1.5 py-0.5 text-[9px] font-bold text-fg/45">
-                                {item.sectionWidthMm}×{item.sectionHeightMm} мм
-                              </span>
-                            )}
                           </div>
                         </div>
                       </div>

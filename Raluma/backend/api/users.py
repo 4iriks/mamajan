@@ -144,19 +144,19 @@ def update_user(
     _ensure_admin_can_manage_user(user, current_user)
     updates = data.model_dump(exclude_unset=True)
     password = updates.pop("password", None)
-    next_role = updates.get("role")
-    if next_role is not None:
-        if next_role not in ALL_ROLES:
-            raise HTTPException(status_code=400, detail="Неизвестная роль")
-        if current_user.role == "admin" and next_role not in MANAGED_ROLES:
-            raise HTTPException(status_code=403, detail="Нельзя повысить до admin")
-    effective_role = next_role or user.role
+    next_role = updates.pop("role", None)
+    if next_role is not None and next_role != user.role:
+        raise HTTPException(
+            status_code=400,
+            detail="Роль задаётся только при создании учётной записи",
+        )
+    effective_role = user.role
     if updates.get("can_manage_prices") and effective_role != "user":
         raise HTTPException(
             status_code=400,
             detail="Управление ценами можно назначить только сотруднику",
         )
-    if next_role is not None and next_role != "user":
+    if effective_role != "user":
         updates["can_manage_prices"] = False
     if "display_name" in updates:
         display_name = (updates["display_name"] or "").strip()

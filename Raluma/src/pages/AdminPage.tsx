@@ -203,7 +203,6 @@ export default function AdminPage() {
       if (editingUser) {
         const upd: UserUpdate = {
           display_name: form.display_name,
-          role: form.role,
           customer: form.customer,
           employee_number: form.employee_number || null,
           position: form.position || null,
@@ -521,19 +520,21 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-accent/50 ml-1">Роль</label>
-                  <div className="flex gap-2">
-                    {roleOptions(isSuperAdmin(), form.role).map(role => (
-                      <button key={role.value} onClick={() => setForm(f => ({ ...f, role: role.value }))}
-                        className={`flex-1 py-3 rounded-xl border text-xs font-bold transition-all ${
-                          form.role === role.value ? 'bg-accent/10 border-accent/50 text-accent' : 'bg-hi/5 border-tint/25 text-fg/50 hover:border-tint/50'
-                        }`}>
-                        {role.label}
-                      </button>
-                    ))}
+                {!editingUser && (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-accent/50 ml-1">Роль</label>
+                    <div className="flex gap-2">
+                      {roleOptions(isSuperAdmin(), form.role).map(role => (
+                        <button key={role.value} type="button" onClick={() => setForm(f => ({ ...f, role: role.value }))}
+                          className={`flex-1 py-3 rounded-xl border text-xs font-bold transition-all ${
+                            form.role === role.value ? 'bg-accent/10 border-accent/50 text-accent' : 'bg-hi/5 border-tint/25 text-fg/50 hover:border-tint/50'
+                          }`}>
+                          {role.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {form.role === 'user' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -669,11 +670,17 @@ export default function AdminPage() {
                   </div>
                 )}
 
-                <div className="flex items-center justify-between py-3 px-1">
+                <div className="flex items-center justify-between rounded-2xl border border-tint/25 bg-hi/[0.025] px-4 py-3">
                   <span className="text-sm font-medium text-fg/80">Активен</span>
-                  <button onClick={() => setForm(f => ({ ...f, is_active: !f.is_active }))}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${form.is_active ? 'bg-primary' : 'bg-hi/15'}`}>
-                    <span className={`absolute top-1 w-4 h-4 rounded-full bg-hi shadow transition-transform ${form.is_active ? 'translate-x-7' : 'translate-x-1'}`} />
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={form.is_active}
+                    aria-label="Активная учётная запись"
+                    onClick={() => setForm(f => ({ ...f, is_active: !f.is_active }))}
+                    className={`relative h-6 w-11 flex-shrink-0 rounded-full p-1 transition-colors ${form.is_active ? 'bg-primary' : 'bg-tint/30'}`}
+                  >
+                    <span className={`block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${form.is_active ? 'translate-x-5' : 'translate-x-0'}`} />
                   </button>
                 </div>
               </div>

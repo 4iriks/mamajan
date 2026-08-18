@@ -169,7 +169,10 @@ def test_admin_sees_and_manages_only_employees_and_dealers(client, admin_headers
         headers=regular_admin_headers,
         json={"role": "admin"},
     )
-    assert promote_employee.status_code == 403
+    assert promote_employee.status_code == 400
+    assert promote_employee.json()["detail"] == (
+        "Роль задаётся только при создании учётной записи"
+    )
 
     client.delete(f"/api/users/{employee['id']}", headers=admin_headers)
     client.delete(f"/api/users/{dealer['id']}", headers=admin_headers)
@@ -203,6 +206,20 @@ def test_update_user_validates_discount_and_clears_blank_text_fields(
     )
     assert invalid_discount.status_code == 400
     assert invalid_discount.json()["detail"] == "Скидка дилера должна быть от 0 до 100"
+
+    immutable_role = client.put(
+        f"/api/users/{dealer['id']}",
+        headers=admin_headers,
+        json={"role": "user"},
+    )
+    assert immutable_role.status_code == 400
+    assert immutable_role.json()["detail"] == (
+        "Роль задаётся только при создании учётной записи"
+    )
+    assert (
+        client.get(f"/api/users/{dealer['id']}", headers=admin_headers).json()["role"]
+        == "dealer"
+    )
 
     client.delete(f"/api/users/{dealer['id']}", headers=admin_headers)
 
