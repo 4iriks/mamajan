@@ -770,6 +770,34 @@ function NumberInput({
   );
 }
 
+function PriceField({
+  label, value, suffix, max, onChange,
+}: {
+  label: string;
+  value: number | string;
+  suffix: string;
+  max?: number;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block min-w-0">
+      <span className="mb-1.5 block text-[9px] font-bold uppercase leading-tight tracking-wider text-fg/40">{label}</span>
+      <span className="relative block">
+        <input
+          type="number"
+          min="0"
+          max={max}
+          step="0.01"
+          value={value}
+          onChange={event => onChange(event.target.value)}
+          className="h-11 w-full rounded-xl border border-tint/30 bg-hi/[0.04] px-3 pr-8 font-mono text-sm outline-none transition-colors focus:border-accent/60"
+        />
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-fg/35">{suffix}</span>
+      </span>
+    </label>
+  );
+}
+
 export default function HardwareCatalogPage() {
   const navigate = useNavigate();
   const { user: me, isAdmin } = useAuthStore();
@@ -997,47 +1025,6 @@ export default function HardwareCatalogPage() {
           </div>
         </div>
 
-        <section className="mb-6 border-y border-tint/25 py-5">
-          <div className="mb-4">
-            <h2 className="text-lg font-bold">Наценка на конструкцию по системам</h2>
-            <p className="mt-1 text-sm text-fg/45">Значение применяется ко всем исполнениям позиций выбранной группы. Если позиция входит в обе группы, действует последнее сохранение.</p>
-          </div>
-          <div className="grid gap-3 lg:grid-cols-2">
-            {SYSTEM_GROUPS.map(systemGroup => {
-              const state = systemMarkups.find(row => row.code === systemGroup.code);
-              return (
-                <div key={systemGroup.code} className="grid grid-cols-[minmax(0,1fr)_140px_auto] items-center gap-3 rounded-xl border border-tint/25 bg-surface/20 px-4 py-3">
-                  <div>
-                    <div className="font-bold">{systemGroup.label}</div>
-                    <div className="mt-1 text-xs text-fg/40">{state?.mixed ? 'У позиций сейчас разные значения' : 'Общее значение группы'}</div>
-                  </div>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={systemMarkupDrafts[systemGroup.code]}
-                      placeholder={state?.mixed ? 'Разные' : '0'}
-                      onChange={event => setSystemMarkupDrafts(current => ({ ...current, [systemGroup.code]: event.target.value }))}
-                      className={`${INPUT_CLS} pr-10 font-mono`}
-                    />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-fg/35">%</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleSystemMarkupSave(systemGroup.code)}
-                    disabled={savingSystemGroup === systemGroup.code}
-                    className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-primary px-4 font-bold text-white transition-colors hover:bg-primary-h disabled:opacity-50"
-                  >
-                    <Save className="h-4 w-4" />
-                    {savingSystemGroup === systemGroup.code ? '...' : 'Сохранить'}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
         <div className="flex flex-col xl:flex-row gap-3 mb-5">
           <div className="relative flex-1 group">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-fg/25 group-focus-within:text-accent transition-colors" />
@@ -1074,27 +1061,78 @@ export default function HardwareCatalogPage() {
           </div>
         </div>
 
+        <section className="mb-4 flex flex-col gap-3 rounded-2xl border border-tint/25 bg-surface/25 p-3 lg:flex-row lg:items-center">
+          <div className="flex items-center gap-2 px-1 lg:w-48 lg:flex-shrink-0">
+            <BadgePercent className="h-4 w-4 text-accent" />
+            <h2 className="text-sm font-bold">Наценка конструкции</h2>
+          </div>
+          <div className="grid flex-1 gap-2 sm:grid-cols-2">
+            {SYSTEM_GROUPS.map(systemGroup => {
+              const state = systemMarkups.find(row => row.code === systemGroup.code);
+              return (
+                <div key={systemGroup.code} className="flex min-w-0 items-center gap-2 rounded-xl border border-tint/20 bg-hi/[0.025] p-2">
+                  <div className="min-w-0 flex-1 px-1">
+                    <div className="truncate text-xs font-bold">{systemGroup.label}</div>
+                    {state?.mixed && <div className="text-[10px] text-amber-300">Разные значения</div>}
+                  </div>
+                  <div className="relative w-24 flex-shrink-0">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={systemMarkupDrafts[systemGroup.code]}
+                      placeholder={state?.mixed ? 'Разные' : '0'}
+                      onChange={event => setSystemMarkupDrafts(current => ({ ...current, [systemGroup.code]: event.target.value }))}
+                      className="h-10 w-full rounded-lg border border-tint/30 bg-page/40 px-3 pr-7 font-mono text-sm outline-none focus:border-accent/60"
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-fg/35">%</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleSystemMarkupSave(systemGroup.code)}
+                    disabled={savingSystemGroup === systemGroup.code}
+                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary text-white transition-colors hover:bg-primary-h disabled:opacity-50"
+                    title={`Сохранить наценку ${systemGroup.label}`}
+                  >
+                    <Save className="h-4 w-4" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
         <div className="bg-surface/30 backdrop-blur-xl border border-tint/25 rounded-[2rem] overflow-hidden shadow-2xl">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1040px] text-left border-collapse">
+          <div>
+            <table className="w-full table-fixed text-left border-collapse">
+              <colgroup>
+                <col className="w-[8%]" />
+                <col className="w-[32%]" />
+                <col className="w-[11%]" />
+                <col className="w-[10%]" />
+                <col className="w-[8%]" />
+                <col className="w-[10%]" />
+                <col className="w-[7%]" />
+                <col className="w-[6%]" />
+                <col className="w-[8%]" />
+              </colgroup>
               <thead>
                 <tr className="border-b border-tint/20 bg-hi/[0.03]">
-                  <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/45">Артикул</th>
-                  <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/45">Позиция</th>
-                  <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/45">Группа</th>
-                  <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/45">Ед.</th>
-                  <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/45">Закупка</th>
-                  <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/45">Наценка</th>
-                  <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/45">Продажа</th>
-                  <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/45">Вес</th>
-                  <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/45">Отход</th>
-                  <th className="px-5 py-5 text-[10px] font-bold uppercase tracking-widest text-fg/45 text-right">Действия</th>
+                  <th className="px-3 py-4 text-[9px] font-bold uppercase tracking-wider text-fg/45">Артикул</th>
+                  <th className="px-3 py-4 text-[9px] font-bold uppercase tracking-wider text-fg/45">Позиция</th>
+                  <th className="px-3 py-4 text-[9px] font-bold uppercase tracking-wider text-fg/45">Группа</th>
+                  <th className="px-3 py-4 text-[9px] font-bold uppercase tracking-wider text-fg/45">Закупка</th>
+                  <th className="px-3 py-4 text-[9px] font-bold uppercase tracking-wider text-fg/45">Наценка</th>
+                  <th className="px-3 py-4 text-[9px] font-bold uppercase tracking-wider text-fg/45">Продажа</th>
+                  <th className="px-3 py-4 text-[9px] font-bold uppercase tracking-wider text-fg/45">Вес</th>
+                  <th className="px-3 py-4 text-[9px] font-bold uppercase tracking-wider text-fg/45">Отход</th>
+                  <th className="px-3 py-4 text-[9px] font-bold uppercase tracking-wider text-fg/45 text-right">Действия</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="py-20 text-center">
+                    <td colSpan={9} className="py-20 text-center">
                       <div className="flex flex-col items-center gap-4">
                         <div className="w-20 h-20 rounded-full bg-tint/15 border border-tint/25 flex items-center justify-center">
                           <Package className="w-10 h-10 text-fg/25" />
@@ -1109,10 +1147,10 @@ export default function HardwareCatalogPage() {
                 ) : filtered.map(item => (
                   <motion.tr key={item.id} initial={{ opacity: 0 }} animate={{ opacity: item.isActive ? 1 : 0.45 }}
                     className="border-b border-tint/10 hover:bg-hi/[0.03] transition-colors group">
-                    <td className="px-5 py-4 font-mono text-sm text-accent font-bold">{item.sku}</td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-16 h-12 rounded-xl bg-white border border-tint/20 flex items-center justify-center overflow-hidden flex-shrink-0">
+                    <td className="break-words px-3 py-3 font-mono text-xs text-accent font-bold">{item.sku}</td>
+                    <td className="px-3 py-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-12 h-10 rounded-lg bg-white border border-tint/20 flex items-center justify-center overflow-hidden flex-shrink-0">
                           {item.imageFile ? (
                             <img src={profileAssetUrl(item.imageFile)} alt={item.sku} className="max-w-full max-h-full object-contain" />
                           ) : (
@@ -1120,39 +1158,32 @@ export default function HardwareCatalogPage() {
                           )}
                         </div>
                         <div className="min-w-0">
-                          <div className="font-bold text-sm text-fg truncate">{item.name}</div>
-                          <div className="text-[11px] text-fg/35 mt-1">
+                          <div className="text-xs font-bold leading-snug text-fg">{item.name}</div>
+                          <div className="mt-0.5 truncate text-[10px] text-fg/35">
                             {(item.systemGroups || []).map(code => SYSTEM_GROUPS.find(row => row.code === code)?.label).filter(Boolean).join(' · ') || 'Без группы'}
                           </div>
-                          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                          <div className="mt-1 flex flex-wrap items-center gap-1">
                             {(item.sectionWidthMm > 0 || item.sectionHeightMm > 0) && (
-                              <span className="px-2 py-0.5 rounded-md bg-tint/15 border border-tint/25 text-[10px] font-bold text-fg/45">
+                              <span className="rounded-md border border-tint/25 bg-tint/15 px-1.5 py-0.5 text-[9px] font-bold text-fg/45">
                                 {item.sectionWidthMm}×{item.sectionHeightMm} мм
                               </span>
                             )}
-                            <span className="px-2 py-0.5 rounded-md bg-accent/10 border border-accent/20 text-[10px] font-bold text-accent/80">
-                              {item.paintMode}
-                            </span>
-                            <span className="px-2 py-0.5 rounded-md bg-hi/[0.04] border border-tint/20 text-[10px] font-bold text-fg/35">
-                              {item.colorVariants.join(', ')}
-                            </span>
                           </div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border ${GROUP_COLORS[item.group]}`}>
+                    <td className="px-3 py-3">
+                      <span className={`inline-flex max-w-full items-center rounded-full border px-2 py-1 text-[9px] font-bold ${GROUP_COLORS[item.group]}`}>
                         {item.group}
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-sm font-bold text-fg/60">{item.unit}</td>
-                    <td className="px-5 py-4 text-sm font-mono">{formatPriceRange(pricingCosts(item))}</td>
-                    <td className="px-5 py-4 text-sm font-mono text-amber-300">{percentRange(item, 'profileMarkupPercent')}</td>
-                    <td className="px-5 py-4 text-sm font-mono text-emerald-300">{priceRange(item, (_item, variant) => profileSale(variant))}</td>
-                    <td className="px-5 py-4 text-sm font-mono text-fg/60">{item.weight} кг</td>
-                    <td className="px-5 py-4 text-sm font-mono text-fg/60">{item.wastePercent}%</td>
-                    <td className="px-5 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <td className="px-3 py-3 text-xs font-mono">{formatPriceRange(pricingCosts(item))}</td>
+                    <td className="px-3 py-3 text-xs font-mono text-amber-300">{percentRange(item, 'profileMarkupPercent')}</td>
+                    <td className="px-3 py-3 text-xs font-mono text-emerald-300">{priceRange(item, (_item, variant) => profileSale(variant))}</td>
+                    <td className="px-3 py-3 text-xs font-mono text-fg/60">{item.weight}</td>
+                    <td className="px-3 py-3 text-xs font-mono text-fg/60">{item.wastePercent}%</td>
+                    <td className="px-2 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
                         <button onClick={() => setDraft(item)}
                           className="p-2 rounded-lg hover:bg-tint/25 text-accent transition-colors" title="Изменить">
                           <Edit2 className="w-4 h-4" />
@@ -1181,159 +1212,82 @@ export default function HardwareCatalogPage() {
               onClick={() => setDraft(null)} className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
             <motion.div initial={{ scale: 0.94, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.94, opacity: 0, y: 20 }}
-              className="relative w-full max-w-4xl bg-modal border border-tint/40 rounded-[2.5rem] p-6 sm:p-8 shadow-2xl z-10 overflow-y-auto max-h-[95vh]">
-              <button onClick={() => setDraft(null)} className="absolute right-7 top-7 text-fg/30 hover:text-fg transition-colors">
+              className="relative z-10 flex max-h-[95vh] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem] border border-tint/40 bg-modal shadow-2xl">
+              <button onClick={() => setDraft(null)} className="absolute right-6 top-6 z-10 text-fg/30 hover:text-fg transition-colors">
                 <X className="w-6 h-6" />
               </button>
 
-              <div className="flex items-center gap-4 mb-8 pr-10">
-                <div className="w-14 h-14 rounded-2xl bg-tint/25 border border-tint/40 flex items-center justify-center">
-                  <Package className="w-7 h-7 text-accent" />
+              <div className="flex items-center gap-3 border-b border-tint/20 px-6 py-5 pr-16 sm:px-8">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-tint/40 bg-tint/25">
+                  <Package className="w-5 h-5 text-accent" />
                 </div>
-                <div>
-                  <h2 className="text-2xl font-bold">Позиция каталога</h2>
-                  <p className="text-sm text-fg/40 mt-1">Цена профиля: <span className="text-emerald-300 font-mono font-bold">{priceRange(draft, (_item, variant) => profileSale(variant))}</span></p>
+                <div className="min-w-0">
+                  <h2 className="text-xl font-bold">Позиция каталога</h2>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-fg/40">
+                    <span>{draft.sku || 'Новая позиция'}</span>
+                    <span className="font-mono font-bold text-emerald-300">{priceRange(draft, (_item, variant) => profileSale(variant))}</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-6">
-                <div className="space-y-5">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Артикул</label>
-                    <input value={draft.sku} onChange={event => setDraft({ ...draft, sku: event.target.value })}
-                      className={`${INPUT_CLS} font-mono`} placeholder="RS112" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Название</label>
-                    <input value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })}
-                      className={INPUT_CLS} placeholder="Ручка-профиль" />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Группа</label>
-                      <select value={draft.group} onChange={event => setDraft({ ...draft, group: event.target.value as HardwareGroup })}
-                        className={SELECT_CLS}>
-                        {GROUPS.map(item => <option key={item} value={item}>{item}</option>)}
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Единица</label>
-                      <select value={draft.unit} onChange={event => setDraft({ ...draft, unit: event.target.value as CatalogUnit })}
-                        className={SELECT_CLS}>
-                        {UNITS.map(item => <option key={item} value={item}>{item}</option>)}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Группы системы</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {SYSTEM_GROUPS.map(systemGroup => {
-                        const selected = (draft.systemGroups || []).includes(systemGroup.code);
-                        return (
-                          <button
-                            key={systemGroup.code}
-                            type="button"
-                            onClick={() => setDraft({
-                              ...draft,
-                              systemGroups: selected
-                                ? (draft.systemGroups || []).filter(code => code !== systemGroup.code)
-                                : [...(draft.systemGroups || []), systemGroup.code],
-                            })}
-                            className={`rounded-xl border px-4 py-3 text-sm font-bold transition-colors ${selected ? 'border-accent/45 bg-accent/15 text-accent' : 'border-tint/25 bg-hi/[0.03] text-fg/45'}`}
-                          >
-                            {systemGroup.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <NumberInput label="Ширина" value={draft.sectionWidthMm} suffix="мм" onChange={value => setDraft({ ...draft, sectionWidthMm: value })} />
-                    <NumberInput label="Высота" value={draft.sectionHeightMm} suffix="мм" onChange={value => setDraft({ ...draft, sectionHeightMm: value })} />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Окрашивание позиции</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {(['Не красится', 'Красится', 'Частично'] as PaintMode[]).map(mode => (
-                        <button
-                          key={mode}
-                          type="button"
-                          onClick={() => {
-                            const current = new Map<FinishCode, CatalogFinishVariant>((draft.finishVariants || []).map(variant => [variant.code, variant]));
-                            const variants = finishCodes(mode).map(code => current.get(code) || defaultFinish(code, draft.purchasePrice));
-                            setDraft({ ...draft, paintMode: mode, finishVariants: variants, colorVariants: variants.map(variant => variant.name) });
-                          }}
-                          className={`rounded-xl border px-3 py-3 text-xs font-bold transition-colors ${draft.paintMode === mode ? 'border-accent/45 bg-accent/15 text-accent' : 'border-tint/25 bg-hi/[0.03] text-fg/45'}`}
-                        >
-                          {mode}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Цены по исполнениям</label>
-                    <div className="overflow-x-auto rounded-xl border border-tint/25">
-                      <div className="min-w-[900px]">
-                        <div className="grid grid-cols-[160px_repeat(5,minmax(130px,1fr))] gap-px bg-tint/20 text-[9px] font-bold uppercase tracking-wider text-fg/45">
-                          {['Исполнение', 'Себестоимость', 'Наценка на профиль', 'Скидка на профиль', 'Наценка на конструкцию', 'Скидка на конструкцию'].map(label => (
-                            <div key={label} className="bg-modal px-3 py-2">{label}</div>
-                          ))}
-                        </div>
-                        {(draft.finishVariants || []).map((variant, index) => (
-                          <div key={variant.code} className="grid grid-cols-[160px_repeat(5,minmax(130px,1fr))] gap-px border-t border-tint/20 bg-tint/20">
-                            <div className="flex items-center bg-modal px-3 py-2 text-sm font-bold">{FINISHES[variant.code].name}</div>
-                            {([
-                              ['cost', variant.cost ?? 0, '₽'],
-                              ['profileMarkupPercent', variant.profileMarkupPercent, '%'],
-                              ['profileDiscountPercent', variant.profileDiscountPercent, '%'],
-                              ['constructionMarkupPercent', variant.constructionMarkupPercent, '%'],
-                              ['constructionDiscountPercent', variant.constructionDiscountPercent, '%'],
-                            ] as const).map(([field, value, suffix]) => (
-                              <div key={field} className="relative bg-modal p-2">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max={field.includes('Discount') ? 100 : undefined}
-                                  step="0.01"
-                                  value={value}
-                                  onChange={event => setDraft({
-                                    ...draft,
-                                    finishVariants: (draft.finishVariants || []).map((row, rowIndex) => rowIndex === index ? { ...row, [field]: event.target.value } : row),
-                                  })}
-                                  className="w-full rounded-lg border border-tint/25 bg-hi/[0.04] px-3 py-2 pr-8 font-mono text-sm outline-none focus:border-accent/60"
-                                  aria-label={`${FINISHES[variant.code].name}: ${field}`}
-                                />
-                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] text-fg/35">{suffix}</span>
-                              </div>
-                            ))}
-                          </div>
-                        ))}
+              <div className="custom-scrollbar overflow-y-auto px-6 py-5 sm:px-8">
+                <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_240px]">
+                  <div className="space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-[180px_minmax(0,1fr)]">
+                      <div className="space-y-2">
+                        <label className="ml-1 text-[10px] font-bold uppercase tracking-widest text-accent/45">Артикул</label>
+                        <input value={draft.sku} onChange={event => setDraft({ ...draft, sku: event.target.value })}
+                          className={`${INPUT_CLS} font-mono`} placeholder="RS112" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="ml-1 text-[10px] font-bold uppercase tracking-widest text-accent/45">Название</label>
+                        <input value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })}
+                          className={INPUT_CLS} placeholder="Ручка-профиль" />
                       </div>
                     </div>
-                  </div>
 
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Комментарий</label>
-                    <textarea value={draft.note} onChange={event => setDraft({ ...draft, note: event.target.value })}
-                      rows={3}
-                      className={`${INPUT_CLS} resize-none`}
-                      placeholder="Как позиция участвует в расчёте" />
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="bg-hi/[0.04] border border-tint/25 rounded-2xl p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-fg/30">Сечение</span>
-                      <ImageIcon className="w-3.5 h-3.5 text-accent/55" />
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                      <div className="space-y-2">
+                        <label className="ml-1 text-[10px] font-bold uppercase tracking-widest text-accent/45">Группа</label>
+                        <select value={draft.group} onChange={event => setDraft({ ...draft, group: event.target.value as HardwareGroup })}
+                          className={SELECT_CLS}>
+                          {GROUPS.map(item => <option key={item} value={item}>{item}</option>)}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="ml-1 text-[10px] font-bold uppercase tracking-widest text-accent/45">Единица</label>
+                        <select value={draft.unit} onChange={event => setDraft({ ...draft, unit: event.target.value as CatalogUnit })}
+                          className={SELECT_CLS}>
+                          {UNITS.map(item => <option key={item} value={item}>{item}</option>)}
+                        </select>
+                      </div>
+                      <NumberInput label="Ширина" value={draft.sectionWidthMm} suffix="мм" onChange={value => setDraft({ ...draft, sectionWidthMm: value })} />
+                      <NumberInput label="Высота" value={draft.sectionHeightMm} suffix="мм" onChange={value => setDraft({ ...draft, sectionHeightMm: value })} />
                     </div>
-                    <div className="h-40 rounded-xl bg-white flex items-center justify-center overflow-hidden">
+
+                    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-tint/20 bg-hi/[0.025] px-3 py-2.5">
+                      <span className="mr-1 text-[9px] font-bold uppercase tracking-wider text-fg/35">Системы</span>
+                      {(draft.systemGroups || []).map(code => (
+                        <span key={code} className="rounded-lg bg-accent/10 px-2.5 py-1 text-[10px] font-bold text-accent/80">
+                          {SYSTEM_GROUPS.find(row => row.code === code)?.label}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <NumberInput label="Вес на единицу" value={draft.weight} suffix="кг" onChange={value => setDraft({ ...draft, weight: value })} />
+                      {!['шт', 'компл.'].includes(draft.unit) && (
+                        <NumberInput label="Наценка на отходы" value={draft.wastePercent} suffix="%" onChange={value => setDraft({ ...draft, wastePercent: value })} />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-tint/25 bg-hi/[0.035] p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-fg/35">Сечение</span>
+                      <ImageIcon className="h-3.5 w-3.5 text-accent/55" />
+                    </div>
+                    <div className="flex h-44 items-center justify-center overflow-hidden rounded-xl bg-white p-3">
                       {draft.imageFile ? (
                         <img src={profileAssetUrl(draft.imageFile)} alt={draft.sku || 'Сечение'} className="max-w-full max-h-full object-contain" />
                       ) : (
@@ -1341,35 +1295,63 @@ export default function HardwareCatalogPage() {
                       )}
                     </div>
                   </div>
+                </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
-                    <NumberInput label="Вес на единицу" value={draft.weight} suffix="кг" onChange={value => setDraft({ ...draft, weight: value })} />
-                    {!['шт', 'компл.'].includes(draft.unit) && (
-                      <NumberInput label="Наценка на отходы" value={draft.wastePercent} suffix="%" onChange={value => setDraft({ ...draft, wastePercent: value })} />
-                    )}
+                <section className="mt-6">
+                  <h3 className="mb-3 text-sm font-bold">Цены по исполнениям</h3>
+                  <div className="space-y-2">
+                    {(draft.finishVariants || []).map((variant, index) => (
+                      <div key={variant.code} className="grid gap-3 rounded-2xl border border-tint/25 bg-hi/[0.025] p-3 sm:grid-cols-2 lg:grid-cols-[130px_repeat(5,minmax(0,1fr))] lg:items-end">
+                        <div className="flex min-h-11 items-center text-sm font-bold sm:col-span-2 lg:col-span-1">
+                          {FINISHES[variant.code].name}
+                        </div>
+                        {([
+                          ['cost', 'Себестоимость', variant.cost ?? 0, '₽'],
+                          ['profileMarkupPercent', 'Наценка профиль', variant.profileMarkupPercent, '%'],
+                          ['profileDiscountPercent', 'Скидка профиль', variant.profileDiscountPercent, '%'],
+                          ['constructionMarkupPercent', 'Наценка конструкция', variant.constructionMarkupPercent, '%'],
+                          ['constructionDiscountPercent', 'Скидка конструкция', variant.constructionDiscountPercent, '%'],
+                        ] as const).map(([field, label, value, suffix]) => (
+                          <div key={field} className="min-w-0">
+                            <PriceField
+                              label={label}
+                              value={value}
+                              suffix={suffix}
+                              max={field.includes('Discount') ? 100 : undefined}
+                              onChange={nextValue => setDraft({
+                                ...draft,
+                                finishVariants: (draft.finishVariants || []).map((row, rowIndex) => rowIndex === index ? { ...row, [field]: nextValue } : row),
+                              })}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ))}
                   </div>
+                </section>
 
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="grid grid-cols-3 gap-2 sm:col-span-2 lg:col-span-3">
                     {[
                       { label: 'Цена профиля', value: priceRange(draft, (_item, variant) => profileSale(variant)), icon: BadgePercent },
                       { label: 'С отходами', value: priceRange(draft, costWithWaste), icon: Ruler },
                       { label: 'Цена в конструкции', value: priceRange(draft, constructionPrice), icon: Scale },
                     ].map(card => (
-                      <div key={card.label} className="bg-hi/[0.04] border border-tint/25 rounded-2xl p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-[9px] font-bold uppercase tracking-widest text-fg/30">{card.label}</span>
+                      <div key={card.label} className="rounded-xl border border-tint/25 bg-hi/[0.04] p-3">
+                        <div className="mb-1.5 flex items-center justify-between gap-2">
+                          <span className="text-[9px] font-bold uppercase leading-tight tracking-wider text-fg/35">{card.label}</span>
                           <card.icon className="w-3.5 h-3.5 text-accent/55" />
                         </div>
-                        <div className="text-sm font-bold font-mono text-fg/80">{card.value}</div>
+                        <div className="font-mono text-xs font-bold text-fg/80">{card.value}</div>
                       </div>
                     ))}
                   </div>
 
                   <button onClick={() => setDraft({ ...draft, isActive: !draft.isActive })}
-                    className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl border transition-all ${
+                    className={`flex min-h-16 w-full items-center justify-between rounded-xl border px-4 py-3 transition-all ${
                       draft.isActive ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300' : 'bg-hi/5 border-tint/25 text-fg/45'
                     }`}>
-                    <span className="text-sm font-bold">{draft.isActive ? 'Позиция активна' : 'Позиция в архиве'}</span>
+                    <span className="text-xs font-bold">{draft.isActive ? 'Позиция активна' : 'Позиция в архиве'}</span>
                     <span className={`w-12 h-6 rounded-full transition-colors relative ${draft.isActive ? 'bg-emerald-500' : 'bg-hi/15'}`}>
                       <span className={`absolute top-1 w-4 h-4 rounded-full bg-hi shadow transition-transform ${draft.isActive ? 'translate-x-7' : 'translate-x-1'}`} />
                     </span>
@@ -1377,11 +1359,11 @@ export default function HardwareCatalogPage() {
                 </div>
               </div>
 
-              <div className="flex gap-4 mt-8">
+              <div className="flex gap-3 border-t border-tint/20 bg-modal px-6 py-4 sm:justify-end sm:px-8">
                 <button onClick={() => setDraft(null)}
-                  className="flex-1 py-4 rounded-2xl bg-hi/5 hover:bg-hi/10 font-bold transition-all">Отмена</button>
+                  className="flex-1 rounded-xl bg-hi/5 px-6 py-3 font-bold transition-all hover:bg-hi/10 sm:flex-none">Отмена</button>
                 <button onClick={handleSave}
-                  className="flex-1 py-4 rounded-2xl bg-primary hover:bg-primary-h text-white font-bold transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2">
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-8 py-3 font-bold text-white shadow-lg shadow-primary/20 transition-all hover:bg-primary-h sm:flex-none">
                   <Save className="w-4 h-4" />
                   Сохранить
                 </button>
