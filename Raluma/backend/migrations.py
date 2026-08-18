@@ -33,6 +33,7 @@ _CREATE_TABLES = [
         name VARCHAR NOT NULL,
         "group" VARCHAR NOT NULL DEFAULT 'Профили',
         system VARCHAR NOT NULL DEFAULT 'СЛАЙД',
+        system_groups TEXT NOT NULL DEFAULT '["SLIDE_1", "SLIDE_2"]',
         unit VARCHAR NOT NULL DEFAULT 'шт',
         purchase_price FLOAT NOT NULL DEFAULT 0,
         markup_percent FLOAT NOT NULL DEFAULT 0,
@@ -54,6 +55,7 @@ _CREATE_TABLES = [
     CREATE TABLE IF NOT EXISTS catalog_price_versions (
         id INTEGER PRIMARY KEY,
         catalog_item_id INTEGER NOT NULL,
+        finish_variant_id INTEGER,
         cost NUMERIC(14, 2) NOT NULL,
         profile_markup_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
         profile_discount_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
@@ -69,6 +71,7 @@ _CREATE_TABLES = [
         reason TEXT NOT NULL,
         rollback_of_id INTEGER,
         FOREIGN KEY(catalog_item_id) REFERENCES catalog_items(id),
+        FOREIGN KEY(finish_variant_id) REFERENCES catalog_finish_variants(id),
         FOREIGN KEY(created_by) REFERENCES users(id),
         FOREIGN KEY(rollback_of_id) REFERENCES catalog_price_versions(id)
     )
@@ -137,8 +140,14 @@ _CREATE_TABLES = [
     CREATE TABLE IF NOT EXISTS catalog_finish_variants (
         id INTEGER PRIMARY KEY,
         catalog_item_id INTEGER NOT NULL,
+        code VARCHAR NOT NULL DEFAULT 'BASE',
         name VARCHAR NOT NULL,
         price NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        cost NUMERIC(14, 2) NOT NULL DEFAULT 0,
+        profile_markup_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
+        profile_discount_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
+        construction_markup_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
+        construction_discount_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
         requires_paint BOOLEAN NOT NULL DEFAULT 0,
         is_active BOOLEAN NOT NULL DEFAULT 1,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -200,6 +209,13 @@ _ADD_COLUMNS = [
     "ALTER TABLE project_quote_states ADD COLUMN margin_override_approved_at DATETIME",
     "ALTER TABLE project_quote_states ADD COLUMN discounts_payload TEXT NOT NULL DEFAULT '[]'",
     "ALTER TABLE catalog_finish_variants ADD COLUMN cost NUMERIC(14, 2) NOT NULL DEFAULT 0",
+    'ALTER TABLE catalog_items ADD COLUMN system_groups TEXT NOT NULL DEFAULT \'["SLIDE_1", "SLIDE_2"]\'',
+    "ALTER TABLE catalog_finish_variants ADD COLUMN code VARCHAR NOT NULL DEFAULT 'BASE'",
+    "ALTER TABLE catalog_finish_variants ADD COLUMN profile_markup_percent NUMERIC(8, 4) NOT NULL DEFAULT 0",
+    "ALTER TABLE catalog_finish_variants ADD COLUMN profile_discount_percent NUMERIC(8, 4) NOT NULL DEFAULT 0",
+    "ALTER TABLE catalog_finish_variants ADD COLUMN construction_markup_percent NUMERIC(8, 4) NOT NULL DEFAULT 0",
+    "ALTER TABLE catalog_finish_variants ADD COLUMN construction_discount_percent NUMERIC(8, 4) NOT NULL DEFAULT 0",
+    "ALTER TABLE catalog_price_versions ADD COLUMN finish_variant_id INTEGER",
     # projects
     "ALTER TABLE projects ADD COLUMN invoice_number VARCHAR",
     "ALTER TABLE projects ADD COLUMN order_number VARCHAR",
@@ -299,6 +315,10 @@ _DATA_MIGRATIONS = [
     "INSERT OR IGNORE INTO construction_price_groups (code, name, markup_percent, is_active, created_at, updated_at) VALUES ('SLIDE', 'СЛАЙД', 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
     "INSERT OR IGNORE INTO construction_price_groups (code, name, markup_percent, is_active, created_at, updated_at) VALUES ('BOOK', 'КНИЖКА', 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
     "INSERT OR IGNORE INTO construction_price_groups (code, name, markup_percent, is_active, created_at, updated_at) VALUES ('LIFT', 'ЛИФТ', 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+    "INSERT OR IGNORE INTO construction_price_groups (code, name, markup_percent, is_active, created_at, updated_at) VALUES ('SLIDE_1', 'СЛАЙД 1 ряд', 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+    "INSERT OR IGNORE INTO construction_price_groups (code, name, markup_percent, is_active, created_at, updated_at) VALUES ('SLIDE_2', 'СЛАЙД 2 ряда', 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+    "UPDATE construction_price_groups SET is_active = 0 WHERE code IN ('SLIDE', 'BOOK', 'LIFT')",
+    "UPDATE sections SET price_group_id = (SELECT id FROM construction_price_groups WHERE code = CASE WHEN COALESCE(slide_rows, 1) = 2 THEN 'SLIDE_2' ELSE 'SLIDE_1' END) WHERE UPPER(TRIM(system)) = 'СЛАЙД'",
     "UPDATE sections SET price_group_id = (SELECT id FROM construction_price_groups WHERE code = 'SLIDE') WHERE price_group_id IS NULL AND UPPER(TRIM(system)) = 'СЛАЙД'",
     "UPDATE sections SET price_group_id = (SELECT id FROM construction_price_groups WHERE code = 'BOOK') WHERE price_group_id IS NULL AND UPPER(TRIM(system)) = 'КНИЖКА'",
     "UPDATE sections SET price_group_id = (SELECT id FROM construction_price_groups WHERE code = 'LIFT') WHERE price_group_id IS NULL AND UPPER(TRIM(system)) = 'ЛИФТ'",
@@ -410,8 +430,7 @@ def _normalize_glass_catalog_items(conn):
     try:
         rows = conn.execute(
             text(
-                "SELECT id, sku FROM catalog_items "
-                "WHERE sku LIKE 'GLASS|%' ORDER BY id"
+                "SELECT id, sku FROM catalog_items WHERE sku LIKE 'GLASS|%' ORDER BY id"
             )
         ).fetchall()
     except Exception:
@@ -613,14 +632,11 @@ def _backfill_finish_variants(conn) -> None:
             if not name:
                 continue
             normalized = name.casefold()
-            requires_paint = (
-                ("ral" in normalized or "окрас" in normalized)
-                or (
-                    ("красится" in mode or "частично" in mode)
-                    and "не красится" not in mode
-                    and "анод" not in normalized
-                    and "без цвета" not in normalized
-                )
+            requires_paint = ("ral" in normalized or "окрас" in normalized) or (
+                ("красится" in mode or "частично" in mode)
+                and "не красится" not in mode
+                and "анод" not in normalized
+                and "без цвета" not in normalized
             )
             conn.execute(
                 text(
@@ -658,6 +674,250 @@ def _backfill_finish_variant_costs_once(conn) -> None:
             "WHERE catalog_items.id = catalog_finish_variants.catalog_item_id) "
             "ELSE price END WHERE cost = 0"
         )
+    )
+    conn.execute(
+        text("INSERT INTO migration_markers (name) VALUES (:name)"),
+        {"name": marker},
+    )
+
+
+def _catalog_finish_code(name: object) -> str:
+    normalized = " ".join(str(name or "").strip().casefold().split())
+    if "нестандарт" in normalized:
+        return "RAL_NONSTANDARD"
+    if "ral" in normalized:
+        return "RAL_STANDARD"
+    if "анод" in normalized:
+        return "ANOD"
+    return "BASE"
+
+
+def _migrate_unified_catalog_pricing_once(conn) -> None:
+    """Move the active catalog price into fixed execution rows exactly once."""
+
+    marker = "unified-catalog-finish-pricing-v1"
+    if conn.execute(
+        text("SELECT 1 FROM migration_markers WHERE name = :name"),
+        {"name": marker},
+    ).first():
+        return
+
+    two_row_only = {"RS1005", "RS108", "RS1083", "RS3110"}
+    items = conn.execute(
+        text(
+            "SELECT id, sku, system, paint_mode, purchase_price, markup_percent, "
+            'waste_percent, "group", unit FROM catalog_items ORDER BY id'
+        )
+    ).fetchall()
+    actor_id = conn.execute(
+        text(
+            "SELECT id FROM users WHERE role IN ('admin', 'superadmin') "
+            "ORDER BY CASE WHEN role = 'superadmin' THEN 0 ELSE 1 END, id LIMIT 1"
+        )
+    ).scalar()
+    finish_names = {
+        "BASE": ("Без окраски", False),
+        "ANOD": ("Анод", False),
+        "RAL_STANDARD": ("RAL стандарт", True),
+        "RAL_NONSTANDARD": ("RAL нестандарт", True),
+    }
+
+    for (
+        item_id,
+        sku,
+        system,
+        paint_mode,
+        purchase_price,
+        markup_percent,
+        waste_percent,
+        group_name,
+        unit,
+    ) in items:
+        if "СЛАЙД" in str(system or "").upper():
+            groups = (
+                ["SLIDE_2"]
+                if str(sku or "").upper() in two_row_only
+                else ["SLIDE_1", "SLIDE_2"]
+            )
+        else:
+            groups = []
+        conn.execute(
+            text("UPDATE catalog_items SET system_groups = :groups WHERE id = :id"),
+            {"groups": json.dumps(groups, ensure_ascii=False), "id": item_id},
+        )
+
+        mode = " ".join(str(paint_mode or "").strip().casefold().split())
+        paintable = (
+            "красится" in mode and "не красится" not in mode
+        ) or "частично" in mode
+        expected_codes = (
+            ["ANOD", "RAL_STANDARD", "RAL_NONSTANDARD"] if paintable else ["BASE"]
+        )
+        variants = conn.execute(
+            text(
+                "SELECT id, name, cost FROM catalog_finish_variants "
+                "WHERE catalog_item_id = :item_id ORDER BY id"
+            ),
+            {"item_id": item_id},
+        ).fetchall()
+        variants_by_code = {
+            _catalog_finish_code(name): (variant_id, cost)
+            for variant_id, name, cost in variants
+        }
+        active_price = conn.execute(
+            text(
+                "SELECT cost, profile_markup_percent, profile_discount_percent, "
+                "construction_markup_percent, construction_discount_percent, "
+                "category, unit, min_margin_percent FROM catalog_price_versions "
+                "WHERE catalog_item_id = :item_id AND finish_variant_id IS NULL "
+                "AND effective_from <= CURRENT_TIMESTAMP "
+                "ORDER BY effective_from DESC, id DESC LIMIT 1"
+            ),
+            {"item_id": item_id},
+        ).first()
+        if active_price:
+            (
+                base_cost,
+                profile_markup,
+                profile_discount,
+                construction_markup,
+                construction_discount,
+                category,
+                price_unit,
+                min_margin,
+            ) = active_price
+        else:
+            base_cost = purchase_price or 0
+            profile_markup = markup_percent or 0
+            profile_discount = 0
+            construction_markup = 0
+            construction_discount = 0
+            category = (
+                "profile" if "проф" in str(group_name or "").casefold() else "component"
+            )
+            price_unit = unit or "шт"
+            min_margin = 0
+
+        retained_ids = []
+        for code in expected_codes:
+            fixed_name, requires_paint = finish_names[code]
+            existing = variants_by_code.get(code)
+            if existing:
+                variant_id, variant_cost = existing
+                selected_cost = (
+                    variant_cost if variant_cost not in (None, 0) else base_cost
+                )
+                conn.execute(
+                    text(
+                        "UPDATE catalog_finish_variants SET code = :code, name = :name, "
+                        "cost = :cost, price = :cost, profile_markup_percent = :profile_markup, "
+                        "profile_discount_percent = :profile_discount, "
+                        "construction_markup_percent = :construction_markup, "
+                        "construction_discount_percent = :construction_discount, "
+                        "requires_paint = :requires_paint, is_active = 1, "
+                        "updated_at = CURRENT_TIMESTAMP WHERE id = :variant_id"
+                    ),
+                    {
+                        "code": code,
+                        "name": fixed_name,
+                        "cost": selected_cost,
+                        "profile_markup": profile_markup,
+                        "profile_discount": profile_discount,
+                        "construction_markup": construction_markup,
+                        "construction_discount": construction_discount,
+                        "requires_paint": requires_paint,
+                        "variant_id": variant_id,
+                    },
+                )
+            else:
+                result = conn.execute(
+                    text(
+                        "INSERT INTO catalog_finish_variants "
+                        "(catalog_item_id, code, name, price, cost, "
+                        "profile_markup_percent, profile_discount_percent, "
+                        "construction_markup_percent, construction_discount_percent, "
+                        "requires_paint, is_active, created_at, updated_at) VALUES "
+                        "(:item_id, :code, :name, :cost, :cost, :profile_markup, "
+                        ":profile_discount, :construction_markup, :construction_discount, "
+                        ":requires_paint, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                    ),
+                    {
+                        "item_id": item_id,
+                        "code": code,
+                        "name": fixed_name,
+                        "cost": base_cost,
+                        "profile_markup": profile_markup,
+                        "profile_discount": profile_discount,
+                        "construction_markup": construction_markup,
+                        "construction_discount": construction_discount,
+                        "requires_paint": requires_paint,
+                    },
+                )
+                variant_id = result.lastrowid
+                selected_cost = base_cost
+            retained_ids.append(int(variant_id))
+            if (
+                actor_id
+                and not conn.execute(
+                    text(
+                        "SELECT 1 FROM catalog_price_versions WHERE "
+                        "catalog_item_id = :item_id AND finish_variant_id = :variant_id LIMIT 1"
+                    ),
+                    {"item_id": item_id, "variant_id": variant_id},
+                ).first()
+            ):
+                conn.execute(
+                    text(
+                        "INSERT INTO catalog_price_versions "
+                        "(catalog_item_id, finish_variant_id, cost, profile_markup_percent, "
+                        "profile_discount_percent, waste_markup_percent, "
+                        "construction_markup_percent, construction_discount_percent, "
+                        "category, unit, min_margin_percent, effective_from, created_at, "
+                        "created_by, reason) VALUES (:item_id, :variant_id, :cost, "
+                        ":profile_markup, :profile_discount, :waste, :construction_markup, "
+                        ":construction_discount, :category, :unit, :min_margin, "
+                        "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, :actor_id, :reason)"
+                    ),
+                    {
+                        "item_id": item_id,
+                        "variant_id": variant_id,
+                        "cost": selected_cost,
+                        "profile_markup": profile_markup,
+                        "profile_discount": profile_discount,
+                        "waste": waste_percent or 0,
+                        "construction_markup": construction_markup,
+                        "construction_discount": construction_discount,
+                        "category": category,
+                        "unit": price_unit,
+                        "min_margin": min_margin,
+                        "actor_id": actor_id,
+                        "reason": f"Миграция исполнения {fixed_name}",
+                    },
+                )
+        if retained_ids:
+            placeholders = ", ".join(str(value) for value in retained_ids)
+            conn.execute(
+                text(
+                    "UPDATE catalog_finish_variants SET is_active = 0 "
+                    f"WHERE catalog_item_id = :item_id AND id NOT IN ({placeholders})"
+                ),
+                {"item_id": item_id},
+            )
+        conn.execute(
+            text(
+                "UPDATE catalog_items SET color_variants = :variants WHERE id = :item_id"
+            ),
+            {
+                "variants": json.dumps(
+                    [finish_names[code][0] for code in expected_codes],
+                    ensure_ascii=False,
+                ),
+                "item_id": item_id,
+            },
+        )
+
+    conn.execute(
+        text("UPDATE project_quote_states SET vat_mode = 'none', vat_rate = 0")
     )
     conn.execute(
         text("INSERT INTO migration_markers (name) VALUES (:name)"),
@@ -742,13 +1002,18 @@ def run_migrations():
             except Exception:
                 pass
 
-        try:
-            _normalize_section_center_offsets(conn)
-            _normalize_glass_catalog_items(conn)
-            _backfill_finish_variant_costs_once(conn)
-            _backfill_finish_variants(conn)
-            _migrate_section_extras_to_project(conn)
-            _sync_invoice_counter(conn)
-            conn.commit()
-        except Exception:
-            pass
+        migrations = (
+            _normalize_section_center_offsets,
+            _normalize_glass_catalog_items,
+            _backfill_finish_variant_costs_once,
+            _backfill_finish_variants,
+            _migrate_unified_catalog_pricing_once,
+            _migrate_section_extras_to_project,
+            _sync_invoice_counter,
+        )
+        for migration in migrations:
+            try:
+                migration(conn)
+                conn.commit()
+            except Exception:
+                conn.rollback()

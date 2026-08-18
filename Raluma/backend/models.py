@@ -80,8 +80,12 @@ class Project(Base):
     order_items = Column(
         String, nullable=True
     )  # JSON: [{id,name,invoice,paidDate,deliveredDate}]
-    paint_manual_rows = Column(String, nullable=True)  # JSON: ручные строки заявки на покраску
-    delivery_note_data = Column(Text, nullable=True)  # JSON: реквизиты и кол-во мест накладной
+    paint_manual_rows = Column(
+        String, nullable=True
+    )  # JSON: ручные строки заявки на покраску
+    delivery_note_data = Column(
+        Text, nullable=True
+    )  # JSON: реквизиты и кол-во мест накладной
 
     owner = relationship("User", back_populates="projects")
     sections = relationship(
@@ -197,9 +201,7 @@ class Section(Base):
     book_extra_door_opening = Column(String, nullable=True)
 
     # ЛИФТ
-    lift_filling_type = Column(
-        String, default="СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
-    )
+    lift_filling_type = Column(String, default="СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ")
     lift_filling_custom = Column(String, nullable=True)
     lift_control_type = Column(String, default="Пульт ДУ")
     lift_remote_channels = Column(Integer, nullable=True)
@@ -234,6 +236,7 @@ class CatalogItem(Base):
     name = Column(String, nullable=False)
     group = Column(String, default="Профили", nullable=False)
     system = Column(String, default="СЛАЙД", nullable=False)
+    system_groups = Column(Text, default='["SLIDE_1", "SLIDE_2"]', nullable=False)
     unit = Column(String, default="шт", nullable=False)
     purchase_price = Column(Float, default=0, nullable=False)
     markup_percent = Column(Float, default=0, nullable=False)
@@ -273,12 +276,17 @@ class CatalogFinishVariant(Base):
     catalog_item_id = Column(
         Integer, ForeignKey("catalog_items.id"), nullable=False, index=True
     )
+    code = Column(String, default="BASE", nullable=False, index=True)
     name = Column(String, nullable=False)
     # ``price`` is retained for compatibility with the first finish-variant
     # rollout. New calculations use ``cost`` and apply the catalog pricing
     # formula exactly once.
     price = Column(Numeric(14, 2), default=0, nullable=False)
     cost = Column(Numeric(14, 2), default=0, nullable=False)
+    profile_markup_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    profile_discount_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    construction_markup_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    construction_discount_percent = Column(Numeric(8, 4), default=0, nullable=False)
     requires_paint = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -287,6 +295,11 @@ class CatalogFinishVariant(Base):
     )
 
     catalog_item = relationship("CatalogItem", back_populates="finish_variants")
+    price_versions = relationship(
+        "CatalogPriceVersion",
+        back_populates="finish_variant",
+        order_by="CatalogPriceVersion.effective_from.desc()",
+    )
 
 
 class ConstructionPriceGroup(Base):
@@ -328,6 +341,9 @@ class CatalogPriceVersion(Base):
     catalog_item_id = Column(
         Integer, ForeignKey("catalog_items.id"), nullable=False, index=True
     )
+    finish_variant_id = Column(
+        Integer, ForeignKey("catalog_finish_variants.id"), nullable=True, index=True
+    )
     cost = Column(Numeric(14, 2), nullable=False)
     profile_markup_percent = Column(Numeric(8, 4), default=0, nullable=False)
     profile_discount_percent = Column(Numeric(8, 4), default=0, nullable=False)
@@ -346,6 +362,9 @@ class CatalogPriceVersion(Base):
     )
 
     catalog_item = relationship("CatalogItem", back_populates="price_versions")
+    finish_variant = relationship(
+        "CatalogFinishVariant", back_populates="price_versions"
+    )
 
 
 class DealerPricingTerms(Base):
@@ -403,9 +422,7 @@ class ProjectQuoteState(Base):
     margin_override_comment = Column(Text, nullable=True)
     margin_override_context_signature = Column(String, nullable=True)
     margin_override_target_revision = Column(Integer, nullable=True)
-    margin_override_approved_by = Column(
-        Integer, ForeignKey("users.id"), nullable=True
-    )
+    margin_override_approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     margin_override_approved_at = Column(DateTime, nullable=True)
     source_signature = Column(String, default="", nullable=False)
     source_project_updated_at = Column(DateTime, nullable=True)

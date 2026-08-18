@@ -9,11 +9,17 @@ import {
   archiveHardwareCatalogItem,
   createHardwareCatalogItem,
   listHardwareCatalog,
+  listSystemMarkups,
+  updateSystemMarkup,
   updateHardwareCatalogItem,
   type CatalogUnit,
   type CatalogFinishVariant,
+  type FinishCode,
   type HardwareCatalogItem,
   type HardwareGroup,
+  type PaintMode,
+  type SystemGroupCode,
+  type SystemMarkup,
 } from '../api/catalog';
 import { useAuthStore } from '../store/authStore';
 import { toast } from '../store/toastStore';
@@ -25,6 +31,36 @@ const STORAGE_KEY = 'raluma-hardware-catalog-draft-v1';
 const GROUPS: HardwareGroup[] = ['Профили', 'Фурнитура', 'Ручки', 'Замки', 'Защёлки', 'Уплотнители', 'Крепёж', 'Расходники', 'Услуги'];
 const UNITS: CatalogUnit[] = ['шт', 'м.п.', 'м²', 'компл.', 'кг'];
 const DEFAULT_COLOR_VARIANTS = ['Анод', 'RAL стандарт', 'RAL нестандарт'];
+const SYSTEM_GROUPS: Array<{ code: SystemGroupCode; label: string }> = [
+  { code: 'SLIDE_1', label: 'СЛАЙД 1 ряд' },
+  { code: 'SLIDE_2', label: 'СЛАЙД 2 ряда' },
+];
+const FINISHES: Record<FinishCode, { name: string; requiresPaint: boolean }> = {
+  BASE: { name: 'Без окраски', requiresPaint: false },
+  ANOD: { name: 'Анод', requiresPaint: false },
+  RAL_STANDARD: { name: 'RAL стандарт', requiresPaint: true },
+  RAL_NONSTANDARD: { name: 'RAL нестандарт', requiresPaint: true },
+};
+
+function finishCodes(paintMode: PaintMode): FinishCode[] {
+  return paintMode === 'Не красится'
+    ? ['BASE']
+    : ['ANOD', 'RAL_STANDARD', 'RAL_NONSTANDARD'];
+}
+
+function defaultFinish(code: FinishCode, cost = 0): CatalogFinishVariant {
+  return {
+    code,
+    name: FINISHES[code].name,
+    cost,
+    profileMarkupPercent: 0,
+    profileDiscountPercent: 0,
+    constructionMarkupPercent: 0,
+    constructionDiscountPercent: 0,
+    requiresPaint: FINISHES[code].requiresPaint,
+    isActive: true,
+  };
+}
 
 const GROUP_COLORS: Record<HardwareGroup, string> = {
   'Профили': 'bg-teal-500/15 text-teal-300 border-teal-500/25',
@@ -561,6 +597,7 @@ const emptyDraft = (): HardwareItem => ({
   name: '',
   group: 'Профили',
   system: 'СЛАЙД',
+  systemGroups: ['SLIDE_1', 'SLIDE_2'],
   unit: 'шт',
   purchasePrice: 0,
   markupPercent: 0,
@@ -572,14 +609,9 @@ const emptyDraft = (): HardwareItem => ({
   sectionWidthMm: 0,
   sectionHeightMm: 0,
   imageFile: '',
-  paintMode: 'Красится',
-  colorVariants: DEFAULT_COLOR_VARIANTS,
-  finishVariants: DEFAULT_COLOR_VARIANTS.map(name => ({
-    name,
-    cost: 0,
-    requiresPaint: name.toLowerCase().includes('ral'),
-    isActive: true,
-  })),
+  paintMode: 'Не красится',
+  colorVariants: ['Без окраски'],
+  finishVariants: [defaultFinish('BASE')],
   supplier: '',
   isActive: true,
   updatedAt: new Date().toISOString().slice(0, 10),
@@ -587,14 +619,40 @@ const emptyDraft = (): HardwareItem => ({
 });
 
 function normalizeItem(item: Partial<HardwareItem>): HardwareItem {
-  const legacyColors = item.colorVariants?.length ? item.colorVariants : DEFAULT_COLOR_VARIANTS;
   const fallbackPrice = (item.purchasePrice ?? 0) * (1 + (item.markupPercent ?? 0) / 100);
+  const paintMode = item.paintMode ?? 'Не красится';
+  const existingVariants = new Map(
+    (item.finishVariants || []).map(variant => [
+      variant.code || (
+        variant.name.toLowerCase().includes('нестандарт') ? 'RAL_NONSTANDARD'
+          : variant.name.toLowerCase().includes('ral') ? 'RAL_STANDARD'
+            : variant.name.toLowerCase().includes('анод') ? 'ANOD' : 'BASE'
+      ),
+      variant,
+    ]),
+  );
+  const variants = finishCodes(paintMode).map(code => {
+    const existing = existingVariants.get(code);
+    return {
+      ...defaultFinish(code, Number(item.purchasePrice ?? fallbackPrice)),
+      ...existing,
+      code,
+      name: FINISHES[code].name,
+      profileMarkupPercent: Number(existing?.profileMarkupPercent ?? item.markupPercent ?? 0),
+      profileDiscountPercent: Number(existing?.profileDiscountPercent ?? item.profileDiscountPercent ?? 0),
+      constructionMarkupPercent: Number(existing?.constructionMarkupPercent ?? item.constructionMarkupPercent ?? 0),
+      constructionDiscountPercent: Number(existing?.constructionDiscountPercent ?? item.constructionDiscountPercent ?? 0),
+      requiresPaint: FINISHES[code].requiresPaint,
+      isActive: true,
+    };
+  });
   return {
     id: item.id ?? Date.now(),
     sku: item.sku ?? '',
     name: item.name ?? '',
     group: item.group ?? 'Профили',
     system: item.system ?? 'СЛАЙД',
+    systemGroups: item.systemGroups ?? (item.system?.toUpperCase().includes('СЛАЙД') ? ['SLIDE_1', 'SLIDE_2'] : []),
     unit: item.unit ?? 'шт',
     purchasePrice: item.purchasePrice ?? 0,
     markupPercent: item.markupPercent ?? 0,
@@ -606,16 +664,9 @@ function normalizeItem(item: Partial<HardwareItem>): HardwareItem {
     sectionWidthMm: item.sectionWidthMm ?? 0,
     sectionHeightMm: item.sectionHeightMm ?? 0,
     imageFile: item.imageFile ?? '',
-    paintMode: item.paintMode ?? 'Красится',
-    colorVariants: legacyColors,
-    finishVariants: item.finishVariants?.length
-      ? item.finishVariants.map(variant => ({ ...variant }))
-      : legacyColors.map(name => ({
-          name,
-          cost: Number((item.purchasePrice ?? fallbackPrice).toFixed(2)),
-          requiresPaint: name.toLowerCase().includes('ral') || name.toLowerCase().includes('окрас'),
-          isActive: true,
-        })),
+    paintMode,
+    colorVariants: variants.map(variant => variant.name),
+    finishVariants: variants,
     supplier: item.supplier ?? '',
     isActive: item.isActive ?? true,
     updatedAt: item.updatedAt ?? new Date().toISOString().slice(0, 10),
@@ -634,10 +685,6 @@ function readItems(seed: HardwareItem[] = seedItems) {
   }
 }
 
-function saveItems(items: HardwareItem[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-}
-
 function formatMoney(value: number) {
   return new Intl.NumberFormat('ru-RU', {
     style: 'currency',
@@ -654,20 +701,25 @@ function pricingCosts(item: HardwareItem) {
   return variants.length > 0 ? variants : [item.purchasePrice];
 }
 
-function salePrice(item: HardwareItem, cost = pricingCosts(item)[0]) {
-  return cost
-    * (1 + item.markupPercent / 100)
-    * (1 - (item.profileDiscountPercent ?? 0) / 100);
+function activeFinishes(item: HardwareItem) {
+  return (item.finishVariants || []).filter(variant => variant.isActive);
 }
 
-function costWithWaste(item: HardwareItem, cost = pricingCosts(item)[0]) {
-  return salePrice(item, cost) * (1 + item.wastePercent / 100);
+function profileSale(variant: CatalogFinishVariant) {
+  return Number(variant.cost || 0)
+    * (1 + Number(variant.profileMarkupPercent || 0) / 100)
+    * (1 - Number(variant.profileDiscountPercent || 0) / 100);
 }
 
-function constructionPrice(item: HardwareItem, cost = pricingCosts(item)[0]) {
-  return costWithWaste(item, cost)
-    * (1 + (item.constructionMarkupPercent ?? 0) / 100)
-    * (1 - (item.constructionDiscountPercent ?? 0) / 100);
+function costWithWaste(item: HardwareItem, variant: CatalogFinishVariant) {
+  const waste = ['шт', 'компл.'].includes(item.unit) ? 0 : item.wastePercent;
+  return profileSale(variant) * (1 + waste / 100);
+}
+
+function constructionPrice(item: HardwareItem, variant: CatalogFinishVariant) {
+  return costWithWaste(item, variant)
+    * (1 + Number(variant.constructionMarkupPercent || 0) / 100)
+    * (1 - Number(variant.constructionDiscountPercent || 0) / 100);
 }
 
 function formatPriceRange(values: number[]) {
@@ -679,8 +731,15 @@ function formatPriceRange(values: number[]) {
     : `${formatMoney(first)} – ${formatMoney(last)}`;
 }
 
-function priceRange(item: HardwareItem, transform: (item: HardwareItem, cost: number) => number) {
-  return formatPriceRange(pricingCosts(item).map(cost => transform(item, cost)));
+function priceRange(item: HardwareItem, transform: (item: HardwareItem, variant: CatalogFinishVariant) => number) {
+  return formatPriceRange(activeFinishes(item).map(variant => transform(item, variant)));
+}
+
+function percentRange(item: HardwareItem, field: keyof CatalogFinishVariant) {
+  const values = activeFinishes(item).map(variant => Number(variant[field] || 0));
+  const min = values.length ? Math.min(...values) : 0;
+  const max = values.length ? Math.max(...values) : 0;
+  return min === max ? `${min}%` : `${min}%–${max}%`;
 }
 
 function NumberInput({
@@ -721,6 +780,9 @@ export default function HardwareCatalogPage() {
   const [group, setGroup] = useState<'Все' | HardwareGroup>('Все');
   const [status, setStatus] = useState<'all' | 'active' | 'inactive'>('active');
   const [draft, setDraft] = useState<HardwareItem | null>(null);
+  const [systemMarkups, setSystemMarkups] = useState<SystemMarkup[]>([]);
+  const [systemMarkupDrafts, setSystemMarkupDrafts] = useState<Record<SystemGroupCode, string>>({ SLIDE_1: '', SLIDE_2: '' });
+  const [savingSystemGroup, setSavingSystemGroup] = useState<SystemGroupCode | null>(null);
 
   useEffect(() => {
     if (!isAdmin()) navigate('/');
@@ -733,15 +795,22 @@ export default function HardwareCatalogPage() {
     setIsCatalogLoading(true);
     setCatalogError(false);
 
-    listHardwareCatalog()
-      .then(remoteItems => {
+    Promise.all([listHardwareCatalog(), listSystemMarkups()])
+      .then(([remoteItems, markups]) => {
         if (cancelled) return;
         const next = remoteItems.map(item => normalizeItem(item));
         setItems(next);
-        saveItems(next);
+        setSystemMarkups(markups);
+        setSystemMarkupDrafts({
+          SLIDE_1: markups.find(row => row.code === 'SLIDE_1')?.constructionMarkupPercent?.toString() ?? '',
+          SLIDE_2: markups.find(row => row.code === 'SLIDE_2')?.constructionMarkupPercent?.toString() ?? '',
+        });
       })
       .catch(() => {
-        if (!cancelled) setCatalogError(true);
+        if (!cancelled) {
+          setItems([]);
+          setCatalogError(true);
+        }
       })
       .finally(() => {
         if (!cancelled) setIsCatalogLoading(false);
@@ -772,8 +841,9 @@ export default function HardwareCatalogPage() {
 
   const stats = useMemo(() => {
     const active = items.filter(item => item.isActive);
-    const avgMarkup = active.length
-      ? active.reduce((sum, item) => sum + item.markupPercent, 0) / active.length
+    const markups = active.flatMap(item => activeFinishes(item).map(variant => Number(variant.profileMarkupPercent || 0)));
+    const avgMarkup = markups.length
+      ? markups.reduce((sum, value) => sum + value, 0) / markups.length
       : 0;
     const avgWeight = active.length
       ? active.reduce((sum, item) => sum + item.weight, 0) / active.length
@@ -788,42 +858,44 @@ export default function HardwareCatalogPage() {
 
   const handleSave = async () => {
     if (!draft) return;
+    if (catalogError) {
+      toast.error('Каталог недоступен. Изменения не сохранены');
+      return;
+    }
     if (!draft.sku.trim() || !draft.name.trim()) {
       toast.error('Заполните артикул и название');
       return;
     }
-    const normalized = {
+    if (draft.system.toUpperCase().includes('СЛАЙД') && !(draft.systemGroups || []).length) {
+      toast.error('Выберите хотя бы одну группу системы');
+      return;
+    }
+    const normalized = normalizeItem({
       ...draft,
       sku: draft.sku.trim(),
       name: draft.name.trim(),
-      paintMode: (draft.finishVariants || []).some(variant => variant.requiresPaint)
-        ? (draft.finishVariants || []).some(variant => !variant.requiresPaint) ? 'Частично' : 'Красится'
-        : 'Не красится',
-      colorVariants: (draft.finishVariants || []).map(variant => variant.name.trim()).filter(Boolean),
+      system: draft.system || 'СЛАЙД',
+      wastePercent: ['шт', 'компл.'].includes(draft.unit) ? 0 : draft.wastePercent,
+      colorVariants: (draft.finishVariants || []).map(variant => variant.name),
       finishVariants: (draft.finishVariants || []).map(variant => ({
         ...variant,
-        name: variant.name.trim(),
         cost: Number(variant.cost) || 0,
-      })).filter(variant => variant.name),
+        profileMarkupPercent: Number(variant.profileMarkupPercent) || 0,
+        profileDiscountPercent: Number(variant.profileDiscountPercent) || 0,
+        constructionMarkupPercent: Number(variant.constructionMarkupPercent) || 0,
+        constructionDiscountPercent: Number(variant.constructionDiscountPercent) || 0,
+      })),
       updatedAt: new Date().toISOString().slice(0, 10),
-    };
+    });
     const exists = items.some(item => item.id === normalized.id);
     try {
-      if (catalogError) {
-        const next = exists
-          ? items.map(item => item.id === normalized.id ? normalized : item)
-          : [normalized, ...items];
-        setItems(next);
-        saveItems(next);
-      } else {
-        const saved = exists
-          ? await updateHardwareCatalogItem(normalized.id, normalized)
-          : await createHardwareCatalogItem(normalized);
-        const normalizedSaved = normalizeItem(saved);
-        setItems(prev => exists
-          ? prev.map(item => item.id === normalizedSaved.id ? normalizedSaved : item)
-          : [normalizedSaved, ...prev]);
-      }
+      const saved = exists
+        ? await updateHardwareCatalogItem(normalized.id, normalized)
+        : await createHardwareCatalogItem(normalized);
+      const normalizedSaved = normalizeItem(saved);
+      setItems(prev => exists
+        ? prev.map(item => item.id === normalizedSaved.id ? normalizedSaved : item)
+        : [normalizedSaved, ...prev]);
       setDraft(null);
       toast.success('Позиция сохранена');
     } catch {
@@ -831,16 +903,35 @@ export default function HardwareCatalogPage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleSystemMarkupSave = async (code: SystemGroupCode) => {
+    const value = Number(systemMarkupDrafts[code]);
+    if (!Number.isFinite(value) || value < 0) {
+      toast.error('Укажите корректную наценку');
+      return;
+    }
+    setSavingSystemGroup(code);
     try {
-      if (catalogError) {
-        const next = items.filter(item => item.id !== id);
-        setItems(next);
-        saveItems(next);
-      } else {
-        const archived = normalizeItem(await archiveHardwareCatalogItem(id));
-        setItems(prev => prev.map(item => item.id === id ? archived : item));
-      }
+      await updateSystemMarkup(code, value);
+      const [remoteItems, markups] = await Promise.all([listHardwareCatalog(), listSystemMarkups()]);
+      setItems(remoteItems.map(item => normalizeItem(item)));
+      setSystemMarkups(markups);
+      setSystemMarkupDrafts(current => ({ ...current, [code]: value.toString() }));
+      toast.success('Наценка группы сохранена');
+    } catch {
+      toast.error('Не удалось изменить наценку группы');
+    } finally {
+      setSavingSystemGroup(null);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (catalogError) {
+      toast.error('Каталог недоступен. Изменения не сохранены');
+      return;
+    }
+    try {
+      const archived = normalizeItem(await archiveHardwareCatalogItem(id));
+      setItems(prev => prev.map(item => item.id === id ? archived : item));
       toast.success('Позиция перенесена в архив');
     } catch {
       toast.error('Не удалось архивировать позицию');
@@ -877,7 +968,7 @@ export default function HardwareCatalogPage() {
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold">Справочник позиций</h1>
                 <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[10px] font-bold uppercase tracking-wider">
-                  {isCatalogLoading ? 'Загрузка справочника' : catalogError ? 'Локальный черновик' : 'Расчётный каталог'}
+                  {isCatalogLoading ? 'Загрузка справочника' : catalogError ? 'Каталог недоступен' : 'Расчётный каталог'}
                 </div>
               </div>
             </div>
@@ -905,6 +996,47 @@ export default function HardwareCatalogPage() {
             ))}
           </div>
         </div>
+
+        <section className="mb-6 border-y border-tint/25 py-5">
+          <div className="mb-4">
+            <h2 className="text-lg font-bold">Наценка на конструкцию по системам</h2>
+            <p className="mt-1 text-sm text-fg/45">Значение применяется ко всем исполнениям позиций выбранной группы. Если позиция входит в обе группы, действует последнее сохранение.</p>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {SYSTEM_GROUPS.map(systemGroup => {
+              const state = systemMarkups.find(row => row.code === systemGroup.code);
+              return (
+                <div key={systemGroup.code} className="grid grid-cols-[minmax(0,1fr)_140px_auto] items-center gap-3 rounded-xl border border-tint/25 bg-surface/20 px-4 py-3">
+                  <div>
+                    <div className="font-bold">{systemGroup.label}</div>
+                    <div className="mt-1 text-xs text-fg/40">{state?.mixed ? 'У позиций сейчас разные значения' : 'Общее значение группы'}</div>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={systemMarkupDrafts[systemGroup.code]}
+                      placeholder={state?.mixed ? 'Разные' : '0'}
+                      onChange={event => setSystemMarkupDrafts(current => ({ ...current, [systemGroup.code]: event.target.value }))}
+                      className={`${INPUT_CLS} pr-10 font-mono`}
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-fg/35">%</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleSystemMarkupSave(systemGroup.code)}
+                    disabled={savingSystemGroup === systemGroup.code}
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-primary px-4 font-bold text-white transition-colors hover:bg-primary-h disabled:opacity-50"
+                  >
+                    <Save className="h-4 w-4" />
+                    {savingSystemGroup === systemGroup.code ? '...' : 'Сохранить'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </section>
 
         <div className="flex flex-col xl:flex-row gap-3 mb-5">
           <div className="relative flex-1 group">
@@ -980,7 +1112,7 @@ export default function HardwareCatalogPage() {
                     <td className="px-5 py-4 font-mono text-sm text-accent font-bold">{item.sku}</td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-16 h-12 rounded-xl bg-hi border border-tint/20 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        <div className="w-16 h-12 rounded-xl bg-white border border-tint/20 flex items-center justify-center overflow-hidden flex-shrink-0">
                           {item.imageFile ? (
                             <img src={profileAssetUrl(item.imageFile)} alt={item.sku} className="max-w-full max-h-full object-contain" />
                           ) : (
@@ -990,7 +1122,7 @@ export default function HardwareCatalogPage() {
                         <div className="min-w-0">
                           <div className="font-bold text-sm text-fg truncate">{item.name}</div>
                           <div className="text-[11px] text-fg/35 mt-1">
-                            {item.system} · {item.supplier || 'поставщик не указан'}
+                            {(item.systemGroups || []).map(code => SYSTEM_GROUPS.find(row => row.code === code)?.label).filter(Boolean).join(' · ') || 'Без группы'}
                           </div>
                           <div className="flex flex-wrap items-center gap-1.5 mt-2">
                             {(item.sectionWidthMm > 0 || item.sectionHeightMm > 0) && (
@@ -1015,8 +1147,8 @@ export default function HardwareCatalogPage() {
                     </td>
                     <td className="px-5 py-4 text-sm font-bold text-fg/60">{item.unit}</td>
                     <td className="px-5 py-4 text-sm font-mono">{formatPriceRange(pricingCosts(item))}</td>
-                    <td className="px-5 py-4 text-sm font-mono text-amber-300">{item.markupPercent}%</td>
-                    <td className="px-5 py-4 text-sm font-mono text-emerald-300">{priceRange(item, salePrice)}</td>
+                    <td className="px-5 py-4 text-sm font-mono text-amber-300">{percentRange(item, 'profileMarkupPercent')}</td>
+                    <td className="px-5 py-4 text-sm font-mono text-emerald-300">{priceRange(item, (_item, variant) => profileSale(variant))}</td>
                     <td className="px-5 py-4 text-sm font-mono text-fg/60">{item.weight} кг</td>
                     <td className="px-5 py-4 text-sm font-mono text-fg/60">{item.wastePercent}%</td>
                     <td className="px-5 py-4 text-right">
@@ -1060,23 +1192,16 @@ export default function HardwareCatalogPage() {
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold">Позиция каталога</h2>
-                  <p className="text-sm text-fg/40 mt-1">Цена продажи: <span className="text-emerald-300 font-mono font-bold">{formatMoney(salePrice(draft))}</span></p>
+                  <p className="text-sm text-fg/40 mt-1">Цена профиля: <span className="text-emerald-300 font-mono font-bold">{priceRange(draft, (_item, variant) => profileSale(variant))}</span></p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-6">
                 <div className="space-y-5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Артикул</label>
-                      <input value={draft.sku} onChange={event => setDraft({ ...draft, sku: event.target.value })}
-                        className={`${INPUT_CLS} font-mono`} placeholder="RS112" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Система</label>
-                      <input value={draft.system} onChange={event => setDraft({ ...draft, system: event.target.value })}
-                        className={INPUT_CLS} placeholder="СЛАЙД" />
-                    </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Артикул</label>
+                    <input value={draft.sku} onChange={event => setDraft({ ...draft, sku: event.target.value })}
+                      className={`${INPUT_CLS} font-mono`} placeholder="RS112" />
                   </div>
 
                   <div className="space-y-2">
@@ -1102,29 +1227,95 @@ export default function HardwareCatalogPage() {
                     </div>
                   </div>
 
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Группы системы</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {SYSTEM_GROUPS.map(systemGroup => {
+                        const selected = (draft.systemGroups || []).includes(systemGroup.code);
+                        return (
+                          <button
+                            key={systemGroup.code}
+                            type="button"
+                            onClick={() => setDraft({
+                              ...draft,
+                              systemGroups: selected
+                                ? (draft.systemGroups || []).filter(code => code !== systemGroup.code)
+                                : [...(draft.systemGroups || []), systemGroup.code],
+                            })}
+                            className={`rounded-xl border px-4 py-3 text-sm font-bold transition-colors ${selected ? 'border-accent/45 bg-accent/15 text-accent' : 'border-tint/25 bg-hi/[0.03] text-fg/45'}`}
+                          >
+                            {systemGroup.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <NumberInput label="Ширина" value={draft.sectionWidthMm} suffix="мм" onChange={value => setDraft({ ...draft, sectionWidthMm: value })} />
                     <NumberInput label="Высота" value={draft.sectionHeightMm} suffix="мм" onChange={value => setDraft({ ...draft, sectionHeightMm: value })} />
                   </div>
 
                   <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Исполнения и себестоимость</label>
-                        <button type="button" onClick={() => setDraft({ ...draft, finishVariants: [...(draft.finishVariants || []), { name: '', cost: draft.purchasePrice, requiresPaint: false, isActive: true }] })} className="inline-flex items-center gap-1 rounded-lg border border-accent/30 px-2 py-1 text-[10px] font-bold text-accent"><Plus className="h-3 w-3" /> Вариант</button>
-                      </div>
-                      <div className="grid grid-cols-[minmax(120px,1fr)_110px_95px_34px] gap-2 px-1 text-[9px] font-bold uppercase tracking-wider text-fg/30">
-                        <span>Исполнение</span><span>Себестоимость</span><span>Покраска</span><span />
-                      </div>
-                      <div className="space-y-2">
-                        {(draft.finishVariants || []).map((variant: CatalogFinishVariant, index) => (
-                          <div key={variant.id ?? index} className="grid grid-cols-[minmax(120px,1fr)_110px_95px_34px] gap-2">
-                            <input value={variant.name} onChange={event => setDraft({ ...draft, finishVariants: (draft.finishVariants || []).map((row, rowIndex) => rowIndex === index ? { ...row, name: event.target.value } : row) })} className={INPUT_CLS} placeholder="Анод / RAL" />
-                            <input type="number" min="0" step="0.01" value={variant.cost ?? ''} onChange={event => setDraft({ ...draft, finishVariants: (draft.finishVariants || []).map((row, rowIndex) => rowIndex === index ? { ...row, cost: event.target.value } : row) })} className={INPUT_CLS} aria-label="Себестоимость исполнения" />
-                            <button type="button" onClick={() => setDraft({ ...draft, finishVariants: (draft.finishVariants || []).map((row, rowIndex) => rowIndex === index ? { ...row, requiresPaint: !row.requiresPaint } : row) })} className={`rounded-xl border px-2 text-[10px] font-bold ${variant.requiresPaint ? 'border-amber-500/30 bg-amber-500/10 text-amber-300' : 'border-tint/20 text-fg/35'}`}>{variant.requiresPaint ? 'Покраска' : 'Без покраски'}</button>
-                            <button type="button" onClick={() => setDraft({ ...draft, finishVariants: (draft.finishVariants || []).filter((_, rowIndex) => rowIndex !== index) })} className="flex items-center justify-center rounded-xl border border-red-500/25 text-red-400"><Trash2 className="h-4 w-4" /></button>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Окрашивание позиции</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(['Не красится', 'Красится', 'Частично'] as PaintMode[]).map(mode => (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => {
+                            const current = new Map<FinishCode, CatalogFinishVariant>((draft.finishVariants || []).map(variant => [variant.code, variant]));
+                            const variants = finishCodes(mode).map(code => current.get(code) || defaultFinish(code, draft.purchasePrice));
+                            setDraft({ ...draft, paintMode: mode, finishVariants: variants, colorVariants: variants.map(variant => variant.name) });
+                          }}
+                          className={`rounded-xl border px-3 py-3 text-xs font-bold transition-colors ${draft.paintMode === mode ? 'border-accent/45 bg-accent/15 text-accent' : 'border-tint/25 bg-hi/[0.03] text-fg/45'}`}
+                        >
+                          {mode}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-accent/45 ml-1">Цены по исполнениям</label>
+                    <div className="overflow-x-auto rounded-xl border border-tint/25">
+                      <div className="min-w-[900px]">
+                        <div className="grid grid-cols-[160px_repeat(5,minmax(130px,1fr))] gap-px bg-tint/20 text-[9px] font-bold uppercase tracking-wider text-fg/45">
+                          {['Исполнение', 'Себестоимость', 'Наценка на профиль', 'Скидка на профиль', 'Наценка на конструкцию', 'Скидка на конструкцию'].map(label => (
+                            <div key={label} className="bg-modal px-3 py-2">{label}</div>
+                          ))}
+                        </div>
+                        {(draft.finishVariants || []).map((variant, index) => (
+                          <div key={variant.code} className="grid grid-cols-[160px_repeat(5,minmax(130px,1fr))] gap-px border-t border-tint/20 bg-tint/20">
+                            <div className="flex items-center bg-modal px-3 py-2 text-sm font-bold">{FINISHES[variant.code].name}</div>
+                            {([
+                              ['cost', variant.cost ?? 0, '₽'],
+                              ['profileMarkupPercent', variant.profileMarkupPercent, '%'],
+                              ['profileDiscountPercent', variant.profileDiscountPercent, '%'],
+                              ['constructionMarkupPercent', variant.constructionMarkupPercent, '%'],
+                              ['constructionDiscountPercent', variant.constructionDiscountPercent, '%'],
+                            ] as const).map(([field, value, suffix]) => (
+                              <div key={field} className="relative bg-modal p-2">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={field.includes('Discount') ? 100 : undefined}
+                                  step="0.01"
+                                  value={value}
+                                  onChange={event => setDraft({
+                                    ...draft,
+                                    finishVariants: (draft.finishVariants || []).map((row, rowIndex) => rowIndex === index ? { ...row, [field]: event.target.value } : row),
+                                  })}
+                                  className="w-full rounded-lg border border-tint/25 bg-hi/[0.04] px-3 py-2 pr-8 font-mono text-sm outline-none focus:border-accent/60"
+                                  aria-label={`${FINISHES[variant.code].name}: ${field}`}
+                                />
+                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] text-fg/35">{suffix}</span>
+                              </div>
+                            ))}
                           </div>
                         ))}
                       </div>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -1142,7 +1333,7 @@ export default function HardwareCatalogPage() {
                       <span className="text-[9px] font-bold uppercase tracking-widest text-fg/30">Сечение</span>
                       <ImageIcon className="w-3.5 h-3.5 text-accent/55" />
                     </div>
-                    <div className="h-40 rounded-xl bg-hi flex items-center justify-center overflow-hidden">
+                    <div className="h-40 rounded-xl bg-white flex items-center justify-center overflow-hidden">
                       {draft.imageFile ? (
                         <img src={profileAssetUrl(draft.imageFile)} alt={draft.sku || 'Сечение'} className="max-w-full max-h-full object-contain" />
                       ) : (
@@ -1152,20 +1343,15 @@ export default function HardwareCatalogPage() {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
-                    {(draft.finishVariants || []).length === 0 && (
-                      <NumberInput label="Себестоимость" value={draft.purchasePrice} suffix="₽" onChange={value => setDraft({ ...draft, purchasePrice: value })} />
-                    )}
-                    <NumberInput label="Наценка на профиль" value={draft.markupPercent} suffix="%" onChange={value => setDraft({ ...draft, markupPercent: value })} />
-                    <NumberInput label="Скидка на профиль" value={draft.profileDiscountPercent ?? 0} suffix="%" max={100} onChange={value => setDraft({ ...draft, profileDiscountPercent: value })} />
                     <NumberInput label="Вес на единицу" value={draft.weight} suffix="кг" onChange={value => setDraft({ ...draft, weight: value })} />
-                    <NumberInput label="Наценка на отходы" value={draft.wastePercent} suffix="%" onChange={value => setDraft({ ...draft, wastePercent: value })} />
-                    <NumberInput label="Наценка на конструкцию" value={draft.constructionMarkupPercent ?? 0} suffix="%" onChange={value => setDraft({ ...draft, constructionMarkupPercent: value })} />
-                    <NumberInput label="Скидка на конструкцию" value={draft.constructionDiscountPercent ?? 0} suffix="%" max={100} onChange={value => setDraft({ ...draft, constructionDiscountPercent: value })} />
+                    {!['шт', 'компл.'].includes(draft.unit) && (
+                      <NumberInput label="Наценка на отходы" value={draft.wastePercent} suffix="%" onChange={value => setDraft({ ...draft, wastePercent: value })} />
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     {[
-                      { label: 'Цена профиля', value: priceRange(draft, salePrice), icon: BadgePercent },
+                      { label: 'Цена профиля', value: priceRange(draft, (_item, variant) => profileSale(variant)), icon: BadgePercent },
                       { label: 'С отходами', value: priceRange(draft, costWithWaste), icon: Ruler },
                       { label: 'Цена в конструкции', value: priceRange(draft, constructionPrice), icon: Scale },
                     ].map(card => (

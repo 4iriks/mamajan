@@ -3,11 +3,18 @@ import client from './client';
 export type HardwareGroup = 'Профили' | 'Фурнитура' | 'Ручки' | 'Замки' | 'Защёлки' | 'Уплотнители' | 'Крепёж' | 'Расходники' | 'Услуги';
 export type CatalogUnit = 'шт' | 'м.п.' | 'м²' | 'компл.' | 'кг';
 export type PaintMode = 'Красится' | 'Не красится' | 'Частично';
+export type SystemGroupCode = 'SLIDE_1' | 'SLIDE_2';
+export type FinishCode = 'BASE' | 'ANOD' | 'RAL_STANDARD' | 'RAL_NONSTANDARD';
 
 export interface CatalogFinishVariant {
   id?: number;
+  code: FinishCode;
   name: string;
   cost?: string | number;
+  profileMarkupPercent: number | string;
+  profileDiscountPercent: number | string;
+  constructionMarkupPercent: number | string;
+  constructionDiscountPercent: number | string;
   requiresPaint: boolean;
   isActive: boolean;
 }
@@ -18,6 +25,7 @@ export interface HardwareCatalogItem {
   name: string;
   group: HardwareGroup;
   system: string;
+  systemGroups?: SystemGroupCode[];
   unit: CatalogUnit;
   purchasePrice: number;
   markupPercent: number;
@@ -44,6 +52,7 @@ export interface HardwareCatalogOption {
   name: string;
   category: 'profile' | 'component' | 'service';
   unit: string;
+  systemGroups?: SystemGroupCode[];
   imageFile?: string;
   paintMode?: PaintMode;
   finishVariants?: CatalogFinishVariant[];
@@ -55,6 +64,13 @@ export interface ConstructionPriceGroupOption {
   id: number;
   code: string;
   name: string;
+}
+
+export interface SystemMarkup {
+  code: SystemGroupCode;
+  name: string;
+  constructionMarkupPercent: number | null;
+  mixed: boolean;
 }
 
 export const listHardwareCatalog = async () => {
@@ -69,6 +85,16 @@ export const listHardwareCatalogOptions = async () => {
 
 export const listConstructionPriceGroupOptions = async () => {
   const resp = await client.get<ConstructionPriceGroupOption[]>('/api/catalog/construction-price-groups');
+  return resp.data;
+};
+
+export const listSystemMarkups = async () => {
+  const resp = await client.get<SystemMarkup[]>('/api/catalog/system-markups');
+  return resp.data;
+};
+
+export const updateSystemMarkup = async (code: SystemGroupCode, constructionMarkupPercent: number) => {
+  const resp = await client.put(`/api/catalog/system-markups/${code}`, { constructionMarkupPercent });
   return resp.data;
 };
 

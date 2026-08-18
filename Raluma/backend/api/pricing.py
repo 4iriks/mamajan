@@ -15,8 +15,13 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
-from api.catalog import _ensure_catalog_seed
-from auth import get_current_user, require_price_manager
+from api.catalog import (
+    SYSTEM_GROUPS,
+    _decode_system_groups,
+    _ensure_catalog_seed,
+    _price_category,
+)
+from auth import get_current_user, require_admin
 from database import get_db
 from engine.quote_pricing import (
     MANUAL_SERVICE_UNITS,
@@ -25,7 +30,6 @@ from engine.quote_pricing import (
     calculate_standalone_sale,
     decimal_text,
     decimal_value,
-    get_pricing_settings,
     internal_quote_state,
     money,
     money_text,
@@ -50,13 +54,10 @@ def _item_belongs_to_price_group(
     item: models.CatalogItem,
     group_code: str,
 ) -> bool:
-    system = " ".join(str(item.system or "").strip().upper().split())
-    aliases = {
-        "SLIDE": ("SLIDE", "СЛАЙД"),
-        "BOOK": ("BOOK", "КНИЖ"),
-        "LIFT": ("LIFT", "ЛИФТ"),
-    }.get(group_code.strip().upper(), (group_code.strip().upper(),))
-    return any(alias and alias in system for alias in aliases)
+    return group_code.strip().upper() in _decode_system_groups(
+        item.system_groups,
+        item.system,
+    )
 
 
 def _apply_group_markup_to_catalog(
@@ -77,32 +78,42 @@ def _apply_group_markup_to_catalog(
     for item in items:
         if not _item_belongs_to_price_group(item, group.code):
             continue
-        current, _upcoming = _active_and_next_versions(
-            list(item.price_versions),
-            now,
-        )
-        if current is None or decimal_value(
-            current.construction_markup_percent
-        ) == decimal_value(group.markup_percent):
-            continue
-        item.price_versions.append(
-            models.CatalogPriceVersion(
-                cost=current.cost,
-                profile_markup_percent=current.profile_markup_percent,
-                profile_discount_percent=current.profile_discount_percent,
-                waste_markup_percent=current.waste_markup_percent,
-                construction_markup_percent=group.markup_percent,
-                construction_discount_percent=current.construction_discount_percent,
-                category=current.category,
-                unit=current.unit,
-                min_margin_percent=current.min_margin_percent,
-                effective_from=now,
-                created_at=now,
-                created_by=actor.id,
-                reason=f"Наценка ценовой группы {group.name}",
+        for variant in item.finish_variants:
+            if not variant.is_active or decimal_value(
+                variant.construction_markup_percent
+            ) == decimal_value(group.markup_percent):
+                continue
+            current, _upcoming = _active_and_next_versions(
+                [
+                    version
+                    for version in item.price_versions
+                    if version.finish_variant_id == variant.id
+                ],
+                now,
             )
-        )
-        changed += 1
+            variant.construction_markup_percent = group.markup_percent
+            variant.updated_at = now
+            item.price_versions.append(
+                models.CatalogPriceVersion(
+                    finish_variant_id=variant.id,
+                    cost=variant.cost,
+                    profile_markup_percent=variant.profile_markup_percent,
+                    profile_discount_percent=variant.profile_discount_percent,
+                    waste_markup_percent=item.waste_percent,
+                    construction_markup_percent=group.markup_percent,
+                    construction_discount_percent=variant.construction_discount_percent,
+                    category=current.category
+                    if current
+                    else _price_category(item.group),
+                    unit=item.unit,
+                    min_margin_percent=current.min_margin_percent if current else 0,
+                    effective_from=now,
+                    created_at=now,
+                    created_by=actor.id,
+                    reason=f"Наценка ценовой группы {group.name}",
+                )
+            )
+            changed += 1
     return changed
 
 
@@ -126,10 +137,11 @@ def standalone_sale_quote(
 @router.get("/price-groups")
 def list_price_groups(
     db: Session = Depends(get_db),
-    _: models.User = Depends(require_price_manager),
+    _: models.User = Depends(require_admin),
 ):
     rows = (
         db.query(models.ConstructionPriceGroup)
+        .filter(models.ConstructionPriceGroup.code.in_(tuple(SYSTEM_GROUPS)))
         .order_by(models.ConstructionPriceGroup.name, models.ConstructionPriceGroup.id)
         .all()
     )
@@ -140,26 +152,12 @@ def list_price_groups(
 def create_price_group(
     data: schemas.ConstructionPriceGroupBase,
     db: Session = Depends(get_db),
-    actor: models.User = Depends(require_price_manager),
+    actor: models.User = Depends(require_admin),
 ):
-    code = data.code.strip().upper()
-    if db.query(models.ConstructionPriceGroup).filter_by(code=code).first():
-        raise HTTPException(status_code=400, detail="Ценовая группа уже существует")
-    group = models.ConstructionPriceGroup(
-        code=code,
-        name=data.name.strip(),
-        markup_percent=data.markup_percent,
-        is_active=data.is_active,
-        updated_by=actor.id,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+    raise HTTPException(
+        status_code=409,
+        detail="Системные группы фиксированы и редактируются в каталоге",
     )
-    db.add(group)
-    db.flush()
-    _apply_group_markup_to_catalog(db, group, actor)
-    db.commit()
-    db.refresh(group)
-    return _price_group_dict(group)
 
 
 @router.put("/price-groups/{group_id}")
@@ -167,26 +165,17 @@ def update_price_group(
     group_id: int,
     data: schemas.ConstructionPriceGroupBase,
     db: Session = Depends(get_db),
-    actor: models.User = Depends(require_price_manager),
+    actor: models.User = Depends(require_admin),
 ):
     group = db.query(models.ConstructionPriceGroup).filter_by(id=group_id).first()
     if group is None:
         raise HTTPException(status_code=404, detail="Ценовая группа не найдена")
     code = data.code.strip().upper()
-    duplicate = (
-        db.query(models.ConstructionPriceGroup)
-        .filter(
-            models.ConstructionPriceGroup.code == code,
-            models.ConstructionPriceGroup.id != group.id,
-        )
-        .first()
-    )
-    if duplicate:
-        raise HTTPException(status_code=400, detail="Ценовая группа уже существует")
-    group.code = code
-    group.name = data.name.strip()
+    if group.code not in SYSTEM_GROUPS or code != group.code:
+        raise HTTPException(status_code=409, detail="Код системной группы фиксирован")
+    group.name = SYSTEM_GROUPS[group.code]
     group.markup_percent = data.markup_percent
-    group.is_active = data.is_active
+    group.is_active = True
     group.updated_by = actor.id
     group.updated_at = datetime.utcnow()
     _apply_group_markup_to_catalog(db, group, actor)
@@ -225,9 +214,7 @@ def _version_dict(version: models.CatalogPriceVersion | None) -> dict | None:
         ),
         "category": version.category,
         "unit": version.unit,
-        "min_margin_percent": decimal_text(
-            decimal_value(version.min_margin_percent)
-        ),
+        "min_margin_percent": decimal_text(decimal_value(version.min_margin_percent)),
         "effective_from": version.effective_from.isoformat(),
         "created_at": version.created_at.isoformat(),
         "created_by": version.created_by,
@@ -307,7 +294,7 @@ def _new_version(
 @router.get("/catalog")
 def list_priced_catalog(
     db: Session = Depends(get_db),
-    _: models.User = Depends(require_price_manager),
+    _: models.User = Depends(require_admin),
 ):
     _ensure_catalog_seed(db)
     now = datetime.utcnow()
@@ -323,7 +310,7 @@ def list_priced_catalog(
 def price_history(
     item_id: int,
     db: Session = Depends(get_db),
-    _: models.User = Depends(require_price_manager),
+    _: models.User = Depends(require_admin),
 ):
     item = db.query(models.CatalogItem).filter_by(id=item_id).first()
     if item is None:
@@ -348,7 +335,7 @@ def create_price_version(
     item_id: int,
     data: schemas.CatalogPriceVersionCreate,
     db: Session = Depends(get_db),
-    actor: models.User = Depends(require_price_manager),
+    actor: models.User = Depends(require_admin),
 ):
     item = db.query(models.CatalogItem).filter_by(id=item_id).first()
     if item is None:
@@ -366,7 +353,7 @@ def rollback_price_version(
     version_id: int,
     data: schemas.CatalogPriceRollback,
     db: Session = Depends(get_db),
-    actor: models.User = Depends(require_price_manager),
+    actor: models.User = Depends(require_admin),
 ):
     item = db.query(models.CatalogItem).filter_by(id=item_id).first()
     target = (
@@ -396,11 +383,11 @@ def rollback_price_version(
     return _version_dict(version)
 
 
-def _bulk_preview(
-    db: Session, data: schemas.CatalogPriceBulkRequest
-) -> list[dict]:
+def _bulk_preview(db: Session, data: schemas.CatalogPriceBulkRequest) -> list[dict]:
     item_ids = list(dict.fromkeys(data.item_ids))
-    items = db.query(models.CatalogItem).filter(models.CatalogItem.id.in_(item_ids)).all()
+    items = (
+        db.query(models.CatalogItem).filter(models.CatalogItem.id.in_(item_ids)).all()
+    )
     by_id = {item.id: item for item in items}
     if len(by_id) != len(item_ids):
         missing = sorted(set(item_ids) - set(by_id))
@@ -437,7 +424,7 @@ def _bulk_preview(
 def preview_bulk_price_change(
     data: schemas.CatalogPriceBulkRequest,
     db: Session = Depends(get_db),
-    _: models.User = Depends(require_price_manager),
+    _: models.User = Depends(require_admin),
 ):
     return {
         "rows": [
@@ -451,7 +438,7 @@ def preview_bulk_price_change(
 def apply_bulk_price_change(
     data: schemas.CatalogPriceBulkRequest,
     db: Session = Depends(get_db),
-    actor: models.User = Depends(require_price_manager),
+    actor: models.User = Depends(require_admin),
 ):
     preview = _bulk_preview(db, data)
     created = []
@@ -551,7 +538,9 @@ def _xlsx_rows(content: bytes) -> list[list[str]]:
             shared_root = ElementTree.fromstring(archive.read("xl/sharedStrings.xml"))
             for node in shared_root.findall("x:si", namespace):
                 shared.append(
-                    "".join(text.text or "" for text in node.findall(".//x:t", namespace))
+                    "".join(
+                        text.text or "" for text in node.findall(".//x:t", namespace)
+                    )
                 )
         percent_styles: set[int] = set()
         if "xl/styles.xml" in archive.namelist():
@@ -577,8 +566,7 @@ def _xlsx_rows(content: bytes) -> list[list[str]]:
                 value_node = cell.find("x:v", namespace)
                 if cell_type == "inlineStr":
                     value = "".join(
-                        node.text or ""
-                        for node in cell.findall(".//x:t", namespace)
+                        node.text or "" for node in cell.findall(".//x:t", namespace)
                     )
                 elif value_node is None:
                     value = ""
@@ -648,7 +636,9 @@ def _import_preview(db: Session, content: bytes) -> dict:
     result_rows = []
     errors = []
     seen_skus: set[str] = set()
-    for excel_row, values in enumerate(raw_rows[header_index + 1 :], start=header_index + 2):
+    for excel_row, values in enumerate(
+        raw_rows[header_index + 1 :], start=header_index + 2
+    ):
         mapped = {
             header: values[index] if index < len(values) else ""
             for index, header in enumerate(headers)
@@ -671,12 +661,16 @@ def _import_preview(db: Session, content: bytes) -> dict:
             "profile_markup_percent": mapped.get("profile_markup_percent") or "0",
             "profile_discount_percent": mapped.get("profile_discount_percent") or "0",
             "waste_markup_percent": mapped.get("waste_markup_percent") or "0",
-            "construction_markup_percent": mapped.get("construction_markup_percent") or "0",
-            "construction_discount_percent": mapped.get("construction_discount_percent") or "0",
+            "construction_markup_percent": mapped.get("construction_markup_percent")
+            or "0",
+            "construction_discount_percent": mapped.get("construction_discount_percent")
+            or "0",
             "category": mapped.get("category") or _infer_category(item),
             "unit": mapped.get("unit") or item.unit or "шт",
             "min_margin_percent": mapped.get("min_margin_percent") or "0",
-            "effective_from": _excel_date(mapped.get("effective_from") or "").isoformat(),
+            "effective_from": _excel_date(
+                mapped.get("effective_from") or ""
+            ).isoformat(),
         }
         try:
             schemas.CatalogPriceVersionCreate(
@@ -687,14 +681,18 @@ def _import_preview(db: Session, content: bytes) -> dict:
             errors.append(f"Строка {excel_row}: {exc}")
             continue
         result_rows.append(normalized)
-    return {"valid": not errors and bool(result_rows), "rows": result_rows, "errors": errors}
+    return {
+        "valid": not errors and bool(result_rows),
+        "rows": result_rows,
+        "errors": errors,
+    }
 
 
 @router.post("/catalog/import/preview")
 async def preview_price_import(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _: models.User = Depends(require_price_manager),
+    _: models.User = Depends(require_admin),
 ):
     if not (file.filename or "").lower().endswith(".xlsx"):
         raise HTTPException(status_code=400, detail="Поддерживается только XLSX")
@@ -706,7 +704,7 @@ async def preview_price_import(
 def apply_price_import(
     data: schemas.CatalogPriceImportApply,
     db: Session = Depends(get_db),
-    actor: models.User = Depends(require_price_manager),
+    actor: models.User = Depends(require_admin),
 ):
     skus = [str(row.get("sku") or "").strip() for row in data.rows]
     items = {
@@ -758,7 +756,7 @@ def apply_price_import(
 @router.get("/dealers")
 def list_pricing_dealers(
     db: Session = Depends(get_db),
-    _: models.User = Depends(require_price_manager),
+    _: models.User = Depends(require_admin),
 ):
     dealers = (
         db.query(models.User)
@@ -780,7 +778,7 @@ def list_pricing_dealers(
 def get_dealer_terms(
     user_id: int,
     db: Session = Depends(get_db),
-    _: models.User = Depends(require_price_manager),
+    _: models.User = Depends(require_admin),
 ):
     dealer = db.query(models.User).filter_by(id=user_id, role="dealer").first()
     if dealer is None:
@@ -824,7 +822,7 @@ def update_dealer_terms(
     user_id: int,
     data: schemas.DealerPricingTermsUpdate,
     db: Session = Depends(get_db),
-    actor: models.User = Depends(require_price_manager),
+    actor: models.User = Depends(require_admin),
 ):
     dealer = db.query(models.User).filter_by(id=user_id, role="dealer").first()
     if dealer is None:
@@ -839,39 +837,6 @@ def update_dealer_terms(
     terms.updated_by = actor.id
     db.commit()
     return get_dealer_terms(user_id, db, actor)
-
-
-@router.get("/settings")
-def get_settings(
-    db: Session = Depends(get_db),
-    _: models.User = Depends(require_price_manager),
-):
-    settings = get_pricing_settings(db)
-    db.commit()
-    return {
-        "id": settings.id,
-        "include_waste_markup": bool(settings.include_waste_markup),
-        "default_vat_rate": decimal_text(decimal_value(settings.default_vat_rate)),
-        "updated_at": settings.updated_at.isoformat(),
-        "updated_by": settings.updated_by,
-    }
-
-
-@router.put("/settings")
-def update_settings(
-    data: schemas.PricingSettingsUpdate,
-    db: Session = Depends(get_db),
-    actor: models.User = Depends(require_price_manager),
-):
-    settings = get_pricing_settings(db)
-    # Waste is an item-level construction coefficient and is always applied to
-    # non-piece units. Keep the legacy flag fixed for API/database compatibility.
-    settings.include_waste_markup = True
-    settings.default_vat_rate = data.default_vat_rate
-    settings.updated_at = datetime.utcnow()
-    settings.updated_by = actor.id
-    db.commit()
-    return get_settings(db, actor)
 
 
 @router.get("/projects/{project_id}")
@@ -894,8 +859,6 @@ def get_internal_project_quote(
             "status": result["status"],
             "stale": result["stale"],
             "config": {
-                "vat_mode": config["vat_mode"],
-                "vat_rate": config["vat_rate"],
                 "validity_days": config["validity_days"],
                 "manufacturing_term": config["manufacturing_term"],
                 "payment_terms": config["payment_terms"],

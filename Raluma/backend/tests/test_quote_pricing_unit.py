@@ -8,7 +8,6 @@ from engine.quote_pricing import (
     _public_line,
     _section_breakdown_exact,
     _section_requirements,
-    _vat_values,
     safe_public_payload,
 )
 from engine.glass_types import SLIDE_GLASS_TYPES, normalize_slide_glass_type
@@ -41,23 +40,19 @@ def test_construction_formula_uses_all_item_coefficients_and_automatic_waste():
         "quantity": Decimal("3"),
         "source": "profile",
     }
-    active = {"FORMULA-1": (SimpleNamespace(sku="FORMULA-1"), _version())}
+    active = {
+        "FORMULA-1": (
+            SimpleNamespace(sku="FORMULA-1", finish_variants=[]),
+            _version(),
+        )
+    }
 
-    without_waste, issue = _price_requirement(
-        required, active, {}, False, mode="construction"
-    )
+    without_waste, issue = _price_requirement(required, active, {}, mode="construction")
     assert issue is None
     # 100 × 3 × profile terms × construction terms × 30% waste.
     assert without_waste["internal_total"] == "1140.75"
     assert without_waste["minimum_total"] == "330.00"
     assert without_waste["waste_markup_applied"] is True
-
-    with_waste, issue = _price_requirement(
-        required, active, {}, True, mode="construction"
-    )
-    assert issue is None
-    assert with_waste["internal_total"] == "1140.75"
-    assert with_waste["waste_markup_applied"] is True
 
 
 def test_standalone_requirement_uses_only_profile_terms():
@@ -71,12 +66,12 @@ def test_standalone_requirement_uses_only_profile_terms():
     }
     active = {
         "FORMULA-STANDALONE": (
-            SimpleNamespace(sku="FORMULA-STANDALONE"),
+            SimpleNamespace(sku="FORMULA-STANDALONE", finish_variants=[]),
             _version(),
         )
     }
 
-    priced, issue = _price_requirement(required, active, {}, True)
+    priced, issue = _price_requirement(required, active, {})
 
     assert issue is None
     # 100 × 3 × (1 + 100%) × (1 − 25%); no waste/production coefficients.
@@ -144,19 +139,7 @@ def test_ready_slide_uses_only_construction_discount_and_manual_service_uses_ser
     assert service["line_total"] == "1164.00"
 
 
-def test_vat_modes_and_whole_ruble_distribution_are_exact():
-    included = _vat_values(Decimal("120.00"), "included", Decimal("20"))
-    assert included == (Decimal("20.00"), Decimal("120.00"), Decimal("1"))
-
-    on_top = _vat_values(Decimal("100.00"), "on_top", Decimal("20"))
-    assert on_top == (Decimal("20.00"), Decimal("120.00"), Decimal("1.2"))
-
-    assert _vat_values(Decimal("100.00"), "none", Decimal("20")) == (
-        Decimal("0"),
-        Decimal("100.00"),
-        Decimal("1"),
-    )
-
+def test_whole_ruble_distribution_is_exact():
     allocated = _allocate_whole_rubles(
         [Decimal("10.40"), Decimal("20.40"), Decimal("30.40")]
     )
@@ -211,6 +194,7 @@ def test_public_quote_allowlist_removes_bom_costs_and_missing_skus():
     assert "internal_total" not in safe["lines"][0]
     assert "bom" not in safe["lines"][0]
     assert "base_cost" not in safe["totals"]
+    assert "vat" not in safe
     assert "dealer_markup_percent" not in safe
     assert safe["lines"][0]["section_details"] == {
         "width_mm": "2400",
@@ -328,11 +312,7 @@ def test_slide_bom_uses_finish_prices_without_synthetic_paint_or_work_rows():
     assert "fabrication" not in sources
     assert all(row["sku"] != "WORK-SLIDE" for row in requirements)
     assert all(not row["sku"].startswith("PAINT|") for row in requirements)
-    assert all(
-        row.get("finish")
-        for row in requirements
-        if row["source"] == "profile"
-    )
+    assert all(row.get("finish") for row in requirements if row["source"] == "profile")
     assert not {screw.article for screw in calc.screws} & {
         row["sku"] for row in requirements
     }
@@ -354,12 +334,8 @@ def test_slide_quantities_scale_for_multiple_products_and_two_rows():
             rails=5,
         )
     )
-    single_by_key = {
-        (row["sku"], row["source"]): row["quantity"] for row in single
-    }
-    doubled_by_key = {
-        (row["sku"], row["source"]): row["quantity"] for row in doubled
-    }
+    single_by_key = {(row["sku"], row["source"]): row["quantity"] for row in single}
+    doubled_by_key = {(row["sku"], row["source"]): row["quantity"] for row in doubled}
 
     assert single_by_key.keys() == doubled_by_key.keys()
     for key, quantity in single_by_key.items():

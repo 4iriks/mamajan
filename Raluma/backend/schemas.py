@@ -118,9 +118,14 @@ class ResetPasswordResponse(BaseModel):
 
 class CatalogFinishVariantInput(BaseModel):
     id: Optional[int] = None
+    code: str = Field(default="BASE", min_length=1, max_length=40)
     name: str = Field(min_length=1, max_length=160)
     price: Decimal = Field(default=Decimal("0"), ge=0)
     cost: Optional[Decimal] = Field(default=None, ge=0)
+    profileMarkupPercent: Decimal = Field(default=Decimal("0"), ge=0)
+    profileDiscountPercent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
+    constructionMarkupPercent: Decimal = Field(default=Decimal("0"), ge=0)
+    constructionDiscountPercent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     requiresPaint: bool = False
     isActive: bool = True
 
@@ -134,6 +139,9 @@ class CatalogItemBase(BaseModel):
     name: str
     group: str = "Профили"
     system: str = "СЛАЙД"
+    systemGroups: List[Literal["SLIDE_1", "SLIDE_2"]] = Field(
+        default_factory=lambda: ["SLIDE_1", "SLIDE_2"]
+    )
     unit: str = "шт"
     purchasePrice: float = Field(default=0, ge=0)
     markupPercent: float = Field(default=0, ge=0)
@@ -164,7 +172,6 @@ class CatalogItemUpdate(CatalogItemBase):
 # ── Версионируемые цены ──────────────────────────────────────────────────────
 
 PriceCategory = Literal["profile", "construction", "component", "service"]
-VatMode = Literal["none", "included", "on_top"]
 DiscountMode = Literal["percent", "fixed"]
 DiscountScope = Literal["profile", "construction", "component", "service", "order"]
 
@@ -172,14 +179,10 @@ DiscountScope = Literal["profile", "construction", "component", "service", "orde
 class CatalogPriceVersionBase(BaseModel):
     cost: Decimal = Field(ge=0)
     profile_markup_percent: Decimal = Field(default=Decimal("0"), ge=0)
-    profile_discount_percent: Decimal = Field(
-        default=Decimal("0"), ge=0, le=100
-    )
+    profile_discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     waste_markup_percent: Decimal = Field(default=Decimal("0"), ge=0)
     construction_markup_percent: Decimal = Field(default=Decimal("0"), ge=0)
-    construction_discount_percent: Decimal = Field(
-        default=Decimal("0"), ge=0, le=100
-    )
+    construction_discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     category: PriceCategory
     unit: str
     min_margin_percent: Decimal = Field(default=Decimal("0"), ge=0)
@@ -220,37 +223,16 @@ class CatalogPriceImportApply(BaseModel):
 
 class DealerPricingTermsUpdate(BaseModel):
     dealer_markup_percent: Decimal = Field(default=Decimal("0"), ge=0)
-    profile_discount_percent: Decimal = Field(
-        default=Decimal("0"), ge=0, le=100
-    )
-    construction_discount_percent: Decimal = Field(
-        default=Decimal("0"), ge=0, le=100
-    )
-    component_discount_percent: Decimal = Field(
-        default=Decimal("0"), ge=0, le=100
-    )
-    service_discount_percent: Decimal = Field(
-        default=Decimal("0"), ge=0, le=100
-    )
+    profile_discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
+    construction_discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
+    component_discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
+    service_discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
 
 
 class DealerPricingTermsOut(DealerPricingTermsUpdate):
     user_id: int
     updated_at: datetime
     updated_by: int
-
-    model_config = {"from_attributes": True}
-
-
-class PricingSettingsUpdate(BaseModel):
-    include_waste_markup: bool
-    default_vat_rate: Decimal = Field(ge=0, le=100)
-
-
-class PricingSettingsOut(PricingSettingsUpdate):
-    id: int
-    updated_at: datetime
-    updated_by: Optional[int] = None
 
     model_config = {"from_attributes": True}
 
@@ -266,6 +248,10 @@ class ConstructionPriceGroupOut(ConstructionPriceGroupBase):
     id: int
 
     model_config = {"from_attributes": True}
+
+
+class SystemConstructionMarkupUpdate(BaseModel):
+    constructionMarkupPercent: Decimal = Field(ge=0)
 
 
 class StandaloneSaleItem(BaseModel):
@@ -309,8 +295,6 @@ class QuotePriceOverride(BaseModel):
 
 
 class QuoteConfigUpdate(BaseModel):
-    vat_mode: VatMode = "none"
-    vat_rate: Decimal = Field(default=Decimal("20"), ge=0, le=100)
     validity_days: int = Field(default=14, ge=1, le=365)
     manufacturing_term: str = Field(default="", max_length=500)
     payment_terms: str = Field(default="", max_length=1000)
@@ -538,9 +522,7 @@ class ProjectUpdate(BaseModel):
     subtype: Optional[str] = None
     extra_parts: Optional[str] = None
     extra_components: Optional[str] = None
-    hardware_installation: Optional[
-        Literal["installed", "not_installed"]
-    ] = None
+    hardware_installation: Optional[Literal["installed", "not_installed"]] = None
     comments: Optional[str] = None
     production_stages: Optional[int] = None
     current_stage: Optional[int] = None

@@ -60,14 +60,6 @@ export interface DealerPricingTerms {
   updated_by: number | null;
 }
 
-export interface PricingSettings {
-  id: number;
-  include_waste_markup: boolean;
-  default_vat_rate: string;
-  updated_at: string;
-  updated_by: number | null;
-}
-
 export interface ConstructionPriceGroup {
   id: number;
   code: string;
@@ -131,12 +123,6 @@ export const updateDealerPricingTerms = (
   userId: number,
   data: Omit<DealerPricingTerms, 'user_id' | 'updated_at' | 'updated_by'>,
 ) => client.put<DealerPricingTerms>(`/api/pricing/dealers/${userId}`, data).then(response => response.data);
-
-export const getPricingSettings = () =>
-  client.get<PricingSettings>('/api/pricing/settings').then(response => response.data);
-
-export const updatePricingSettings = (data: Pick<PricingSettings, 'include_waste_markup' | 'default_vat_rate'>) =>
-  client.put<PricingSettings>('/api/pricing/settings', data).then(response => response.data);
 
 export const listConstructionPriceGroups = () =>
   client.get<ConstructionPriceGroup[]>('/api/pricing/price-groups').then(response => response.data);

@@ -1131,9 +1131,7 @@ def _build_sketch_docx(context: dict) -> bytes:
             comment.paragraph_format.space_before = Pt(2)
             comment.paragraph_format.space_after = Pt(3)
             comment.paragraph_format.keep_with_next = True
-            comment_run = comment.add_run(
-                f"Примечание: {sketch_section['comments']}"
-            )
+            comment_run = comment.add_run(f"Примечание: {sketch_section['comments']}")
             comment_run.font.name = "Arial"
             comment_run.font.size = Pt(7.2)
             comment_run.italic = True
@@ -1238,8 +1236,12 @@ def _build_sketch_docx(context: dict) -> bytes:
                         None,
                         (
                             component["name"],
-                            f"Цвет: {component['color']}" if component.get("color") else "",
-                            f"Этап: {component['stage']}" if component.get("stage") else "",
+                            f"Цвет: {component['color']}"
+                            if component.get("color")
+                            else "",
+                            f"Этап: {component['stage']}"
+                            if component.get("stage")
+                            else "",
                         ),
                     )
                 )
@@ -1378,9 +1380,7 @@ def _add_commercial_docx_header(
         ("Редакция", quote.get("revision", 1)),
         (
             "Статус",
-            "Зафиксировано"
-            if quote.get("status") == "fixed"
-            else "Черновой расчет",
+            "Зафиксировано" if quote.get("status") == "fixed" else "Черновой расчет",
         ),
     )
     for index, (label, value) in enumerate(meta_values):
@@ -1440,7 +1440,10 @@ def _build_commercial_docx(context: dict) -> bytes:
         data_lines = (
             ("Ширина", f"{details.get('width_mm', '')} мм"),
             ("Высота", f"{details.get('height_mm', '')} мм"),
-            ("Система", f"{details.get('system', '')}, {details.get('rails', '')} рельс., {details.get('slide_rows', '')} ряд"),
+            (
+                "Система",
+                f"{details.get('system', '')}, {details.get('rails', '')} рельс., {details.get('slide_rows', '')} ряд",
+            ),
             ("Цвет", details.get("color", "")),
             ("Стекло", details.get("glass_type", "")),
             ("Количество", f"{details.get('quantity', '')} шт."),
@@ -1450,7 +1453,11 @@ def _build_commercial_docx(context: dict) -> bytes:
         )
         data_cell.text = ""
         for label, value in data_lines:
-            paragraph = data_cell.add_paragraph() if data_cell.paragraphs[-1].text else data_cell.paragraphs[-1]
+            paragraph = (
+                data_cell.add_paragraph()
+                if data_cell.paragraphs[-1].text
+                else data_cell.paragraphs[-1]
+            )
             label_run = paragraph.add_run(f"{label}: ")
             label_run.bold = True
             value_run = paragraph.add_run(str(value))
@@ -1477,9 +1484,7 @@ def _build_commercial_docx(context: dict) -> bytes:
         note = document.add_paragraph()
         note.paragraph_format.space_before = Pt(2)
         note.paragraph_format.space_after = Pt(2)
-        note_run = note.add_run(
-            f"Примечание: {details.get('comments') or '—'}"
-        )
+        note_run = note.add_run(f"Примечание: {details.get('comments') or '—'}")
         note_run.bold = True
         note_run.font.name = "Arial"
         note_run.font.size = Pt(7.5)
@@ -1506,10 +1511,13 @@ def _build_commercial_docx(context: dict) -> bytes:
                 size=7,
                 align=WD_ALIGN_PARAGRAPH.CENTER,
             )
-            text = "\n".join(
-                f"{item.get('article') or '—'} · {item.get('name') or ''}"
-                for item in items
-            ) or "Без дополнительных элементов"
+            text = (
+                "\n".join(
+                    f"{item.get('article') or '—'} · {item.get('name') or ''}"
+                    for item in items
+                )
+                or "Без дополнительных элементов"
+            )
             _set_cell_text(technical.cell(1, index), text, size=6.8)
             _set_cell_width(technical.cell(0, index), 94)
             _set_cell_width(technical.cell(1, index), 94)
@@ -1538,7 +1546,13 @@ def _build_commercial_docx(context: dict) -> bytes:
     )
     widths = (8, 103, 35, 31, 40, 35, 43)
     for index, header in enumerate(headers):
-        _set_cell_text(table.cell(0, index), header, bold=True, size=6.8, align=WD_ALIGN_PARAGRAPH.CENTER)
+        _set_cell_text(
+            table.cell(0, index),
+            header,
+            bold=True,
+            size=6.8,
+            align=WD_ALIGN_PARAGRAPH.CENTER,
+        )
         _set_cell_width(table.cell(0, index), widths[index])
     for row_index, row_data in enumerate(quote.get("lines") or [], start=1):
         row = table.add_row()
@@ -1557,7 +1571,11 @@ def _build_commercial_docx(context: dict) -> bytes:
                 value,
                 bold=index in {1, 6},
                 size=7,
-                align=None if index == 1 else WD_ALIGN_PARAGRAPH.RIGHT if index in {2, 4, 5, 6} else WD_ALIGN_PARAGRAPH.CENTER,
+                align=None
+                if index == 1
+                else WD_ALIGN_PARAGRAPH.RIGHT
+                if index in {2, 4, 5, 6}
+                else WD_ALIGN_PARAGRAPH.CENTER,
             )
             _set_cell_width(row.cells[index], widths[index])
     _style_table(table)
@@ -1566,7 +1584,13 @@ def _build_commercial_docx(context: dict) -> bytes:
     if category_summary:
         category_table = document.add_table(rows=1, cols=4)
         for index, header in enumerate(("Раздел", "До скидки", "Скидка", "Итого")):
-            _set_cell_text(category_table.cell(0, index), header, bold=True, size=7, align=WD_ALIGN_PARAGRAPH.CENTER)
+            _set_cell_text(
+                category_table.cell(0, index),
+                header,
+                bold=True,
+                size=7,
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+            )
         for summary in category_summary:
             row = category_table.add_row()
             values = (
@@ -1576,7 +1600,13 @@ def _build_commercial_docx(context: dict) -> bytes:
                 f"{_rubles(summary['total'])} ₽",
             )
             for index, value in enumerate(values):
-                _set_cell_text(row.cells[index], value, bold=index in {0, 3}, size=7.2, align=None if index == 0 else WD_ALIGN_PARAGRAPH.RIGHT)
+                _set_cell_text(
+                    row.cells[index],
+                    value,
+                    bold=index in {0, 3},
+                    size=7.2,
+                    align=None if index == 0 else WD_ALIGN_PARAGRAPH.RIGHT,
+                )
         category_table.alignment = WD_TABLE_ALIGNMENT.RIGHT
         _style_table(category_table)
 
@@ -1586,19 +1616,14 @@ def _build_commercial_docx(context: dict) -> bytes:
         ("До скидки", f"{_rubles(totals['document_before_discount'])} ₽"),
         ("Скидка", f"−{_rubles(totals['document_discount'])} ₽"),
     ]
-    vat = quote.get("vat") or {}
-    if vat.get("mode") == "included":
-        totals_rows.append((f"В том числе НДС {vat.get('rate', '0')}%", f"{_rubles(vat.get('document_amount', 0))} ₽"))
-    elif vat.get("mode") == "on_top":
-        totals_rows.append((f"НДС {vat.get('rate', '0')}% сверху", f"{_rubles(vat.get('document_amount', 0))} ₽"))
-    else:
-        totals_rows.append(("НДС", "Без НДС"))
     totals_rows.append(("ИТОГО", f"{_rubles(totals['document_grand_total'])} ₽"))
     for row_index, (label, value) in enumerate(totals_rows):
         row = totals_table.add_row()
         bold = row_index == len(totals_rows) - 1
         _set_cell_text(row.cells[0], label, bold=bold, size=8.5)
-        _set_cell_text(row.cells[1], value, bold=bold, size=8.5, align=WD_ALIGN_PARAGRAPH.RIGHT)
+        _set_cell_text(
+            row.cells[1], value, bold=bold, size=8.5, align=WD_ALIGN_PARAGRAPH.RIGHT
+        )
     totals_table.alignment = WD_TABLE_ALIGNMENT.RIGHT
     _style_table(totals_table, header_rows=0)
 
@@ -1610,11 +1635,13 @@ def _build_commercial_docx(context: dict) -> bytes:
     words_run.font.size = Pt(9)
 
     terms = document.add_paragraph()
-    for index, text in enumerate((
-        f"Предложение действительно до: {quote.get('valid_until', '')}",
-        f"Срок изготовления: {quote.get('manufacturing_term') or 'по согласованию'}",
-        f"Условия оплаты: {quote.get('payment_terms') or 'по согласованию'}",
-    )):
+    for index, text in enumerate(
+        (
+            f"Предложение действительно до: {quote.get('valid_until', '')}",
+            f"Срок изготовления: {quote.get('manufacturing_term') or 'по согласованию'}",
+            f"Условия оплаты: {quote.get('payment_terms') or 'по согласованию'}",
+        )
+    ):
         if index:
             terms.add_run("\n")
         run = terms.add_run(text)
@@ -1631,8 +1658,18 @@ def _build_commercial_docx(context: dict) -> bytes:
         notice_run.font.name = "Arial"
         notice_run.font.size = Pt(7.5)
         signatures = document.add_table(rows=1, cols=2)
-        _set_cell_text(signatures.cell(0, 0), "ЗАКАЗЧИК\n\n________________ / __________________", bold=True, size=8)
-        _set_cell_text(signatures.cell(0, 1), f"ИСПОЛНИТЕЛЬ: {context.get('company_name', '')}\n\n________________ / Расходчиков В.И. /", bold=True, size=8)
+        _set_cell_text(
+            signatures.cell(0, 0),
+            "ЗАКАЗЧИК\n\n________________ / __________________",
+            bold=True,
+            size=8,
+        )
+        _set_cell_text(
+            signatures.cell(0, 1),
+            f"ИСПОЛНИТЕЛЬ: {context.get('company_name', '')}\n\n________________ / Расходчиков В.И. /",
+            bold=True,
+            size=8,
+        )
         _style_table(signatures, header_rows=0)
 
     _add_commercial_project_extras_page(document, quote.get("lines") or [])

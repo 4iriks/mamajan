@@ -26,7 +26,6 @@ HUNDRED = Decimal("100")
 ZERO = Decimal("0")
 
 PRICE_CATEGORIES = {"profile", "construction", "component", "service"}
-VAT_MODES = {"none", "included", "on_top"}
 MANUAL_SERVICE_UNITS = (
     "п.м.",
     "шт.",
@@ -45,7 +44,6 @@ PUBLIC_QUOTE_FIELDS = {
     "currency",
     "lines",
     "totals",
-    "vat",
     "validity_days",
     "valid_until",
     "manufacturing_term",
@@ -90,13 +88,11 @@ PUBLIC_TOTAL_FIELDS = {
     "before_discount",
     "discount",
     "subtotal",
-    "vat",
     "grand_total",
     "document_before_discount",
     "document_discount",
     "document_grand_total",
 }
-PUBLIC_VAT_FIELDS = {"mode", "rate", "amount", "document_amount"}
 PUBLIC_SECTION_DETAIL_FIELDS = {
     "section_id",
     "name",
@@ -173,6 +169,50 @@ def safe_public_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Apply an allow-list at every dealer-facing API/document boundary."""
     if not isinstance(payload, dict):
         payload = {}
+    payload = json.loads(json.dumps(payload, ensure_ascii=False))
+    payload.pop("vat", None)
+    totals = payload.get("totals")
+    if isinstance(totals, dict):
+        totals.pop("vat", None)
+        totals["grand_total"] = totals.get(
+            "subtotal", totals.get("grand_total", "0.00")
+        )
+    document_before_total = 0
+    document_grand_total = 0
+    for line in payload.get("lines") or []:
+        if not isinstance(line, dict):
+            continue
+        quantity = max(decimal_value(line.get("quantity"), Decimal("1")), Decimal("1"))
+        before = int(
+            decimal_value(line.get("line_total_before_discount")).quantize(
+                WHOLE_RUBLE, rounding=ROUND_HALF_UP
+            )
+        )
+        total = int(
+            decimal_value(line.get("line_total")).quantize(
+                WHOLE_RUBLE, rounding=ROUND_HALF_UP
+            )
+        )
+        line["document_line_total_before_discount"] = before
+        line["document_line_discount_amount"] = before - total
+        line["document_line_total"] = total
+        line["document_unit_price_before_discount"] = int(
+            (Decimal(before) / quantity).quantize(WHOLE_RUBLE, rounding=ROUND_HALF_UP)
+        )
+        line["document_unit_discount_amount"] = int(
+            (Decimal(before - total) / quantity).quantize(
+                WHOLE_RUBLE, rounding=ROUND_HALF_UP
+            )
+        )
+        line["document_unit_final_price"] = int(
+            (Decimal(total) / quantity).quantize(WHOLE_RUBLE, rounding=ROUND_HALF_UP)
+        )
+        document_before_total += before
+        document_grand_total += total
+    if isinstance(totals, dict):
+        totals["document_before_discount"] = document_before_total
+        totals["document_discount"] = document_before_total - document_grand_total
+        totals["document_grand_total"] = document_grand_total
     safe = {key: value for key, value in payload.items() if key in PUBLIC_QUOTE_FIELDS}
     safe_lines = []
     for line in payload.get("lines") or []:
@@ -221,31 +261,19 @@ def safe_public_payload(payload: dict[str, Any]) -> dict[str, Any]:
         safe_lines.append(safe_line)
     safe["lines"] = safe_lines
     safe["discounts"] = [
-        {
-            key: value
-            for key, value in row.items()
-            if key in PUBLIC_DISCOUNT_FIELDS
-        }
+        {key: value for key, value in row.items() if key in PUBLIC_DISCOUNT_FIELDS}
         for row in payload.get("discounts") or []
         if isinstance(row, dict)
     ]
     for field, allowed in (
         ("project", PUBLIC_PROJECT_FIELDS),
         ("totals", PUBLIC_TOTAL_FIELDS),
-        ("vat", PUBLIC_VAT_FIELDS),
     ):
         value = payload.get(field)
         safe[field] = (
             {key: item for key, item in value.items() if key in allowed}
             if isinstance(value, dict)
             else {}
-        )
-    if "document_amount" not in safe["vat"]:
-        safe["vat"]["document_amount"] = int(
-            decimal_value(safe["vat"].get("amount")).quantize(
-                WHOLE_RUBLE,
-                rounding=ROUND_HALF_UP,
-            )
         )
     if "missing_price_count" not in safe:
         legacy_missing = payload.get("missing_prices", [])
@@ -365,7 +393,12 @@ def _active_price_versions(
     active: dict[str, tuple[models.CatalogItem, models.CatalogPriceVersion]] = {}
     for version in versions:
         item = version.catalog_item
-        active.setdefault(item.sku, (item, version))
+        current = active.get(item.sku)
+        if current is None or (
+            current[1].finish_variant_id is not None
+            and version.finish_variant_id is None
+        ):
+            active[item.sku] = (item, version)
     return active
 
 
@@ -391,8 +424,7 @@ def calculate_standalone_sale(
     item_ids = {
         item_id
         for row in requested
-        if (item_id := _optional_int(getattr(row, "catalog_item_id", None)))
-        is not None
+        if (item_id := _optional_int(getattr(row, "catalog_item_id", None))) is not None
     }
     items = {
         item.id: item
@@ -429,7 +461,7 @@ def calculate_standalone_sale(
         visible_variants = [
             candidate
             for candidate in active_variants
-            if candidate.name.strip().casefold() != "без цвета"
+            if _normalized_finish(candidate.name) != "без цвета"
         ]
         if variant is None and visible_variants:
             raise QuotePricingError("Выберите исполнение из каталога")
@@ -444,12 +476,18 @@ def calculate_standalone_sale(
             else item.purchase_price
         )
         markup = decimal_value(
-            version.profile_markup_percent
+            variant.profile_markup_percent
+            if variant is not None
+            else version.profile_markup_percent
             if version is not None
             else item.markup_percent
         )
         item_discount = decimal_value(
-            version.profile_discount_percent if version is not None else ZERO
+            variant.profile_discount_percent
+            if variant is not None
+            else version.profile_discount_percent
+            if version is not None
+            else ZERO
         )
         unit_before_buyer = money(
             cost * _markup_factor(markup) * _discount_factor(item_discount)
@@ -498,7 +536,9 @@ def calculate_standalone_sale(
                 {
                     "scope": "order",
                     "mode": buyer_discount_mode,
-                    "value": decimal_text(max(ZERO, decimal_value(buyer_discount_value))),
+                    "value": decimal_text(
+                        max(ZERO, decimal_value(buyer_discount_value))
+                    ),
                 }
             ],
         )
@@ -513,20 +553,6 @@ def calculate_standalone_sale(
             "grand_total": money_text(total),
         },
     }
-
-
-def get_pricing_settings(db: Session) -> models.PricingSettings:
-    settings = db.query(models.PricingSettings).filter_by(id=1).first()
-    if settings is None:
-        settings = models.PricingSettings(
-            id=1,
-            include_waste_markup=True,
-            default_vat_rate=Decimal("20"),
-            updated_at=datetime.utcnow(),
-        )
-        db.add(settings)
-        db.flush()
-    return settings
 
 
 def _dealer_terms(db: Session, owner: models.User | None) -> dict[str, Decimal]:
@@ -546,12 +572,7 @@ def _dealer_terms(db: Session, owner: models.User | None) -> dict[str, Decimal]:
     )
     if terms is None:
         return zeros
-    result = {key: decimal_value(getattr(terms, key)) for key in zeros}
-    # The historical dealer markup was invisible to the buyer and is no
-    # longer part of any production calculation.  Keep the storage field only
-    # so existing databases and admin payloads remain readable.
-    result["dealer_markup_percent"] = ZERO
-    return result
+    return {key: decimal_value(getattr(terms, key)) for key in zeros}
 
 
 def _discount_for_category(terms: dict[str, Decimal], category: str) -> Decimal:
@@ -579,11 +600,14 @@ def _construction_group(
         )
         if selected is not None:
             return selected
-    code = {
-        "СЛАЙД": "SLIDE",
-        "КНИЖКА": "BOOK",
-        "ЛИФТ": "LIFT",
-    }.get(str(getattr(section, "system", "") or "").strip().upper())
+    system = str(getattr(section, "system", "") or "").strip().upper()
+    code = (
+        "SLIDE_2"
+        if system == "СЛАЙД" and int(getattr(section, "slide_rows", 1) or 1) == 2
+        else "SLIDE_1"
+        if system == "СЛАЙД"
+        else None
+    )
     if not code:
         return None
     return (
@@ -640,11 +664,7 @@ def _finish_variant_cost(
     variant = candidates.get(requested)
     if variant is None and requested == "анод":
         variant = next(
-            (
-                row
-                for row in active_variants
-                if "анод" in _normalized_finish(row.name)
-            ),
+            (row for row in active_variants if "анод" in _normalized_finish(row.name)),
             None,
         )
     if variant is None and len(active_variants) == 1:
@@ -713,7 +733,7 @@ def _selected_catalog_item(value: object) -> dict[str, str] | None:
     article = article_match.group(0).upper() if article_match else ""
     name = text
     if article_match:
-        name = f"{text[:article_match.start()]} {text[article_match.end():]}".strip()
+        name = f"{text[: article_match.start()]} {text[article_match.end() :]}".strip()
     return _technical_item(article, name or text)
 
 
@@ -755,9 +775,7 @@ def _section_technical_components(section: object) -> dict[str, list[dict[str, s
         if bool(getattr(section, f"floor_latches_{side}", False)):
             _append_technical(target, "RS205", "Защелка в пол")
 
-    inter_glass = _selected_catalog_item(
-        getattr(section, "inter_glass_profile", None)
-    )
+    inter_glass = _selected_catalog_item(getattr(section, "inter_glass_profile", None))
     if inter_glass:
         common.append(inter_glass)
     if inter_glass and inter_glass["article"] == "RS2061":
@@ -1040,7 +1058,6 @@ def _price_requirement(
     required: dict[str, Any],
     active: dict[str, tuple[models.CatalogItem, models.CatalogPriceVersion]],
     overrides: dict[str, dict[str, Any]],
-    include_waste_markup: bool,
     *,
     mode: str = "legacy",
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
@@ -1097,11 +1114,35 @@ def _price_requirement(
                 cost = variant_cost
         price_unit = version.unit
         category = version.category
-        profile_markup = decimal_value(version.profile_markup_percent)
-        profile_discount = decimal_value(version.profile_discount_percent)
+        finish_variant = next(
+            (
+                row
+                for row in item.finish_variants
+                if row.id == finish_variant_id and row.is_active
+            ),
+            None,
+        )
+        profile_markup = decimal_value(
+            finish_variant.profile_markup_percent
+            if finish_variant is not None
+            else version.profile_markup_percent
+        )
+        profile_discount = decimal_value(
+            finish_variant.profile_discount_percent
+            if finish_variant is not None
+            else version.profile_discount_percent
+        )
         waste_markup = decimal_value(version.waste_markup_percent)
-        construction_markup = decimal_value(version.construction_markup_percent)
-        construction_discount = decimal_value(version.construction_discount_percent)
+        construction_markup = decimal_value(
+            finish_variant.construction_markup_percent
+            if finish_variant is not None
+            else version.construction_markup_percent
+        )
+        construction_discount = decimal_value(
+            finish_variant.construction_discount_percent
+            if finish_variant is not None
+            else version.construction_discount_percent
+        )
         min_margin = decimal_value(version.min_margin_percent)
 
     quantity = decimal_value(required["quantity"])
@@ -1121,10 +1162,7 @@ def _price_requirement(
         if waste_markup_applied:
             multiplier *= _markup_factor(waste_markup)
     else:
-        multiplier = (
-            _markup_factor(profile_markup)
-            * _discount_factor(profile_discount)
-        )
+        multiplier = _markup_factor(profile_markup) * _discount_factor(profile_discount)
     internal_total = money(base_cost * multiplier)
     minimum_total = money(base_cost * _markup_factor(min_margin))
     return {
@@ -1134,7 +1172,9 @@ def _price_requirement(
         "price_unit": price_unit,
         "price_version_id": version.id if version is not None else None,
         "finish_variant_id": finish_variant_id if override is None else None,
-        "finish": finish_name if override is None else str(required.get("finish") or ""),
+        "finish": finish_name
+        if override is None
+        else str(required.get("finish") or ""),
         "override_comment": str(override.get("comment") or "") if override else "",
         "cost": money_text(cost),
         "base_cost_total": money_text(base_cost),
@@ -1214,21 +1254,6 @@ def _allocate_whole_rubles_to_target(
     return result
 
 
-def _vat_values(
-    subtotal: Decimal,
-    mode: str,
-    rate: Decimal,
-) -> tuple[Decimal, Decimal, Decimal]:
-    """Return VAT amount, grand total and the document-line display factor."""
-    if mode == "on_top":
-        amount = money(subtotal * rate / HUNDRED)
-        return amount, money(subtotal + amount), _markup_factor(rate)
-    if mode == "included" and rate > 0:
-        amount = money(subtotal * rate / (HUNDRED + rate))
-        return amount, subtotal, Decimal("1")
-    return ZERO, subtotal, Decimal("1")
-
-
 def _public_line(
     *,
     line_id: str,
@@ -1267,9 +1292,7 @@ def _public_line(
     return public, exact
 
 
-def _refresh_public_discount(
-    public: dict[str, Any], exact: dict[str, Decimal]
-) -> None:
+def _refresh_public_discount(public: dict[str, Any], exact: dict[str, Decimal]) -> None:
     before = money(exact["before_discount"])
     total = money(max(ZERO, exact["total"]))
     discount = money(max(ZERO, before - total))
@@ -1423,7 +1446,6 @@ def _pricing_context_payload(
         .order_by(models.ConstructionPriceGroup.id)
         .all()
     )
-    settings = get_pricing_settings(db)
     terms = _dealer_terms(db, project.owner)
     price_fields = (
         "cost",
@@ -1452,16 +1474,28 @@ def _pricing_context_payload(
                 "sku": item.sku,
                 "name": item.name,
                 "unit": item.unit,
+                "system_groups": _json_load(getattr(item, "system_groups", None), []),
                 "active": bool(item.is_active),
                 "updated_at": _signature_value(item.updated_at),
                 "finish_variants": [
                     {
                         "id": variant.id,
+                        "code": getattr(variant, "code", None),
                         "name": variant.name,
                         "cost": _signature_value(
-                            variant.cost
-                            if variant.cost is not None
-                            else variant.price
+                            variant.cost if variant.cost is not None else variant.price
+                        ),
+                        "profile_markup_percent": _signature_value(
+                            variant.profile_markup_percent
+                        ),
+                        "profile_discount_percent": _signature_value(
+                            variant.profile_discount_percent
+                        ),
+                        "construction_markup_percent": _signature_value(
+                            variant.construction_markup_percent
+                        ),
+                        "construction_discount_percent": _signature_value(
+                            variant.construction_discount_percent
                         ),
                         "requires_paint": bool(variant.requires_paint),
                         "is_active": bool(variant.is_active),
@@ -1524,9 +1558,6 @@ def _pricing_context_payload(
             else None,
             **{key: decimal_text(value) for key, value in terms.items()},
         },
-        "settings": {
-            "include_waste_markup": bool(settings.include_waste_markup),
-        },
         "services": _canonical_services(state.services_payload),
         "discounts": _canonical_discounts(state.discounts_payload),
         "overrides": _canonical_overrides(state.overrides_payload),
@@ -1558,8 +1589,6 @@ def _quote_signature(
     payload = {
         "pricing_context": _pricing_context_payload(db, project, state, at),
         "quote_config": {
-            "vat_mode": state.vat_mode,
-            "vat_rate": decimal_text(decimal_value(state.vat_rate)),
             "validity_days": state.validity_days,
             "manufacturing_term": state.manufacturing_term,
             "payment_terms": state.payment_terms,
@@ -1682,7 +1711,6 @@ def get_or_create_quote_state(
     )
     if state is not None:
         return state
-    settings = get_pricing_settings(db)
     state = models.ProjectQuoteState(
         project_id=project.id,
         revision=1,
@@ -1693,7 +1721,7 @@ def get_or_create_quote_state(
         discounts_payload="[]",
         overrides_payload="[]",
         vat_mode="none",
-        vat_rate=decimal_value(settings.default_vat_rate),
+        vat_rate=ZERO,
         validity_days=14,
         manufacturing_term="",
         payment_terms="",
@@ -1715,7 +1743,6 @@ def calculate_quote(
 ) -> tuple[dict[str, Any], dict[str, Any], str]:
     now = _normalize_datetime(at or datetime.utcnow())
     active = _active_price_versions(db, now)
-    settings = get_pricing_settings(db)
     terms = _dealer_terms(db, project.owner)
     override_rows = _json_load(state.overrides_payload, [])
     overrides = {
@@ -1759,7 +1786,6 @@ def calculate_quote(
                 required,
                 active,
                 overrides,
-                bool(settings.include_waste_markup),
                 mode="construction",
             )
             if issue is not None:
@@ -1826,9 +1852,9 @@ def calculate_quote(
             section_area.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
         )
         section_details["weight_kg"] = decimal_text(
-            (
-                calculated_weight / max(quantity, Decimal("1"))
-            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            (calculated_weight / max(quantity, Decimal("1"))).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
         )
         public_line["section_details"] = section_details
         public_line["_breakdown_exact"] = _section_breakdown_exact(
@@ -1881,9 +1907,7 @@ def calculate_quote(
             }
         )
 
-    project_extras = _parse_extra_components(
-        getattr(project, "extra_components", None)
-    )
+    project_extras = _parse_extra_components(getattr(project, "extra_components", None))
     active_by_id = {pair[0].id: pair for pair in active.values()}
     variant_ids = {
         variant_id
@@ -1905,9 +1929,7 @@ def calculate_quote(
             else []
         )
     }
-    for index, extra in enumerate(
-        project_extras, start=1
-    ):
+    for index, extra in enumerate(project_extras, start=1):
         quantity = decimal_value(extra.get("qty") or extra.get("quantity"))
         if quantity <= 0:
             continue
@@ -1940,9 +1962,7 @@ def calculate_quote(
         # The legacy snapshot fallback is retained only for old manual rows
         # which have no catalog link.
         if item is None and snapshot_value is not None:
-            unit_sale = decimal_value(
-                snapshot_value
-            )
+            unit_sale = decimal_value(snapshot_value)
             selected_cost = ZERO
             category = "component"
         elif finish_variant_id is not None and variant is None:
@@ -1966,12 +1986,8 @@ def calculate_quote(
             selected_cost = variant_cost
             unit_sale = money(
                 variant_cost
-                * _markup_factor(
-                    version.profile_markup_percent if version is not None else ZERO
-                )
-                * _discount_factor(
-                    version.profile_discount_percent if version is not None else ZERO
-                )
+                * _markup_factor(variant.profile_markup_percent)
+                * _discount_factor(variant.profile_discount_percent)
             )
             category = (
                 version.category
@@ -2031,17 +2047,11 @@ def calculate_quote(
             "color": actual_color,
             "unit": public_line["unit"],
             "stage": str(
-                extra.get("deliveryStage")
-                or extra.get("delivery_stage")
-                or "both"
+                extra.get("deliveryStage") or extra.get("delivery_stage") or "both"
             ),
         }
         minimum_total = (
-            money(
-                selected_cost
-                * quantity
-                * _markup_factor(version.min_margin_percent)
-            )
+            money(selected_cost * quantity * _markup_factor(version.min_margin_percent))
             if version is not None
             else ZERO
         )
@@ -2143,9 +2153,7 @@ def calculate_quote(
         if exact["total"] >= minimum_total:
             continue
         identity = {
-            key: value
-            for key, value in issue.items()
-            if key not in {"code", "name"}
+            key: value for key, value in issue.items() if key not in {"code", "name"}
         }
         already_reported = any(
             row.get("code") == "below_minimum_margin"
@@ -2171,18 +2179,13 @@ def calculate_quote(
             }
         )
 
-    vat_mode = state.vat_mode if state.vat_mode in VAT_MODES else "none"
-    vat_rate = decimal_value(state.vat_rate)
     subtotal_before_discount = money(
         sum((row["before_discount"] for row in exact_lines), ZERO)
     )
     discount_total = money(sum((row["discount_amount"] for row in exact_lines), ZERO))
     subtotal = money(sum((row["total"] for row in exact_lines), ZERO))
-    vat_amount, grand_total, display_factor = _vat_values(
-        subtotal,
-        vat_mode,
-        vat_rate,
-    )
+    grand_total = subtotal
+    display_factor = Decimal("1")
 
     display_before = [row["before_discount"] * display_factor for row in exact_lines]
     display_final = [row["total"] * display_factor for row in exact_lines]
@@ -2331,19 +2334,10 @@ def calculate_quote(
             "before_discount": money_text(subtotal_before_discount),
             "discount": money_text(discount_total),
             "subtotal": money_text(subtotal),
-            "vat": money_text(vat_amount),
             "grand_total": money_text(grand_total),
             "document_before_discount": document_before_total,
             "document_discount": document_before_total - document_grand_total,
             "document_grand_total": document_grand_total,
-        },
-        "vat": {
-            "mode": vat_mode,
-            "rate": decimal_text(vat_rate),
-            "amount": money_text(vat_amount),
-            "document_amount": int(
-                vat_amount.quantize(WHOLE_RUBLE, rounding=ROUND_HALF_UP)
-            ),
         },
         "validity_days": state.validity_days,
         "valid_until": valid_until.isoformat(),
@@ -2364,7 +2358,6 @@ def calculate_quote(
         "blocking_issues": blocking_issues,
         "missing_prices": sorted(missing_by_sku.values(), key=lambda row: row["sku"]),
         "dealer_terms": {key: decimal_text(value) for key, value in terms.items()},
-        "include_waste_markup": bool(settings.include_waste_markup),
         "margin_approval": margin_approval,
         "calculated_at": now.isoformat(),
     }
@@ -2622,8 +2615,6 @@ def internal_quote_state(
         "status": state.status,
         "stale": stale,
         "config": {
-            "vat_mode": state.vat_mode,
-            "vat_rate": decimal_text(decimal_value(state.vat_rate)),
             "validity_days": state.validity_days,
             "manufacturing_term": state.manufacturing_term,
             "payment_terms": state.payment_terms,

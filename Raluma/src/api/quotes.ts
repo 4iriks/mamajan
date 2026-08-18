@@ -1,7 +1,5 @@
 import client from './client';
 
-export type VatMode = 'none' | 'included' | 'on_top';
-
 export interface QuotePanelGeometry {
   index: number;
   number: number;
@@ -87,13 +85,11 @@ export interface PublicQuote {
     before_discount: string;
     discount: string;
     subtotal: string;
-    vat: string;
     grand_total: string;
     document_before_discount: number;
     document_discount: number;
     document_grand_total: number;
   };
-  vat: { mode: VatMode; rate: string; amount: string; document_amount: number };
   validity_days: number;
   valid_until: string;
   manufacturing_term: string;
@@ -128,8 +124,6 @@ export interface QuoteDiscountRule {
 }
 
 export interface QuoteConfig {
-  vat_mode: VatMode;
-  vat_rate: string;
   validity_days: number;
   manufacturing_term: string;
   payment_terms: string;

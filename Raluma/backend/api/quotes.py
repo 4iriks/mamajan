@@ -104,9 +104,6 @@ def update_quote_config(
     discounts_changed = state.discounts_payload != discounts_payload
     config_changed = any(
         (
-            state.vat_mode != data.vat_mode,
-            decimal_text(decimal_value(state.vat_rate))
-            != decimal_text(data.vat_rate),
             state.validity_days != data.validity_days,
             state.manufacturing_term != data.manufacturing_term.strip(),
             state.payment_terms != data.payment_terms.strip(),
@@ -115,8 +112,6 @@ def update_quote_config(
         )
     )
     if config_changed:
-        state.vat_mode = data.vat_mode
-        state.vat_rate = data.vat_rate
         state.validity_days = data.validity_days
         state.manufacturing_term = data.manufacturing_term.strip()
         state.payment_terms = data.payment_terms.strip()

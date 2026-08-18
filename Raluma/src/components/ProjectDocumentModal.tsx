@@ -497,8 +497,6 @@ export default function ProjectDocumentModal({
     try {
       const config = internalQuote.config;
       await updateQuoteConfig(projectId, {
-        vat_mode: config.vat_mode,
-        vat_rate: config.vat_rate,
         validity_days: config.validity_days,
         manufacturing_term: config.manufacturing_term,
         payment_terms: config.payment_terms,
@@ -873,7 +871,7 @@ export default function ProjectDocumentModal({
                       </div>
                     )}
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div className="rounded-xl border border-tint/20 bg-black/10 px-3 py-2">
                         <div className="text-[10px] uppercase tracking-wider text-fg/35">До скидки</div>
                         <div className="mt-1 text-sm font-bold">{formatQuoteMoney(quote.totals.before_discount)}</div>
@@ -881,10 +879,6 @@ export default function ProjectDocumentModal({
                       <div className="rounded-xl border border-tint/20 bg-black/10 px-3 py-2">
                         <div className="text-[10px] uppercase tracking-wider text-fg/35">Скидка</div>
                         <div className="mt-1 text-sm font-bold text-accent">{formatQuoteMoney(quote.totals.discount)}</div>
-                      </div>
-                      <div className="rounded-xl border border-tint/20 bg-black/10 px-3 py-2">
-                        <div className="text-[10px] uppercase tracking-wider text-fg/35">НДС</div>
-                        <div className="mt-1 text-sm font-bold">{formatQuoteMoney(quote.totals.vat)}</div>
                       </div>
                       <div className="rounded-xl border border-accent/30 bg-accent/10 px-3 py-2">
                         <div className="text-[10px] uppercase tracking-wider text-accent/70">Итого</div>
@@ -894,28 +888,7 @@ export default function ProjectDocumentModal({
 
                     {canEditCommercial && internalQuote && (
                       <div className="space-y-3 border-t border-tint/15 pt-4">
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-                          <label className="space-y-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Режим НДС</span>
-                            <select
-                              value={internalQuote.config.vat_mode}
-                              onChange={event => patchCommercialConfig({ vat_mode: event.target.value as InternalQuoteState['config']['vat_mode'] })}
-                              className="w-full h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50"
-                            >
-                              <option value="none">Без НДС</option>
-                              <option value="included">НДС включён</option>
-                              <option value="on_top">НДС сверху</option>
-                            </select>
-                          </label>
-                          <label className="space-y-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Ставка НДС, %</span>
-                            <input
-                              type="number" min="0" max="100" step="0.01"
-                              value={internalQuote.config.vat_rate}
-                              onChange={event => patchCommercialConfig({ vat_rate: event.target.value })}
-                              className="w-full h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50"
-                            />
-                          </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                           <label className="space-y-1">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Срок действия, дней</span>
                             <input

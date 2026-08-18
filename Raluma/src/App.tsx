@@ -12,7 +12,6 @@ import LoginPage from './pages/LoginPage';
 import ProjectsPage from './pages/ProjectsPage';
 import AdminPage from './pages/AdminPage';
 import HardwareCatalogPage from './pages/HardwareCatalogPage';
-import PricingPage from './pages/PricingPage';
 import ToastContainer from './components/Toast';
 
 // ── Editor Page wrapper ───────────────────────────────────────────────────────
@@ -51,7 +50,7 @@ export default function App() {
         <Route path="/projects/:id" element={<EditorPage />} />
         <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
         <Route path="/admin/catalog/hardware" element={<AdminRoute><HardwareCatalogPage /></AdminRoute>} />
-        <Route path="/admin/pricing" element={<AdminRoute><PricingPage /></AdminRoute>} />
+        <Route path="/admin/pricing" element={<Navigate to="/admin/catalog/hardware" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

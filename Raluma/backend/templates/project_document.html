@@ -557,9 +557,6 @@
       <table class="commercial-total">
         <tr><td><b>До скидки</b></td><td class="right">{{ "{:,}".format(commercial_quote.totals.document_before_discount)|replace(",", " ") }} ₽</td></tr>
         <tr><td><b>Скидка</b></td><td class="right">−{{ "{:,}".format(commercial_quote.totals.document_discount)|replace(",", " ") }} ₽</td></tr>
-        {% if commercial_quote.vat.mode == 'included' %}<tr><td>В том числе НДС {{ commercial_quote.vat.rate }}%</td><td class="right">{{ "{:,}".format(commercial_quote.vat.document_amount)|replace(",", " ") }} ₽</td></tr>
-        {% elif commercial_quote.vat.mode == 'on_top' %}<tr><td>НДС {{ commercial_quote.vat.rate }}% сверху</td><td class="right">{{ "{:,}".format(commercial_quote.vat.document_amount)|replace(",", " ") }} ₽</td></tr>
-        {% else %}<tr><td colspan="2">Без НДС</td></tr>{% endif %}
         <tr><td><b>ИТОГО</b></td><td class="right"><b>{{ "{:,}".format(commercial_quote.totals.document_grand_total)|replace(",", " ") }} ₽</b></td></tr>
       </table>
       <div class="quote-words">Итого прописью: {{ amount_in_words|e }}</div>

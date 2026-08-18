@@ -5,13 +5,17 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Plus, Search, Edit2, Key, Trash2, X,
   User, Shield, Crown, Check, RefreshCw, Copy, LayoutGrid, Users, Package, Building2,
-  BadgePercent,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import {
   UserOut, UserCreate, UserUpdate,
   getUsers, createUser, updateUser, deleteUser, resetPassword
 } from '../api/users';
+import {
+  getDealerPricingTerms,
+  updateDealerPricingTerms,
+  type DealerPricingTerms,
+} from '../api/pricing';
 
 const ROLE_LABELS: Record<string, string> = {
   user: 'Сотрудник',
@@ -38,6 +42,14 @@ const CUSTOMERS = ['ООО ПРОЗРАЧНЫЕ РЕШЕНИЯ', 'ООО КРО�
 
 const INPUT_CLS = "w-full bg-hi/8 border border-tint/40 rounded-2xl px-5 py-3.5 outline-none focus:border-accent/60 transition-all text-fg";
 const SELECT_CLS = "w-full bg-hi/8 border border-tint/40 rounded-2xl px-5 py-3.5 outline-none focus:border-accent/60 transition-all text-fg appearance-none";
+type DealerTermsForm = Omit<DealerPricingTerms, 'user_id' | 'updated_at' | 'updated_by'>;
+const EMPTY_DEALER_TERMS: DealerTermsForm = {
+  dealer_markup_percent: '0',
+  profile_discount_percent: '0',
+  construction_discount_percent: '0',
+  component_discount_percent: '0',
+  service_discount_percent: '0',
+};
 
 const emptyForm: UserCreate = {
   username: '',
@@ -79,7 +91,7 @@ function UserDetails({ user }: { user: UserOut }) {
       <div>
         <div className="text-sm font-medium text-fg/80">{user.dealer_company || user.customer || '—'}</div>
         <div className="text-[11px] text-fg/35 mt-1">
-          Ценовые условия задаются в разделе «Ценообразование»
+          Индивидуальные цены настроены в карточке дилера
           {user.dealer_city ? ` · ${user.dealer_city}` : ''}
         </div>
       </div>
@@ -106,11 +118,13 @@ export default function AdminPage() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [accountTab, setAccountTab] = useState<'employees' | 'dealers'>('employees');
 
   // Модал создания/редактирования
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserOut | null>(null);
   const [form, setForm] = useState<UserCreate & { id?: number }>(emptyForm);
+  const [dealerTerms, setDealerTerms] = useState<DealerTermsForm>(EMPTY_DEALER_TERMS);
 
   // Модал сброса пароля
   const [resetResult, setResetResult] = useState<{ userId: number; name: string; password: string } | null>(null);
@@ -144,25 +158,44 @@ export default function AdminPage() {
     finally { setLoading(false); }
   };
 
-  const filtered = users.filter(u =>
-    u.username.toLowerCase().includes(search.toLowerCase()) ||
-    u.display_name.toLowerCase().includes(search.toLowerCase()) ||
-    (u.employee_number || '').toLowerCase().includes(search.toLowerCase()) ||
-    (u.position || '').toLowerCase().includes(search.toLowerCase()) ||
-    (u.dealer_company || '').toLowerCase().includes(search.toLowerCase()) ||
-    (u.dealer_contact_name || '').toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = users.filter(u => {
+    const matchesTab = accountTab === 'dealers' ? u.role === 'dealer' : u.role !== 'dealer';
+    const query = search.toLowerCase();
+    const matchesSearch = u.username.toLowerCase().includes(query) ||
+      u.display_name.toLowerCase().includes(query) ||
+      (u.employee_number || '').toLowerCase().includes(query) ||
+      (u.position || '').toLowerCase().includes(query) ||
+      (u.dealer_company || '').toLowerCase().includes(query) ||
+      (u.dealer_contact_name || '').toLowerCase().includes(query);
+    return matchesTab && matchesSearch;
+  });
 
   const openCreate = () => {
     setEditingUser(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, role: accountTab === 'dealers' ? 'dealer' : 'user' });
+    setDealerTerms(EMPTY_DEALER_TERMS);
     setIsEditOpen(true);
   };
 
-  const openEdit = (u: UserOut) => {
+  const openEdit = async (u: UserOut) => {
     setEditingUser(u);
     setForm({ ...u, password: '' });
+    setDealerTerms(EMPTY_DEALER_TERMS);
     setIsEditOpen(true);
+    if (u.role === 'dealer') {
+      try {
+        const terms = await getDealerPricingTerms(u.id);
+        setDealerTerms({
+          dealer_markup_percent: terms.dealer_markup_percent,
+          profile_discount_percent: terms.profile_discount_percent,
+          construction_discount_percent: terms.construction_discount_percent,
+          component_discount_percent: terms.component_discount_percent,
+          service_discount_percent: terms.service_discount_percent,
+        });
+      } catch {
+        toast.error('Не удалось загрузить ценовые условия дилера');
+      }
+    }
   };
 
   const handleSave = async () => {
@@ -187,12 +220,18 @@ export default function AdminPage() {
           is_active: form.is_active,
         };
         if (form.password) upd.password = form.password;
-        await updateUser(editingUser.id, upd);
+        const savedUser = await updateUser(editingUser.id, upd);
+        if (savedUser.role === 'dealer') {
+          await updateDealerPricingTerms(savedUser.id, dealerTerms);
+        }
       } else {
-        await createUser({
+        const savedUser = await createUser({
           ...form,
           can_manage_prices: false,
         });
+        if (savedUser.role === 'dealer') {
+          await updateDealerPricingTerms(savedUser.id, dealerTerms);
+        }
       }
       setIsEditOpen(false);
       await loadUsers();
@@ -301,17 +340,28 @@ export default function AdminPage() {
             <h1 className="text-2xl font-bold">Администрирование</h1>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => navigate('/admin/pricing')}
-              className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-primary hover:bg-primary-h text-white font-bold border border-primary/40 transition-all">
-              <BadgePercent className="w-4 h-4" />
-              Ценообразование
-            </button>
             <button onClick={() => navigate('/admin/catalog/hardware')}
               className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-tint/25 hover:bg-tint/40 text-accent font-bold border border-tint/35 transition-all">
               <Package className="w-4 h-4" />
               Каталог
             </button>
           </div>
+        </div>
+
+        <div className="mb-5 grid max-w-md grid-cols-2 rounded-2xl border border-tint/30 bg-surface/30 p-1">
+          {([
+            { id: 'employees', label: 'Сотрудники' },
+            { id: 'dealers', label: 'Дилеры' },
+          ] as const).map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setAccountTab(tab.id)}
+              className={`rounded-xl px-4 py-3 text-sm font-bold transition-colors ${accountTab === tab.id ? 'bg-primary text-white' : 'text-fg/45 hover:text-fg/75'}`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {/* Toolbar */}
@@ -364,8 +414,8 @@ export default function AdminPage() {
                         <User className="w-10 h-10 text-fg/25" />
                       </div>
                       <div>
-                        <h3 className="text-xl font-bold mb-1">{search ? 'Ничего не найдено' : 'Сотрудников нет'}</h3>
-                        <p className="text-fg/40 text-sm">{search ? 'Попробуйте другой запрос' : 'Создайте первого сотрудника'}</p>
+                        <h3 className="text-xl font-bold mb-1">{search ? 'Ничего не найдено' : accountTab === 'dealers' ? 'Дилеров нет' : 'Сотрудников нет'}</h3>
+                        <p className="text-fg/40 text-sm">{search ? 'Попробуйте другой запрос' : accountTab === 'dealers' ? 'Создайте первого дилера' : 'Создайте первого сотрудника'}</p>
                       </div>
                     </div>
                   </td>
@@ -414,7 +464,7 @@ export default function AdminPage() {
           </table>
           </div>
           <div className="px-8 py-4 bg-hi/[0.02] border-t border-tint/20 text-xs text-fg/40">
-            Всего учёток: <span className="text-fg font-bold">{users.length}</span>
+            В разделе: <span className="text-fg font-bold">{filtered.length}</span>
           </div>
         </div>
       </main>
@@ -427,7 +477,7 @@ export default function AdminPage() {
               onClick={() => setIsEditOpen(false)} className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
             <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-lg bg-modal border border-tint/40 rounded-[2.5rem] p-6 sm:p-10 shadow-2xl z-10 overflow-y-auto max-h-[95vh]">
+              className={`relative w-full ${form.role === 'dealer' ? 'max-w-4xl' : 'max-w-lg'} bg-modal border border-tint/40 rounded-[2.5rem] p-6 sm:p-10 shadow-2xl z-10 overflow-y-auto max-h-[95vh]`}>
               <button onClick={() => setIsEditOpen(false)} className="absolute right-8 top-8 text-fg/30 hover:text-fg transition-colors">
                 <X className="w-6 h-6" />
               </button>
@@ -508,7 +558,7 @@ export default function AdminPage() {
 
                 {form.role === 'dealer' && (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-accent/50 ml-1">Компания</label>
                         <input type="text" value={form.dealer_company || ''}
@@ -516,9 +566,6 @@ export default function AdminPage() {
                           className={INPUT_CLS}
                           placeholder="ООО Прозрачные решения"
                         />
-                      </div>
-                      <div className="rounded-2xl border border-tint/25 bg-tint/10 px-5 py-4 text-sm text-fg/60">
-                        Скрытая наценка и четыре категорийные скидки настраиваются отдельно в разделе «Ценообразование».
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -573,6 +620,35 @@ export default function AdminPage() {
                           className={INPUT_CLS}
                           placeholder="Адрес дилера"
                         />
+                      </div>
+                    </div>
+                    <div className="border-t border-tint/25 pt-5">
+                      <h3 className="text-base font-bold">Индивидуальные ценовые условия</h3>
+                      <p className="mt-1 text-xs text-fg/40">Применяются автоматически к расчету проектов этого дилера.</p>
+                      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {([
+                          ['dealer_markup_percent', 'Скрытая наценка'],
+                          ['profile_discount_percent', 'Скидка на профиль'],
+                          ['construction_discount_percent', 'Скидка на конструкции'],
+                          ['component_discount_percent', 'Скидка на комплектующие'],
+                          ['service_discount_percent', 'Скидка на услуги'],
+                        ] as const).map(([field, label]) => (
+                          <div key={field} className="space-y-2">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-accent/50 ml-1">{label}</label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min="0"
+                                max={field === 'dealer_markup_percent' ? undefined : 100}
+                                step="0.01"
+                                value={dealerTerms[field]}
+                                onChange={event => setDealerTerms(current => ({ ...current, [field]: event.target.value }))}
+                                className={`${INPUT_CLS} pr-12 font-mono`}
+                              />
+                              <span className="absolute right-5 top-1/2 -translate-y-1/2 text-xs font-bold text-fg/35">%</span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                     <div className="space-y-2">
