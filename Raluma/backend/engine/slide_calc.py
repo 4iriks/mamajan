@@ -434,11 +434,10 @@ def _inter_glass_profile_name(article: str) -> str:
 
 def _side_profile_offset_mm(lock_bar: bool, p_bar: bool, bubble: bool = False) -> float:
     if lock_bar:
-        # RS2081: agreed lock-profile correction for both one- and two-rail
-        # calculations.  Keep RS1082 (the P-profile branch below) at 28 mm.
+        # Agreed side corrections are shared by one- and two-row calculations.
         return 59.5
     if p_bar and not bubble:
-        return 28
+        return 27.5
     return 0
 
 
@@ -945,6 +944,10 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     left_rails = available[:half]
     if len(left_rails) < half:
         left_rails.extend([available[-1]] * (half - len(left_rails)))
+    if unused_track == "Внутренний":
+        # With the first panels outside, the whole two-row layout is mirrored:
+        # panel No. 1 is nearest the room at each outer edge, not at the centre.
+        left_rails.reverse()
     result.panel_rails = left_rails + list(reversed(left_rails))[: P - half]
     if unused_track == "Внешний":
         result.panel_numbers = list(range(half, 0, -1)) + list(
@@ -972,8 +975,8 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     rpl = _side_profile_offset_mm(lock_bar_l, p_bar_l, bubble_l)
     rpr = _side_profile_offset_mm(lock_bar_r, p_bar_r, bubble_r)
 
-    pzl = 6 if bubble_l else 0
-    pzr = 6 if bubble_r else 0
+    pzl = 5 if bubble_l else 0
+    pzr = 5 if bubble_r else 0
     krlr = 8 if handle_bar_l else 0
     krrr = 8 if handle_bar_r else 0
 
@@ -1022,6 +1025,8 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     center_rs112_count = 2 if center_is_rs112 else 0
     centr1 = 46.5 if center_is_rs112 else 0
     centr2 = 8 if center_is_rs112 else 0
+    center_left_edge_recovery = krlp if center_offset else 0
+    center_right_edge_recovery = krrp if center_offset else 0
 
     wall_count = (1 if wall_l else 0) + (1 if wall_r else 0)
     threshold_len = W - 16 * wall_count
@@ -1065,11 +1070,14 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         - a
         - b
         - center_offset * 2
+        - center_left_edge_recovery
+        - center_right_edge_recovery
         + inter_glass_overlap * (P - 2)
     ) / P
     left_W = middle_W + a + krlr + krlp
     right_W = middle_W + b + krrr + krrp
-    center_W = middle_W + center_offset + centr2
+    center_left_W = middle_W + center_offset + centr2 + center_left_edge_recovery
+    center_right_W = middle_W + center_offset + centr2 + center_right_edge_recovery
 
     result.glass.append(GlassItem("Левое", round(left_W, 1), round(glass_H, 1), Q))
     middle_qty = max(P - 4, 0) * Q
@@ -1081,14 +1089,35 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         )
     if center_is_rs112:
         result.glass.append(
-            GlassItem("Центральное левое", round(center_W, 1), round(glass_H, 1), Q)
+            GlassItem(
+                "Центральное левое", round(center_left_W, 1), round(glass_H, 1), Q
+            )
         )
         result.glass.append(
-            GlassItem("Центральное правое", round(center_W, 1), round(glass_H, 1), Q)
+            GlassItem(
+                "Центральное правое",
+                round(center_right_W, 1),
+                round(glass_H, 1),
+                Q,
+            )
+        )
+    elif round(center_left_W, 1) != round(center_right_W, 1):
+        result.glass.append(
+            GlassItem(
+                "Центральное левое", round(center_left_W, 1), round(glass_H, 1), Q
+            )
+        )
+        result.glass.append(
+            GlassItem(
+                "Центральное правое",
+                round(center_right_W, 1),
+                round(glass_H, 1),
+                Q,
+            )
         )
     else:
         result.glass.append(
-            GlassItem("Центральные", round(center_W, 1), round(glass_H, 1), 2 * Q)
+            GlassItem("Центральные", round(center_left_W, 1), round(glass_H, 1), 2 * Q)
         )
     result.glass.append(GlassItem("Правое", round(right_W, 1), round(glass_H, 1), Q))
 
@@ -1293,9 +1322,9 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 is_deaf=right_is_deaf,
             )
         elif glass.position == "Центральное левое":
-            base_len += 19
+            base_len += 19 if center_is_rs112 else -3
         elif glass.position == "Центральное правое":
-            base_len += 16
+            base_len += 16 if center_is_rs112 else -3
         elif glass.position == "Центральные":
             if center_is_rs112:
                 base_len += 16
@@ -1316,6 +1345,8 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         - rpl
         - pzl
         - pzr
+        - pl
+        - pr
         - centr1
         - centr2
         + inter_glass_overlap * (P - 2)
@@ -1763,8 +1794,8 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     rpl = _side_profile_offset_mm(lock_bar_l, p_bar_l, bubble_l)
     rpr = _side_profile_offset_mm(lock_bar_r, p_bar_r, bubble_r)
 
-    pzl = 6 if bubble_l else 0
-    pzr = 6 if bubble_r else 0
+    pzl = 5 if bubble_l else 0
+    pzr = 5 if bubble_r else 0
     krlr = 8 if handle_bar_l else 0
     krrr = 8 if handle_bar_r else 0
 

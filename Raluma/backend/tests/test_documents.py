@@ -1138,9 +1138,9 @@ class TestLocalPreview:
         )
 
         assert r.status_code == 200
-        assert "901 (917)" in r.text
-        assert "909 (909)" in r.text
-        assert r.text.index("901 (917)") < r.text.index("909 (909)")
+        assert "902 (918)" in r.text
+        assert "910 (910)" in r.text
+        assert r.text.index("902 (918)") < r.text.index("910 (910)")
 
     def test_local_preview_two_row_sheet_uses_three_hardware_columns_without_checklist(
         self, client
