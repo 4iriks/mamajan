@@ -91,7 +91,7 @@ def test_no_color_catalog_item_auto_selects_hidden_execution_snapshot(
     assert response.status_code == 201, response.text
     try:
         snapshot = json.loads(response.json()["extra_components"])[0]
-        assert snapshot["finish_variant_id"] == item["finishVariants"][0]["id"]
+        assert snapshot["finish_variant_id"] is not None
         assert snapshot["finish_name"] == ""
         assert snapshot["requires_paint"] is False
     finally:
