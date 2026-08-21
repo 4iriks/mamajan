@@ -179,12 +179,15 @@ def render_slide_room(
     *,
     include_title: bool = True,
     crop: bool = False,
+    print_dimensions: bool = False,
 ) -> bytes:
     canvas = Image.new("RGB", (1600, 700), BACKGROUND)
     draw = ImageDraw.Draw(canvas)
     title_font = load_font(30, bold=True)
     number_font = load_font(30, bold=True)
-    dim_font = load_font(23, bold=True)
+    dim_font = load_font(31 if print_dimensions else 23, bold=True)
+    dimension_color = "#000000" if print_dimensions else INK
+    dimension_line_color = "#000000" if print_dimensions else GRID
     small_font = load_font(19)
 
     if include_title:
@@ -298,40 +301,50 @@ def render_slide_room(
         x += panel_px
 
     width_dimension_y = bottom + 62
-    draw.line((left, width_dimension_y, right, width_dimension_y), fill=GRID, width=2)
+    draw.line(
+        (left, width_dimension_y, right, width_dimension_y),
+        fill=dimension_line_color,
+        width=3 if print_dimensions else 2,
+    )
     draw.line(
         (left, width_dimension_y - 9, left, width_dimension_y + 9),
-        fill=GRID,
-        width=2,
+        fill=dimension_line_color,
+        width=3 if print_dimensions else 2,
     )
     draw.line(
         (right, width_dimension_y - 9, right, width_dimension_y + 9),
-        fill=GRID,
-        width=2,
+        fill=dimension_line_color,
+        width=3 if print_dimensions else 2,
     )
     _center_text(
         draw,
         ((left + right) / 2, bottom + 95),
         str(glass_mm(section_width)),
         dim_font,
+        dimension_color,
     )
     height_dimension_x = right + 40
-    draw.line((height_dimension_x, top, height_dimension_x, bottom), fill=GRID, width=2)
+    draw.line(
+        (height_dimension_x, top, height_dimension_x, bottom),
+        fill=dimension_line_color,
+        width=3 if print_dimensions else 2,
+    )
     draw.line(
         (height_dimension_x - 9, top, height_dimension_x + 9, top),
-        fill=GRID,
-        width=2,
+        fill=dimension_line_color,
+        width=3 if print_dimensions else 2,
     )
     draw.line(
         (height_dimension_x - 9, bottom, height_dimension_x + 9, bottom),
-        fill=GRID,
-        width=2,
+        fill=dimension_line_color,
+        width=3 if print_dimensions else 2,
     )
     _center_text(
         draw,
         (right + 75, (top + bottom) / 2),
         str(glass_mm(section_height)),
         dim_font,
+        dimension_color,
     )
     _center_text(draw, ((left + right) / 2, top - 25), "УЛИЦА", small_font, MUTED)
     _center_text(
@@ -340,13 +353,20 @@ def render_slide_room(
     return _cropped_png(canvas) if crop else _png(canvas)
 
 
-def render_slide_top(section: object, calc: object) -> bytes:
+def render_slide_top(
+    section: object,
+    calc: object,
+    *,
+    include_title: bool = True,
+    crop: bool = False,
+) -> bytes:
     canvas = Image.new("RGB", (1600, 620), BACKGROUND)
     draw = ImageDraw.Draw(canvas)
     title_font = load_font(30, bold=True)
     label_font = load_font(20, bold=True)
     small_font = load_font(18)
-    _center_text(draw, (800, 34), "СХЕМА · ВИД СВЕРХУ", title_font)
+    if include_title:
+        _center_text(draw, (800, 34), "СХЕМА · ВИД СВЕРХУ", title_font)
 
     left, top, right, bottom = 110, 92, 1490, 485
     rails = max(int(getattr(section, "rails", 3) or 3), 1)
@@ -393,7 +413,7 @@ def render_slide_top(section: object, calc: object) -> bytes:
     _center_text(draw, (800, 70), "УЛИЦА", small_font, MUTED)
     _center_text(draw, (800, 518), "ПОМЕЩЕНИЕ", small_font, MUTED)
     _arrow(draw, (735, 560), (865, 560), color=INK, width=3)
-    return _png(canvas)
+    return _cropped_png(canvas) if crop else _png(canvas)
 
 
 def render_lift_front(section: object, calc: object) -> bytes:

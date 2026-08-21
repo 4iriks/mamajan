@@ -297,29 +297,23 @@ def _glass_correction_adjustments(
 
     if count % 2:
         center = count // 2
-        if magnitude in {1, 3}:
-            add(center, sign)
+        if difference_mm in {-1, -3}:
+            add(center, -1)
         if magnitude in {2, 3}:
             add(0, sign)
             add(count - 1, sign)
         return adjustments
 
-    # The approved even-panel rule intentionally favors the larger glass:
-    # +1/+3 add a millimetre to each member of the central pair, so the
-    # applied total may exceed the rounded control discrepancy by 1 mm.
-    center_left = count // 2 - 1
-    center_right = count // 2
+    # A positive +1 discrepancy is left as rounding tolerance.  For +3 only
+    # the two edge panes grow by 1 mm; the central pair is not adjusted.
     if difference_mm == 1:
-        add(center_left, 1)
-        add(center_right, 1)
+        return {}
     elif difference_mm == -1:
         return {}
     elif magnitude == 2:
         add(0, sign)
         add(count - 1, sign)
     elif difference_mm == 3:
-        add(center_left, 1)
-        add(center_right, 1)
         add(0, 1)
         add(count - 1, 1)
     elif difference_mm == -3:
@@ -1025,8 +1019,12 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     center_rs112_count = 2 if center_is_rs112 else 0
     centr1 = 46.5 if center_is_rs112 else 0
     centr2 = 8 if center_is_rs112 else 0
-    center_left_edge_recovery = krlp if center_offset else 0
-    center_right_edge_recovery = krrp if center_offset else 0
+    # In a four-panel layout the central panes are directly adjacent to the
+    # edge panes, so their offset must include the edge compensation.  With
+    # six or more panes the neighbour is an ordinary intermediate pane and
+    # carrying these 16 mm to the centre inflates the requested C offset.
+    center_left_edge_recovery = krlp if center_offset and P == 4 else 0
+    center_right_edge_recovery = krrp if center_offset and P == 4 else 0
 
     wall_count = (1 if wall_l else 0) + (1 if wall_r else 0)
     threshold_len = W - 16 * wall_count

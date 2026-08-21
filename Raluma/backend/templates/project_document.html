@@ -562,7 +562,6 @@
       <div class="quote-words">Итого прописью: {{ amount_in_words|e }}</div>
       <div class="commercial-terms">
         <div><b>Предложение действительно до:</b> {{ commercial_quote.valid_until }}</div>
-        <div><b>Срок изготовления:</b> {{ commercial_quote.manufacturing_term or 'по согласованию' }}</div>
         <div><b>Условия оплаты:</b> {{ commercial_quote.payment_terms or 'по согласованию' }}</div>
       </div>
       {% if doc_type == 'contract_appendix' %}

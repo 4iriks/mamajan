@@ -9,7 +9,7 @@ from typing import Iterable
 
 from engine.book_calc import calculate_book
 from engine.lift_calc import calculate_lift, lift_geometry_error
-from engine.office_diagrams import render_slide_room, section_diagrams
+from engine.office_diagrams import render_slide_room, render_slide_top, section_diagrams
 from engine.slide_calc import (
     _inter_glass_article,
     _resolve_inter_glass_profile,
@@ -414,18 +414,30 @@ def _diagram_rows(section: object, calc: object) -> list[dict]:
                     calc,
                     include_title=False,
                     crop=True,
+                    print_dimensions=True,
                 ),
-            )
+            ),
+            (
+                "Схема · вид сверху",
+                render_slide_top(
+                    section,
+                    calc,
+                    include_title=False,
+                    crop=True,
+                ),
+            ),
         ]
         if system == "СЛАЙД"
         else section_diagrams(section, calc)
     )
     room_views = [row for row in diagrams if "из помещения" in row[0].casefold()]
+    selected = diagrams[:2] if system == "СЛАЙД" else (room_views[:1] or diagrams[:1])
     rows = []
-    for title, payload in (room_views[:1] or diagrams[:1]):
+    for title, payload in selected:
         rows.append(
             {
                 "title": title,
+                "kind": "top" if "сверху" in title.casefold() else "room",
                 "png": payload,
                 "data_uri": "data:image/png;base64,"
                 + base64.b64encode(payload).decode("ascii"),

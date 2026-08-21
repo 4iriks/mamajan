@@ -86,11 +86,12 @@
       page-break-inside: avoid;
     }
     .diagram {
-      min-height: 92mm;
       padding: 1.5mm;
       border: 0.25mm solid #a8bbc0;
       text-align: center;
     }
+    .diagram-room { min-height: 65mm; }
+    .diagram-top { min-height: 39mm; }
     .diagram-title {
       margin-bottom: 1mm;
       color: #607b81;
@@ -101,9 +102,10 @@
     .diagram img {
       display: block;
       width: 100%;
-      height: 86mm;
       object-fit: contain;
     }
+    .diagram-room img { height: 59mm; }
+    .diagram-top img { height: 33mm; }
     .section-comment {
       margin: 0 0 2.5mm;
       padding: 1.5mm 2mm;
@@ -196,7 +198,7 @@
 
     <div class="diagram-grid">
       {% for diagram in section.diagrams %}
-      <div class="diagram">
+      <div class="diagram diagram-{{ diagram.kind|e }}">
         <div class="diagram-title">{{ diagram.title|e }}</div>
         <img src="{{ diagram.data_uri }}" alt="{{ diagram.title|e }}">
       </div>

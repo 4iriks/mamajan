@@ -1152,7 +1152,7 @@ def _build_sketch_docx(context: dict) -> bytes:
                     cell,
                     diagram["png"],
                     max_width_mm=176,
-                    max_height_mm=86,
+                    max_height_mm=60 if diagram.get("kind") == "room" else 34,
                 )
             diagram_table.style = "Table Grid"
             _set_table_geometry_mm(diagram_table, (182,))
@@ -1638,7 +1638,6 @@ def _build_commercial_docx(context: dict) -> bytes:
     for index, text in enumerate(
         (
             f"Предложение действительно до: {quote.get('valid_until', '')}",
-            f"Срок изготовления: {quote.get('manufacturing_term') or 'по согласованию'}",
             f"Условия оплаты: {quote.get('payment_terms') or 'по согласованию'}",
         )
     ):

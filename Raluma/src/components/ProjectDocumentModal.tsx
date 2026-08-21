@@ -34,7 +34,6 @@ import {
   QuoteDiscountRule,
   refreshQuote,
   updateQuoteConfig,
-  updateQuoteOverrides,
 } from '../api/quotes';
 import { useAuthStore } from '../store/authStore';
 
@@ -184,8 +183,7 @@ export default function ProjectDocumentModal({
   const [internalQuote, setInternalQuote] = useState<InternalQuoteState | null>(null);
   const [isQuoteLoading, setIsQuoteLoading] = useState(false);
   const [isQuoteSaving, setIsQuoteSaving] = useState(false);
-  const [isMarginApprovalDirty, setIsMarginApprovalDirty] = useState(false);
-  const { user, canManagePrices } = useAuthStore();
+  const { user } = useAuthStore();
 
   const token = localStorage.getItem('access_token') ?? '';
   const isGuest = !token;
@@ -194,12 +192,6 @@ export default function ProjectDocumentModal({
   const isCommercialDocument = docType === 'commercial' || docType === 'contract_appendix';
   const isSketchDocument = docType === 'sketch';
   const canEditCommercial = Boolean(user && user.role !== 'dealer');
-  const canOverrideCommercial = canManagePrices();
-  const canOverrideMargin = user?.role === 'admin' || user?.role === 'superadmin';
-  const missingPrices = internalQuote?.missing_prices ?? [];
-  const commercialWarnings: string[] = Array.from(new Set<string>(
-    internalQuote ? internalQuote.pending_warnings : (quote?.warnings ?? []),
-  ));
   const hasDocumentEditor = isPaintDocument || isDeliveryDocument || isCommercialDocument;
   const previewUrl = useMemo(
     () => isGuest ? undefined : `${getProjectDocumentPreviewUrl(projectId, docType)}?token=${encodeURIComponent(token)}&v=${previewVersion}`,
@@ -227,7 +219,6 @@ export default function ProjectDocumentModal({
       setQuote(publicState);
       if (canEditCommercial) {
         setInternalQuote(await getInternalQuote(projectId));
-        setIsMarginApprovalDirty(false);
       } else {
         setInternalQuote(null);
       }
@@ -247,7 +238,6 @@ export default function ProjectDocumentModal({
       setDeliveryData(parseDeliveryData());
       setQuote(null);
       setInternalQuote(null);
-      setIsMarginApprovalDirty(false);
       return;
     }
     loadGuestPreview();
@@ -439,9 +429,6 @@ export default function ProjectDocumentModal({
   const patchCommercialConfig = (
     updates: Partial<InternalQuoteState['config']>,
   ) => {
-    if (Object.prototype.hasOwnProperty.call(updates, 'margin_override_comment')) {
-      setIsMarginApprovalDirty(true);
-    }
     setInternalQuote(current => current ? {
       ...current,
       config: { ...current.config, ...updates },
@@ -472,27 +459,8 @@ export default function ProjectDocumentModal({
     });
   };
 
-  const updateMissingPriceOverride = (
-    sku: string,
-    updates: Partial<{ cost: string; comment: string }>,
-  ) => {
-    if (!internalQuote) return;
-    const current = internalQuote.config.overrides.find(row => row.sku === sku);
-    const next = current
-      ? internalQuote.config.overrides.map(row => row.sku === sku ? { ...row, ...updates } : row)
-      : [...internalQuote.config.overrides, { sku, cost: '', comment: '', ...updates }];
-    patchCommercialConfig({ overrides: next });
-  };
-
   const saveCommercialConfig = async (): Promise<boolean> => {
     if (!internalQuote) return false;
-    const incompleteOverride = internalQuote.config.overrides.find(row => (
-      (row.cost || row.comment.trim()) && (!row.cost || !row.comment.trim())
-    ));
-    if (canOverrideCommercial && incompleteOverride) {
-      toast.error(`Для разовой цены ${incompleteOverride.sku} укажите цену и обоснование`);
-      return false;
-    }
     setIsQuoteSaving(true);
     try {
       const config = internalQuote.config;
@@ -503,15 +471,6 @@ export default function ProjectDocumentModal({
         services: config.services,
         discounts: config.discounts || [],
       });
-      if (canOverrideCommercial) {
-        await updateQuoteOverrides(
-          projectId,
-          config.overrides.filter(row => row.sku && row.cost && row.comment.trim()),
-          canOverrideMargin && isMarginApprovalDirty
-            ? config.margin_override_comment
-            : undefined,
-        );
-      }
       await loadCommercialQuote();
       setPreviewVersion(value => value + 1);
       setIsDirty(false);
@@ -531,7 +490,6 @@ export default function ProjectDocumentModal({
       setQuote(await refreshQuote(projectId));
       if (canEditCommercial) {
         setInternalQuote(await getInternalQuote(projectId));
-        setIsMarginApprovalDirty(false);
       }
       setPreviewVersion(value => value + 1);
       setIsDirty(false);
@@ -854,71 +812,49 @@ export default function ProjectDocumentModal({
                   <div className="h-24 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-accent" /></div>
                 ) : quote ? (
                   <div className="mt-4 space-y-4">
-                    {(quote.stale || commercialWarnings.length > 0) && (
-                      <div className="space-y-2">
-                        {quote.stale && (
-                          <div className="flex items-start gap-2 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-200">
-                            <AlertTriangle className="w-4 h-4 mt-0.5 flex-none" />
-                            Проект, каталог или условия изменились после расчёта. Для новой редакции нажмите «Обновить цены».
-                          </div>
-                        )}
-                        {commercialWarnings.map(warning => (
-                          <div key={warning} className="flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs text-red-200">
-                            <AlertTriangle className="w-4 h-4 mt-0.5 flex-none" />
-                            {warning}
-                          </div>
-                        ))}
+                    {quote.stale && (
+                      <div className="flex items-start gap-2 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-200">
+                        <AlertTriangle className="w-4 h-4 mt-0.5 flex-none" />
+                        Проект, каталог или условия изменились после расчёта. Для новой редакции нажмите «Обновить цены».
                       </div>
                     )}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <div className="rounded-xl border border-tint/20 bg-black/10 px-3 py-2">
-                        <div className="text-[10px] uppercase tracking-wider text-fg/35">До скидки</div>
-                        <div className="mt-1 text-sm font-bold">{formatQuoteMoney(quote.totals.before_discount)}</div>
-                      </div>
-                      <div className="rounded-xl border border-tint/20 bg-black/10 px-3 py-2">
-                        <div className="text-[10px] uppercase tracking-wider text-fg/35">Скидка</div>
-                        <div className="mt-1 text-sm font-bold text-accent">{formatQuoteMoney(quote.totals.discount)}</div>
-                      </div>
-                      <div className="rounded-xl border border-accent/30 bg-accent/10 px-3 py-2">
-                        <div className="text-[10px] uppercase tracking-wider text-accent/70">Итого</div>
-                        <div className="mt-1 text-sm font-bold text-accent">{formatQuoteMoney(quote.totals.grand_total)}</div>
-                      </div>
-                    </div>
-
-                    {canEditCommercial && internalQuote && (
-                      <div className="space-y-3 border-t border-tint/15 pt-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {canEditCommercial && internalQuote ? (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[120px_minmax(180px,1fr)_repeat(3,minmax(105px,135px))] xl:items-end">
                           <label className="space-y-1">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Срок действия, дней</span>
                             <input
                               type="number" min="1" max="365"
                               value={internalQuote.config.validity_days}
                               onChange={event => patchCommercialConfig({ validity_days: Number(event.target.value) })}
-                              className="w-full h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50"
+                              className="h-10 w-full rounded-lg border border-tint/20 bg-black/15 px-2 text-xs outline-none focus:border-accent/50"
                             />
                           </label>
-                          <label className="space-y-1 sm:col-span-2">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Срок изготовления</span>
-                            <input
-                              value={internalQuote.config.manufacturing_term}
-                              onChange={event => patchCommercialConfig({ manufacturing_term: event.target.value })}
-                              placeholder="Например: 20 рабочих дней"
-                              className="w-full h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50"
-                            />
-                          </label>
-                          <label className="space-y-1 sm:col-span-2 lg:col-span-1">
+                          <label className="space-y-1">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Условия оплаты</span>
                             <input
                               value={internalQuote.config.payment_terms}
                               onChange={event => patchCommercialConfig({ payment_terms: event.target.value })}
                               placeholder="Например: 70/30"
-                              className="w-full h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50"
+                              className="h-10 w-full rounded-lg border border-tint/20 bg-black/15 px-2 text-xs outline-none focus:border-accent/50"
                             />
                           </label>
+                          <div className="flex h-[46px] flex-col justify-center rounded-lg border border-tint/20 bg-black/10 px-3">
+                            <div className="text-[9px] uppercase tracking-wider text-fg/35">До скидки</div>
+                            <div className="mt-0.5 truncate text-xs font-bold">{formatQuoteMoney(quote.totals.before_discount)}</div>
+                          </div>
+                          <div className="flex h-[46px] flex-col justify-center rounded-lg border border-tint/20 bg-black/10 px-3">
+                            <div className="text-[9px] uppercase tracking-wider text-fg/35">Скидка</div>
+                            <div className="mt-0.5 truncate text-xs font-bold text-accent">{formatQuoteMoney(quote.totals.discount)}</div>
+                          </div>
+                          <div className="flex h-[46px] flex-col justify-center rounded-lg border border-accent/30 bg-accent/10 px-3">
+                            <div className="text-[9px] uppercase tracking-wider text-accent/70">Итого</div>
+                            <div className="mt-0.5 truncate text-xs font-bold text-accent">{formatQuoteMoney(quote.totals.grand_total)}</div>
+                          </div>
                         </div>
 
-                        <div>
+                        <div className="border-t border-tint/15 pt-3">
                           <div className="mb-2 flex items-center justify-between gap-3">
                             <div>
                               <div className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Скидки</div>
@@ -951,52 +887,21 @@ export default function ProjectDocumentModal({
                           )}
                         </div>
 
-                        {missingPrices.length > 0 && (
-                          <div className="rounded-xl border border-yellow-500/25 bg-yellow-500/5 p-3 space-y-2">
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-yellow-300">
-                              {canOverrideCommercial ? 'Разовые цены для этого КП' : 'Нет действующих цен в каталоге'}
-                            </div>
-                            {missingPrices.map(item => {
-                              const override = internalQuote.config.overrides.find(row => row.sku === item.sku);
-                              return (
-                                <div key={item.sku} className={`grid gap-2 items-center ${canOverrideCommercial ? 'grid-cols-[minmax(160px,1fr)_120px_minmax(180px,1fr)]' : 'grid-cols-1'}`}>
-                                  <div className="text-xs"><span className="font-mono text-yellow-200">{item.sku}</span><span className="text-fg/40"> · {item.name} · {item.unit}</span></div>
-                                  {canOverrideCommercial && (
-                                    <>
-                                      <input type="number" min="0" step="0.01" value={override?.cost || ''} onChange={event => updateMissingPriceOverride(item.sku, { cost: event.target.value })} placeholder="Цена" className="h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50" />
-                                      <input value={override?.comment || ''} onChange={event => updateMissingPriceOverride(item.sku, { comment: event.target.value })} placeholder="Обязательное обоснование" className="h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50" />
-                                    </>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {canOverrideMargin && internalQuote.margin_approval.required && (
-                          <div className="space-y-1">
-                            <label className="block space-y-1">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-red-300">Обоснование исключения по минимальной цене</span>
-                              <input
-                                value={internalQuote.config.margin_override_comment}
-                                onChange={event => patchCommercialConfig({ margin_override_comment: event.target.value })}
-                                placeholder="Комментарий обязателен для согласования этой редакции"
-                                className="w-full h-9 rounded-lg bg-black/15 border border-red-500/25 px-2 text-xs outline-none focus:border-red-400/60"
-                              />
-                            </label>
-                            {internalQuote.margin_approval.valid ? (
-                              <div className="text-[10px] text-emerald-300/80">
-                                Согласовано для редакции {internalQuote.margin_approval.approved_revision}
-                                {internalQuote.margin_approval.approved_by ? ` · пользователь #${internalQuote.margin_approval.approved_by}` : ''}
-                                {internalQuote.margin_approval.approved_at ? ` · ${new Date(internalQuote.margin_approval.approved_at).toLocaleString('ru-RU')}` : ''}
-                              </div>
-                            ) : internalQuote.margin_approval.comment ? (
-                              <div className="text-[10px] text-yellow-200/80">
-                                Предыдущее согласование недействительно после изменения ценового контекста. Введите новое обоснование.
-                              </div>
-                            ) : null}
-                          </div>
-                        )}
+                      </div>
+                    ) : (
+                      <div className="ml-auto grid w-full max-w-lg grid-cols-3 gap-2">
+                        <div className="rounded-lg border border-tint/20 bg-black/10 px-3 py-2">
+                          <div className="text-[9px] uppercase tracking-wider text-fg/35">До скидки</div>
+                          <div className="mt-0.5 truncate text-xs font-bold">{formatQuoteMoney(quote.totals.before_discount)}</div>
+                        </div>
+                        <div className="rounded-lg border border-tint/20 bg-black/10 px-3 py-2">
+                          <div className="text-[9px] uppercase tracking-wider text-fg/35">Скидка</div>
+                          <div className="mt-0.5 truncate text-xs font-bold text-accent">{formatQuoteMoney(quote.totals.discount)}</div>
+                        </div>
+                        <div className="rounded-lg border border-accent/30 bg-accent/10 px-3 py-2">
+                          <div className="text-[9px] uppercase tracking-wider text-accent/70">Итого</div>
+                          <div className="mt-0.5 truncate text-xs font-bold text-accent">{formatQuoteMoney(quote.totals.grand_total)}</div>
+                        </div>
                       </div>
                     )}
                   </div>

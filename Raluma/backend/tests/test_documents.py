@@ -1350,15 +1350,15 @@ class TestSketchProject:
         )
 
     @pytest.mark.parametrize(
-        ("section", "expected_diagram"),
+        ("section", "expected_diagram", "has_top_view"),
         [
-            (_slide.__func__(), "ВИД ИЗ ПОМЕЩЕНИЯ"),
-            (_book.__func__(), "ВИД ИЗ ПОМЕЩЕНИЯ"),
-            (_lift.__func__(), "ВИД ИЗ ПОМЕЩЕНИЯ"),
+            (_slide.__func__(), "ВИД ИЗ ПОМЕЩЕНИЯ", True),
+            (_book.__func__(), "ВИД ИЗ ПОМЕЩЕНИЯ", False),
+            (_lift.__func__(), "ВИД ИЗ ПОМЕЩЕНИЯ", False),
         ],
     )
     def test_guest_preview_supports_each_system(
-        self, client, section, expected_diagram
+        self, client, section, expected_diagram, has_top_view
     ):
         response = client.post(
             "/api/projects/local/documents/sketch/preview",
@@ -1370,7 +1370,7 @@ class TestSketchProject:
         assert expected_diagram.lower() in response.text.lower()
         assert "data-sketch-section=" in response.text
         assert "Размеры стекол" in response.text
-        assert "вид сверху" not in response.text.lower()
+        assert ("вид сверху" in response.text.lower()) is has_top_view
         assert "Комплектация" not in response.text
 
     def test_mixed_preview_pdf_and_docx_share_order_geometry_and_components(
