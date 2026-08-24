@@ -213,7 +213,7 @@
 <!-- ══════ ШАПКА ══════ -->
 <table class="hdr">
   <tr>
-    <td style="width:35%">{% if project.invoice_number %}СЧЁТ №&nbsp; {{ project.invoice_number }}{% else %}ПРОЕКТ №&nbsp; {{ project.order_number or project.number }}{% endif %}</td>
+    <td style="width:35%">ПРОЕКТ №&nbsp; {{ project_number }}</td>
     <td style="width:30%; text-align:center">{{ section.name }}</td>
     <td style="width:35%; text-align:right">{{ calc.system_text }}</td>
   </tr>
@@ -923,7 +923,7 @@
   {'num':'7', 'action':'Упаковка панелей в пузырьковую пленку и картон', 'note':''}
 ] %}
 <div class="check-page">
-  <div class="check-title">{% if project.invoice_number %}СЧЁТ № {{ project.invoice_number }}{% else %}ПРОЕКТ № {{ project.order_number or project.number }}{% endif %} — {{ section.name }}</div>
+  <div class="check-title">ПРОЕКТ № {{ project_number }} — {{ section.name }}</div>
 
   <table class="check-table">
     <thead>

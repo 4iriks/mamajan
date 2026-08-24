@@ -9,6 +9,7 @@ from typing import Iterable
 
 from engine.book_calc import calculate_book
 from engine.lift_calc import calculate_lift, lift_geometry_error
+from engine.document_numbers import production_project_number
 from engine.office_diagrams import render_slide_room, render_slide_top, section_diagrams
 from engine.slide_calc import (
     _inter_glass_article,
@@ -368,11 +369,7 @@ def _extra_components(owner: object, *, multiply: bool) -> list[dict]:
             if _number(raw_qty) > 0
             else raw_qty
         )
-        stage = (
-            item.get("deliveryStage")
-            or item.get("delivery_stage")
-            or "both"
-        )
+        stage = item.get("deliveryStage") or item.get("delivery_stage") or "both"
         rows.append(
             _component_row(
                 article=article,
@@ -401,10 +398,18 @@ def _extra_components(owner: object, *, multiply: bool) -> list[dict]:
 
 def _diagram_rows(section: object, calc: object) -> list[dict]:
     system = _text(getattr(section, "system", None), "").upper()
-    # The production-sheet SVG is intentionally a wide technical strip.  It is
-    # useful on the manufacturing form, but it distorts width/height when reused
-    # in an A4 sketch.  The dedicated room renderer keeps the physical aspect
-    # ratio and includes overall width/height dimension lines.
+    # Keep the dedicated room renderer for its physical aspect ratio and overall
+    # dimensions.  The top view must be identical to the production sheet: that
+    # reference diagram includes the wall and side-profile assemblies.
+    reference_diagrams = section_diagrams(section, calc) if system == "СЛАЙД" else []
+    reference_top = next(
+        (
+            payload
+            for title, payload in reference_diagrams
+            if "сверху" in title.casefold()
+        ),
+        None,
+    )
     diagrams = (
         [
             (
@@ -419,7 +424,8 @@ def _diagram_rows(section: object, calc: object) -> list[dict]:
             ),
             (
                 "Схема · вид сверху",
-                render_slide_top(
+                reference_top
+                or render_slide_top(
                     section,
                     calc,
                     include_title=False,
@@ -541,19 +547,17 @@ def build_sketch_project_context(
         except (TypeError, ValueError):
             order = 0
         prepared.append(_section_data(section, order or index))
-    invoice_number = _text(getattr(project, "invoice_number", None), "")
     order_number = _text(
-        getattr(project, "order_number", None)
-        or getattr(project, "number", None),
+        getattr(project, "order_number", None) or getattr(project, "number", None),
         "",
     )
-    document_number = invoice_number or order_number
+    document_number = production_project_number(project)
     return {
         "doc_type": "sketch",
         "title": "Эскизный проект",
         "document_title": f"ЭСКИЗНЫЙ ПРОЕКТ № {document_number}",
         "project_number": document_number,
-        "invoice_number": invoice_number,
+        "invoice_number": _text(getattr(project, "invoice_number", None), ""),
         "order_number": order_number,
         "sections": prepared,
         "project_components": _extra_components(project, multiply=False),

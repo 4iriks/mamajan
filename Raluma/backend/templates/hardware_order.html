@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Наряд-заказ на фурнитуру {{ (project.invoice_number or project.order_number or project.number)|e }}</title>
+  <title>Наряд-заказ на фурнитуру {{ project_number|e }}</title>
   <style>
     @page { size: A4 portrait; margin: 7mm; }
     * { box-sizing: border-box; }
@@ -101,7 +101,7 @@
 <body>
   {% for page in hardware_order_pages %}
   <section class="page">
-    <h1>Наряд-заказ на фурнитуру — {{ (project.invoice_number or project.order_number or project.number)|e }}</h1>
+    <h1>Наряд-заказ на фурнитуру — {{ project_number|e }}</h1>
     <h2>{{ page.system|e }}</h2>
     {% if loop.first %}
       {% for warning in document_warnings or [] %}
@@ -150,7 +150,7 @@
   </section>
   {% else %}
   <section class="page">
-    <h1>Наряд-заказ на фурнитуру — {{ (project.invoice_number or project.order_number or project.number)|e }}</h1>
+    <h1>Наряд-заказ на фурнитуру — {{ project_number|e }}</h1>
     <div class="empty">В проекте нет секций для формирования наряд-заказа.</div>
   </section>
   {% endfor %}

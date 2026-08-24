@@ -29,6 +29,8 @@ from engine.pdf import (
     profile_dimension,
     section_extra_components,
 )
+from engine.office_diagrams import section_diagrams
+from engine.office_docx import build_project_docx, build_section_docx
 from engine.project_documents import (
     CalculatedSection,
     _build_delivery_context,
@@ -42,7 +44,8 @@ from engine.project_documents import (
     build_project_document_context,
     render_project_document_html,
 )
-from engine.office_xlsx import build_project_xlsx
+from engine.office_xlsx import build_project_xlsx, build_section_xlsx
+from engine.slide_calc import calculate_slide
 from schemas import SectionCreate
 
 
@@ -439,6 +442,8 @@ class TestPreview:
         assert r.status_code == 200
         assert "text/html" in r.headers["content-type"]
         assert "contenteditable" in r.text
+        assert f"ПРОЕКТ №&nbsp; {project['order_number']}" in r.text
+        assert "СЧЁТ №" not in r.text
         assert 'data-profile-image="RS2333-left"' in r.text
         assert 'data-profile-image="RS2333-right"' in r.text
         assert 'width="66" height="30"' in r.text
@@ -1493,7 +1498,31 @@ class TestSketchProject:
         assert preview.status_code == 200
         assert pdf.status_code == 200
         assert docx.status_code == 200
-        assert f"ЭСКИЗНЫЙ ПРОЕКТ № {project['invoice_number']}" in preview.text
+        assert f"ЭСКИЗНЫЙ ПРОЕКТ № {project['order_number']}" in preview.text
+        assert f"ЭСКИЗНЫЙ ПРОЕКТ № {project['invoice_number']}" not in preview.text
+
+    def test_slide_top_view_reuses_production_sheet_diagram(self):
+        project = SimpleNamespace(
+            number="B26-TEST",
+            order_number="B26-TEST",
+            invoice_number="00000004",
+        )
+        section = SimpleNamespace(**SectionCreate(**self._slide()).model_dump())
+        calc = calculate_slide(section)
+
+        context = build_project_document_context(project, [section], "sketch")
+        expected_top = next(
+            payload
+            for title, payload in section_diagrams(section, calc)
+            if "сверху" in title.casefold()
+        )
+        actual_top = next(
+            row["png"]
+            for row in context["sections"][0]["diagrams"]
+            if row["kind"] == "top"
+        )
+
+        assert actual_top == expected_top
 
     def test_context_json_has_no_price_or_internal_fields(self):
         project = SimpleNamespace(number="SAFE-001")
@@ -1672,9 +1701,7 @@ class TestSketchProject:
             ensure_ascii=False,
         )
 
-        paint = client.post(
-            "/api/projects/local/documents/paint/preview", json=payload
-        )
+        paint = client.post("/api/projects/local/documents/paint/preview", json=payload)
         delivery = client.post(
             "/api/projects/local/documents/delivery/preview", json=payload
         )
@@ -1719,9 +1746,7 @@ class TestSketchProject:
         assert document_xml.count('w:type="page"') >= 2
         assert "РАЗМЕРЫ СТЕКОЛ" in self._docx_text(docx.content)
 
-    def test_slide_without_glass_keeps_calculated_sizes_but_skips_orders(
-        self, client
-    ):
+    def test_slide_without_glass_keeps_calculated_sizes_but_skips_orders(self, client):
         payload = self._payload(
             [self._slide(glass_supplied=False, width=2000, height=2400)]
         )
@@ -1732,9 +1757,7 @@ class TestSketchProject:
         sketch = client.post(
             "/api/projects/local/documents/sketch/preview", json=payload
         )
-        glass = client.post(
-            "/api/projects/local/documents/glass/preview", json=payload
-        )
+        glass = client.post("/api/projects/local/documents/glass/preview", json=payload)
         delivery = client.post(
             "/api/projects/local/documents/delivery/preview", json=payload
         )
@@ -1767,6 +1790,11 @@ class TestSketchProject:
 
         assert r.status_code == 200
         assert "Заявка на покраску" in r.text
+        assert (
+            f'<b>Проект №</b></td><td class="paint-meta-value">{project["order_number"]}'
+            in r.text
+        )
+        assert "<b>Счёт №</b>" not in r.text
         assert "RS1313" in r.text
         assert 'class="doc-head"' in r.text
         assert 'class="meta paint-meta"' in r.text
@@ -1878,6 +1906,9 @@ class TestSketchProject:
 
         assert r.status_code == 200
         assert "Заказ стекла" in r.text
+        assert f">{project['order_number']}</td>" in r.text
+        assert "<b>Проект №</b>" in r.text
+        assert "<b>Счёт №</b>" not in r.text
         assert "КРОМКИ ПОЛИРОВАННЫЕ" in r.text
         assert "ОБРАЩАЮ ВНИМАНИЕ" in r.text
         assert 'data-field="project_number"' in r.text
@@ -2211,6 +2242,47 @@ class TestOfficeDownloads:
                 sheets.append(rows)
                 sheet_index += 1
         return sheets
+
+    def test_all_production_office_exports_use_manual_project_number(self):
+        project = SimpleNamespace(
+            number="B26-777",
+            order_number="B26-777",
+            invoice_number="00000004",
+            customer="Тестовый заказчик",
+            extra_components="[]",
+            extra_parts="",
+            paint_manual_rows="[]",
+            hardware_installation="not_installed",
+            delivery_note_data="{}",
+            production_stages=1,
+            current_stage=1,
+        )
+        section = SimpleNamespace(
+            **SectionCreate(**TestSketchProject._slide()).model_dump()
+        )
+        calc = calculate_slide(section)
+
+        exports = {
+            "section.docx": build_section_docx(project, section, calc),
+            "section.xlsx": build_section_xlsx(project, section, calc),
+            "sketch.docx": build_project_docx(project, [section], "sketch"),
+            "glass.docx": build_project_docx(project, [section], "glass"),
+            "glass.xlsx": build_project_xlsx(project, [section], "glass"),
+            "paint.docx": build_project_docx(project, [section], "paint"),
+            "paint.xlsx": build_project_xlsx(project, [section], "paint"),
+            "hardware.docx": build_project_docx(
+                project, [section], "hardware_order"
+            ),
+            "hardware.xlsx": build_project_xlsx(
+                project, [section], "hardware_order"
+            ),
+            "delivery.xlsx": build_project_xlsx(project, [section], "delivery"),
+        }
+
+        for name, content in exports.items():
+            archive_text = self._archive_text(content)
+            assert "B26-777" in archive_text, name
+            assert "00000004" not in archive_text, name
 
     @pytest.mark.parametrize(
         ("system", "file_format", "expected_text"),
@@ -3857,8 +3929,7 @@ class TestDeliveryNote:
         context = _build_delivery_context(project, [section])
         rows = {row["article"]: row for row in context["delivery_item2_rows"]}
         project_rows = {
-            row["article"]: row
-            for row in context["delivery_project_extra_rows"]
+            row["article"]: row for row in context["delivery_project_extra_rows"]
         }
 
         assert (
@@ -3906,10 +3977,7 @@ class TestDeliveryNote:
         )
         rows = {row["article"]: row for row in context["delivery_item2_rows"]}
 
-        assert (
-            rows["RS1002"]["name"]
-            == "Пузырьковый уплотнитель (заготовка 3000 мм)"
-        )
+        assert rows["RS1002"]["name"] == "Пузырьковый уплотнитель (заготовка 3000 мм)"
         assert rows["RS1002"]["size"] == "3000 мм"
         assert rows["RS1002"]["qty"] == 4
 
@@ -3955,8 +4023,7 @@ class TestDeliveryNote:
         )
         stage_one_kinds = {row["kind"] for row in stage_one["delivery_item1_rows"]}
         stage_one_extras = {
-            row["article"]: row
-            for row in stage_one["delivery_project_extra_rows"]
+            row["article"]: row for row in stage_one["delivery_project_extra_rows"]
         }
 
         assert stage_one_kinds == {"construction"}
@@ -3981,8 +4048,7 @@ class TestDeliveryNote:
         )
         stage_two_kinds = {row["kind"] for row in stage_two["delivery_item1_rows"]}
         stage_two_extras = {
-            row["article"]: row
-            for row in stage_two["delivery_project_extra_rows"]
+            row["article"]: row for row in stage_two["delivery_project_extra_rows"]
         }
 
         assert stage_two_kinds == {"glass"}
@@ -4032,9 +4098,7 @@ class TestDeliveryNote:
         )
         kinds = {row["kind"] for row in context["delivery_item1_rows"]}
         hardware = {row["article"] for row in context["delivery_item2_rows"]}
-        extras = {
-            row["article"] for row in context["delivery_project_extra_rows"]
-        }
+        extras = {row["article"] for row in context["delivery_project_extra_rows"]}
 
         assert kinds == {"construction", "glass"}
         assert "RL2092" in hardware
@@ -4444,7 +4508,7 @@ class TestDeliveryNote:
             delivery_note_data=json.dumps(
                 {"includeGlass": False, "places": {legacy_key: "6"}},
                 ensure_ascii=False,
-            )
+            ),
         )
         restored = _build_delivery_context(legacy_project, [section])
         restored_row = next(
@@ -4465,7 +4529,7 @@ class TestDeliveryNote:
                     },
                 },
                 ensure_ascii=False,
-            )
+            ),
         )
         cleared = _build_delivery_context(cleared_project, [section])
         cleared_row = next(
@@ -4523,9 +4587,7 @@ class TestDeliveryNote:
         assert "Количество" in cell_values
         assert "ИТОГО" not in cell_values
         assert not any(
-            cell.data_type == "f"
-            for row in worksheet.iter_rows()
-            for cell in row
+            cell.data_type == "f" for row in worksheet.iter_rows() for cell in row
         )
 
     def test_authenticated_preview_renders_saved_delivery_requisites(
@@ -4559,7 +4621,8 @@ class TestDeliveryNote:
         )
 
         assert response.status_code == 200
-        assert f"Накладная № {project['invoice_number']}" in response.text
+        assert f"Накладная № {project['order_number']}" in response.text
+        assert f"Накладная № {project['invoice_number']}" not in response.text
         assert "15.07.2026" in response.text
         assert "Отгрузка по звонку" in response.text
         assert "Иван Иванов" in response.text
@@ -4801,8 +4864,7 @@ class TestHardwareOrder:
             "Дополнительные комплектующие проекта",
         ]
         section_rows = {
-            row["article"]: row
-            for row in context["hardware_order_pages"][0]["rows"]
+            row["article"]: row for row in context["hardware_order_pages"][0]["rows"]
         }
         project_page = context["hardware_order_pages"][1]
         project_rows = {row["article"]: row for row in project_page["rows"]}
@@ -4878,25 +4940,19 @@ class TestHardwareOrder:
         )
         assert not any(row["article"] == "RU010" for row in installed)
         assert not any(
-            "DIN7982" in row["name"] and "4,8×25" in row["name"]
-            for row in installed
+            "DIN7982" in row["name"] and "4,8×25" in row["name"] for row in installed
         )
         assert not any(row["article"] == "RU003" for row in installed)
         assert not any(row["article"] == "RU005" for row in installed)
         project_rows = installed_context["hardware_order_pages"][-1]["rows"]
-        installed_ru003 = [
-            row for row in project_rows if row["article"] == "RU003"
-        ]
+        installed_ru003 = [row for row in project_rows if row["article"] == "RU003"]
         assert len(installed_ru003) == 1
         assert installed_ru003[0]["name"] == "Пользовательский комплект роликов"
         assert installed_ru003[0]["qty"] == 7
-        installed_ru005 = [
-            row for row in project_rows if row["article"] == "RU005"
-        ]
+        installed_ru005 = [row for row in project_rows if row["article"] == "RU005"]
         assert len(installed_ru005) == 1
         assert (
-            installed_ru005[0]["name"]
-            == "Пользовательский комплект усиленных роликов"
+            installed_ru005[0]["name"] == "Пользовательский комплект усиленных роликов"
         )
         assert installed_ru005[0]["qty"] == 5
         assert any(row["article"] == "RU005" for row in not_installed)
@@ -4948,9 +5004,9 @@ class TestHardwareOrder:
             center_handle="Без ручки (глухие)",
         )
 
-        page = _build_hardware_order_context(
-            self.project(), [section]
-        )["hardware_order_pages"][0]
+        page = _build_hardware_order_context(self.project(), [section])[
+            "hardware_order_pages"
+        ][0]
         rows = {row["article"]: row for row in page["rows"]}
 
         assert rows["RS1002"]["qty"] == rs1002_qty
@@ -4995,8 +5051,12 @@ class TestHardwareOrder:
 
         assert authenticated.status_code == 200
         assert (
-            f"Наряд-заказ на фурнитуру — {project['invoice_number']}"
+            f"Наряд-заказ на фурнитуру — {project['order_number']}"
             in authenticated.text
+        )
+        assert (
+            f"Наряд-заказ на фурнитуру — {project['invoice_number']}"
+            not in authenticated.text
         )
         assert "СЛАЙД" in authenticated.text
 

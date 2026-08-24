@@ -22,6 +22,10 @@ import models
 import schemas
 from auth import get_current_user, decode_token
 from engine.book_calc import BookCalculationError, calculate_book
+from engine.document_numbers import (
+    commercial_document_number,
+    production_project_number,
+)
 from engine.lift_calc import calculate_lift
 from engine.office_common import normalize_filename
 from engine.office_docx import build_project_docx, build_section_docx
@@ -58,7 +62,12 @@ DOCX_PROJECT_DOCUMENTS = {
 }
 XLSX_PROJECT_DOCUMENTS = {"glass", "paint", "hardware_order", "delivery"}
 OFFICE_PROJECT_DOCUMENTS = DOCX_PROJECT_DOCUMENTS | XLSX_PROJECT_DOCUMENTS
-PRODUCTION_PROJECT_DOCUMENTS = {"glass", "paint", "delivery", "hardware_order"}
+PRODUCTION_PROJECT_DOCUMENTS = {
+    "glass",
+    "paint",
+    "delivery",
+    "hardware_order",
+}
 OFFICE_MEDIA_TYPES = {
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -66,12 +75,17 @@ OFFICE_MEDIA_TYPES = {
 
 
 def _project_document_number(project: object) -> str:
-    return str(
-        getattr(project, "invoice_number", None)
-        or getattr(project, "order_number", None)
-        or getattr(project, "number", None)
-        or "project"
-    )
+    return commercial_document_number(project, fallback="project")
+
+
+def _production_project_number(project: object) -> str:
+    return production_project_number(project, fallback="project")
+
+
+def _project_export_number(project: object, doc_type: str) -> str:
+    if doc_type in COMMERCIAL_DOCUMENTS:
+        return _project_document_number(project)
+    return _production_project_number(project)
 
 
 def _calculate_section(section):
@@ -442,7 +456,7 @@ def download_local_pdf(payload: LocalDocumentPayload):
     html = render_pdf_html(project, section, calc)
     pdf_bytes = generate_pdf(html)
     pdf_bytes = append_pdf_drawings(pdf_bytes, drawing_files_for_sections([section]))
-    filename = f"ПЛ_{_project_document_number(project)}_{section.name}.pdf"
+    filename = f"ПЛ_{_production_project_number(project)}_{section.name}.pdf"
     from urllib.parse import quote
 
     encoded = quote(filename)
@@ -460,7 +474,7 @@ def _download_local_section_office(
     project, section = _build_local_document_objects(payload)
     _ensure_book_section_documents_supported(section)
     content = _build_section_office(project, section, file_format)
-    filename = f"ПЛ_{_project_document_number(project)}_{section.name}.{file_format}"
+    filename = f"ПЛ_{_production_project_number(project)}_{section.name}.{file_format}"
     return _office_response(content, filename, file_format)
 
 
@@ -496,7 +510,7 @@ def download_local_project_document_pdf(
     pdf_bytes = generate_pdf(html)
     if doc_type == "glass":
         pdf_bytes = append_pdf_drawings(pdf_bytes, drawing_files_for_sections(sections))
-    filename = f"{DOC_TITLES[doc_type]}_{_project_document_number(project)}.pdf"
+    filename = f"{DOC_TITLES[doc_type]}_{_project_export_number(project, doc_type)}.pdf"
     from urllib.parse import quote
 
     encoded = quote(filename)
@@ -521,7 +535,7 @@ def _download_local_project_office(
         doc_type,
         file_format,
     )
-    filename = f"{DOC_TITLES[doc_type]}_{_project_document_number(project)}.{file_format}"
+    filename = f"{DOC_TITLES[doc_type]}_{_project_export_number(project, doc_type)}.{file_format}"
     return _office_response(content, filename, file_format)
 
 
@@ -593,7 +607,7 @@ def download_project_document_pdf(
         )
     if doc_type in COMMERCIAL_DOCUMENTS:
         db.commit()
-    filename = f"{DOC_TITLES[doc_type]}_{_project_document_number(project)}.pdf"
+    filename = f"{DOC_TITLES[doc_type]}_{_project_export_number(project, doc_type)}.pdf"
     from urllib.parse import quote
 
     encoded = quote(filename)
@@ -637,7 +651,7 @@ def _download_project_office(
         file_format,
         quote=quote,
     )
-    filename = f"{DOC_TITLES[doc_type]}_{_project_document_number(project)}.{file_format}"
+    filename = f"{DOC_TITLES[doc_type]}_{_project_export_number(project, doc_type)}.{file_format}"
     return _office_response(content, filename, file_format)
 
 
@@ -705,7 +719,7 @@ def download_pdf(
     html = render_pdf_html(project, section, calc)
     pdf_bytes = generate_pdf(html)
     pdf_bytes = append_pdf_drawings(pdf_bytes, drawing_files_for_sections([section]))
-    filename = f"ПЛ_{_project_document_number(project)}_сек{section.order}.pdf"
+    filename = f"ПЛ_{_production_project_number(project)}_сек{section.order}.pdf"
     from urllib.parse import quote
 
     encoded = quote(filename)
@@ -732,7 +746,9 @@ def _download_section_office(
     _ensure_book_section_documents_supported(section)
     content = _build_section_office(project, section, file_format)
     section_number = getattr(section, "order", None) or getattr(section, "name", "")
-    filename = f"ПЛ_{_project_document_number(project)}_сек{section_number}.{file_format}"
+    filename = (
+        f"ПЛ_{_production_project_number(project)}_сек{section_number}.{file_format}"
+    )
     return _office_response(content, filename, file_format)
 
 

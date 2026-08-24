@@ -254,7 +254,7 @@
 
 <section class="page">
   <div class="header">
-    <div>{% if project.invoice_number %}СЧЁТ № {{ project.invoice_number|e }}{% else %}ПРОЕКТ № {{ (project.order_number or project.number)|e }}{% endif %}</div>
+    <div>ПРОЕКТ № {{ project_number|e }}</div>
     <div>{{ section.name|e }}</div>
     <div>RALUMA ЛИФТ · {{ section.panels }} ПАН.</div>
   </div>
@@ -463,7 +463,7 @@
 
 <section class="page">
   <div class="header page-two-head">
-    <div>{% if project.invoice_number %}СЧЁТ № {{ project.invoice_number|e }}{% else %}ПРОЕКТ № {{ (project.order_number or project.number)|e }}{% endif %}</div>
+    <div>ПРОЕКТ № {{ project_number|e }}</div>
     <div>{{ section.name|e }}</div>
     <div>ЛИФТ · НАРЕЗКА И КОМПЛЕКТАЦИЯ</div>
   </div>

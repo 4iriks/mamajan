@@ -22,6 +22,7 @@ from engine.office_common import (
     load_overrides,
     override_value,
 )
+from engine.document_numbers import production_project_number
 from engine.office_diagrams import section_diagrams
 from engine.office_docx import CHECKLIST_ROWS
 from engine.office_section_data import hardware_rows, profile_rows, section_summary_rows
@@ -284,7 +285,7 @@ def _write_section_header(
         0,
         1,
         3,
-        f"ПРОЕКТ № {getattr(project, 'number', '')}",
+        f"ПРОЕКТ № {production_project_number(project)}",
         formats["title"],
     )
     worksheet.merge_range(
@@ -916,7 +917,7 @@ def _build_slide_checklist_sheet(
         0,
         1,
         11,
-        f"ПРОЕКТ № {getattr(project, 'number', '')} — {getattr(section, 'name', '')}",
+        f"ПРОЕКТ № {production_project_number(project)} — {getattr(section, 'name', '')}",
         formats["title"],
     )
     row = _write_slide_checklist_block(
@@ -1120,13 +1121,13 @@ def _project_header(
 ) -> int:
     info_start = max(3, last_col - 3)
     worksheet.merge_range(0, 0, 2, info_start - 1, title.upper(), formats["title"])
-    worksheet.write(0, info_start, "Заявка", formats["label"])
+    worksheet.write(0, info_start, "Проект №", formats["label"])
     worksheet.merge_range(
         0,
         info_start + 1,
         0,
         last_col,
-        str(getattr(project, "number", "") or ""),
+        production_project_number(project),
         formats["cell"],
     )
     worksheet.write(1, info_start, "Заказчик", formats["label"])
@@ -1436,13 +1437,7 @@ def _build_hardware_order_xlsx(context: dict) -> bytes:
         for column, width in enumerate(widths):
             worksheet.set_column(column, column, width)
 
-        project = context["project"]
-        project_number = str(
-            getattr(project, "invoice_number", None)
-            or getattr(project, "order_number", None)
-            or getattr(project, "number", None)
-            or ""
-        )
+        project_number = context["project_number"]
         worksheet.merge_range(
             0,
             0,
@@ -1549,12 +1544,7 @@ def _build_delivery_xlsx(context: dict) -> bytes:
     workbook = xlsxwriter.Workbook(output, {"in_memory": True})
     project = context["project"]
     delivery = context["delivery"]
-    project_number = str(
-        getattr(project, "invoice_number", None)
-        or getattr(project, "order_number", None)
-        or getattr(project, "number", None)
-        or ""
-    )
+    project_number = context["project_number"]
     workbook.set_properties(
         {
             "title": f"Накладная {project_number}",

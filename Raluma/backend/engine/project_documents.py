@@ -14,6 +14,7 @@ from typing import Iterable
 from jinja2 import Environment, FileSystemLoader
 
 from engine.book_calc import calculate_book
+from engine.document_numbers import production_project_number
 from engine.glass_types import default_glass_type, normalize_glass_type
 from engine.lift_calc import PENOPLEX_20MM, calculate_lift
 from engine.pdf import TEMPLATES_DIR, _img_b64, glass_mm
@@ -48,10 +49,54 @@ def _plural(value: int, forms: tuple[str, str, str]) -> str:
 
 
 def _triplet_words(value: int, feminine: bool = False) -> list[str]:
-    hundreds = ("", "сто", "двести", "триста", "четыреста", "пятьсот", "шестьсот", "семьсот", "восемьсот", "девятьсот")
-    tens = ("", "", "двадцать", "тридцать", "сорок", "пятьдесят", "шестьдесят", "семьдесят", "восемьдесят", "девяносто")
-    teens = ("десять", "одиннадцать", "двенадцать", "тринадцать", "четырнадцать", "пятнадцать", "шестнадцать", "семнадцать", "восемнадцать", "девятнадцать")
-    ones = ("", "одна" if feminine else "один", "две" if feminine else "два", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять")
+    hundreds = (
+        "",
+        "сто",
+        "двести",
+        "триста",
+        "четыреста",
+        "пятьсот",
+        "шестьсот",
+        "семьсот",
+        "восемьсот",
+        "девятьсот",
+    )
+    tens = (
+        "",
+        "",
+        "двадцать",
+        "тридцать",
+        "сорок",
+        "пятьдесят",
+        "шестьдесят",
+        "семьдесят",
+        "восемьдесят",
+        "девяносто",
+    )
+    teens = (
+        "десять",
+        "одиннадцать",
+        "двенадцать",
+        "тринадцать",
+        "четырнадцать",
+        "пятнадцать",
+        "шестнадцать",
+        "семнадцать",
+        "восемнадцать",
+        "девятнадцать",
+    )
+    ones = (
+        "",
+        "одна" if feminine else "один",
+        "две" if feminine else "два",
+        "три",
+        "четыре",
+        "пять",
+        "шесть",
+        "семь",
+        "восемь",
+        "девять",
+    )
     words = [hundreds[value // 100]] if value // 100 else []
     remainder = value % 100
     if 10 <= remainder <= 19:
@@ -66,7 +111,9 @@ def _triplet_words(value: int, feminine: bool = False) -> list[str]:
 
 def _money_in_words(value: object) -> str:
     try:
-        amount = Decimal(str(value or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        amount = Decimal(str(value or 0)).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
     except (InvalidOperation, TypeError, ValueError):
         amount = Decimal("0")
     rubles = int(amount)
@@ -568,9 +615,7 @@ def _project_extra_paint_rows(project: object) -> list[dict]:
                 "qty": qty,
                 "clean": clean,
                 "allowance": clean + 50 if clean > 0 else 0,
-                "imageFile": extra.get("imageFile")
-                or extra.get("image_file")
-                or "",
+                "imageFile": extra.get("imageFile") or extra.get("image_file") or "",
                 "note": "Дополнительное комплектующее проекта",
             }
         )
@@ -1067,9 +1112,7 @@ def _build_delivery_glass_rows(
         system = str(getattr(section, "system", "") or "").strip().upper()
         if not system or system == "КОМПЛЕКТАЦИЯ":
             continue
-        if system == "СЛАЙД" and not bool(
-            getattr(section, "glass_supplied", True)
-        ):
+        if system == "СЛАЙД" and not bool(getattr(section, "glass_supplied", True)):
             continue
 
         section_rows: dict[tuple, dict] = {}
@@ -1128,12 +1171,7 @@ def _build_delivery_glass_rows(
             }
 
         section_number = _delivery_section_number(section, fallback)
-        project_number = str(
-            getattr(project, "invoice_number", None)
-            or getattr(project, "order_number", None)
-            or getattr(project, "number", None)
-            or ""
-        ).strip()
+        project_number = production_project_number(project)
         for row_index, row in enumerate(section_rows.values(), start=1):
             row_glass_type = row["glass_type"]
             outer_key = (color, row_glass_type)
@@ -1324,9 +1362,7 @@ def _build_delivery_hardware_rows(
                 article = str(getattr(item, "article", "") or "").strip().upper()
                 name = str(getattr(item, "name", "") or "").strip()
                 is_lock = name.lower().startswith("замок")
-                if _exclude_installed_hardware(
-                    hardware_installation, article, name
-                ):
+                if _exclude_installed_hardware(hardware_installation, article, name):
                     continue
                 if article in excluded_locks:
                     continue
@@ -1572,6 +1608,7 @@ def _build_delivery_context(project: object, sections: Iterable[object]) -> dict
         "doc_type": "delivery",
         "title": DOC_TITLES["delivery"],
         "project": project,
+        "project_number": production_project_number(project),
         "sections": sorted_sections,
         "delivery": {
             **settings,
@@ -1617,8 +1654,7 @@ def _exclude_installed_hardware(
     if "DIN7982" not in combined_text.upper():
         return False
     normalized_name = (
-        combined_text
-        .casefold()
+        combined_text.casefold()
         .replace("×", "x")
         .replace("х", "x")
         .replace(" ", "")
@@ -2043,8 +2079,7 @@ def _build_hardware_order_context(
         sorted(system for system in grouped_sections if system not in ordered_systems)
     )
     hardware_installation = str(
-        getattr(project, "hardware_installation", "not_installed")
-        or "not_installed"
+        getattr(project, "hardware_installation", "not_installed") or "not_installed"
     )
     pages = [
         _build_hardware_order_page(
@@ -2061,6 +2096,7 @@ def _build_hardware_order_context(
         "doc_type": "hardware_order",
         "title": DOC_TITLES["hardware_order"],
         "project": project,
+        "project_number": production_project_number(project),
         "sections": section_rows,
         "document_warnings": _slide_document_warnings(section_rows),
         "hardware_installation": hardware_installation,
@@ -2148,6 +2184,7 @@ def build_project_document_context(
         "doc_type": doc_type,
         "title": DOC_TITLES[doc_type],
         "project": project,
+        "project_number": production_project_number(project),
         "sections": [item.section for item in calculated],
         "commercial_rows": commercial_rows,
         "paint_pages": paint_pages,

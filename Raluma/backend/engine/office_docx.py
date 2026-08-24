@@ -32,6 +32,10 @@ from engine.office_common import (
     load_overrides,
     override_value,
 )
+from engine.document_numbers import (
+    commercial_document_number,
+    production_project_number,
+)
 from engine.office_diagrams import section_diagrams
 from engine.office_section_data import (
     hardware_rows,
@@ -240,7 +244,7 @@ def _add_header(
 ) -> None:
     table = document.add_table(rows=1, cols=3)
     values = (
-        f"ПРОЕКТ № {getattr(project, 'number', '')}",
+        f"ПРОЕКТ № {production_project_number(project)}",
         str(getattr(section, "name", "") or "Секция"),
         label,
     )
@@ -760,7 +764,7 @@ def _add_slide_checklist(
     paragraph = document.add_paragraph()
     paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = paragraph.add_run(
-        f"ПРОЕКТ № {getattr(project, 'number', '')} — {getattr(section, 'name', '')}"
+        f"ПРОЕКТ № {production_project_number(project)} — {getattr(section, 'name', '')}"
     )
     run.bold = True
     run.font.name = "Arial"
@@ -980,22 +984,30 @@ def build_section_docx(project: object, section: object, calc: object) -> bytes:
 
 
 def _project_document_number(project: object) -> str:
-    return str(
-        getattr(project, "invoice_number", None)
-        or getattr(project, "order_number", None)
-        or getattr(project, "number", None)
-        or ""
-    )
+    return commercial_document_number(project)
 
 
-def _project_header(document: Document, title: str, project: object) -> None:
+def _project_header(
+    document: Document,
+    title: str,
+    project: object,
+    *,
+    production: bool = False,
+) -> None:
     table = document.add_table(rows=2, cols=3)
     title_cell = table.cell(0, 0).merge(table.cell(1, 0))
     _set_cell_text(title_cell, title.upper(), bold=True, size=16)
-    _set_cell_text(table.cell(0, 1), "Счёт №", bold=True, size=8)
+    _set_cell_text(
+        table.cell(0, 1),
+        "Проект №" if production else "Счёт №",
+        bold=True,
+        size=8,
+    )
     _set_cell_text(
         table.cell(0, 2),
-        _project_document_number(project),
+        production_project_number(project)
+        if production
+        else _project_document_number(project),
         size=8,
     )
     _set_cell_text(table.cell(1, 1), "Заказчик", bold=True, size=8)
@@ -1681,7 +1693,7 @@ def _build_commercial_docx(context: dict) -> bytes:
 def _build_glass_docx(context: dict) -> bytes:
     document = Document()
     _configure_document(document, landscape=False)
-    _project_header(document, "Заказ стекла", context["project"])
+    _project_header(document, "Заказ стекла", context["project"], production=True)
     _add_project_document_warnings(document, context)
     paragraph = document.add_paragraph()
     run = paragraph.add_run("КРОМКИ ПОЛИРОВАННЫЕ. Печать закалки не ставить")
@@ -1767,13 +1779,17 @@ def _build_paint_docx(context: dict) -> bytes:
     _configure_document(document, landscape=False)
     pages = context["paint_pages"]
     if not pages:
-        _project_header(document, "Заявка на покраску", context["project"])
+        _project_header(
+            document, "Заявка на покраску", context["project"], production=True
+        )
         _add_project_document_warnings(document, context)
         document.add_paragraph("В проекте нет окрашиваемых профилей.")
     for page_index, page in enumerate(pages):
         if page_index:
             document.add_page_break()
-        _project_header(document, "Заявка на покраску", context["project"])
+        _project_header(
+            document, "Заявка на покраску", context["project"], production=True
+        )
         _add_project_document_warnings(document, context)
         color = document.add_paragraph()
         color.alignment = WD_ALIGN_PARAGRAPH.RIGHT
@@ -1913,9 +1929,7 @@ def _build_hardware_order_docx(context: dict) -> bytes:
         heading = document.add_paragraph()
         heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
         heading.paragraph_format.space_after = Pt(0)
-        run = heading.add_run(
-            f"НАРЯД-ЗАКАЗ НА ФУРНИТУРУ — {getattr(context['project'], 'number', '')}"
-        )
+        run = heading.add_run(f"НАРЯД-ЗАКАЗ НА ФУРНИТУРУ — {context['project_number']}")
         run.bold = True
         run.font.name = "Arial"
         run.font.size = Pt(12)

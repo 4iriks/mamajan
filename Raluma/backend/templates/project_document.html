@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>{{ title }} {{ project.invoice_number or project.order_number or project.number }}</title>
+  <title>{{ title }} {{ (project.invoice_number or project.order_number or project.number) if doc_type in ['commercial', 'contract_appendix'] else project_number }}</title>
   <style>
     {% if doc_type in ['commercial', 'contract_appendix'] %}
     @page { size: A4 landscape; margin: 9mm; }
@@ -611,7 +611,7 @@
           </td>
           <td class="head-meta">
             <table class="meta paint-meta">
-              <tr><td><b>Счёт №</b></td><td class="paint-meta-value">{{ project.invoice_number or project.order_number or project.number }}</td></tr>
+              <tr><td><b>Проект №</b></td><td class="paint-meta-value">{{ project_number }}</td></tr>
               <tr><td><b>Заказчик</b></td><td>{{ project.customer }}</td></tr>
               <tr><td><b>Цвет</b></td><td class="paint-meta-value paint-color-value">{{ page.color }}</td></tr>
             </table>
@@ -692,7 +692,7 @@
         </td>
         <td class="head-meta">
           <table class="meta glass-meta">
-            <tr><td><b>Счёт №</b></td><td {{ editable('project_number', project.invoice_number or project.order_number or project.number) }}>{{ project.invoice_number or project.order_number or project.number }}</td></tr>
+            <tr><td><b>Проект №</b></td><td {{ editable('project_number', project_number) }}>{{ project_number }}</td></tr>
             <tr><td><b>Заказчик</b></td><td {{ editable('project_customer', project.customer) }}>{{ project.customer }}</td></tr>
           </table>
         </td>

@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Накладная {{ project.invoice_number or project.order_number or project.number }}</title>
+  <title>Накладная {{ project_number }}</title>
   <style>
     @page { size: A4 portrait; margin: 11mm 10mm 12mm; }
     * { box-sizing: border-box; }
@@ -120,7 +120,7 @@
     <table class="document-head">
       <tr>
         <td class="executor">Исполнитель: ООО «ПРОЗРАЧНЫЕ РЕШЕНИЯ»</td>
-        <td class="document-title">Накладная № {{ (project.invoice_number or project.order_number or project.number)|e }}<span class="document-date">от {{ delivery.dateText|e }}</span></td>
+        <td class="document-title">Накладная № {{ project_number|e }}<span class="document-date">от {{ delivery.dateText|e }}</span></td>
       </tr>
     </table>
 
