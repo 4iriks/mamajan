@@ -8,8 +8,10 @@ RUN npm ci
 
 COPY . .
 
-# Empty VITE_API_URL → relative paths through Caddy proxy
-RUN VITE_API_URL='' npm run build
+# Production uses relative /api paths through the Caddy reverse proxy. Fail the
+# image build if a developer-only backend address leaks into the bundle.
+RUN npm run build \
+    && ! grep -R -F "http://localhost:8000" dist
 
 # Stage 2: serve with Caddy (auto SSL via Let's Encrypt)
 FROM caddy:2-alpine

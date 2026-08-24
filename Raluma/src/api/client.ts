@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+// Local development gets the backend URL from .env.local. In production an
+// empty value intentionally keeps requests on the current origin so Caddy can
+// proxy /api to the backend container.
+const BASE_URL = import.meta.env.VITE_API_URL || '';
 
 const client = axios.create({
   baseURL: BASE_URL,
