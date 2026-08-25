@@ -387,14 +387,43 @@ def _apply_glass_total_correction(
     return difference_mm
 
 
-def _apply_legacy_two_row_glass_total_correction(
+def _two_row_glass_correction_adjustments(
+    panel_count: int, difference_mm: int
+) -> dict[int, int]:
+    """Return the approved edge-only adjustments for a two-row section."""
+    count = max(int(panel_count or 0), 0)
+    if count == 0 or difference_mm in {-1, 0, 1} or abs(difference_mm) >= 4:
+        return {}
+
+    edge_adjustment = {
+        -3: -2,
+        -2: -1,
+        2: 1,
+        3: 1,
+    }.get(difference_mm)
+    if edge_adjustment is None:
+        return {}
+    if count == 1:
+        return {0: edge_adjustment}
+    return {0: edge_adjustment, count - 1: edge_adjustment}
+
+
+def _apply_two_row_glass_total_correction(
     result: SlideCalcResult,
     control_total_mm: float,
 ) -> int:
-    """Keep the established two-row decimal calculation unchanged."""
+    """Round two-row production dimensions and reconcile their checksum."""
     panels = result.panel_glass
     if not panels:
         return 0
+
+    for panel in panels:
+        panel.width_mm = float(_round_production_mm(panel.width_mm))
+        panel.height_mm = float(_round_production_mm(panel.height_mm))
+        panel.glass_profile_length = float(
+            _round_production_mm(panel.glass_profile_length)
+        )
+
     actual_total_mm = sum(float(panel.width_mm or 0) for panel in panels)
     raw_difference_mm = float(control_total_mm) - actual_total_mm
     difference_mm = _round_glass_difference_mm(raw_difference_mm)
@@ -406,7 +435,7 @@ def _apply_legacy_two_row_glass_total_correction(
             f"разница — {_format_check_mm(raw_difference_mm, signed=True)} мм."
         )
         return difference_mm
-    for index, adjustment in _glass_correction_adjustments(
+    for index, adjustment in _two_row_glass_correction_adjustments(
         len(panels), difference_mm
     ).items():
         panel = panels[index]
@@ -1017,8 +1046,9 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         or 0
     )
     center_rs112_count = 2 if center_is_rs112 else 0
-    centr1 = 46.5 if center_is_rs112 else 0
+    centr1 = 47.5 if center_is_rs112 else 0
     centr2 = 8 if center_is_rs112 else 0
+    central_gap = 0 if center_is_rs112 else 3
     # In a four-panel layout the central panes are directly adjacent to the
     # edge panes, so their offset must include the edge compensation.  With
     # six or more panes the neighbour is an ordinary intermediate pane and
@@ -1048,29 +1078,32 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     ig_article = _inter_glass_article(inter_glass_type)
     inter_glass_overlap = _inter_glass_overlap_mm(ig_article)
 
-    middle_W = (
+    control_glass_total = (
         W
-        - 3
+        - central_gap
         - ppr
         - ppl
         - rpr
         - rpl
         - pzl
         - pzr
+        - pl
+        - pr
+        - centr1
+        + inter_glass_overlap * (P - 2)
+    )
+    middle_W = (
+        control_glass_total
         - krlr
         - krlp
         - krrr
         - krrp
-        - pl
-        - pr
-        - centr1
-        - centr2
         - a
         - b
         - center_offset * 2
+        - centr2 * 2
         - center_left_edge_recovery
         - center_right_edge_recovery
-        + inter_glass_overlap * (P - 2)
     ) / P
     left_W = middle_W + a + krlr + krlp
     right_W = middle_W + b + krrr + krrp
@@ -1334,22 +1367,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         glass.glass_profile_length = round(base_len, 1)
 
     result.panel_glass = _expand_panel_glass(result, P, W, glass_H)
-    control_glass_total = (
-        W
-        - 3
-        - ppr
-        - ppl
-        - rpr
-        - rpl
-        - pzl
-        - pzr
-        - pl
-        - pr
-        - centr1
-        - centr2
-        + inter_glass_overlap * (P - 2)
-    )
-    _apply_legacy_two_row_glass_total_correction(result, control_glass_total)
+    _apply_two_row_glass_total_correction(result, control_glass_total)
     _group_2row_glass_from_panels(
         result,
         result.panel_glass,
