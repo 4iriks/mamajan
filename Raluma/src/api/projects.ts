@@ -17,6 +17,7 @@ import {
   updateLocalProject,
   updateLocalSection,
 } from './localProjects';
+import { filenameFromContentDisposition } from '../utils/documentExports';
 
 export interface ProjectList {
   id: number;
@@ -360,6 +361,15 @@ function triggerBlobDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+function responseDownloadFilename(
+  contentDisposition: unknown,
+  fallback: string,
+): string {
+  return filenameFromContentDisposition(
+    typeof contentDisposition === 'string' ? contentDisposition : undefined,
+  ) || fallback;
+}
+
 export const downloadSectionDocument = async (
   projectId: number,
   sectionId: number,
@@ -373,7 +383,10 @@ export const downloadSectionDocument = async (
       getLocalDocumentPayload(projectId, sectionId),
       { responseType: 'blob' },
     );
-  triggerBlobDownload(resp.data, filename);
+  triggerBlobDownload(
+    resp.data,
+    responseDownloadFilename(resp.headers['content-disposition'], filename),
+  );
 };
 
 export const downloadPdf = (
@@ -434,7 +447,10 @@ export const downloadProjectDocument = async (
         { responseType: 'blob' },
       );
   }
-  triggerBlobDownload(resp.data, filename);
+  triggerBlobDownload(
+    resp.data,
+    responseDownloadFilename(resp.headers['content-disposition'], filename),
+  );
 };
 
 export const downloadProjectDocumentPdf = (

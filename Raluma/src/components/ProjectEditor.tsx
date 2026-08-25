@@ -48,6 +48,10 @@ import {
   synchronizeLiftRemoteCounts,
   updateLiftRemoteSections,
 } from './editor/liftRemoteSync';
+import {
+  productionProjectNumber,
+  projectDocumentNumber,
+} from '../utils/documentExports';
 
 export type { SystemType };
 export type { Section };
@@ -998,7 +1002,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           onClose={() => setIsPreviewModalOpen(false)}
           projectId={projectId}
           sectionId={Number(activeSection.id)}
-          projectNumber={project.invoiceNumber || project.orderNumber || project.number}
+          projectNumber={productionProjectNumber(project)}
           sectionOrder={activeSection.id ? sections.findIndex(s => s.id === activeSection.id) + 1 : 1}
         />
       )}
@@ -1008,7 +1012,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           isOpen={Boolean(projectDoc)}
           onClose={() => setProjectDoc(null)}
           projectId={projectId}
-          projectNumber={project.invoiceNumber || project.orderNumber || project.number}
+          projectNumber={projectDocumentNumber(project, projectDoc.type)}
           docType={projectDoc.type}
           title={projectDoc.title}
         />

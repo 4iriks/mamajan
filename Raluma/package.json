@@ -17,7 +17,8 @@
     "smoke:components": "tsx scripts/smoke-extra-components.ts",
     "smoke:book": "tsx scripts/smoke-book-diagrams.tsx",
     "smoke:lift": "tsx scripts/smoke-lift-diagrams.tsx",
-    "smoke:lift-input": "node scripts/smoke-lift-input-browser.mjs"
+    "smoke:lift-input": "node scripts/smoke-lift-input-browser.mjs",
+    "smoke:documents": "tsx scripts/smoke-document-exports.ts"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
