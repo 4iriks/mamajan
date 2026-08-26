@@ -1,5 +1,5 @@
 from datetime import datetime
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import Decimal, DecimalException, InvalidOperation, ROUND_HALF_UP
 import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
@@ -80,11 +80,23 @@ def _normalize_project_extras(raw: str | None, db: Session) -> str:
                     status_code=400,
                     detail=f"Некорректное количество для {name}",
                 ) from exc
+            if not quantity.is_finite():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Некорректное количество для {name}",
+                )
             if quantity <= 0:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Количество для {name} должно быть больше нуля",
                 )
+            try:
+                quantity_text = format(quantity.normalize(), "f")
+            except (DecimalException, OverflowError) as exc:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Некорректное количество для {name}",
+                ) from exc
             color = str(row.get("color") or "").strip()
             category = str(row.get("category") or "component").strip().lower()
             if category not in {"profile", "component", "service"}:
@@ -105,7 +117,7 @@ def _normalize_project_extras(raw: str | None, db: Session) -> str:
                     "color": color,
                     "requires_paint": bool(color),
                     "size": str(row.get("size") or "").strip(),
-                    "qty": format(quantity.normalize(), "f"),
+                    "qty": quantity_text,
                     "unit": str(row.get("unit") or "шт").strip() or "шт",
                     "unit_price": str(
                         row.get("unit_price") or row.get("unitPrice") or ""

@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import json
 
+import pytest
 from sqlalchemy import create_engine, text
 
 from migrations import _DATA_MIGRATIONS, _migrate_section_extras_to_project
@@ -134,6 +135,26 @@ def test_manual_project_extra_is_normalized_and_color_enables_paint(
         }
     finally:
         client.delete(f"/api/projects/{response.json()['id']}", headers=admin_headers)
+
+
+@pytest.mark.parametrize("quantity", ["NaN", "Infinity", "-Infinity", "1e1000000"])
+def test_manual_project_extra_rejects_non_finite_or_unrepresentable_quantity(
+    client, admin_headers, quantity
+):
+    response = client.post(
+        "/api/projects",
+        headers=admin_headers,
+        json={
+            "order_number": "INVALID-MANUAL-EXTRA",
+            "customer": "Тест",
+            "extra_components": json.dumps(
+                [{"name": "Уголок монтажный", "qty": quantity}],
+                ensure_ascii=False,
+            ),
+        },
+    )
+
+    assert response.status_code == 400
 
 
 def test_invoice_numbers_are_unique_and_atomic_under_parallel_creation(

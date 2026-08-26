@@ -72,8 +72,12 @@ def _format_number(value: object) -> str:
 
 
 def _section_name_number(section: object) -> int | None:
-    match = re.search(r"\d+", str(getattr(section, "name", "") or ""))
-    return int(match.group(0)) if match else None
+    match = re.match(
+        r"\s*(?:секция|изделие)\s*(?:№\s*)?(\d+)\b",
+        str(getattr(section, "name", "") or ""),
+        re.IGNORECASE,
+    )
+    return int(match.group(1)) if match else None
 
 
 def _section_sort_key(section: object, fallback: int) -> tuple[int, int, int]:
@@ -549,13 +553,7 @@ def build_sketch_project_context(
 
     prepared = []
     for index, section in enumerate(ordered, start=1):
-        try:
-            order = int(getattr(section, "order", 0) or 0)
-        except (TypeError, ValueError):
-            order = 0
-        prepared.append(
-            _section_data(section, _section_name_number(section) or order or index)
-        )
+        prepared.append(_section_data(section, _section_name_number(section) or index))
     order_number = _text(
         getattr(project, "order_number", None) or getattr(project, "number", None),
         "",

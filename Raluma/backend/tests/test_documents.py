@@ -3465,6 +3465,42 @@ class TestProjectGlassOrder:
         assert [row.section.name for row in rows] == ["Секция 1", "Секция 2"]
         assert [row.order for row in rows] == [1, 2]
 
+    def test_custom_section_names_keep_unique_project_order_numbers(self):
+        project = SimpleNamespace(number="B26-AUDIT")
+        sections = [
+            _delivery_section(name="B26 кухня", order=0, width=2000, panels=2),
+            _delivery_section(name="B26 терраса", order=1, width=2400, panels=2),
+            _delivery_section(
+                name="Этаж 2 / секция 1", order=2, width=2800, panels=2
+            ),
+            _delivery_section(
+                name="Этаж 2 / секция 2", order=3, width=3200, panels=2
+            ),
+        ]
+
+        calculated = _iter_calculated_sections(sections)
+        glass_markings = [
+            marking
+            for row in _build_glass_rows(project, calculated)
+            for marking in row["markings"]
+        ]
+        sketch = build_project_document_context(project, sections, "sketch")
+
+        assert [item.section.name for item in calculated] == [
+            "B26 кухня",
+            "B26 терраса",
+            "Этаж 2 / секция 1",
+            "Этаж 2 / секция 2",
+        ]
+        assert len(glass_markings) == len(set(glass_markings)) == 8
+        assert {marking.split(",", 1)[0] for marking in glass_markings} == {
+            "1",
+            "2",
+            "3",
+            "4",
+        }
+        assert [section["order"] for section in sketch["sections"]] == [1, 2, 3, 4]
+
     def test_different_glass_names_keep_same_sizes_but_do_not_merge(self):
         project = SimpleNamespace(number="P-GLASS-TYPE")
         section = SimpleNamespace(
@@ -3947,6 +3983,27 @@ class TestDeliveryNote:
         assert [row["marking"] for row in glass_groups[0]["rows"]] == [
             "Н-001 4,1; Н-001 4,2; Н-001 4,3; Н-001 4,4; Н-001 4,5; Н-001 4,6"
         ]
+
+    def test_delivery_xlsx_integer_quantities_do_not_render_decimal_separator(self):
+        project = self.project(
+            delivery_note_data=json.dumps(
+                {"includeGlass": True, "places": {}}, ensure_ascii=False
+            )
+        )
+        section = _delivery_section(name="Секция 1", order=1, panels=3)
+
+        workbook = load_workbook(
+            io.BytesIO(build_project_xlsx(project, [section], "delivery")),
+            data_only=False,
+        )
+        quantity_cells = [
+            cell
+            for cell in workbook.active["E"]
+            if isinstance(cell.value, (int, float)) and float(cell.value).is_integer()
+        ]
+
+        assert quantity_cells
+        assert all(cell.number_format == "0" for cell in quantity_cells)
 
     def test_invoice_five_matrix_keeps_all_18_physical_glass_markings(self):
         project = self.project(number="тест", order_number="тест")

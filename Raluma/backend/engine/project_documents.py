@@ -199,11 +199,15 @@ def _section_order(section: object, fallback: int) -> int:
 
 
 def _section_name_number(section: object) -> int | None:
-    match = re.search(r"\d+", str(getattr(section, "name", "") or ""))
+    match = re.match(
+        r"\s*(?:секция|изделие)\s*(?:№\s*)?(\d+)\b",
+        str(getattr(section, "name", "") or ""),
+        re.IGNORECASE,
+    )
     if not match:
         return None
     try:
-        return int(match.group(0))
+        return int(match.group(1))
     except ValueError:
         return None
 
@@ -214,18 +218,23 @@ def _section_sort_key(section: object, fallback: int) -> tuple[int, int, int]:
     return name_number if name_number is not None else order, order, fallback
 
 
+def _sorted_sections(sections: Iterable[object]) -> list[object]:
+    indexed_sections = list(enumerate(sections, start=1))
+    return [
+        section
+        for _, section in sorted(
+            indexed_sections,
+            key=lambda item: _section_sort_key(item[1], item[0]),
+        )
+    ]
+
+
 def _iter_slide_sections(sections: Iterable[object]) -> list[CalculatedSection]:
     rows: list[CalculatedSection] = []
-    sorted_sections = sorted(
-        list(sections),
-        key=lambda section: _section_sort_key(section, 999999),
-    )
-    slide_sections = [
-        section
-        for section in sorted_sections
-        if getattr(section, "system", None) == "СЛАЙД"
-    ]
-    for index, section in enumerate(slide_sections, start=1):
+    sorted_sections = _sorted_sections(sections)
+    for index, section in enumerate(sorted_sections, start=1):
+        if getattr(section, "system", None) != "СЛАЙД":
+            continue
         rows.append(
             CalculatedSection(
                 order=index,
@@ -241,10 +250,7 @@ def _iter_calculated_sections(
 ) -> list[CalculatedSection]:
     """Calculate document-capable systems without sharing their formula paths."""
     rows: list[CalculatedSection] = []
-    sorted_sections = sorted(
-        list(sections),
-        key=lambda section: _section_sort_key(section, 999999),
-    )
+    sorted_sections = _sorted_sections(sections)
     for index, section in enumerate(sorted_sections, start=1):
         system = str(getattr(section, "system", "") or "").strip().upper()
         if system not in {"СЛАЙД", "ЛИФТ"}:
@@ -806,7 +812,7 @@ def _format_glass_markings(
 
 
 def _document_section_number(section: object, fallback: int) -> int:
-    return _section_name_number(section) or _section_order(section, fallback)
+    return _section_name_number(section) or fallback
 
 
 def _physical_glass_pieces(
@@ -1625,9 +1631,7 @@ def _build_delivery_project_extra_rows(
 
 
 def _build_delivery_context(project: object, sections: Iterable[object]) -> dict:
-    sorted_sections = sorted(
-        list(sections), key=lambda section: _section_sort_key(section, 999999)
-    )
+    sorted_sections = _sorted_sections(sections)
     settings = _delivery_settings(project)
     places = settings["places"]
     stages, current_stage = _project_delivery_stage(project)
@@ -2130,10 +2134,7 @@ def _build_hardware_order_context(
 ) -> dict:
     section_rows = list(sections)
     grouped_sections: dict[str, list[object]] = defaultdict(list)
-    for section in sorted(
-        section_rows,
-        key=lambda section: _section_sort_key(section, 999999),
-    ):
+    for section in _sorted_sections(section_rows):
         system = str(getattr(section, "system", "") or "").strip().upper()
         if not system or system == "КОМПЛЕКТАЦИЯ":
             continue

@@ -152,11 +152,11 @@ class TestGlassTotalCorrection:
         ("panel_count", "difference", "expected"),
         [
             (5, 1, {}),
-            (5, -1, {2: -1}),
+            (5, -1, {}),
             (5, 2, {0: 1, 4: 1}),
             (5, -2, {0: -1, 4: -1}),
             (5, 3, {0: 1, 4: 1}),
-            (5, -3, {0: -1, 2: -1, 4: -1}),
+            (5, -3, {0: -1, 4: -1}),
             (5, 4, {}),
             (5, -4, {}),
             (6, 1, {}),
@@ -182,6 +182,19 @@ class TestGlassTotalCorrection:
             0: 1,
             panel_count - 1: 1,
         }
+
+    @pytest.mark.parametrize("difference", [-3, -1, 0, 1, 2, 3])
+    def test_five_panel_intermediate_glass_stays_equal(self, difference):
+        result = SlideCalcResult(
+            panel_glass=[
+                PanelGlassItem(index, f"Панель {index}", 500.4, 2200.4, 497.4)
+                for index in range(1, 6)
+            ]
+        )
+
+        _apply_glass_total_correction(result, 2500 + difference)
+
+        assert len({panel.width_mm for panel in result.panel_glass[1:4]}) == 1
 
     @pytest.mark.parametrize("panel_count", [2, 3, 4, 5])
     @pytest.mark.parametrize("difference", [-4, -3, -2, -1, 1, 2, 3, 4])
@@ -1349,6 +1362,31 @@ class TestScrews:
     def test_screw_4838_standard_5rails(self):
         screw = _find_screw(calculate_slide(_make_section(rails=5)), "4,8×38")[0]
         assert screw.qty == 12
+
+    @pytest.mark.parametrize(
+        ("slide_rows", "panels", "rails", "expected"),
+        [
+            (1, 3, 3, 24),
+            (1, 5, 5, 36),
+            (2, 4, 3, 24),
+            (2, 8, 5, 36),
+        ],
+    )
+    def test_screw_4838_multiplies_by_section_quantity(
+        self, slide_rows, panels, rails, expected
+    ):
+        result = calculate_slide(
+            _make_section(
+                slide_rows=slide_rows,
+                panels=panels,
+                rails=rails,
+                quantity=3,
+                first_panel_inside=None if slide_rows == 2 else "Справа",
+                unused_track="Внешний" if slide_rows == 2 else "",
+            )
+        )
+
+        assert _find_screw(result, "4,8×38")[0].qty == expected
 
     def test_screw_4838_overlay_3rails(self):
         screw = _find_screw(
@@ -2589,6 +2627,25 @@ class TestSlideTwoRows:
         )
         assert not _find_hardware(r, "RS106")
         assert _find_hardware(r, "RS108")[0].value == 2
+
+    @pytest.mark.parametrize(("panels", "rails"), [(4, 3), (6, 3), (8, 5)])
+    def test_central_rs2021_without_interglass_profile_matches_glass(
+        self, panels, rails
+    ):
+        result = calculate_slide(
+            _make_section(
+                slide_rows=2,
+                panels=panels,
+                rails=rails,
+                inter_glass_profile="Без",
+                center_handle="Ручка-кноб RS3014",
+                first_panel_inside=None,
+                unused_track="Внешний",
+            )
+        )
+
+        central = _find_glass(result, "Центральные")[0]
+        assert central.glass_profile_length == central.width_mm
 
     def test_center_rs112_does_not_create_rs106_for_fixed_outer_panels(self):
         r = calculate_slide(

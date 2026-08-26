@@ -297,7 +297,9 @@ def _glass_correction_adjustments(
 
     if count % 2:
         center = count // 2
-        if difference_mm in {-1, -3}:
+        # For a five-panel, five-rail section the three intermediate panes
+        # are issued as one size. Do not single out the center pane.
+        if count != 5 and difference_mm in {-1, -3}:
             add(center, -1)
         if magnitude in {2, 3}:
             add(0, sign)
@@ -1353,13 +1355,19 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 is_deaf=right_is_deaf,
             )
         elif glass.position == "Центральное левое":
-            base_len += 19 if center_is_rs112 else -3
+            if center_is_rs112:
+                base_len += 19
+            elif ig_article:
+                base_len -= 3
         elif glass.position == "Центральное правое":
-            base_len += 16 if center_is_rs112 else -3
+            if center_is_rs112:
+                base_len += 16
+            elif ig_article:
+                base_len -= 3
         elif glass.position == "Центральные":
             if center_is_rs112:
                 base_len += 16
-            else:
+            elif ig_article:
                 base_len -= 3
         elif glass.position == "Промежуточные":
             if ig_article:
@@ -1656,7 +1664,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         ScrewItem(
             "Саморез 4,8×38 A2 (DIN7982)",
             "4,8×38 A2",
-            screw4838_map.get((rails, std), 8),
+            screw4838_map.get((rails, std), 8) * Q,
             "DIN7982.png",
             note=frame_screw_note,
         )
@@ -2357,7 +2365,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
 
     # 4,8×38 A2
     screw4838_map = {(3, True): 8, (5, True): 12, (3, False): 4, (5, False): 6}
-    screw4838 = screw4838_map.get((rails, std), 8)
+    screw4838 = screw4838_map.get((rails, std), 8) * Q
     result.screws.append(
         ScrewItem(
             "Саморез 4,8×38 A2 (DIN7982)",

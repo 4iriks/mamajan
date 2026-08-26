@@ -1574,7 +1574,7 @@ def _build_delivery_xlsx(context: dict) -> bytes:
             **border,
         }
     )
-    quantity = workbook.add_format(
+    quantity_decimal = workbook.add_format(
         {
             "font_name": "Arial",
             "font_size": 9,
@@ -1582,6 +1582,17 @@ def _build_delivery_xlsx(context: dict) -> bytes:
             "align": "center",
             "valign": "vcenter",
             "num_format": "0.###",
+            **border,
+        }
+    )
+    quantity_integer = workbook.add_format(
+        {
+            "font_name": "Arial",
+            "font_size": 9,
+            "bold": True,
+            "align": "center",
+            "valign": "vcenter",
+            "num_format": "0",
             **border,
         }
     )
@@ -1689,7 +1700,10 @@ def _build_delivery_xlsx(context: dict) -> bytes:
         worksheet.write(row, 2, article, formats["center_bold"])
         text = name if not details_text else f"{name}\n{details_text}"
         worksheet.write(row, 3, text, detail_bold if name else detail)
-        worksheet.write_number(row, 4, numeric_qty, quantity)
+        quantity_format = (
+            quantity_integer if numeric_qty.is_integer() else quantity_decimal
+        )
+        worksheet.write_number(row, 4, numeric_qty, quantity_format)
         worksheet.write(row, 5, str(places or ""), formats["center"])
         worksheet.set_row(row, max(24, 16 * (text.count("\n") + 1)))
         item_number += 1
@@ -1788,7 +1802,7 @@ def _build_delivery_xlsx(context: dict) -> bytes:
 
     if row == data_start_row:
         worksheet.merge_range(row, 0, row, 3, "Позиции для отгрузки не найдены", detail)
-        worksheet.write_number(row, 4, 0, quantity)
+        worksheet.write_number(row, 4, 0, quantity_integer)
         worksheet.write_blank(row, 5, None, formats["center"])
         row += 1
 
