@@ -50,22 +50,26 @@ export function parseExtraComponents(raw?: string): ExtraComponent[] {
 
 export function stringifyExtraComponents(rows?: ExtraComponent[]): string {
   const normalized = (rows ?? [])
-    .map(row => ({
-      catalog_item_id: row.catalogItemId,
-      finish_variant_id: row.finishVariantId,
-      sku: row.sku.trim(),
-      name: row.name.trim(),
-      category: row.category,
-      color: row.color.trim(),
-      finish_name: (row.finishName || '').trim(),
-      requires_paint: Boolean(row.requiresPaint),
-      size: row.size.trim(),
-      qty: row.qty.trim(),
-      unit: (row.unit || 'шт').trim() || 'шт',
-      imageFile: (row.imageFile || '').trim(),
-      delivery_stage: row.deliveryStage || 'both',
-    }))
-    .filter(row => row.sku || row.name || row.color || row.size || row.qty);
+    .map(row => {
+      const isManual = !row.catalogItemId;
+      const color = row.color.trim();
+      return {
+        catalog_item_id: row.catalogItemId,
+        finish_variant_id: row.finishVariantId,
+        sku: row.sku.trim(),
+        name: row.name.trim(),
+        category: row.category || (isManual ? 'component' : undefined),
+        color,
+        finish_name: (row.finishName || '').trim(),
+        requires_paint: isManual ? Boolean(color) : Boolean(row.requiresPaint),
+        size: row.size.trim(),
+        qty: row.qty.trim(),
+        unit: (row.unit || 'шт').trim() || 'шт',
+        image_file: (row.imageFile || '').trim(),
+        delivery_stage: row.deliveryStage || 'both',
+      };
+    })
+    .filter(row => Boolean(row.catalog_item_id || row.sku || row.name));
   return JSON.stringify(normalized);
 }
 

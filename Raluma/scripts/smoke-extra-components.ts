@@ -5,7 +5,10 @@ import {
   filterCatalogOptions,
   naturalCatalogCompare,
 } from '../src/components/editor/extraComponentsCatalog';
-import { cloneExtraComponents } from '../src/components/editor/converters';
+import {
+  cloneExtraComponents,
+  stringifyExtraComponents,
+} from '../src/components/editor/converters';
 
 const option = (
   id: number,
@@ -67,6 +70,28 @@ assert.equal(
   savedExtras[0].qty,
   '2',
   'editing or closing the modal draft must not mutate saved project extras',
+);
+
+const manualSnapshot = JSON.parse(stringifyExtraComponents([{
+  sku: '',
+  name: 'Уголок монтажный',
+  color: 'RAL 9005',
+  size: '1200 мм',
+  qty: '3',
+}]))[0];
+assert.equal(manualSnapshot.category, 'component');
+assert.equal(manualSnapshot.requires_paint, true);
+assert.equal(manualSnapshot.name, 'Уголок монтажный');
+assert.equal(
+  JSON.parse(stringifyExtraComponents([{
+    sku: '',
+    name: '',
+    color: '',
+    size: '',
+    qty: '1',
+  }])).length,
+  0,
+  'an untouched manual row must not be persisted',
 );
 
 const values = new Map<string, string>();

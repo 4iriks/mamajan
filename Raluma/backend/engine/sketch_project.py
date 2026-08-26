@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 from dataclasses import dataclass
 from typing import Iterable
 
@@ -70,12 +71,18 @@ def _format_number(value: object) -> str:
     return f"{number:.1f}".replace(".", ",")
 
 
-def _section_sort_key(section: object, fallback: int) -> tuple[int, int]:
+def _section_name_number(section: object) -> int | None:
+    match = re.search(r"\d+", str(getattr(section, "name", "") or ""))
+    return int(match.group(0)) if match else None
+
+
+def _section_sort_key(section: object, fallback: int) -> tuple[int, int, int]:
     try:
         order = int(getattr(section, "order", 0) or 0)
     except (TypeError, ValueError):
         order = 0
-    return order or fallback, fallback
+    name_number = _section_name_number(section)
+    return name_number if name_number is not None else order or fallback, order, fallback
 
 
 def _section_label(section: object, fallback: int) -> str:
@@ -546,7 +553,9 @@ def build_sketch_project_context(
             order = int(getattr(section, "order", 0) or 0)
         except (TypeError, ValueError):
             order = 0
-        prepared.append(_section_data(section, order or index))
+        prepared.append(
+            _section_data(section, _section_name_number(section) or order or index)
+        )
     order_number = _text(
         getattr(project, "order_number", None) or getattr(project, "number", None),
         "",

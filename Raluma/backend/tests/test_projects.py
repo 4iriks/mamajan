@@ -72,6 +72,7 @@ def test_copy_project(client, admin_headers, project, section):
         },
     )
     assert updated.status_code == 200
+    normalized_extras = updated.json()["extra_components"]
 
     r = client.post(f"/api/projects/{project['id']}/copy", headers=admin_headers)
     assert r.status_code == 201
@@ -81,10 +82,58 @@ def test_copy_project(client, admin_headers, project, section):
     assert copy["invoice_number"] != project["invoice_number"]
     assert len(copy["sections"]) == 1
     assert copy["sections"][0]["name"] == section["name"]
-    assert copy["extra_components"] == extra_components
+    assert copy["extra_components"] == normalized_extras
+    snapshot = json.loads(copy["extra_components"])[0]
+    assert snapshot["sku"] == "PROJECT-EXTRA"
+    assert snapshot["name"] == "PROJECT-EXTRA"
+    assert snapshot["qty"] == "2"
     assert copy["hardware_installation"] == "not_installed"
     # cleanup copy
     client.delete(f"/api/projects/{copy['id']}", headers=admin_headers)
+
+
+def test_manual_project_extra_is_normalized_and_color_enables_paint(
+    client, admin_headers
+):
+    response = client.post(
+        "/api/projects",
+        headers=admin_headers,
+        json={
+            "order_number": "MANUAL-EXTRA",
+            "customer": "Тест",
+            "extra_components": json.dumps(
+                [
+                    {
+                        "name": "Уголок монтажный",
+                        "color": "RAL 9005",
+                        "size": "1250 мм",
+                        "qty": "3",
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    try:
+        snapshot = json.loads(response.json()["extra_components"])[0]
+        assert snapshot == {
+            "sku": "",
+            "name": "Уголок монтажный",
+            "category": "component",
+            "finish_name": "",
+            "color": "RAL 9005",
+            "requires_paint": True,
+            "size": "1250 мм",
+            "qty": "3",
+            "unit": "шт",
+            "unit_price": "",
+            "image_file": "",
+            "delivery_stage": "both",
+        }
+    finally:
+        client.delete(f"/api/projects/{response.json()['id']}", headers=admin_headers)
 
 
 def test_invoice_numbers_are_unique_and_atomic_under_parallel_creation(

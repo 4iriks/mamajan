@@ -185,10 +185,10 @@ def render_slide_room(
     draw = ImageDraw.Draw(canvas)
     title_font = load_font(30, bold=True)
     number_font = load_font(30, bold=True)
-    dim_font = load_font(31 if print_dimensions else 23, bold=True)
+    dim_font = load_font(48 if print_dimensions else 23, bold=True)
     dimension_color = "#000000" if print_dimensions else INK
     dimension_line_color = "#000000" if print_dimensions else GRID
-    small_font = load_font(19)
+    small_font = load_font(23 if print_dimensions else 19, bold=print_dimensions)
 
     if include_title:
         _center_text(draw, (800, 34), "ВИД ИЗ ПОМЕЩЕНИЯ", title_font)
@@ -293,7 +293,12 @@ def render_slide_room(
                 end_head=(not arrow_left) or bidirectional,
             )
         dimension = str(glass_mm(panel_width))
-        panel_font = _fitted_font(draw, dimension, panel_px - 8, 23)
+        panel_font = _fitted_font(
+            draw,
+            dimension,
+            panel_px - 8,
+            44 if print_dimensions else 23,
+        )
         _center_text(draw, (cx, bottom + 35), dimension, panel_font)
         if not glass_supplied:
             no_glass_font = _fitted_font(draw, "БЕЗ СТЕКЛА", panel_px - 10, 18)

@@ -1148,7 +1148,7 @@ def _build_glass_xlsx(context: dict) -> bytes:
     formats = _formats(workbook)
     worksheet = workbook.add_worksheet("Заказ стекла")
     _setup_sheet(worksheet, landscape=False)
-    widths = (5, 16, 24, 12, 12, 9, 12, 18)
+    widths = (5, 24, 22, 12, 12, 9, 12, 18)
     for index, width in enumerate(widths):
         worksheet.set_column(index, index, width)
     row = _project_header(
@@ -1211,7 +1211,8 @@ def _build_glass_xlsx(context: dict) -> bytes:
             item["area"],
         )
         worksheet.write(row, 7, item["note"], formats["cell"])
-        worksheet.set_row(row, 34)
+        marking_lines = max(1, (len(str(item["marking"])) + 27) // 28)
+        worksheet.set_row(row, max(34, marking_lines * 16))
         row += 1
     worksheet.merge_range(row, 0, row, 4, "Итого", formats["total"])
     first_excel_row = data_start_row + 1

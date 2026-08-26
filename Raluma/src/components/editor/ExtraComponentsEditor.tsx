@@ -108,6 +108,19 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
     setCatalogOpen(false);
   };
 
+  const addManualItem = () => {
+    commit([...rows, normalizeItem({
+      category: 'component',
+      name: '',
+      sku: '',
+      color: '',
+      requiresPaint: false,
+      size: '',
+      qty: '1',
+      unit: 'шт',
+    })]);
+  };
+
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-tint/25 bg-surface/35 p-3">
@@ -178,11 +191,20 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
             )}
           </div>
         )}
+        <button
+          type="button"
+          onClick={addManualItem}
+          className="mt-3 inline-flex min-h-[42px] items-center gap-2 rounded-xl border border-accent/35 bg-accent/10 px-3.5 py-2 text-xs font-bold text-accent hover:bg-accent/15"
+        >
+          <PackagePlus className="h-4 w-4" />
+          Добавить вручную
+        </button>
       </div>
 
       <div className="space-y-3">
         {rows.map(row => {
             const catalogItem = catalog.find(item => item.id === row.catalogItemId);
+            const isManual = !row.catalogItemId;
             const finishVariants = (catalogItem?.finishVariants || []).filter(
               variant => variant.isActive,
             );
@@ -203,8 +225,8 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
                 ) : <PackagePlus className="h-6 w-6 text-slate-400" />}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="font-mono text-xs font-bold text-accent">{row.sku || 'Без артикула'}</div>
-                <div className="mt-1 text-sm font-semibold text-fg/80">{row.name || 'Без названия'}</div>
+                <div className="font-mono text-xs font-bold text-accent">{row.sku || (isManual ? 'Ручная позиция' : 'Без артикула')}</div>
+                <div className="mt-1 text-sm font-semibold text-fg/80">{row.name || (isManual ? 'Заполните название ниже' : 'Без названия')}</div>
               </div>
               <button
                 type="button"
@@ -216,7 +238,30 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
               </button>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
+              {isManual && (
+                <label className="space-y-1 sm:col-span-2">
+                  <span className={LBL}>Название *</span>
+                  <input
+                    value={row.name}
+                    onChange={event => updateRow(row.id!, { name: event.target.value })}
+                    className={INP}
+                    placeholder="Например, уголок монтажный"
+                    required
+                  />
+                </label>
+              )}
+              {isManual && (
+                <label className="space-y-1">
+                  <span className={LBL}>Артикул</span>
+                  <input
+                    value={row.sku}
+                    onChange={event => updateRow(row.id!, { sku: event.target.value })}
+                    className={INP}
+                    placeholder="Необязательно"
+                  />
+                </label>
+              )}
               {finishVariants.length > 0 && (
                 <label className="space-y-1">
                   <span className={LBL}>Исполнение</span>
@@ -240,14 +285,19 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
                   </select>
                 </label>
               )}
-              {row.requiresPaint && (
+              {(isManual || row.requiresPaint) && (
                 <label className="space-y-1">
                   <span className={LBL}>Цвет</span>
                   <input
                     value={row.color}
-                    onChange={event => updateRow(row.id!, { color: event.target.value })}
+                    onChange={event => updateRow(row.id!, {
+                      color: event.target.value,
+                      requiresPaint: isManual
+                        ? Boolean(event.target.value.trim())
+                        : row.requiresPaint,
+                    })}
                     className={INP}
-                    placeholder="Например, RAL 9016"
+                    placeholder="Если указан — попадёт в покраску"
                   />
                 </label>
               )}
@@ -287,7 +337,7 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
 
       {rows.length === 0 && (
         <div className="rounded-xl border border-dashed border-tint/30 bg-hi/[0.03] px-4 py-5 text-center text-xs font-bold uppercase tracking-widest text-fg/25">
-          Найдите позицию в каталоге и добавьте её в проект
+          Выберите позицию из каталога или добавьте её вручную
         </div>
       )}
     </div>

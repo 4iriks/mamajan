@@ -1,5 +1,5 @@
 from datetime import datetime
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
@@ -56,7 +56,6 @@ def _normalize_project_extras(raw: str | None, db: Session) -> str:
         raise HTTPException(status_code=400, detail="Некорректный список комплектующих")
 
     normalized: list[dict] = []
-    has_catalog_selection = False
     for source in rows:
         if not isinstance(source, dict):
             continue
@@ -64,11 +63,63 @@ def _normalize_project_extras(raw: str | None, db: Session) -> str:
         item_id = _extra_int(row, "catalog_item_id", "catalogItemId")
         variant_id = _extra_int(row, "finish_variant_id", "finishVariantId")
         if item_id is None:
-            # Preserve old manually entered snapshots until their one-off migration
-            # can be reconciled with a catalog article.
-            normalized.append(row)
+            sku = str(row.get("sku") or row.get("article") or "").strip()
+            name = str(row.get("name") or "").strip()
+            if not name and not sku:
+                continue
+            if not name:
+                name = sku
+            try:
+                quantity = Decimal(
+                    str(row.get("qty", row.get("quantity", "1")) or "1").replace(
+                        ",", "."
+                    )
+                )
+            except (TypeError, ValueError, InvalidOperation) as exc:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Некорректное количество для {name}",
+                ) from exc
+            if quantity <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Количество для {name} должно быть больше нуля",
+                )
+            color = str(row.get("color") or "").strip()
+            category = str(row.get("category") or "component").strip().lower()
+            if category not in {"profile", "component", "service"}:
+                category = "component"
+            delivery_stage = str(
+                row.get("delivery_stage") or row.get("deliveryStage") or "both"
+            )
+            if delivery_stage not in {"1", "2", "both"}:
+                delivery_stage = "both"
+            normalized.append(
+                {
+                    "sku": sku,
+                    "name": name,
+                    "category": category,
+                    "finish_name": str(
+                        row.get("finish_name") or row.get("finishName") or ""
+                    ).strip(),
+                    "color": color,
+                    "requires_paint": bool(color),
+                    "size": str(row.get("size") or "").strip(),
+                    "qty": format(quantity.normalize(), "f"),
+                    "unit": str(row.get("unit") or "шт").strip() or "шт",
+                    "unit_price": str(
+                        row.get("unit_price") or row.get("unitPrice") or ""
+                    ).strip(),
+                    "image_file": str(
+                        row.get("image_file")
+                        or row.get("imageFile")
+                        or row.get("image")
+                        or ""
+                    ).strip(),
+                    "delivery_stage": delivery_stage,
+                }
+            )
             continue
-        has_catalog_selection = True
         item = db.get(models.CatalogItem, item_id)
         if item is None or not item.is_active:
             raise HTTPException(status_code=400, detail="Позиция каталога недоступна")
@@ -194,8 +245,6 @@ def _normalize_project_extras(raw: str | None, db: Session) -> str:
                 ),
             }
         )
-    if not has_catalog_selection:
-        return raw or "[]"
     return json.dumps(normalized, ensure_ascii=False)
 
 

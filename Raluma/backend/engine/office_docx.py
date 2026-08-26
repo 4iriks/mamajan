@@ -1164,7 +1164,7 @@ def _build_sketch_docx(context: dict) -> bytes:
                     cell,
                     diagram["png"],
                     max_width_mm=176,
-                    max_height_mm=60 if diagram.get("kind") == "room" else 34,
+                    max_height_mm=64 if diagram.get("kind") == "room" else 34,
                 )
             diagram_table.style = "Table Grid"
             _set_table_geometry_mm(diagram_table, (182,))
@@ -1203,7 +1203,8 @@ def _build_sketch_docx(context: dict) -> bytes:
                 _set_cell_text(
                     row.cells[column],
                     value,
-                    size=6.5,
+                    bold=column in {3, 4},
+                    size=7.3 if column in {3, 4} else 6.5,
                     align=(
                         WD_ALIGN_PARAGRAPH.CENTER
                         if column in {0, 3, 4, 5}
@@ -1736,7 +1737,7 @@ def _build_glass_docx(context: dict) -> bytes:
             _set_cell_text(
                 row.cells[index],
                 value,
-                size=7.5,
+                size=6.8 if index == 1 else 7.5,
                 align=WD_ALIGN_PARAGRAPH.CENTER if index != 2 else None,
             )
     total = table.add_row()
@@ -1755,6 +1756,7 @@ def _build_glass_docx(context: dict) -> bytes:
         align=WD_ALIGN_PARAGRAPH.CENTER,
     )
     _style_table(table)
+    _set_table_geometry_mm(table, (8, 37, 38, 18, 18, 13, 21, 25))
 
     quality = document.add_paragraph()
     quality.paragraph_format.space_before = Pt(8)
