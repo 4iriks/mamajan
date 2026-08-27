@@ -23,6 +23,7 @@ from engine.pdf import (
     expand_glass_profile_lengths,
     expand_glass_widths,
     get_profile_asset_path,
+    generate_pdf,
     glass_fill,
     glass_is_matte,
     glass_mm,
@@ -361,6 +362,31 @@ class TestSystemGlassDefaults:
 
 
 class TestPreview:
+    def test_duplicate_section_names_get_collision_safe_production_sheet_label(
+        self, client, admin_headers, project
+    ):
+        _create_slide_section(
+            client,
+            admin_headers,
+            project["id"],
+            name="Секция 1",
+        )
+        second = _create_slide_section(
+            client,
+            admin_headers,
+            project["id"],
+            name="Секция 1",
+        )
+        token = admin_headers["Authorization"].replace("Bearer ", "")
+
+        response = client.get(
+            f"/api/projects/{project['id']}/sections/{second['id']}/preview",
+            params={"token": token},
+        )
+
+        assert response.status_code == 200
+        assert re.search(r">\s*Секция 2\s*</td>", response.text)
+
     def test_selected_glass_color_is_used_in_both_section_diagrams(
         self, client, admin_headers, project
     ):
@@ -1085,7 +1111,7 @@ class TestLocalPreview:
         assert '<div class="hw-art">RS3020</div>' in r.text
         assert '<div class="hw-art">RS123</div>' in r.text
 
-    def test_local_preview_hides_rs1005_length_but_keeps_piece_quantity(self, client):
+    def test_local_preview_hides_rs3110_length_but_keeps_piece_quantity(self, client):
         r = client.post(
             "/api/projects/local/sections/preview",
             json={
@@ -1107,8 +1133,9 @@ class TestLocalPreview:
         )
 
         assert r.status_code == 200
-        assert 'data-profile-article="RS1005"' in r.text
-        assert 'data-profile-article="RS1005" data-length-visible="false"' in r.text
+        assert 'data-profile-article="RS3110"' in r.text
+        assert 'data-profile-article="RS3110" data-length-visible="false"' in r.text
+        assert 'data-profile-article="RS1005"' not in r.text
 
     def test_local_preview_section_4_room_scheme_keeps_physical_glass_order(
         self, client
@@ -1782,10 +1809,10 @@ class TestSketchProject:
         assert docx.status_code == 200
         assert ".sketch-section + .sketch-section" in preview.text
         assert "grid-template-columns: minmax(0, 1fr)" in preview.text
-        assert preview.text.count('class="sketch-section"') == 3
+        assert preview.text.count('data-sketch-section="') == 3
         with zipfile.ZipFile(io.BytesIO(docx.content)) as archive:
             document_xml = archive.read("word/document.xml").decode("utf-8")
-        assert document_xml.count('w:type="page"') >= 2
+        assert document_xml.count("w:pageBreakBefore") >= 2
         assert "РАЗМЕРЫ СТЕКОЛ" in self._docx_text(docx.content)
 
     def test_slide_without_glass_keeps_calculated_sizes_but_skips_orders(self, client):
@@ -3023,7 +3050,8 @@ class TestOfficeDownloads:
         assert excluded_section.isdisjoint(section_values)
         if "Стекло" in expected_section:
             assert "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ" in archive_text
-            assert "OFFICE-DELIVERY 1,1" in archive_text
+            assert "1,1" in archive_text
+            assert "OFFICE-DELIVERY 1,1" not in archive_text
         with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
             assert not any(
                 name.startswith(("xl/media/", "xl/drawings/"))
@@ -3383,12 +3411,16 @@ class TestProjectGlassOrder:
         )
 
         assert [(row["width"], row["height"], row["qty"]) for row in rows] == [
-            (2169, 1013, 2),
-            (2167, 1001, 2),
+            (2169, 1013, 1),
+            (2167, 1001, 1),
+            (2169, 1013, 1),
+            (2167, 1001, 1),
         ]
         assert [row["marking"] for row in rows] == [
-            "1,1; 1,3",
-            "1,2; 1,4",
+            "1,1",
+            "1,2",
+            "1,3",
+            "1,4",
         ]
         assert all(
             row["glass_type"] == "СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ" for row in rows
@@ -3501,6 +3533,34 @@ class TestProjectGlassOrder:
         }
         assert [section["order"] for section in sketch["sections"]] == [1, 2, 3, 4]
 
+    def test_duplicate_visible_numbers_resolve_once_without_marker_collisions(self):
+        project = SimpleNamespace(number="B26-COLLISION")
+        sections = [
+            _delivery_section(name="Секция 4", order=4, panels=2),
+            _delivery_section(name="Секция 4", order=0, panels=2),
+            _delivery_section(name="Секция 6", order=6, panels=2),
+        ]
+
+        calculated = _iter_calculated_sections(sections)
+        glass_rows = _build_glass_rows(project, calculated)
+        delivery = _build_delivery_context(project, sections)
+        delivery_rows = [
+            detail
+            for group in delivery["delivery_item1_rows"]
+            if group["kind"] == "glass"
+            for detail in group["rows"]
+        ]
+        sketch = build_project_document_context(project, sections, "sketch")
+
+        expected = {"4,1", "4,2", "5,1", "5,2", "6,1", "6,2"}
+        assert [item.order for item in calculated] == [4, 5, 6]
+        assert {row["marking"] for row in glass_rows} == expected
+        assert {row["marking"] for row in delivery_rows} == expected
+        assert [section["order"] for section in sketch["sections"]] == [4, 5, 6]
+        assert [section["label"] for section in sketch["sections"]] == [
+            "Секция 4", "Секция 5", "Секция 6",
+        ]
+
     def test_different_glass_names_keep_same_sizes_but_do_not_merge(self):
         project = SimpleNamespace(number="P-GLASS-TYPE")
         section = SimpleNamespace(
@@ -3610,11 +3670,13 @@ class TestProjectGlassOrder:
             project, [CalculatedSection(order=1, section=section, calc=calc)]
         )
 
-        assert rows[0]["marking"] == "1,1; 1,3"
-        assert rows[0]["markings"] == ["1,1", "1,3"]
+        assert rows[0]["marking"] == "1,1"
+        assert rows[0]["markings"] == ["1,1"]
         assert rows[0]["width"] == 1003
         assert rows[0]["height"] == 2200
         assert rows[1]["marking"] == "1,2"
+        assert rows[2]["marking"] == "1,3"
+        assert all(row["qty"] == 1 for row in rows)
 
     def test_two_row_center_bracket_drawing_marks_only_central_glass(self):
         project = SimpleNamespace(number="P-002")
@@ -3648,12 +3710,11 @@ class TestProjectGlassOrder:
             project, [CalculatedSection(order=2, section=section, calc=calc)]
         )
 
-        drawing_row = [row for row in rows if row["note"] == "(чертеж)"][0]
-        plain_row = [row for row in rows if row["note"] == ""][0]
-        assert drawing_row["qty"] == 2
-        assert drawing_row["marking"] == "2,2; 2,3"
-        assert plain_row["qty"] == 2
-        assert plain_row["marking"] == "2,1; 2,4"
+        drawing_rows = [row for row in rows if row["note"] == "(чертеж)"]
+        plain_rows = [row for row in rows if row["note"] == ""]
+        assert [row["marking"] for row in drawing_rows] == ["2,2", "2,3"]
+        assert [row["marking"] for row in plain_rows] == ["2,1", "2,4"]
+        assert all(row["qty"] == 1 for row in rows)
 
     def test_two_row_left_center_floor_latch_does_not_create_drawing_note(self):
         project = SimpleNamespace(number="P-003")
@@ -3687,10 +3748,9 @@ class TestProjectGlassOrder:
             project, [CalculatedSection(order=3, section=section, calc=calc)]
         )
 
-        plain_row = [row for row in rows if row["note"] == ""][0]
         assert [row for row in rows if row["note"] == "(чертеж)"] == []
-        assert plain_row["qty"] == 4
-        assert plain_row["marking"] == "3,1; 3,2; 3,3; 3,4"
+        assert [row["marking"] for row in rows] == ["3,1", "3,2", "3,3", "3,4"]
+        assert all(row["qty"] == 1 for row in rows)
 
     def test_no_hardware_labels_do_not_create_drawing_note(self):
         project = SimpleNamespace(number="P-004")
@@ -3981,8 +4041,9 @@ class TestDeliveryNote:
         assert glass_groups[0]["qty"] == 6
         assert sum(row["qty"] for row in glass_groups[0]["rows"]) == 6
         assert [row["marking"] for row in glass_groups[0]["rows"]] == [
-            "Н-001 4,1; Н-001 4,2; Н-001 4,3; Н-001 4,4; Н-001 4,5; Н-001 4,6"
+            "4,1", "4,2", "4,3", "4,4", "4,5", "4,6"
         ]
+        assert all(row["qty"] == 1 for row in glass_groups[0]["rows"])
 
     def test_delivery_xlsx_integer_quantities_do_not_render_decimal_separator(self):
         project = self.project(
@@ -4043,16 +4104,31 @@ class TestDeliveryNote:
         ]
 
         assert sum(row["qty"] for row in glass_order_rows) == 18
+        assert all(row["qty"] == 1 for row in glass_order_rows)
+        assert all(
+            row["area"] == round(row["width"] * row["height"] / 1_000_000, 3)
+            for row in glass_order_rows
+        )
         assert len(glass_order_markings) == len(set(glass_order_markings)) == 18
         assert set(glass_order_markings) == expected
         assert sum(detail["qty"] for detail in delivery_details) == 18
         assert len(delivery_markings) == len(set(delivery_markings)) == 18
         assert set(delivery_markings) == expected
-        assert all(
-            f"тест {marking}" in detail["marking"]
-            for detail in delivery_details
-            for marking in detail["markings"]
+        assert all(detail["marking"] == detail["markings"][0] for detail in delivery_details)
+        assert all(detail["qty"] == 1 for detail in delivery_details)
+
+    def test_preview_and_pdf_are_completely_image_free(self):
+        section = _delivery_section(
+            panels=4,
+            slide_rows=2,
+            center_handle="Без ручки (глухие)",
         )
+
+        html = render_project_document_html(self.project(), [section], "delivery")
+        pdf = generate_pdf(html)
+
+        assert "<img" not in html.casefold()
+        assert b"/Subtype /Image" not in pdf
 
     def test_hardware_rows_exclude_rs3018_rs3020_and_keep_special_groups(self):
         section = _delivery_section(
@@ -4364,7 +4440,7 @@ class TestDeliveryNote:
         assert stage_two_extras == {"SLIDE-STAGE-2"}
         assert {"RS1002", "RL2087"} <= stage_two_hardware
 
-    def test_reference_4108_keeps_rs1005_but_excludes_rs2081(self):
+    def test_reference_4108_keeps_rs3110_but_excludes_rs2081(self):
         sections = [
             _delivery_section(
                 name="Секция 1",
@@ -4407,12 +4483,16 @@ class TestDeliveryNote:
         context = _build_delivery_context(self.project(), sections)
         hardware = {row["article"]: row for row in context["delivery_item2_rows"]}
 
-        assert hardware["RS1005"]["qty"] == 1
+        assert hardware["RS3110"]["qty"] == 1
+        assert hardware["RS3110"]["size"] == ""
+        assert hardware["RS3110"]["stage"] == ""
+        assert "RS1005" not in hardware
         assert "RS2081" not in hardware
         assert "delivery_total_qty" not in context
 
         html = render_project_document_html(self.project(), sections, "delivery")
-        assert "RS1005" in html
+        assert "RS3110" in html
+        assert "RS1005" not in html
         assert "RS2081" not in html
 
     def test_project_4169_excludes_lock_profiles_from_delivery_note(self):
@@ -4541,7 +4621,8 @@ class TestDeliveryNote:
         }
         assert hardware["RS3014"]["qty"] == 2
         assert hardware["RS205"]["qty"] == 2
-        assert hardware["RS1005"]["qty"] == 1
+        assert hardware["RS3110"]["qty"] == 1
+        assert "RS1005" not in hardware
         assert "delivery_total_qty" not in context
 
     def test_lift_uses_calculated_dimensions_while_unimplemented_systems_do_not(self):
@@ -4582,20 +4663,18 @@ class TestDeliveryNote:
 
         assert sum(row["qty"] for row in glass_rows) == 9
         assert {detail["marking"] for detail in detail_rows} == {
-            "Н-001 1,1; Н-001 1,2; Н-001 1,3; Н-001 1,4; Н-001 1,5; Н-001 1,6",
-            "Н-001 2,1",
-            "Н-001 2,2",
-            "Н-001 3,1",
+            "1,1", "1,2", "1,3", "1,4", "1,5", "1,6",
+            "2,1", "2,2", "3,1",
         }
         lift_rows = [
-            detail for detail in detail_rows if detail["marking"].startswith("Н-001 2,")
+            detail for detail in detail_rows if detail["marking"].startswith("2,")
         ]
         assert all(detail["width"] is not None for detail in lift_rows)
         assert all(detail["height"] is not None for detail in lift_rows)
         placeholder_rows = [
             detail
             for detail in detail_rows
-            if not detail["marking"].startswith("Н-001 2,")
+            if not detail["marking"].startswith("2,")
         ]
         assert all(detail["width"] is None for detail in placeholder_rows)
         assert all(detail["height"] is None for detail in placeholder_rows)
@@ -5144,11 +5223,11 @@ class TestHardwareOrder:
         )
 
     @pytest.mark.parametrize(
-        ("height", "rs1002_qty", "rs1005_qty"),
+        ("height", "rs1002_qty", "rs3110_qty"),
         [(2990, 2, 1), (3300, 4, 2)],
     )
-    def test_rs1002_and_rs1005_use_three_meter_blanks(
-        self, height, rs1002_qty, rs1005_qty
+    def test_rs1002_and_rs3110_use_three_meter_blanks(
+        self, height, rs1002_qty, rs3110_qty
     ):
         section = _delivery_section(
             height=height,
@@ -5167,12 +5246,14 @@ class TestHardwareOrder:
         rows = {row["article"]: row for row in page["rows"]}
 
         assert rows["RS1002"]["qty"] == rs1002_qty
-        assert rows["RS1005"]["qty"] == rs1005_qty
+        assert rows["RS3110"]["qty"] == rs3110_qty
+        assert "RS1005" not in rows
         assert rows["RS1002"]["size"] == ""
-        assert rows["RS1005"]["size"] == ""
+        assert rows["RS3110"]["size"] == ""
         assert rows["RS1002"]["stage_text"] == "—"
-        assert rows["RS1005"]["stage_text"] == "—"
-        assert rows["RS1005"]["image"] == "RS1005.png"
+        assert rows["RS3110"]["stage_text"] == "—"
+        assert rows["RS3110"]["image"] == "RS3110.jpg"
+        assert "3000" not in rows["RS3110"]["name"] + rows["RS3110"]["size"]
 
     def test_guest_preview_and_authenticated_preview_are_available(
         self, client, admin_headers, project

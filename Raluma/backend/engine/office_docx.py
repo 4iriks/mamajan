@@ -35,6 +35,7 @@ from engine.office_common import (
 from engine.document_numbers import (
     commercial_document_number,
     production_project_number,
+    production_section_label,
 )
 from engine.office_diagrams import section_diagrams
 from engine.office_section_data import (
@@ -245,7 +246,7 @@ def _add_header(
     table = document.add_table(rows=1, cols=3)
     values = (
         f"ПРОЕКТ № {production_project_number(project)}",
-        str(getattr(section, "name", "") or "Секция"),
+        production_section_label(section),
         label,
     )
     for index, value in enumerate(values):
@@ -764,7 +765,7 @@ def _add_slide_checklist(
     paragraph = document.add_paragraph()
     paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = paragraph.add_run(
-        f"ПРОЕКТ № {production_project_number(project)} — {getattr(section, 'name', '')}"
+        f"ПРОЕКТ № {production_project_number(project)} — {production_section_label(section)}"
     )
     run.bold = True
     run.font.name = "Arial"
@@ -1031,11 +1032,18 @@ def _add_project_document_warnings(document: Document, context: dict) -> None:
         run.font.color.rgb = RGBColor.from_string(RED)
 
 
-def _sketch_heading(document: Document, text: str, *, size: float) -> None:
+def _sketch_heading(
+    document: Document,
+    text: str,
+    *,
+    size: float,
+    page_break_before: bool = False,
+) -> None:
     paragraph = document.add_paragraph()
     paragraph.paragraph_format.space_before = Pt(5)
     paragraph.paragraph_format.space_after = Pt(3)
     paragraph.paragraph_format.keep_with_next = True
+    paragraph.paragraph_format.page_break_before = page_break_before
     run = paragraph.add_run(text)
     run.bold = True
     run.font.name = "Arial"
@@ -1074,12 +1082,11 @@ def _build_sketch_docx(context: dict) -> bytes:
         paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     for section_index, sketch_section in enumerate(context["sections"]):
-        if section_index:
-            document.add_page_break()
         _sketch_heading(
             document,
             f"Изделие № {sketch_section['order']} · {sketch_section['system_text']}",
             size=10.5,
+            page_break_before=bool(section_index),
         )
         for warning_text in sketch_section["warnings"]:
             warning = document.add_paragraph()
@@ -1150,9 +1157,20 @@ def _build_sketch_docx(context: dict) -> bytes:
 
         diagrams = sketch_section["diagrams"]
         if diagrams:
-            diagram_table = document.add_table(rows=len(diagrams), cols=1)
+            tall_section = (
+                float(sketch_section.get("width_mm") or 0)
+                < float(sketch_section.get("height_mm") or 0)
+            )
+            if tall_section and len(diagrams) >= 2:
+                diagram_table = document.add_table(rows=1, cols=2)
+            else:
+                diagram_table = document.add_table(rows=len(diagrams), cols=1)
             for index, diagram in enumerate(diagrams):
-                cell = diagram_table.cell(index, 0)
+                cell = (
+                    diagram_table.cell(0, index)
+                    if tall_section and len(diagrams) >= 2
+                    else diagram_table.cell(index, 0)
+                )
                 _set_cell_text(
                     cell,
                     diagram["title"].upper(),
@@ -1163,11 +1181,20 @@ def _build_sketch_docx(context: dict) -> bytes:
                 _add_picture_fitted(
                     cell,
                     diagram["png"],
-                    max_width_mm=176,
-                    max_height_mm=64 if diagram.get("kind") == "room" else 34,
+                    max_width_mm=(
+                        72
+                        if tall_section and diagram.get("kind") == "room"
+                        else 100
+                        if tall_section
+                        else 176
+                    ),
+                    max_height_mm=70 if diagram.get("kind") == "room" else 34,
                 )
             diagram_table.style = "Table Grid"
-            _set_table_geometry_mm(diagram_table, (182,))
+            _set_table_geometry_mm(
+                diagram_table,
+                (76, 106) if tall_section and len(diagrams) >= 2 else (182,),
+            )
             for row in diagram_table.rows:
                 _prevent_row_split(row)
 

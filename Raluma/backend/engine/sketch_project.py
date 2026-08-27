@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import base64
 import json
-import re
 from dataclasses import dataclass
 from typing import Iterable
 
 from engine.book_calc import calculate_book
 from engine.lift_calc import calculate_lift, lift_geometry_error
-from engine.document_numbers import production_project_number
+from engine.document_numbers import production_project_number, resolve_section_numbers
 from engine.office_diagrams import render_slide_room, render_slide_top, section_diagrams
 from engine.slide_calc import (
     _inter_glass_article,
@@ -71,26 +70,8 @@ def _format_number(value: object) -> str:
     return f"{number:.1f}".replace(".", ",")
 
 
-def _section_name_number(section: object) -> int | None:
-    match = re.match(
-        r"\s*(?:секция|изделие)\s*(?:№\s*)?(\d+)\b",
-        str(getattr(section, "name", "") or ""),
-        re.IGNORECASE,
-    )
-    return int(match.group(1)) if match else None
-
-
-def _section_sort_key(section: object, fallback: int) -> tuple[int, int, int]:
-    try:
-        order = int(getattr(section, "order", 0) or 0)
-    except (TypeError, ValueError):
-        order = 0
-    name_number = _section_name_number(section)
-    return name_number if name_number is not None else order or fallback, order, fallback
-
-
 def _section_label(section: object, fallback: int) -> str:
-    return _text(getattr(section, "name", None), f"Секция {fallback}")
+    return f"Секция {fallback}"
 
 
 def _section_color(section: object, calc: object) -> str:
@@ -534,17 +515,11 @@ def build_sketch_project_context(
     project: object,
     sections: Iterable[object],
 ) -> dict:
-    indexed_sections = list(enumerate(sections, start=1))
-    ordered = [
-        section
-        for _, section in sorted(
-            indexed_sections,
-            key=lambda item: _section_sort_key(item[1], item[0]),
-        )
-    ]
+    resolved = resolve_section_numbers(sections)
     unsupported = [
-        f"{_section_label(section, index)} ({_text(getattr(section, 'system', None))})"
-        for index, section in enumerate(ordered, start=1)
+        f"{_text(getattr(section, 'name', None), _section_label(section, number))} "
+        f"({_text(getattr(section, 'system', None))})"
+        for number, section in resolved
         if _text(getattr(section, "system", None), "").upper()
         not in SUPPORTED_SKETCH_SYSTEMS
     ]
@@ -552,8 +527,8 @@ def build_sketch_project_context(
         raise SketchUnsupportedSectionsError(unsupported)
 
     prepared = []
-    for index, section in enumerate(ordered, start=1):
-        prepared.append(_section_data(section, _section_name_number(section) or index))
+    for section_number, section in resolved:
+        prepared.append(_section_data(section, section_number))
     order_number = _text(
         getattr(project, "order_number", None) or getattr(project, "number", None),
         "",

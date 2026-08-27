@@ -110,6 +110,9 @@ def update_section(
         raise HTTPException(status_code=404, detail="Секция не найдена")
     section_data = normalize_section_data_values(data.model_dump())
     _assign_price_group(section_data, db)
+    # ``order`` is server-owned after creation. Older editors sent a zero-based
+    # array index here and could silently turn the first section into order=0.
+    section_data.pop("order", None)
     for field, value in section_data.items():
         setattr(section, field, value)
     project.updated_at = datetime.utcnow()

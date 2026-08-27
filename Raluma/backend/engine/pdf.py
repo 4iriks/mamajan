@@ -14,7 +14,7 @@ from types import SimpleNamespace
 
 from jinja2 import Environment, FileSystemLoader
 
-from engine.document_numbers import production_project_number
+from engine.document_numbers import production_project_number, production_section_label
 
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATES_DIR = os.path.join(BACKEND_DIR, "templates")
@@ -443,6 +443,7 @@ def render_preview(project, section, calc) -> str:
     return template.render(
         project=project,
         project_number=production_project_number(project),
+        section_label=production_section_label(section),
         section=section,
         calc=calc,
         overrides=overrides,
@@ -465,6 +466,7 @@ def render_pdf_html(project, section, calc) -> str:
     return template.render(
         project=project,
         project_number=production_project_number(project),
+        section_label=production_section_label(section),
         section=section,
         calc=calc,
         overrides=overrides,

@@ -85,12 +85,16 @@
       break-inside: avoid;
       page-break-inside: avoid;
     }
+    .sketch-section-tall .diagram-grid {
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.35fr);
+      align-items: stretch;
+    }
     .diagram {
       padding: 1.5mm;
       border: 0.25mm solid #a8bbc0;
       text-align: center;
     }
-    .diagram-room { min-height: 76mm; }
+    .diagram-room { min-height: 88mm; }
     .diagram-top { min-height: 39mm; }
     .diagram-title {
       margin-bottom: 1mm;
@@ -104,7 +108,7 @@
       width: 100%;
       object-fit: contain;
     }
-    .diagram-room img { height: 70mm; }
+    .diagram-room img { height: 82mm; }
     .diagram-top img { height: 33mm; }
     .section-comment {
       margin: 0 0 2.5mm;
@@ -177,7 +181,7 @@
   {% endif %}
 
   {% for section in sections %}
-  <section class="sketch-section" data-sketch-section="{{ section.order }}" data-system="{{ section.system|e }}">
+  <section class="sketch-section{% if section.width_mm < section.height_mm %} sketch-section-tall{% endif %}" data-sketch-section="{{ section.order }}" data-system="{{ section.system|e }}">
     <div class="section-intro">
       <h2 class="section-heading">Изделие № {{ section.order }} · {{ section.system_text|e }}</h2>
 

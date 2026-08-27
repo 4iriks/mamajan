@@ -88,6 +88,30 @@ def _cropped_png(image: Image.Image, *, padding: int = 20) -> bytes:
     return _png(cropped)
 
 
+def _boxed_png(image: Image.Image, box: tuple[int, int, int, int]) -> bytes:
+    """Crop to a deterministic box so print font sizing has a known scale."""
+
+    return _png(image.crop(box))
+
+
+def _print_font_pixels(
+    point_size: float,
+    crop_width_px: int,
+    crop_height_px: int,
+    *,
+    max_width_mm: float = 176,
+    max_height_mm: float = 70,
+) -> int:
+    """Convert a desired final point size to source pixels after fit-to-page."""
+
+    millimeters_per_pixel = min(
+        max_width_mm / max(crop_width_px, 1),
+        max_height_mm / max(crop_height_px, 1),
+    )
+    desired_height_mm = point_size * 25.4 / 72
+    return max(13, round(desired_height_mm / millimeters_per_pixel))
+
+
 def _text_size(draw: ImageDraw.ImageDraw, text: str, font) -> tuple[int, int]:
     box = draw.textbbox((0, 0), text, font=font)
     return box[2] - box[0], box[3] - box[1]
@@ -184,11 +208,6 @@ def render_slide_room(
     canvas = Image.new("RGB", (1600, 700), BACKGROUND)
     draw = ImageDraw.Draw(canvas)
     title_font = load_font(30, bold=True)
-    number_font = load_font(30, bold=True)
-    dim_font = load_font(48 if print_dimensions else 23, bold=True)
-    dimension_color = "#000000" if print_dimensions else INK
-    dimension_line_color = "#000000" if print_dimensions else GRID
-    small_font = load_font(23 if print_dimensions else 19, bold=print_dimensions)
 
     if include_title:
         _center_text(draw, (800, 34), "ВИД ИЗ ПОМЕЩЕНИЯ", title_font)
@@ -199,6 +218,45 @@ def render_slide_room(
     top = 80 + max(0, (470 - drawing_height) // 2)
     right = left + drawing_width
     bottom = top + drawing_height
+    print_crop_box = (
+        max(0, left - 24),
+        max(0, top - 60),
+        min(canvas.width, right + 155),
+        min(canvas.height, bottom + 160),
+    )
+    print_crop_width = print_crop_box[2] - print_crop_box[0]
+    print_crop_height = print_crop_box[3] - print_crop_box[1]
+    if print_dimensions:
+        number_font_size = _print_font_pixels(
+            15,
+            print_crop_width,
+            print_crop_height,
+        )
+        panel_font_size = _print_font_pixels(
+            14,
+            print_crop_width,
+            print_crop_height,
+        )
+        dimension_font_size = _print_font_pixels(
+            15.5,
+            print_crop_width,
+            print_crop_height,
+        )
+        small_font_size = _print_font_pixels(
+            10,
+            print_crop_width,
+            print_crop_height,
+        )
+    else:
+        number_font_size = 30
+        panel_font_size = 23
+        dimension_font_size = 23
+        small_font_size = 19
+    number_font = load_font(number_font_size, bold=True)
+    dim_font = load_font(dimension_font_size, bold=True)
+    dimension_color = "#000000" if print_dimensions else INK
+    dimension_line_color = "#000000" if print_dimensions else GRID
+    small_font = load_font(small_font_size, bold=print_dimensions)
 
     draw.rectangle((left, top, right, bottom), outline=INK, width=7)
     draw.rectangle(
@@ -271,7 +329,13 @@ def render_slide_room(
 
         cx = (panel_left + panel_right) / 2
         cy = (top + bottom) / 2
-        _center_text(draw, (cx, cy - 30), str(number), number_font)
+        _center_text(
+            draw,
+            (cx, cy - 30),
+            str(number),
+            number_font,
+            dimension_color,
+        )
         if deaf:
             draw.line(
                 (panel_left + 12, top + 22, panel_right - 12, bottom - 22),
@@ -297,9 +361,15 @@ def render_slide_room(
             draw,
             dimension,
             panel_px - 8,
-            44 if print_dimensions else 23,
+            panel_font_size,
         )
-        _center_text(draw, (cx, bottom + 35), dimension, panel_font)
+        _center_text(
+            draw,
+            (cx, bottom + 35),
+            dimension,
+            panel_font,
+            dimension_color,
+        )
         if not glass_supplied:
             no_glass_font = _fitted_font(draw, "БЕЗ СТЕКЛА", panel_px - 10, 18)
             _center_text(draw, (cx, cy + 62), "БЕЗ СТЕКЛА", no_glass_font, MUTED)
@@ -355,6 +425,8 @@ def render_slide_room(
     _center_text(
         draw, ((left + right) / 2, bottom + 130), "ПОМЕЩЕНИЕ", small_font, MUTED
     )
+    if crop and print_dimensions:
+        return _boxed_png(canvas, print_crop_box)
     return _cropped_png(canvas) if crop else _png(canvas)
 
 

@@ -258,6 +258,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     const copy: Section = {
       ...source,
       id: `tmp-${Date.now()}`,
+      order: undefined,
       name: `Секция ${maxNum + 1}`,
       documentOverrides: '{}',
     };

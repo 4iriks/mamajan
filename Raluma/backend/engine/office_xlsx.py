@@ -22,7 +22,7 @@ from engine.office_common import (
     load_overrides,
     override_value,
 )
-from engine.document_numbers import production_project_number
+from engine.document_numbers import production_project_number, production_section_label
 from engine.office_diagrams import section_diagrams
 from engine.office_docx import CHECKLIST_ROWS
 from engine.office_section_data import hardware_rows, profile_rows, section_summary_rows
@@ -293,7 +293,7 @@ def _write_section_header(
         4,
         1,
         7,
-        str(getattr(section, "name", "") or "Секция"),
+        production_section_label(section),
         formats["title"],
     )
     worksheet.merge_range(0, 8, 1, 11, label, formats["title_compact"])
@@ -917,7 +917,7 @@ def _build_slide_checklist_sheet(
         0,
         1,
         11,
-        f"ПРОЕКТ № {production_project_number(project)} — {getattr(section, 'name', '')}",
+        f"ПРОЕКТ № {production_project_number(project)} — {production_section_label(section)}",
         formats["title"],
     )
     row = _write_slide_checklist_block(

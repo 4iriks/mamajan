@@ -248,6 +248,21 @@ def test_update_section(client, admin_headers, project, section):
     assert data["width"] == 3000
 
 
+def test_update_section_preserves_server_order_when_editor_sends_zero(
+    client, admin_headers, project, section
+):
+    original_order = section["order"]
+
+    response = client.put(
+        f"/api/projects/{project['id']}/sections/{section['id']}",
+        headers=admin_headers,
+        json={**section, "order": 0, "width": 3100},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["order"] == original_order
+
+
 def test_center_handle_offset_is_saved_only_for_supported_handles(
     client, admin_headers, project
 ):

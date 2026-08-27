@@ -25,6 +25,7 @@ from engine.book_calc import BookCalculationError, calculate_book
 from engine.document_numbers import (
     commercial_document_number,
     production_project_number,
+    resolved_section_number,
 )
 from engine.lift_calc import calculate_lift
 from engine.office_common import normalize_filename
@@ -203,6 +204,10 @@ def _get_section_or_404(
     )
     if not section:
         raise HTTPException(status_code=404, detail="Секция не найдена")
+    section.document_section_number = resolved_section_number(
+        project.sections,
+        section,
+    )
     return project, section
 
 
@@ -269,6 +274,7 @@ def _build_local_document_objects(payload: LocalDocumentPayload):
         current_stage=project_data.get("current_stage") or 1,
     )
     section = SimpleNamespace(**section_values)
+    section.document_section_number = resolved_section_number([section], section)
     return project, section
 
 
@@ -456,7 +462,10 @@ def download_local_pdf(payload: LocalDocumentPayload):
     html = render_pdf_html(project, section, calc)
     pdf_bytes = generate_pdf(html)
     pdf_bytes = append_pdf_drawings(pdf_bytes, drawing_files_for_sections([section]))
-    filename = f"ПЛ_{_production_project_number(project)}_{section.name}.pdf"
+    filename = (
+        f"ПЛ_{_production_project_number(project)}_"
+        f"сек{section.document_section_number}.pdf"
+    )
     from urllib.parse import quote
 
     encoded = quote(filename)
@@ -474,7 +483,10 @@ def _download_local_section_office(
     project, section = _build_local_document_objects(payload)
     _ensure_book_section_documents_supported(section)
     content = _build_section_office(project, section, file_format)
-    filename = f"ПЛ_{_production_project_number(project)}_{section.name}.{file_format}"
+    filename = (
+        f"ПЛ_{_production_project_number(project)}_"
+        f"сек{section.document_section_number}.{file_format}"
+    )
     return _office_response(content, filename, file_format)
 
 
@@ -719,7 +731,10 @@ def download_pdf(
     html = render_pdf_html(project, section, calc)
     pdf_bytes = generate_pdf(html)
     pdf_bytes = append_pdf_drawings(pdf_bytes, drawing_files_for_sections([section]))
-    filename = f"ПЛ_{_production_project_number(project)}_сек{section.order}.pdf"
+    filename = (
+        f"ПЛ_{_production_project_number(project)}_"
+        f"сек{section.document_section_number}.pdf"
+    )
     from urllib.parse import quote
 
     encoded = quote(filename)
@@ -745,7 +760,7 @@ def _download_section_office(
     )
     _ensure_book_section_documents_supported(section)
     content = _build_section_office(project, section, file_format)
-    section_number = getattr(section, "order", None) or getattr(section, "name", "")
+    section_number = section.document_section_number
     filename = (
         f"ПЛ_{_production_project_number(project)}_сек{section_number}.{file_format}"
     )

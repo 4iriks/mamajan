@@ -224,7 +224,6 @@
             <div class="row-title">
               {% if row.article %}<span class="nowrap">{{ row.article|e }}</span> — {% endif %}{{ row.name|e }}
             </div>
-            {% if row.image %}<img class="component-thumb" src="{{ row.image|img_b64 }}" alt="">{% endif %}
             {% if row.color %}<div class="row-meta">Цвет: {{ row.color|e }}</div>{% endif %}
             {% if row.size %}<div class="row-meta">Размер: {{ row.size|e }}</div>{% endif %}
             {% if row.stage %}<div class="row-meta">Этап: {{ row.stage|e }}</div>{% endif %}
@@ -242,7 +241,6 @@
             <div class="row-title">
               {% if row.article %}<span class="nowrap">{{ row.article|e }}</span> — {% endif %}{{ row.name|e }}
             </div>
-            {% if row.image %}<img class="component-thumb" src="{{ row.image|img_b64 }}" alt="">{% endif %}
             {% if row.color %}<div class="row-meta">Цвет: {{ row.color|e }}</div>{% endif %}
             {% if row.size %}<div class="row-meta">Размер: {{ row.size|e }}</div>{% endif %}
             {% if row.stage %}<div class="row-meta">Этап: {{ row.stage|e }}</div>{% endif %}

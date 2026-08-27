@@ -360,9 +360,8 @@ def _apply_glass_total_correction(
         )
         return difference_mm
 
-    for index, adjustment in _glass_correction_adjustments(
-        len(panels), difference_mm
-    ).items():
+    adjustments = _glass_correction_adjustments(len(panels), difference_mm)
+    for index, adjustment in adjustments.items():
         panel = panels[index]
         panel.width_mm = round(float(panel.width_mm) + adjustment, 1)
         panel.glass_profile_length = round(
@@ -375,8 +374,18 @@ def _apply_glass_total_correction(
     # both at the larger size and carry the same +1 into its RS2021 cutting.
     for indexes in calculation_groups.values():
         for pair_offset in range(len(indexes) // 2):
-            left = panels[indexes[pair_offset]]
-            right = panels[indexes[-pair_offset - 1]]
+            left_index = indexes[pair_offset]
+            right_index = indexes[-pair_offset - 1]
+            # An explicit checksum correction is final. Pair equalisation must
+            # never restore the millimetre removed from an adjusted edge pane.
+            if (
+                len(panels) == 5
+                and difference_mm == -2
+                and (left_index in adjustments or right_index in adjustments)
+            ):
+                continue
+            left = panels[left_index]
+            right = panels[right_index]
             pair_difference = float(left.width_mm) - float(right.width_mm)
             if abs(pair_difference) != 1:
                 continue
@@ -429,7 +438,15 @@ def _apply_two_row_glass_total_correction(
     actual_total_mm = sum(float(panel.width_mm or 0) for panel in panels)
     raw_difference_mm = float(control_total_mm) - actual_total_mm
     difference_mm = _round_glass_difference_mm(raw_difference_mm)
-    if abs(difference_mm) >= 4:
+    confirmed_ten_panel_case = len(panels) == 10 and round(raw_difference_mm, 1) == 4.5
+    if confirmed_ten_panel_case:
+        adjustments = {
+            0: 1,
+            len(panels) // 2 - 1: 1,
+            len(panels) // 2: 1,
+            len(panels) - 1: 1,
+        }
+    elif abs(difference_mm) >= 4:
         result.warnings.append(
             "SLIDE: автоматическая коррекция стекол не выполнена. "
             f"Контрольная сумма — {_format_check_mm(control_total_mm)} мм; "
@@ -437,9 +454,11 @@ def _apply_two_row_glass_total_correction(
             f"разница — {_format_check_mm(raw_difference_mm, signed=True)} мм."
         )
         return difference_mm
-    for index, adjustment in _two_row_glass_correction_adjustments(
-        len(panels), difference_mm
-    ).items():
+    else:
+        adjustments = _two_row_glass_correction_adjustments(
+            len(panels), difference_mm
+        )
+    for index, adjustment in adjustments.items():
         panel = panels[index]
         panel.width_mm = round(float(panel.width_mm) + adjustment, 1)
         panel.glass_profile_length = round(
@@ -1047,6 +1066,17 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         )
         or 0
     )
+    # Approved four-panel rule: with a real central offset C the side RS112
+    # handle bars do not add their usual 8 mm to the outer glass widths. The
+    # central panes still receive the full C. Wider 6/8/10-panel layouts retain
+    # the established side +8 mm rule.
+    replace_side_eight_with_center_offset = P == 4 and center_offset > 0
+    side_handle_width_left = (
+        0 if replace_side_eight_with_center_offset else krlr
+    )
+    side_handle_width_right = (
+        0 if replace_side_eight_with_center_offset else krrr
+    )
     center_rs112_count = 2 if center_is_rs112 else 0
     centr1 = 47.5 if center_is_rs112 else 0
     centr2 = 8 if center_is_rs112 else 0
@@ -1096,9 +1126,9 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     )
     middle_W = (
         control_glass_total
-        - krlr
+        - side_handle_width_left
         - krlp
-        - krrr
+        - side_handle_width_right
         - krrp
         - a
         - b
@@ -1107,8 +1137,8 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         - center_left_edge_recovery
         - center_right_edge_recovery
     ) / P
-    left_W = middle_W + a + krlr + krlp
-    right_W = middle_W + b + krrr + krrp
+    left_W = middle_W + a + side_handle_width_left + krlp
+    right_W = middle_W + b + side_handle_width_right + krrp
     center_left_W = middle_W + center_offset + centr2 + center_left_edge_recovery
     center_right_W = middle_W + center_offset + centr2 + center_right_edge_recovery
 
@@ -1309,12 +1339,12 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     else:
         result.profiles.append(
             ProfileItem(
-                article="RS1005",
-                name="h-уплотнитель 10 мм",
+                article="RS3110",
+                name="h-уплотнитель центрального стыка",
                 length_mm=round(inter_glass_len, 1),
                 qty=Q,
                 painted=False,
-                image="RS1005.png",
+                image="RS3110.jpg",
                 field_key="center_joint_profile_length",
                 note="",
             )

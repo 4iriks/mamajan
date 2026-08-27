@@ -24,6 +24,7 @@ export interface ExtraComponent {
 
 export interface Section {
   id: string;
+  order?: number;
   name: string;
   system: SystemType;
   width: number;

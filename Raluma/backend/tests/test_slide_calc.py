@@ -14,6 +14,7 @@ from engine.slide_calc import (
     PanelGlassItem,
     SlideCalcResult,
     _apply_glass_total_correction,
+    _apply_two_row_glass_total_correction,
     _aggregate_glass_profiles,
     _glass_correction_adjustments,
     _inter_glass_overlap_mm,
@@ -262,6 +263,81 @@ class TestGlassTotalCorrection:
             477,
             477,
         ]
+
+    def test_invoice_five_section_four_keeps_edges_after_minus_two_correction(self):
+        result = calculate_slide(
+            _make_section(
+                width=3303,
+                panels=5,
+                rails=5,
+                slide_rows=1,
+                profile_left_handle_bar=True,
+                profile_right_handle_bar=True,
+                inter_glass_profile="Алюминиевый RS2061",
+            )
+        )
+
+        assert [panel.width_mm for panel in result.panel_glass] == [
+            666, 659, 659, 659, 666,
+        ]
+        assert [panel.glass_profile_length for panel in result.panel_glass] == [
+            682, 656, 656, 656, 682,
+        ]
+        assert not result.warnings
+
+    def test_confirmed_ten_panel_plus_four_point_five_correction(self):
+        widths = [630, 614, 614, 614, 622, 622, 614, 614, 614, 630]
+        result = SlideCalcResult(
+            panel_glass=[
+                PanelGlassItem(index, f"Панель {index}", width, 2200, width - 3)
+                for index, width in enumerate(widths, start=1)
+            ]
+        )
+
+        applied = _apply_two_row_glass_total_correction(result, 6192.5)
+
+        assert applied == 5
+        assert [panel.width_mm for panel in result.panel_glass] == [
+            631, 614, 614, 614, 623, 623, 614, 614, 614, 631,
+        ]
+        assert [panel.glass_profile_length for panel in result.panel_glass] == [
+            628, 611, 611, 611, 620, 620, 611, 611, 611, 628,
+        ]
+        assert not result.warnings
+
+    @pytest.mark.parametrize("raw_difference", [-5, -4, 4, 4.4, 4.6, 5])
+    def test_other_large_two_row_differences_still_warn(self, raw_difference):
+        result = SlideCalcResult(
+            panel_glass=[
+                PanelGlassItem(index, f"Панель {index}", 600, 2200, 597)
+                for index in range(1, 11)
+            ]
+        )
+
+        _apply_two_row_glass_total_correction(result, 6000 + raw_difference)
+
+        assert [panel.width_mm for panel in result.panel_glass] == [600] * 10
+        assert len(result.warnings) == 1
+
+    @pytest.mark.parametrize("difference", [-3, -2, -1, 0, 1, 2, 3])
+    def test_small_two_row_corrections_keep_approved_rules(self, difference):
+        result = SlideCalcResult(
+            panel_glass=[
+                PanelGlassItem(index, f"Панель {index}", 600, 2200, 597)
+                for index in range(1, 11)
+            ]
+        )
+
+        _apply_two_row_glass_total_correction(result, 6000 + difference)
+
+        adjustments = _two_row_glass_correction_adjustments(10, difference)
+        assert [panel.width_mm for panel in result.panel_glass] == [
+            600 + adjustments.get(index, 0) for index in range(10)
+        ]
+        assert [panel.glass_profile_length for panel in result.panel_glass] == [
+            597 + adjustments.get(index, 0) for index in range(10)
+        ]
+        assert not result.warnings
 
     @pytest.mark.parametrize(
         ("profile", "expected_overlap"),
@@ -2301,6 +2377,64 @@ class TestSlideTwoRows:
             (910, 910),
         ]
 
+    def test_invoice_five_section_six_replaces_side_eight_with_center_offset(self):
+        result = calculate_slide(
+            _make_section(
+                width=4540,
+                height=3000,
+                panels=4,
+                rails=3,
+                slide_rows=2,
+                profile_left_wall=True,
+                profile_right_wall=True,
+                profile_left_lock_bar=True,
+                profile_right_lock_bar=True,
+                profile_left_handle_bar=True,
+                profile_right_handle_bar=True,
+                center_handle="Стеклянная ручка RS3017",
+                center_handle_offset=100,
+                first_panel_inside=None,
+            )
+        )
+
+        assert [panel.width_mm for panel in result.panel_glass] == [
+            1051, 1151, 1151, 1051,
+        ]
+        assert [panel.glass_profile_length for panel in result.panel_glass] == [
+            1067, 1148, 1148, 1067,
+        ]
+        assert not result.warnings
+
+    @pytest.mark.parametrize(
+        ("panels", "width", "expected_widths"),
+        [
+            (6, 5402, [873, 865, 965, 965, 865, 873]),
+            (8, 7201, [884, 876, 876, 976, 976, 876, 876, 884]),
+            (10, 9004, [891, 883, 883, 883, 983, 983, 883, 883, 883, 891]),
+        ],
+    )
+    def test_side_eight_is_preserved_for_wider_two_row_sections(
+        self, panels, width, expected_widths
+    ):
+        result = calculate_slide(
+            _make_section(
+                width=width,
+                panels=panels,
+                rails=5 if panels > 6 else 3,
+                slide_rows=2,
+                profile_left_handle_bar=True,
+                profile_right_handle_bar=True,
+                center_handle="Стеклянная ручка RS3017",
+                center_handle_offset=100,
+                first_panel_inside=None,
+            )
+        )
+
+        assert [panel.width_mm for panel in result.panel_glass] == expected_widths
+        assert result.panel_glass[0].width_mm - result.panel_glass[1].width_mm == 8
+        assert result.panel_glass[-1].width_mm - result.panel_glass[-2].width_mm == 8
+        assert not result.warnings
+
     def test_hidden_center_offset_is_ignored_for_six_panel_knob_reference(self):
         r = calculate_slide(
             _make_section(
@@ -2703,7 +2837,7 @@ class TestSlideTwoRows:
         assert not _find_hardware(r, "RS106")
         assert screw.qty == (rs105.value + rs108.value) * 2
 
-    def test_center_rs1005_is_cut_profile_with_xlsx_image(self):
+    def test_center_rs3110_is_cut_profile_with_xlsx_image(self):
         r = calculate_slide(
             _make_section(
                 slide_rows=2,
@@ -2713,11 +2847,12 @@ class TestSlideTwoRows:
                 first_panel_inside=None,
             )
         )
-        rs1005 = _find_profile(r, "RS1005")[0]
-        assert rs1005.length_mm == 2238
-        assert rs1005.qty == 1
-        assert rs1005.image == "RS1005.png"
-        assert not _find_hardware(r, "RS1005")
+        rs3110 = _find_profile(r, "RS3110")[0]
+        assert rs3110.length_mm == 2238
+        assert rs3110.qty == 1
+        assert rs3110.image == "RS3110.jpg"
+        assert not _find_profile(r, "RS1005")
+        assert not _find_hardware(r, "RS3110")
 
     def test_center_locks_are_separate_hardware(self):
         glass_lock = calculate_slide(

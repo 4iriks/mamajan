@@ -172,6 +172,7 @@ export function apiToLocal(s: SectionOut): Section {
   const legacyBookOpening = normalizeBookOpening(s.door_opening);
   return {
     id: String(s.id),
+    order: s.order,
     name: s.name,
     system: (rawSystem as SystemType) || 'СЛАЙД',
     width: s.width,
@@ -264,7 +265,7 @@ export function apiToLocal(s: SectionOut): Section {
   };
 }
 
-export function localToApi(s: Section, order: number): Omit<SectionOut, 'id' | 'project_id'> {
+export function localToApi(s: Section, fallbackIndex: number): Omit<SectionOut, 'id' | 'project_id'> {
   const extraDoorOptions = bookExtraDoorPanelOptions({
     panelCount: s.panels,
     doorLayout: s.doorSide,
@@ -280,7 +281,7 @@ export function localToApi(s: Section, order: number): Omit<SectionOut, 'id' | '
     Math.min(s.bookLeftStackPanels || Math.floor(physicalBookPanels / 2), physicalBookPanels - 1),
   );
   return {
-    name: s.name, order,
+    name: s.name, order: s.order ?? fallbackIndex + 1,
     system: s.system,
     width: s.width, height: s.height, panels: s.panels, quantity: s.quantity,
     glass_type: normalizeGlassType(s.glassType, s.system), painting_type: s.paintingType,
