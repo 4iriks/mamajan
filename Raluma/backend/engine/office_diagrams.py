@@ -131,6 +131,35 @@ def _center_text(
     draw.text((xy[0] - width / 2, xy[1] - height / 2), text, font=font, fill=fill)
 
 
+def _center_vertical_text(
+    image: Image.Image,
+    xy: tuple[float, float],
+    text: str,
+    font,
+    fill=INK,
+) -> None:
+    label_draw = ImageDraw.Draw(image)
+    width, height = _text_size(label_draw, text, font)
+    label = Image.new("RGBA", (width + 12, height + 12), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(label)
+    bounds = draw.textbbox((0, 0), text, font=font)
+    draw.text(
+        (6 - bounds[0], 6 - bounds[1]),
+        text,
+        font=font,
+        fill=fill,
+    )
+    rotated = label.rotate(90, expand=True, resample=Image.Resampling.BICUBIC)
+    image.paste(
+        rotated,
+        (
+            round(xy[0] - rotated.width / 2),
+            round(xy[1] - rotated.height / 2),
+        ),
+        rotated,
+    )
+
+
 def _fitted_font(draw: ImageDraw.ImageDraw, text: str, max_width: float, preferred: int):
     for size in range(preferred, 12, -1):
         font = load_font(size, bold=True)
@@ -232,21 +261,21 @@ def render_slide_room(
     if print_dimensions:
         print_max_width_mm = 72 if section_width < section_height else 176
         number_font_size = _print_font_pixels(
-            26,
+            14,
             print_crop_width,
             print_crop_height,
             max_width_mm=print_max_width_mm,
             max_height_mm=82,
         )
         panel_font_size = _print_font_pixels(
-            22,
+            17,
             print_crop_width,
             print_crop_height,
             max_width_mm=print_max_width_mm,
             max_height_mm=82,
         )
         dimension_font_size = _print_font_pixels(
-            24,
+            19,
             print_crop_width,
             print_crop_height,
             max_width_mm=print_max_width_mm,
@@ -426,8 +455,8 @@ def render_slide_room(
         fill=dimension_line_color,
         width=3 if print_dimensions else 2,
     )
-    _center_text(
-        draw,
+    _center_vertical_text(
+        canvas,
         (right + 75, (top + bottom) / 2),
         str(glass_mm(section_height)),
         dim_font,
