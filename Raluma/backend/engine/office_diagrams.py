@@ -462,7 +462,6 @@ def render_slide_room(
         dim_font,
         dimension_color,
     )
-    _center_text(draw, ((left + right) / 2, top - 25), "УЛИЦА", small_font, MUTED)
     _center_text(
         draw, ((left + right) / 2, bottom + 230), "ПОМЕЩЕНИЕ", small_font, MUTED
     )
