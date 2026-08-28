@@ -1539,7 +1539,7 @@ class TestSketchProject:
         assert f"ЭСКИЗНЫЙ ПРОЕКТ № {project['order_number']}" in preview.text
         assert f"ЭСКИЗНЫЙ ПРОЕКТ № {project['invoice_number']}" not in preview.text
 
-    def test_slide_top_view_reuses_production_sheet_diagram(self):
+    def test_slide_top_view_reuses_print_enhanced_production_sheet_diagram(self):
         project = SimpleNamespace(
             number="B26-TEST",
             order_number="B26-TEST",
@@ -1551,7 +1551,9 @@ class TestSketchProject:
         context = build_project_document_context(project, [section], "sketch")
         expected_top = next(
             payload
-            for title, payload in section_diagrams(section, calc)
+            for title, payload in section_diagrams(
+                section, calc, print_dimensions=True
+            )
             if "сверху" in title.casefold()
         )
         actual_top = next(
@@ -1815,7 +1817,7 @@ class TestSketchProject:
         assert document_xml.count("w:pageBreakBefore") >= 2
         assert "РАЗМЕРЫ СТЕКОЛ" in self._docx_text(docx.content)
 
-    def test_slide_without_glass_keeps_calculated_sizes_but_skips_orders(self, client):
+    def test_slide_without_glass_keeps_sizes_and_builds_default_glass_order(self, client):
         payload = self._payload(
             [self._slide(glass_supplied=False, width=2000, height=2400)]
         )
@@ -1837,7 +1839,9 @@ class TestSketchProject:
         assert "2000" in sketch.text
         assert "2400" in sketch.text
         assert glass.status_code == 200
-        assert "В проекте нет расчетных стекол" in glass.text
+        assert "В проекте нет расчетных стекол" not in glass.text
+        assert "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ" in glass.text
+        assert "1,1" in glass.text
         assert delivery.status_code == 200
         assert 'class="glass-table"' not in delivery.text
         assert "Raluma SLIDE" in delivery.text
@@ -3393,6 +3397,40 @@ class TestProjectPaintOrder:
 
 
 class TestProjectGlassOrder:
+    def test_equal_sizes_share_marking_and_numbering_restarts_per_section(self):
+        project = SimpleNamespace(number="B26-7-4226")
+        sections = [
+            _delivery_section(
+                name=f"Секция {order}",
+                order=order,
+                width=4228,
+                height=2075,
+                panels=5,
+                rails=5,
+                profile_left_handle_bar=True,
+                profile_right_handle_bar=True,
+            )
+            for order in (1, 2)
+        ]
+
+        rows = _build_glass_rows(project, _iter_calculated_sections(sections))
+
+        assert [
+            (row["marking"], row["width"], row["height"], row["qty"])
+            for row in rows
+        ] == [
+            ("1,1", 858, 1969, 2),
+            ("1,2", 850, 1969, 3),
+            ("2,1", 858, 1969, 2),
+            ("2,2", 850, 1969, 3),
+        ]
+        assert all(row["markings"] == [row["marking"]] for row in rows)
+        assert all(
+            row["area"]
+            == round(row["width"] * row["height"] * row["qty"] / 1_000_000, 3)
+            for row in rows
+        )
+
     def test_lift_panels_use_calculated_dimensions_and_section_quantity(self):
         project = SimpleNamespace(number="LIFT-GLASS")
         section = _delivery_section(
@@ -3411,17 +3449,10 @@ class TestProjectGlassOrder:
         )
 
         assert [(row["width"], row["height"], row["qty"]) for row in rows] == [
-            (2169, 1013, 1),
-            (2167, 1001, 1),
-            (2169, 1013, 1),
-            (2167, 1001, 1),
+            (2169, 1013, 2),
+            (2167, 1001, 2),
         ]
-        assert [row["marking"] for row in rows] == [
-            "1,1",
-            "1,2",
-            "1,3",
-            "1,4",
-        ]
+        assert [row["marking"] for row in rows] == ["1,1", "1,2"]
         assert all(
             row["glass_type"] == "СТЕКЛО 8мм ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ" for row in rows
         )
@@ -3524,7 +3555,8 @@ class TestProjectGlassOrder:
             "Этаж 2 / секция 1",
             "Этаж 2 / секция 2",
         ]
-        assert len(glass_markings) == len(set(glass_markings)) == 8
+        assert len(glass_markings) == len(set(glass_markings)) == 4
+        assert sum(row["qty"] for row in _build_glass_rows(project, calculated)) == 8
         assert {marking.split(",", 1)[0] for marking in glass_markings} == {
             "1",
             "2",
@@ -3552,10 +3584,12 @@ class TestProjectGlassOrder:
         ]
         sketch = build_project_document_context(project, sections, "sketch")
 
-        expected = {"4,1", "4,2", "5,1", "5,2", "6,1", "6,2"}
+        expected = {"4,1", "5,1", "6,1"}
         assert [item.order for item in calculated] == [4, 5, 6]
         assert {row["marking"] for row in glass_rows} == expected
         assert {row["marking"] for row in delivery_rows} == expected
+        assert all(row["qty"] == 2 for row in glass_rows)
+        assert all(row["qty"] == 2 for row in delivery_rows)
         assert [section["order"] for section in sketch["sections"]] == [4, 5, 6]
         assert [section["label"] for section in sketch["sections"]] == [
             "Секция 4", "Секция 5", "Секция 6",
@@ -3638,7 +3672,7 @@ class TestProjectGlassOrder:
         plain_qty = sum(row["qty"] for row in rows if row["note"] == "")
         assert plain_qty == 2
 
-    def test_glass_rows_sort_by_first_physical_marking(self):
+    def test_equal_edge_glass_uses_one_marking_and_quantity(self):
         project = SimpleNamespace(number="P-ORDER")
         section = SimpleNamespace(
             panels=3,
@@ -3674,9 +3708,9 @@ class TestProjectGlassOrder:
         assert rows[0]["markings"] == ["1,1"]
         assert rows[0]["width"] == 1003
         assert rows[0]["height"] == 2200
+        assert rows[0]["qty"] == 2
         assert rows[1]["marking"] == "1,2"
-        assert rows[2]["marking"] == "1,3"
-        assert all(row["qty"] == 1 for row in rows)
+        assert rows[1]["qty"] == 1
 
     def test_two_row_center_bracket_drawing_marks_only_central_glass(self):
         project = SimpleNamespace(number="P-002")
@@ -3712,9 +3746,10 @@ class TestProjectGlassOrder:
 
         drawing_rows = [row for row in rows if row["note"] == "(чертеж)"]
         plain_rows = [row for row in rows if row["note"] == ""]
-        assert [row["marking"] for row in drawing_rows] == ["2,2", "2,3"]
-        assert [row["marking"] for row in plain_rows] == ["2,1", "2,4"]
-        assert all(row["qty"] == 1 for row in rows)
+        assert [row["marking"] for row in drawing_rows] == ["2,2"]
+        assert [row["marking"] for row in plain_rows] == ["2,1"]
+        assert drawing_rows[0]["qty"] == 2
+        assert plain_rows[0]["qty"] == 2
 
     def test_two_row_left_center_floor_latch_does_not_create_drawing_note(self):
         project = SimpleNamespace(number="P-003")
@@ -3749,8 +3784,8 @@ class TestProjectGlassOrder:
         )
 
         assert [row for row in rows if row["note"] == "(чертеж)"] == []
-        assert [row["marking"] for row in rows] == ["3,1", "3,2", "3,3", "3,4"]
-        assert all(row["qty"] == 1 for row in rows)
+        assert [row["marking"] for row in rows] == ["3,1"]
+        assert rows[0]["qty"] == 4
 
     def test_no_hardware_labels_do_not_create_drawing_note(self):
         project = SimpleNamespace(number="P-004")
@@ -4040,10 +4075,8 @@ class TestDeliveryNote:
         )
         assert glass_groups[0]["qty"] == 6
         assert sum(row["qty"] for row in glass_groups[0]["rows"]) == 6
-        assert [row["marking"] for row in glass_groups[0]["rows"]] == [
-            "4,1", "4,2", "4,3", "4,4", "4,5", "4,6"
-        ]
-        assert all(row["qty"] == 1 for row in glass_groups[0]["rows"])
+        assert [row["marking"] for row in glass_groups[0]["rows"]] == ["4,1"]
+        assert glass_groups[0]["rows"][0]["qty"] == 6
 
     def test_delivery_xlsx_integer_quantities_do_not_render_decimal_separator(self):
         project = self.project(
@@ -4066,7 +4099,7 @@ class TestDeliveryNote:
         assert quantity_cells
         assert all(cell.number_format == "0" for cell in quantity_cells)
 
-    def test_invoice_five_matrix_keeps_all_18_physical_glass_markings(self):
+    def test_invoice_five_matrix_groups_equal_glass_per_section(self):
         project = self.project(number="тест", order_number="тест")
         sections = [
             _delivery_section(name="Секция 1", order=1, width=3525, panels=4),
@@ -4074,11 +4107,7 @@ class TestDeliveryNote:
             _delivery_section(name="Секция 3", order=3, width=4000, panels=4),
             _delivery_section(name="Секция 4", order=4, width=4679, panels=6),
         ]
-        expected = {
-            f"{section_number},{panel_number}"
-            for section_number, panel_count in ((1, 4), (2, 4), (3, 4), (4, 6))
-            for panel_number in range(1, panel_count + 1)
-        }
+        expected = {"1,1", "1,2", "2,1", "3,1", "4,1", "4,2"}
 
         glass_order_rows = _build_glass_rows(
             project,
@@ -4104,18 +4133,19 @@ class TestDeliveryNote:
         ]
 
         assert sum(row["qty"] for row in glass_order_rows) == 18
-        assert all(row["qty"] == 1 for row in glass_order_rows)
         assert all(
-            row["area"] == round(row["width"] * row["height"] / 1_000_000, 3)
+            row["area"]
+            == round(row["width"] * row["height"] * row["qty"] / 1_000_000, 3)
             for row in glass_order_rows
         )
-        assert len(glass_order_markings) == len(set(glass_order_markings)) == 18
+        assert len(glass_order_markings) == len(set(glass_order_markings)) == 6
         assert set(glass_order_markings) == expected
         assert sum(detail["qty"] for detail in delivery_details) == 18
-        assert len(delivery_markings) == len(set(delivery_markings)) == 18
+        assert len(delivery_markings) == len(set(delivery_markings)) == 6
         assert set(delivery_markings) == expected
         assert all(detail["marking"] == detail["markings"][0] for detail in delivery_details)
-        assert all(detail["qty"] == 1 for detail in delivery_details)
+        assert [row["qty"] for row in glass_order_rows] == [2, 2, 4, 4, 2, 4]
+        assert [row["qty"] for row in delivery_details] == [2, 2, 4, 4, 2, 4]
 
     def test_preview_and_pdf_are_completely_image_free(self):
         section = _delivery_section(
@@ -4663,9 +4693,11 @@ class TestDeliveryNote:
 
         assert sum(row["qty"] for row in glass_rows) == 9
         assert {detail["marking"] for detail in detail_rows} == {
-            "1,1", "1,2", "1,3", "1,4", "1,5", "1,6",
-            "2,1", "2,2", "3,1",
+            "1,1", "2,1", "2,2", "3,1",
         }
+        assert next(
+            detail["qty"] for detail in detail_rows if detail["marking"] == "1,1"
+        ) == 6
         lift_rows = [
             detail for detail in detail_rows if detail["marking"].startswith("2,")
         ]

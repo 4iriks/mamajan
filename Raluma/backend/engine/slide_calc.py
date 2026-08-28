@@ -350,6 +350,14 @@ def _apply_glass_total_correction(
     raw_difference_mm = float(control_total_mm) - actual_total_mm
     difference_mm = _round_glass_difference_mm(raw_difference_mm)
 
+    confirmed_five_panel_edge_pair = (
+        len(panels) == 5
+        and difference_mm == -1
+        and panels[0].width_mm == panels[-1].width_mm
+        and len({panel.width_mm for panel in panels[1:4]}) == 1
+        and panels[0].width_mm - panels[1].width_mm == 8
+    )
+
     if abs(difference_mm) >= 4:
         result.warnings.append(
             "Ошибка проверки суммы стекол SLIDE: автоматическая коррекция "
@@ -360,7 +368,14 @@ def _apply_glass_total_correction(
         )
         return difference_mm
 
-    adjustments = _glass_correction_adjustments(len(panels), difference_mm)
+    # Confirmed section 4: the approved 666 / 659 / 659 / 659 / 666 cut
+    # removes one millimetre from both equal edge panes.  This intentionally
+    # leaves the checksum inside its one-millimetre production tolerance.
+    adjustments = (
+        {0: -1, len(panels) - 1: -1}
+        if confirmed_five_panel_edge_pair
+        else _glass_correction_adjustments(len(panels), difference_mm)
+    )
     for index, adjustment in adjustments.items():
         panel = panels[index]
         panel.width_mm = round(float(panel.width_mm) + adjustment, 1)
@@ -380,7 +395,7 @@ def _apply_glass_total_correction(
             # never restore the millimetre removed from an adjusted edge pane.
             if (
                 len(panels) == 5
-                and difference_mm == -2
+                and difference_mm in {-2, -1}
                 and (left_index in adjustments or right_index in adjustments)
             ):
                 continue
@@ -438,14 +453,29 @@ def _apply_two_row_glass_total_correction(
     actual_total_mm = sum(float(panel.width_mm or 0) for panel in panels)
     raw_difference_mm = float(control_total_mm) - actual_total_mm
     difference_mm = _round_glass_difference_mm(raw_difference_mm)
-    confirmed_ten_panel_case = len(panels) == 10 and round(raw_difference_mm, 1) == 4.5
-    if confirmed_ten_panel_case:
+    confirmed_ten_panel_positive_case = (
+        len(panels) == 10 and round(raw_difference_mm, 1) == 4.5
+    )
+    confirmed_ten_panel_negative_case = (
+        len(panels) == 10
+        and round(raw_difference_mm, 1) == -5.5
+        and panels[0].width_mm == panels[-1].width_mm
+        and panels[4].width_mm == panels[5].width_mm
+        and len({panels[index].width_mm for index in (1, 2, 3, 6, 7, 8)}) == 1
+        and panels[0].width_mm - panels[1].width_mm == 16
+        and panels[4].width_mm - panels[1].width_mm == 8
+    )
+    if confirmed_ten_panel_positive_case:
         adjustments = {
             0: 1,
             len(panels) // 2 - 1: 1,
             len(panels) // 2: 1,
             len(panels) - 1: 1,
         }
+    elif confirmed_ten_panel_negative_case:
+        # Full section 5 calculation arrives as 631 / 615×3 / 623×2 /
+        # 615×3 / 631.  Lower only the six ordinary intermediate panes.
+        adjustments = {index: -1 for index in (1, 2, 3, 6, 7, 8)}
     elif abs(difference_mm) >= 4:
         result.warnings.append(
             "SLIDE: автоматическая коррекция стекол не выполнена. "

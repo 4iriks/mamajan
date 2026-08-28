@@ -1188,7 +1188,7 @@ def _build_sketch_docx(context: dict) -> bytes:
                         if tall_section
                         else 176
                     ),
-                    max_height_mm=70 if diagram.get("kind") == "room" else 34,
+                    max_height_mm=82 if diagram.get("kind") == "room" else 45,
                 )
             diagram_table.style = "Table Grid"
             _set_table_geometry_mm(

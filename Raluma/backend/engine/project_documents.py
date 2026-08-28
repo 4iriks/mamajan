@@ -850,6 +850,44 @@ def _physical_glass_pieces(
     return pieces
 
 
+def _group_section_glass_pieces(
+    pieces: Iterable[dict], section_number: int
+) -> list[dict]:
+    """Group equal panes inside one section and assign one marking per size."""
+
+    grouped: dict[tuple, dict] = {}
+    for piece in pieces:
+        key = (
+            piece["glass_type"],
+            piece["width"],
+            piece["height"],
+            piece.get("note") or "",
+        )
+        row = grouped.get(key)
+        if row is None:
+            marking = f"{section_number},{len(grouped) + 1}"
+            row = {
+                "markings": [marking],
+                "marking": marking,
+                "glass_type": piece["glass_type"],
+                "width": piece["width"],
+                "height": piece["height"],
+                "qty": 0,
+                "area": 0.0,
+                "note": piece.get("note") or "",
+            }
+            grouped[key] = row
+        row["qty"] += 1
+        width = row["width"]
+        height = row["height"]
+        row["area"] = (
+            round(width * height * row["qty"] / 1_000_000, 3)
+            if width is not None and height is not None
+            else 0.0
+        )
+    return list(grouped.values())
+
+
 def _build_glass_rows(
     project: object, calculated: list[CalculatedSection]
 ) -> list[dict]:
@@ -857,34 +895,20 @@ def _build_glass_rows(
 
     for item in calculated:
         system = str(getattr(item.section, "system", "") or "").strip().upper()
-        if system == "СЛАЙД" and not bool(
-            getattr(item.section, "glass_supplied", True)
-        ):
-            continue
         section_number = item.order
-        for piece in _physical_glass_pieces(
+        pieces = _physical_glass_pieces(
             item.section,
             item.calc,
             section_number,
             include_penoplex=False,
+        )
+        if system == "СЛАЙД" and not bool(
+            getattr(item.section, "glass_supplied", True)
         ):
-            width = piece["width"]
-            height = piece["height"]
-            note = piece["note"]
-            glass_type = piece["glass_type"]
-            marking = piece["marking"]
-            rows.append(
-                {
-                    "markings": [marking],
-                    "marking": marking,
-                    "glass_type": glass_type,
-                    "width": width,
-                    "height": height,
-                    "qty": 1,
-                    "area": round(width * height / 1_000_000, 3),
-                    "note": note,
-                }
-            )
+            default_type = default_glass_type(system)
+            for piece in pieces:
+                piece["glass_type"] = default_type
+        rows.extend(_group_section_glass_pieces(pieces, section_number))
 
     rows.sort(key=lambda row: _marking_key(row["marking"]))
     for index, row in enumerate(rows, start=1):
@@ -1203,6 +1227,8 @@ def _build_delivery_glass_rows(
                 }
                 for glass_index in range(1, panel_count * section_qty + 1)
             )
+
+        section_rows = _group_section_glass_pieces(section_rows, section_number)
 
         for row in section_rows:
             row_glass_type = row["glass_type"]

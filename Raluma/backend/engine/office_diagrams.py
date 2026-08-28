@@ -45,11 +45,38 @@ _DIAGRAM_TITLES = {
 }
 
 
-def _reference_diagrams(section: object, calc: object) -> list[tuple[str, bytes]]:
+def _reference_diagrams(
+    section: object,
+    calc: object,
+    *,
+    print_dimensions: bool = False,
+) -> list[tuple[str, bytes]]:
     """Rasterize the exact SVGs used by the PDF/HTML production sheet."""
     html = render_pdf_html(SimpleNamespace(number=""), section, calc)
     rendered: list[tuple[str, bytes]] = []
     for svg, name in _OFFICE_SVG_RE.findall(html):
+        if print_dimensions and name == "slide-top":
+            # The production top view is retained (including walls and side
+            # assemblies), but its combined width/panel-number labels need a
+            # much larger final print size in the sketch project.
+            panel_count = max(int(getattr(section, "panels", 0) or 0), 1)
+            label_size = 14 if panel_count <= 5 else 11 if panel_count <= 8 else 8
+
+            def enlarge_panel_label(match: re.Match) -> str:
+                tag = match.group(0)
+                tag = re.sub(
+                    r'font-size="[^"]+"',
+                    f'font-size="{label_size}"',
+                    tag,
+                )
+                tag = re.sub(r'fill="[^"]+"', 'fill="#000000"', tag)
+                return tag
+
+            svg = re.sub(
+                r"<text\b[^>]*>[^<]*·[^<]*</text>",
+                enlarge_panel_label,
+                svg,
+            )
         viewbox = _VIEWBOX_RE.search(svg)
         source_width = float(viewbox.group(1)) if viewbox else 1
         source_height = float(viewbox.group(2)) if viewbox else 1
@@ -100,7 +127,7 @@ def _print_font_pixels(
     crop_height_px: int,
     *,
     max_width_mm: float = 176,
-    max_height_mm: float = 70,
+    max_height_mm: float = 82,
 ) -> int:
     """Convert a desired final point size to source pixels after fit-to-page."""
 
@@ -205,7 +232,7 @@ def render_slide_room(
     crop: bool = False,
     print_dimensions: bool = False,
 ) -> bytes:
-    canvas = Image.new("RGB", (1600, 700), BACKGROUND)
+    canvas = Image.new("RGB", (1600, 760), BACKGROUND)
     draw = ImageDraw.Draw(canvas)
     title_font = load_font(30, bold=True)
 
@@ -222,30 +249,39 @@ def render_slide_room(
         max(0, left - 24),
         max(0, top - 60),
         min(canvas.width, right + 155),
-        min(canvas.height, bottom + 160),
+        min(canvas.height, bottom + 205),
     )
     print_crop_width = print_crop_box[2] - print_crop_box[0]
     print_crop_height = print_crop_box[3] - print_crop_box[1]
     if print_dimensions:
+        print_max_width_mm = 72 if section_width < section_height else 176
         number_font_size = _print_font_pixels(
-            15,
+            22,
             print_crop_width,
             print_crop_height,
+            max_width_mm=print_max_width_mm,
+            max_height_mm=82,
         )
         panel_font_size = _print_font_pixels(
-            14,
+            18,
             print_crop_width,
             print_crop_height,
+            max_width_mm=print_max_width_mm,
+            max_height_mm=82,
         )
         dimension_font_size = _print_font_pixels(
-            15.5,
+            21,
             print_crop_width,
             print_crop_height,
+            max_width_mm=print_max_width_mm,
+            max_height_mm=82,
         )
         small_font_size = _print_font_pixels(
-            10,
+            12,
             print_crop_width,
             print_crop_height,
+            max_width_mm=print_max_width_mm,
+            max_height_mm=82,
         )
     else:
         number_font_size = 30
@@ -365,7 +401,7 @@ def render_slide_room(
         )
         _center_text(
             draw,
-            (cx, bottom + 35),
+            (cx, bottom + 42),
             dimension,
             panel_font,
             dimension_color,
@@ -375,7 +411,7 @@ def render_slide_room(
             _center_text(draw, (cx, cy + 62), "БЕЗ СТЕКЛА", no_glass_font, MUTED)
         x += panel_px
 
-    width_dimension_y = bottom + 62
+    width_dimension_y = bottom + 78
     draw.line(
         (left, width_dimension_y, right, width_dimension_y),
         fill=dimension_line_color,
@@ -393,7 +429,7 @@ def render_slide_room(
     )
     _center_text(
         draw,
-        ((left + right) / 2, bottom + 95),
+        ((left + right) / 2, bottom + 125),
         str(glass_mm(section_width)),
         dim_font,
         dimension_color,
@@ -423,7 +459,7 @@ def render_slide_room(
     )
     _center_text(draw, ((left + right) / 2, top - 25), "УЛИЦА", small_font, MUTED)
     _center_text(
-        draw, ((left + right) / 2, bottom + 130), "ПОМЕЩЕНИЕ", small_font, MUTED
+        draw, ((left + right) / 2, bottom + 175), "ПОМЕЩЕНИЕ", small_font, MUTED
     )
     if crop and print_dimensions:
         return _boxed_png(canvas, print_crop_box)
@@ -892,14 +928,23 @@ def render_book_top(section: object, calc: object) -> bytes:
     return _png(canvas)
 
 
-def section_diagrams(section: object, calc: object) -> list[tuple[str, bytes]]:
+def section_diagrams(
+    section: object,
+    calc: object,
+    *,
+    print_dimensions: bool = False,
+) -> list[tuple[str, bytes]]:
     system = str(getattr(section, "system", "") or "").strip().upper()
     if system == "КНИЖКА":
         return [
             ("Вид из помещения", render_book_room(section, calc)),
             ("Схема · вид сверху", render_book_top(section, calc)),
         ]
-    reference = _reference_diagrams(section, calc)
+    reference = _reference_diagrams(
+        section,
+        calc,
+        print_dimensions=print_dimensions,
+    )
     if system == "ЛИФТ":
         if len(reference) >= 2:
             return [

@@ -393,7 +393,11 @@ def _diagram_rows(section: object, calc: object) -> list[dict]:
     # Keep the dedicated room renderer for its physical aspect ratio and overall
     # dimensions.  The top view must be identical to the production sheet: that
     # reference diagram includes the wall and side-profile assemblies.
-    reference_diagrams = section_diagrams(section, calc) if system == "СЛАЙД" else []
+    reference_diagrams = (
+        section_diagrams(section, calc, print_dimensions=True)
+        if system == "СЛАЙД"
+        else []
+    )
     reference_top = next(
         (
             payload

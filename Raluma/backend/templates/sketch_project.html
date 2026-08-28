@@ -94,8 +94,8 @@
       border: 0.25mm solid #a8bbc0;
       text-align: center;
     }
-    .diagram-room { min-height: 88mm; }
-    .diagram-top { min-height: 39mm; }
+    .diagram-room { min-height: 96mm; }
+    .diagram-top { min-height: 51mm; }
     .diagram-title {
       margin-bottom: 1mm;
       color: #607b81;
@@ -108,8 +108,12 @@
       width: 100%;
       object-fit: contain;
     }
-    .diagram-room img { height: 82mm; }
-    .diagram-top img { height: 33mm; }
+    .diagram-room img { height: 90mm; }
+    .diagram-top img { height: 45mm; }
+    .sketch-section-dense .diagram-room { min-height: 86mm; }
+    .sketch-section-dense .diagram-top { min-height: 44mm; }
+    .sketch-section-dense .diagram-room img { height: 80mm; }
+    .sketch-section-dense .diagram-top img { height: 38mm; }
     .section-comment {
       margin: 0 0 2.5mm;
       padding: 1.5mm 2mm;
@@ -124,6 +128,11 @@
       font-size: 8.4pt;
       font-weight: 700;
     }
+    .sketch-section-dense .panel-table { font-size: 6.8pt; }
+    .sketch-section-dense .panel-table th,
+    .sketch-section-dense .panel-table td { padding: 0.8mm 1mm; }
+    .sketch-section-dense .panel-table td:nth-child(4),
+    .sketch-section-dense .panel-table td:nth-child(5) { font-size: 7.6pt; }
     .project-components { break-before: page; page-break-before: always; }
     .table-title {
       margin: 2.5mm 0 1.2mm;
@@ -181,7 +190,7 @@
   {% endif %}
 
   {% for section in sections %}
-  <section class="sketch-section{% if section.width_mm < section.height_mm %} sketch-section-tall{% endif %}" data-sketch-section="{{ section.order }}" data-system="{{ section.system|e }}">
+  <section class="sketch-section{% if section.width_mm < section.height_mm %} sketch-section-tall{% endif %}{% if section.panels|length >= 8 %} sketch-section-dense{% endif %}" data-sketch-section="{{ section.order }}" data-system="{{ section.system|e }}">
     <div class="section-intro">
       <h2 class="section-heading">Изделие № {{ section.order }} · {{ section.system_text|e }}</h2>
 

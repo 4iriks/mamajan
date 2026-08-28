@@ -267,10 +267,13 @@ class TestGlassTotalCorrection:
     def test_invoice_five_section_four_keeps_edges_after_minus_two_correction(self):
         result = calculate_slide(
             _make_section(
-                width=3303,
+                width=3423,
+                height=3000,
                 panels=5,
                 rails=5,
                 slide_rows=1,
+                profile_left_lock_bar=True,
+                profile_right_lock_bar=True,
                 profile_left_handle_bar=True,
                 profile_right_handle_bar=True,
                 inter_glass_profile="Алюминиевый RS2061",
@@ -283,6 +286,44 @@ class TestGlassTotalCorrection:
         assert [panel.glass_profile_length for panel in result.panel_glass] == [
             682, 656, 656, 656, 682,
         ]
+        assert [(row.length_mm, row.qty) for row in _find_profile(result, "RS2021")] == [
+            (682, 2),
+            (656, 3),
+        ]
+        assert not result.warnings
+
+    def test_invoice_five_section_five_full_calculation(self):
+        result = calculate_slide(
+            _make_section(
+                width=6210,
+                height=3000,
+                panels=10,
+                rails=5,
+                slide_rows=2,
+                first_panel_inside=None,
+                profile_left_p_bar=True,
+                profile_right_p_bar=True,
+                profile_left_bubble=True,
+                profile_right_bubble=True,
+                center_handle="Ручки-профиль RS112 (2шт)",
+                center_handle_offset=0,
+                inter_glass_profile="Алюминиевый RS2061",
+            )
+        )
+
+        assert [panel.width_mm for panel in result.panel_glass] == [
+            631, 614, 614, 614, 623, 623, 614, 614, 614, 631,
+        ]
+        assert [panel.glass_profile_length for panel in result.panel_glass] == [
+            631, 611, 611, 611, 642, 639, 611, 611, 611, 631,
+        ]
+        assert [(row.length_mm, row.qty) for row in _find_profile(result, "RS2021")] == [
+            (631, 2),
+            (611, 6),
+            (642, 1),
+            (639, 1),
+        ]
+        assert sum(panel.width_mm for panel in result.panel_glass) == 6192
         assert not result.warnings
 
     def test_confirmed_ten_panel_plus_four_point_five_correction(self):
