@@ -1764,6 +1764,7 @@ class TestSketchProject:
         assert "1200" in paint.text
         assert "1250" in paint.text
         assert "ANOD-EXTRA" not in paint.text
+        assert "Дополнительное комплектующее проекта" not in paint.text
         for response in (delivery, hardware, sketch):
             assert response.status_code == 200
             assert "RAL-EXTRA" in response.text
@@ -4296,6 +4297,17 @@ class TestDeliveryNote:
         assert "STAGE-1" in stage_one_extras
         assert "LEGACY" in stage_one_extras
         assert "STAGE-2" not in stage_one_extras
+        stage_one_html = render_project_document_html(
+            self.project(
+                production_stages=2,
+                current_stage=1,
+                extra_components=project_extras,
+            ),
+            [section],
+            "delivery",
+        )
+        assert "Этап: 1" not in stage_one_html
+        assert "Этап: 1, 2" not in stage_one_html
         assert "RS1002" not in {
             row["article"] for row in stage_one["delivery_item2_rows"]
         }
@@ -4321,6 +4333,26 @@ class TestDeliveryNote:
         assert "STAGE-2" in stage_two_extras
         assert "LEGACY" in stage_two_extras
         assert "STAGE-1" not in stage_two_extras
+        stage_two_xlsx = load_workbook(
+            io.BytesIO(
+                build_project_xlsx(
+                    self.project(
+                        production_stages=2,
+                        current_stage=2,
+                        extra_components=project_extras,
+                    ),
+                    [section],
+                    "delivery",
+                )
+            )
+        )
+        stage_two_cells = "\n".join(
+            str(cell.value or "")
+            for row in stage_two_xlsx.active.iter_rows()
+            for cell in row
+        )
+        assert "Этап: 2" not in stage_two_cells
+        assert "Этап: 1, 2" not in stage_two_cells
         stage_two_hardware = {
             row["article"]: row for row in stage_two["delivery_item2_rows"]
         }

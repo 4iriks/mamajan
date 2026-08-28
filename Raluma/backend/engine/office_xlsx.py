@@ -1765,7 +1765,6 @@ def _build_delivery_xlsx(context: dict) -> bytes:
                     f"Цвет: {item.get('color')}" if item.get("color") else "",
                     f"Размер: {item.get('size')}" if item.get("size") else "",
                     f"Единица: {item.get('unit')}" if item.get("unit") else "",
-                    f"Этап: {item.get('stage')}" if item.get("stage") else "",
                     str(item.get("note") or ""),
                 ),
             )
@@ -1787,7 +1786,6 @@ def _build_delivery_xlsx(context: dict) -> bytes:
                     f"Цвет: {item.get('color')}" if item.get("color") else "",
                     f"Размер: {item.get('size')}" if item.get("size") else "",
                     f"Единица: {item.get('unit')}" if item.get("unit") else "",
-                    f"Этап: {item.get('stage')}" if item.get("stage") else "",
                 ),
             )
         )

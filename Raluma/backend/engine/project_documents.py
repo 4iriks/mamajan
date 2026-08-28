@@ -609,7 +609,7 @@ def _project_extra_paint_rows(project: object) -> list[dict]:
                 "clean": clean,
                 "allowance": clean + 50 if clean > 0 else 0,
                 "imageFile": extra.get("imageFile") or extra.get("image_file") or "",
-                "note": "Дополнительное комплектующее проекта",
+                "note": "",
             }
         )
     return rows

@@ -226,7 +226,6 @@
             </div>
             {% if row.color %}<div class="row-meta">Цвет: {{ row.color|e }}</div>{% endif %}
             {% if row.size %}<div class="row-meta">Размер: {{ row.size|e }}</div>{% endif %}
-            {% if row.stage %}<div class="row-meta">Этап: {{ row.stage|e }}</div>{% endif %}
             {% if row.note %}<div class="row-note">{{ row.note|e }}</div>{% endif %}
           </td>
           <td class="quantity">{{ row.qty_display or row.qty_text }}</td>
@@ -243,7 +242,6 @@
             </div>
             {% if row.color %}<div class="row-meta">Цвет: {{ row.color|e }}</div>{% endif %}
             {% if row.size %}<div class="row-meta">Размер: {{ row.size|e }}</div>{% endif %}
-            {% if row.stage %}<div class="row-meta">Этап: {{ row.stage|e }}</div>{% endif %}
           </td>
           <td class="quantity">{{ row.qty_display }}</td>
           <td class="places" {% if not is_pdf %}contenteditable="true" data-delivery-place-key="{{ row.place_key }}" data-original="{{ row.places|e }}"{% endif %}>{{ row.places|e }}</td>
