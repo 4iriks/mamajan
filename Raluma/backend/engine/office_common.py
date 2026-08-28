@@ -176,6 +176,8 @@ def _font_candidates(bold: bool) -> list[Path]:
     windows = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
     candidates = [
         windows / ("arialbd.ttf" if bold else "arial.ttf"),
+        Path("/usr/share/fonts/truetype/liberation")
+        / ("LiberationSans-Bold.ttf" if bold else "LiberationSans-Regular.ttf"),
         Path("/usr/share/fonts/truetype/liberation2")
         / ("LiberationSans-Bold.ttf" if bold else "LiberationSans-Regular.ttf"),
         Path("/usr/share/fonts/truetype/dejavu")

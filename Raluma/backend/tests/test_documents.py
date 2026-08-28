@@ -30,6 +30,7 @@ from engine.pdf import (
     profile_dimension,
     section_extra_components,
 )
+from engine.office_common import _font_candidates
 from engine.office_diagrams import section_diagrams
 from engine.office_docx import build_project_docx, build_section_docx
 from engine.project_documents import (
@@ -51,6 +52,13 @@ from schemas import SectionCreate
 
 
 class TestProfileAssetSafety:
+    def test_font_candidates_include_debian_liberation_path(self):
+        assert any(
+            str(path).replace("\\", "/")
+            == "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+            for path in _font_candidates(bold=True)
+        )
+
     def test_img_b64_accepts_known_profile_image(self):
         assert get_profile_asset_path("RS112.png") is not None
         assert _img_b64("RS112.png").startswith("data:image/png;base64,")
