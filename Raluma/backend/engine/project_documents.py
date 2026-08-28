@@ -1009,6 +1009,26 @@ def _format_quantity(value: float) -> str:
     return str(round(numeric, 3)).replace(".", ",")
 
 
+def _delivery_extra_size_display(value: object) -> str:
+    """Add millimetres to a bare numeric blank size in the delivery PDF."""
+
+    text = " ".join(str(value or "").split())
+    if re.fullmatch(r"[-+]?\d+(?:[.,]\d+)?", text):
+        return f"{_format_quantity(_safe_float(text.replace(',', '.'), 0))} мм"
+    return text
+
+
+def _delivery_extra_pdf_quantity(qty_text: str, unit: object, size: object) -> str:
+    """Sized linear extras are physical blanks, so the PDF counts pieces."""
+
+    unit_text = " ".join(str(unit or "").split())
+    compact_unit = unit_text.casefold().replace(" ", "").rstrip(".")
+    linear_units = {"м", "м.п", "м/п", "п.м", "пог.м", "пог.м.п"}
+    if str(size or "").strip() and compact_unit in linear_units:
+        return f"{qty_text} шт."
+    return f"{qty_text} {unit_text}".strip()
+
+
 def _section_color(section: object, calc: object | None = None) -> str:
     def normalize(value: str) -> str:
         value = value.strip()
@@ -1600,6 +1620,12 @@ def _build_delivery_project_extra_rows(
                 **component,
                 "qty_text": qty_text,
                 "qty_display": f"{qty_text} {component['unit']}",
+                "size_display": _delivery_extra_size_display(component["size"]),
+                "pdf_qty_display": _delivery_extra_pdf_quantity(
+                    qty_text,
+                    component["unit"],
+                    component["size"],
+                ),
                 "place_key": place_key,
                 "places": _delivery_place(places, place_key, legacy_place_key),
             }

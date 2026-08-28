@@ -4209,6 +4209,45 @@ class TestDeliveryNote:
         assert "RS3018" not in rows
         assert "RS3020" not in rows
 
+    def test_delivery_pdf_counts_sized_linear_project_extra_as_blanks(self):
+        section = _delivery_section()
+        project = self.project(
+            extra_components=json.dumps(
+                [
+                    {
+                        "sku": "RS2333",
+                        "name": "Пристеночный профиль 3-рельсовый",
+                        "size": "2600",
+                        "qty": 2,
+                        "unit": "м.п.",
+                    }
+                ],
+                ensure_ascii=False,
+            )
+        )
+
+        context = _build_delivery_context(project, [section])
+        extra = context["delivery_project_extra_rows"][0]
+        html = render_project_document_html(project, [section], "delivery")
+        workbook = load_workbook(
+            io.BytesIO(build_project_xlsx(project, [section], "delivery"))
+        )
+        xlsx_text = "\n".join(
+            str(cell.value or "")
+            for row in workbook.active.iter_rows()
+            for cell in row
+        )
+
+        assert extra["size"] == "2600"
+        assert extra["unit"] == "м.п."
+        assert extra["size_display"] == "2600 мм"
+        assert extra["pdf_qty_display"] == "2 шт."
+        assert "Размер: 2600 мм" in html
+        assert re.search(r'<td class="quantity">\s*2 шт\.\s*</td>', html)
+        assert "2 м.п." not in html
+        assert "Размер: 2600" in xlsx_text
+        assert "Единица: м.п." in xlsx_text
+
     def test_project_4169_bubble_seal_counts_three_meter_blanks(self):
         sections = [
             _delivery_section(

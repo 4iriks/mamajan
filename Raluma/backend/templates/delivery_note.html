@@ -241,9 +241,9 @@
               {% if row.article %}<span class="nowrap">{{ row.article|e }}</span> — {% endif %}{{ row.name|e }}
             </div>
             {% if row.color %}<div class="row-meta">Цвет: {{ row.color|e }}</div>{% endif %}
-            {% if row.size %}<div class="row-meta">Размер: {{ row.size|e }}</div>{% endif %}
+            {% if row.size_display %}<div class="row-meta">Размер: {{ row.size_display|e }}</div>{% endif %}
           </td>
-          <td class="quantity">{{ row.qty_display }}</td>
+          <td class="quantity">{{ row.pdf_qty_display }}</td>
           <td class="places" {% if not is_pdf %}contenteditable="true" data-delivery-place-key="{{ row.place_key }}" data-original="{{ row.places|e }}"{% endif %}>{{ row.places|e }}</td>
         </tr>
         {% endfor %}
