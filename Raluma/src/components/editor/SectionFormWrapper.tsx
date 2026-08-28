@@ -142,7 +142,15 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
 
         <div className={['СЛАЙД', 'ЛИФТ', 'КНИЖКА'].includes(section.system) ? 'xl:flex-1 xl:min-w-0' : ''}>
           {/* Карточка формы */}
-          <div className="bg-surface/40 border border-tint/35 rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 mb-4">
+          <div
+            className="bg-surface/40 border border-tint/35 rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 mb-4"
+            onWheelCapture={event => {
+              const target = event.target;
+              if (target instanceof HTMLInputElement && target.type === 'number') {
+                target.blur();
+              }
+            }}
+          >
             <div className="space-y-5">
               <div>
                 <SectionDivider label="Основное" />

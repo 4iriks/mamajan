@@ -1539,7 +1539,7 @@ class TestSketchProject:
         assert f"ЭСКИЗНЫЙ ПРОЕКТ № {project['order_number']}" in preview.text
         assert f"ЭСКИЗНЫЙ ПРОЕКТ № {project['invoice_number']}" not in preview.text
 
-    def test_slide_top_view_reuses_print_enhanced_production_sheet_diagram(self):
+    def test_slide_top_view_reuses_production_sheet_diagram(self):
         project = SimpleNamespace(
             number="B26-TEST",
             order_number="B26-TEST",
@@ -1551,9 +1551,7 @@ class TestSketchProject:
         context = build_project_document_context(project, [section], "sketch")
         expected_top = next(
             payload
-            for title, payload in section_diagrams(
-                section, calc, print_dimensions=True
-            )
+            for title, payload in section_diagrams(section, calc)
             if "сверху" in title.casefold()
         )
         actual_top = next(
