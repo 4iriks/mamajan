@@ -1,9 +1,9 @@
 import axios from 'axios';
 
-// Local development gets the backend URL from .env.local. In production an
-// empty value intentionally keeps requests on the current origin so Caddy can
-// proxy /api to the backend container.
-const BASE_URL = import.meta.env.VITE_API_URL || '';
+// Production must always use relative /api paths through Caddy. Keeping this
+// branch compile-time constant prevents a local .env.local from leaking a
+// localhost backend address into an offline production build.
+const BASE_URL = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || '');
 
 const client = axios.create({
   baseURL: BASE_URL,
