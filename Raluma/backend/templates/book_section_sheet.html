@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Производственный лист КНИЖКА</title>
+<style>
+  @page { size: A4 portrait; margin: 6mm; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 198mm;
+    margin: 0 auto;
+    background: #fff;
+    color: #102833;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 8.5pt;
+    line-height: 1.2;
+  }
+  {% if not is_pdf %}
+  html { background: #eef2f3; }
+  body { box-shadow: 0 0 7mm rgba(16, 40, 51, .16); }
+  {% endif %}
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th, td { border: 1px solid #9eafb4; padding: 1.25mm 1.5mm; vertical-align: middle; }
+  th { background: #e8eef0; color: #102833; font-size: 7.5pt; text-transform: uppercase; }
+  .header { border: 2px solid #102833; }
+  .header td { border: none; padding: 2mm 2.5mm; font-weight: 900; }
+  .header .title { text-align: center; font-size: 13pt; letter-spacing: .35px; }
+  .header .right { text-align: right; }
+  .warning {
+    margin-top: 2mm;
+    border: 1.5px solid #b45309;
+    background: #fff7e6;
+    color: #7c2d12;
+    padding: 2mm 2.5mm;
+    font-size: 8pt;
+    font-weight: 900;
+    line-height: 1.25;
+  }
+  .bar {
+    margin-top: 2mm;
+    padding: 1mm 2mm;
+    background: #102833;
+    color: #fff;
+    font-size: 8pt;
+    font-weight: 900;
+    letter-spacing: .35px;
+    text-transform: uppercase;
+  }
+  .diagrams td { height: 51mm; padding: 1mm; text-align: center; vertical-align: top; }
+  .diagram-title { margin-bottom: .5mm; font-size: 7.5pt; font-weight: 900; text-transform: uppercase; }
+  .diagram { display: block; width: 100%; height: 45mm; object-fit: contain; }
+  .summary td { padding: 1mm 1.5mm; }
+  .summary .label { width: 16%; background: #f0f4f5; font-size: 7pt; font-weight: 900; text-transform: uppercase; }
+  .summary .value { width: 17%; font-weight: 800; }
+  .data td { text-align: center; font-weight: 700; }
+  .data td:first-child { text-align: left; }
+  .positions { font-weight: 400 !important; color: #425f67; }
+  .glass-note { margin-top: 1mm; color: #9a3412; font-weight: 900; }
+  .page-break { page-break-before: always; padding-top: 1mm; }
+  {% if not is_pdf %}
+  .page-break { border-top: 4px dashed #b7c2c5; margin-top: 7mm; padding-top: 6mm; }
+  {% endif %}
+  .profile-img { display: block; width: 22mm; height: 15mm; margin: 0 auto; object-fit: contain; }
+  .profile-table .image-cell { width: 26mm; padding: .5mm; }
+  .profile-table .article-cell { width: 50mm; }
+  .profile-table .size-cell { width: 48mm; text-align: center; font-weight: 900; }
+  .profile-table .position-cell { width: auto; }
+  .article { font-size: 9pt; font-weight: 900; }
+  .name { margin-top: .5mm; color: #425f67; font-weight: 700; }
+  .formula { margin-top: .5mm; color: #647b82; font-size: 6.7pt; font-style: italic; }
+  .preliminary { color: #a13f07; }
+  .hardware-table td:nth-child(1) { width: 27mm; font-weight: 900; }
+  .hardware-table td:nth-child(3),
+  .hardware-table td:nth-child(4) { width: 24mm; text-align: center; font-weight: 900; }
+  .hardware-table td:nth-child(5) { width: 40mm; }
+  .hardware-table th { padding: .7mm .9mm; font-size: 7pt; line-height: 1.05; }
+  .hardware-table td { padding: .65mm .9mm; font-size: 7.2pt; line-height: 1.05; }
+  .hardware-table .muted { font-size: 6.4pt; }
+  .quality-page { page-break-before: always; padding-top: 1mm; }
+  {% if not is_pdf %}
+  .quality-page { border-top: 4px dashed #b7c2c5; margin-top: 7mm; padding-top: 6mm; }
+  {% endif %}
+  .check-table th:nth-child(1), .check-table td:nth-child(1) { width: 10mm; text-align: center; }
+  .check-table th:nth-child(2), .check-table td:nth-child(2) { width: 12mm; text-align: center; }
+  .check-table th:nth-child(4), .check-table td:nth-child(4) { width: 50mm; }
+  .box { display: inline-block; width: 3.5mm; height: 3.5mm; border: 1px solid #102833; }
+  .comments { min-height: 24mm; border: 1px solid #9eafb4; padding: 2mm; white-space: pre-wrap; font-weight: 700; }
+  .signatures { margin-top: 2mm; }
+  .signatures td { height: 11mm; text-align: center; }
+  .muted { color: #647b82; font-size: 7pt; font-weight: 400; }
+  {% if not is_pdf %}
+  [contenteditable] { outline: none; border-radius: 1px; }
+  [contenteditable]:hover { background: #fff8c5; }
+  [contenteditable]:focus, [contenteditable].changed { background: #ffef91; }
+  {% endif %}
+</style>
+</head>
+<body>
+{% macro ce(field, value) %}{% if not is_pdf %}contenteditable="true" data-field="{{ field }}" data-original="{{ value|e }}"{% endif %}{% endmacro %}
+{% macro value(field, original) %}<span {{ ce(field, original) }}>{{ overrides.get(field, original) }}</span>{% endmacro %}
+
+<table class="header">
+  <tr>
+    <td>ПРОЕКТ № {{ project_number }}</td>
+    <td class="title">{{ book_sheet.system_label }} · ПЛ</td>
+    <td class="right">{{ section_label }}</td>
+  </tr>
+</table>
+<div class="warning">{{ book_sheet.warning }}</div>
+
+<div class="bar">Схемы секции</div>
+<table class="diagrams">
+  <tr>
+  {% for title, image in book_diagrams %}
+    <td>
+      <div class="diagram-title">{{ title }}</div>
+      <img class="diagram" src="{{ image }}" alt="{{ title }}">
+    </td>
+  {% endfor %}
+  </tr>
+</table>
+
+<div class="bar">Параметры</div>
+<table class="summary">
+  {% for chunk in book_sheet.summary_rows|batch(3) %}
+  <tr>
+    {% for item in chunk %}
+      <td class="label">{{ item[0] }}</td><td class="value">{{ item[1] }}</td>
+    {% endfor %}
+    {% for _ in range(3 - (chunk|length)) %}<td class="label"></td><td class="value"></td>{% endfor %}
+  </tr>
+  {% endfor %}
+</table>
+
+<div class="bar">Стекло</div>
+<table class="data">
+  <thead><tr><th>Тип</th><th>Ширина, мм</th><th>Высота, мм</th><th>Кол-во, шт.</th><th>Панели</th></tr></thead>
+  <tbody>
+  {% for row in book_sheet.glass_rows %}
+    <tr>
+      <td>{{ row.glass_type }}</td>
+      <td>{{ value(row.field_prefix ~ '_width', row.width_mm|glass_mm) }}</td>
+      <td>{{ value(row.field_prefix ~ '_height', row.height_mm|glass_mm) }}</td>
+      <td>{{ value(row.field_prefix ~ '_qty', row.qty) }}</td>
+      <td class="positions">{{ row.positions_text }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% if not book_sheet.glass_supplied %}<div class="glass-note">Стекло не входит в комплект поставки, размеры сохранены для самостоятельного заказа.</div>{% endif %}
+
+<div class="bar">Панели при склейке</div>
+<table class="data">
+  <thead><tr><th>Ширина, мм</th><th>Высота, мм</th><th>Кол-во, шт.</th><th>Панели</th></tr></thead>
+  <tbody>
+  {% for row in book_sheet.assembly_rows %}
+    <tr>
+      <td>{{ value(row.field_prefix ~ '_width', row.width_mm|glass_mm) }}</td>
+      <td>{{ value(row.field_prefix ~ '_height', row.height_mm|glass_mm) }}</td>
+      <td>{{ value(row.field_prefix ~ '_qty', row.qty) }}</td>
+      <td class="positions">{{ row.positions_text }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<div class="page-break">
+  <table class="header">
+    <tr><td>ПРОЕКТ № {{ project_number }}</td><td class="title">НАРЕЗКА И КОМПЛЕКТАЦИЯ</td><td class="right">{{ section_label }}</td></tr>
+  </table>
+  <div class="warning">Сверловка направляющих и профилей по этому ПЛ не выполняется.</div>
+
+  <div class="bar">Профили</div>
+  <table class="profile-table">
+    <thead><tr><th class="image-cell">Профиль</th><th class="article-cell">Артикул и наименование</th><th class="size-cell">Нарезка</th><th class="position-cell">Назначение</th></tr></thead>
+    <tbody>
+    {% for row in book_sheet.profile_rows %}
+      <tr>
+        <td class="image-cell">{% if row.image|img_b64 %}<img class="profile-img" src="{{ row.image|img_b64 }}" alt="{{ row.article }}">{% endif %}</td>
+        <td class="article-cell"><div class="article">{{ row.article }}</div><div class="name">{{ row.name }}</div>{% if row.formula %}<div class="formula">{{ row.formula }}</div>{% endif %}</td>
+        <td class="size-cell{% if row.status == 'preliminary' %} preliminary{% endif %}">{{ value(row.field_prefix ~ '_length', row.length_mm|glass_mm) }} мм × {{ value(row.field_prefix ~ '_qty', row.qty) }} {{ row.unit }}</td>
+        <td class="position-cell">{{ row.positions_text }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="bar">Фурнитура</div>
+  <table class="hardware-table">
+    <thead><tr><th>Артикул</th><th>Наименование</th><th>Количество</th><th>Этап</th><th>Примечание</th></tr></thead>
+    <tbody>
+    {% for row in book_sheet.hardware_rows %}
+      <tr>
+        <td>{{ row.article }}</td><td>{{ row.name }}</td>
+        <td>{{ value(row.field_prefix ~ '_qty', row.qty|glass_mm) }} {{ row.unit }}</td>
+        <td>{% if row.shipment_stage %}{{ row.shipment_stage }}{% else %}—{% endif %}</td>
+        <td class="muted">{{ row.note }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="quality-page">
+  <table class="header">
+    <tr><td>ПРОЕКТ № {{ project_number }}</td><td class="title">ЧЕК-ЛИСТ ПРОИЗВОДСТВА</td><td class="right">{{ section_label }}</td></tr>
+  </table>
+
+  {% set extra_rows = section_extra_components(section, overrides) %}
+  {% if extra_rows %}
+  <div class="bar">Дополнительные комплектующие</div>
+  <table class="data">
+    <thead><tr><th>Артикул</th><th>Наименование</th><th>Размер</th><th>Количество</th><th>Цвет</th></tr></thead>
+    <tbody>{% for row in extra_rows %}<tr><td>{{ row.art }}</td><td>{{ row.name }}</td><td>{{ row.size }}</td><td>{{ row.qty }}</td><td>{{ row.color }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% endif %}
+
+  <div class="bar">Чек-лист производства</div>
+  <table class="check-table">
+    <thead><tr><th>№</th><th>Отм.</th><th>Операция</th><th>Примечание</th></tr></thead>
+    <tbody>
+    {% for number, action, note in book_sheet.checklist_rows %}
+      <tr><td>{{ number }}</td><td><span class="box"></span></td><td>{{ action }}</td><td>{{ note }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="bar">Примечания и особые отметки</div>
+  <div class="comments" {{ ce('section_comments', section.comments or '') }}>{{ overrides.get('section_comments', section.comments or '') }}</div>
+  <table class="signatures"><tr><td>Производство<br><br>________________ / ________________</td><td>ОТК<br><br>________________ / ________________</td><td>Дата<br><br>«____» ____________ 20___ г.</td></tr></table>
+  </div>
+</div>
+
+{% if not is_pdf %}
+<script>
+(function() {
+  function fit() {
+    var width = document.body.offsetWidth;
+    var viewport = document.documentElement.clientWidth || window.innerWidth;
+    if (!width) return;
+    var scale = Math.min(1, viewport / width);
+    document.body.style.transformOrigin = 'top left';
+    document.body.style.transform = scale < 1 ? 'scale(' + scale + ')' : '';
+    document.documentElement.style.overflow = 'hidden';
+    var height = Math.ceil(document.body.scrollHeight * scale);
+    document.documentElement.style.height = height + 'px';
+    window.parent && window.parent.postMessage({ type: 'height', height: height + 12 }, '*');
+  }
+  document.querySelectorAll('[data-field]').forEach(function(el) {
+    el.addEventListener('input', function() {
+      el.classList.toggle('changed', el.textContent.trim() !== (el.dataset.original || ''));
+      window.parent && window.parent.postMessage({ type: 'dirty', dirty: true }, '*');
+      fit();
+    });
+  });
+  window.addEventListener('load', function() { fit(); setTimeout(fit, 250); setTimeout(fit, 800); });
+  window.addEventListener('resize', fit);
+})();
+</script>
+{% endif %}
+</body>
+</html>

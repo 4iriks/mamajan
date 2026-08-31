@@ -1,4 +1,9 @@
+import io
+import zipfile
 from types import SimpleNamespace
+
+from docx import Document
+from openpyxl import load_workbook
 
 from engine.project_documents import build_project_document_context
 from schemas import SectionCreate
@@ -173,14 +178,70 @@ def test_book_fields_save_copy_and_legacy_mapping(
     assert legacy.json()["book_system"] == "B25"
 
 
-def test_book_production_documents_are_deferred_and_preliminary_are_blocked(client):
+def test_book_production_sheet_is_available_and_preliminary_configs_are_blocked(
+    client,
+    monkeypatch,
+):
     confirmed = {
         "project": {"number": "Гость", "customer": ""},
         "section": book_payload(door_side="right", doors=1),
     }
-    deferred = client.post("/api/projects/local/sections/pdf", json=confirmed)
-    assert deferred.status_code == 501
-    assert "следующим пакетом" in deferred.json()["detail"]
+    preview = client.post("/api/projects/local/sections/preview", json=confirmed)
+    assert preview.status_code == 200
+    assert "ПРЕДВАРИТЕЛЬНЫЙ ПРОИЗВОДСТВЕННЫЙ ЛИСТ" in preview.text
+    assert "Сверловка D13/D6" in preview.text
+    assert "RBP001" in preview.text
+    assert "RBP002" in preview.text
+    assert "RBP003" in preview.text
+    assert "отверстие 93" not in preview.text
+
+    docx = client.post("/api/projects/local/sections/docx", json=confirmed)
+    xlsx = client.post("/api/projects/local/sections/xlsx", json=confirmed)
+    assert docx.status_code == 200
+    assert xlsx.status_code == 200
+    assert docx.content.startswith(b"PK")
+    assert xlsx.content.startswith(b"PK")
+
+    word = Document(io.BytesIO(docx.content))
+    word_text = "\n".join(
+        paragraph.text for paragraph in word.paragraphs
+    ) + "\n" + "\n".join(
+        cell.text
+        for table in word.tables
+        for row in table.rows
+        for cell in row.cells
+    )
+    assert "ПРЕДВАРИТЕЛЬНЫЙ ПРОИЗВОДСТВЕННЫЙ ЛИСТ" in word_text
+    assert "Сверловка D13/D6" in word_text
+    assert all(article in word_text for article in ("RBP001", "RBP002", "RBP003"))
+    assert "отверстие 93" not in word_text
+    with zipfile.ZipFile(io.BytesIO(docx.content)) as archive:
+        assert len(
+            [name for name in archive.namelist() if name.startswith("word/media/")]
+        ) >= 5
+
+    workbook = load_workbook(io.BytesIO(xlsx.content), read_only=True, data_only=True)
+    assert workbook.sheetnames == ["ПЛ КНИЖКА", "Комплектация"]
+    excel_text = "\n".join(
+        str(cell.value)
+        for worksheet in workbook.worksheets
+        for row in worksheet.iter_rows()
+        for cell in row
+        if cell.value is not None
+    )
+    assert "ПРЕДВАРИТЕЛЬНЫЙ ПРОИЗВОДСТВЕННЫЙ ЛИСТ" in excel_text
+    assert "Сверловка D13/D6" in excel_text
+    assert all(article in excel_text for article in ("RBP001", "RBP002", "RBP003"))
+    assert "отверстие 93" not in excel_text
+    with zipfile.ZipFile(io.BytesIO(xlsx.content)) as archive:
+        assert len(
+            [name for name in archive.namelist() if name.startswith("xl/media/")]
+        ) >= 5
+
+    monkeypatch.setattr("api.documents.generate_pdf", lambda html: b"%PDF-1.4\n%%EOF")
+    pdf = client.post("/api/projects/local/sections/pdf", json=confirmed)
+    assert pdf.status_code == 200
+    assert pdf.content.startswith(b"%PDF")
 
     preliminary = {
         "project": {"number": "Гость", "customer": ""},
@@ -227,7 +288,11 @@ def test_book_production_documents_are_deferred_and_preliminary_are_blocked(clie
     assert preliminary_delivery.status_code == 409
 
 
-def test_book_does_not_block_supported_parts_of_mixed_project_documents(client):
+def test_book_does_not_block_supported_parts_of_mixed_project_documents(
+    client,
+    monkeypatch,
+):
+    monkeypatch.setattr("api.documents.generate_pdf", lambda html: b"%PDF-1.4\n%%EOF")
     slide = {
         "name": "Секция СЛАЙД",
         "system": "СЛАЙД",

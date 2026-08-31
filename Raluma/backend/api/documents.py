@@ -53,7 +53,7 @@ from engine.quote_pricing import (
 
 router = APIRouter(prefix="/api/projects", tags=["documents"])
 
-PRODUCTION_SHEET_SYSTEMS = {"СЛАЙД", "ЛИФТ"}
+PRODUCTION_SHEET_SYSTEMS = {"СЛАЙД", "ЛИФТ", "КНИЖКА"}
 COMMERCIAL_DOCUMENTS = {"commercial", "contract_appendix"}
 DOCX_PROJECT_DOCUMENTS = {
     "sketch",
@@ -118,13 +118,11 @@ def _ensure_book_section_documents_supported(section) -> None:
                 f"Производственные документы КНИЖКИ заблокированы. {reasons}"
             ).strip(),
         )
-    raise HTTPException(
-        status_code=501,
-        detail=(
-            "ПЛ, заказ стекла, покраска и накладная КНИЖКИ будут реализованы "
-            "следующим пакетом после согласования калькулятора"
-        ),
-    )
+    if not calc.production_sheet_implemented:
+        raise HTTPException(
+            status_code=501,
+            detail="Производственный лист КНИЖКИ пока не реализован",
+        )
 
 
 def _ensure_book_project_documents_supported(

@@ -14,6 +14,7 @@ from types import SimpleNamespace
 
 from jinja2 import Environment, FileSystemLoader
 
+from engine.book_sheet import build_book_sheet_data
 from engine.document_numbers import production_project_number, production_section_label
 
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -422,9 +423,28 @@ def _get_env() -> Environment:
 
 
 def _section_sheet_template(section) -> str:
-    if str(getattr(section, "system", "") or "").strip().upper() == "ЛИФТ":
+    system = str(getattr(section, "system", "") or "").strip().upper()
+    if system == "ЛИФТ":
         return "lift_section_sheet.html"
+    if system == "КНИЖКА":
+        return "book_section_sheet.html"
     return "section_sheet.html"
+
+
+def _book_sheet_context(section: object, calc: object) -> dict:
+    if str(getattr(section, "system", "") or "").strip().upper() != "КНИЖКА":
+        return {}
+    # Lazy import avoids the existing pdf -> office_diagrams -> pdf cycle.
+    from engine.office_diagrams import section_diagrams
+
+    diagrams = [
+        (title, f"data:image/png;base64,{base64.b64encode(data).decode('ascii')}")
+        for title, data in section_diagrams(section, calc)
+    ]
+    return {
+        "book_sheet": build_book_sheet_data(section, calc),
+        "book_diagrams": diagrams,
+    }
 
 
 def render_preview(project, section, calc) -> str:
@@ -448,6 +468,7 @@ def render_preview(project, section, calc) -> str:
         calc=calc,
         overrides=overrides,
         is_pdf=False,
+        **_book_sheet_context(section, calc),
     )
 
 
@@ -471,6 +492,7 @@ def render_pdf_html(project, section, calc) -> str:
         calc=calc,
         overrides=overrides,
         is_pdf=True,
+        **_book_sheet_context(section, calc),
     )
 
 

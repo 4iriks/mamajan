@@ -9,6 +9,7 @@ from typing import Any, Iterable
 import xlsxwriter
 from PIL import Image
 
+from engine.book_sheet import BookSheetData, build_book_sheet_data
 from engine.office_common import (
     BRAND_DARK,
     BRAND_LIGHT,
@@ -27,6 +28,7 @@ from engine.office_diagrams import section_diagrams
 from engine.office_docx import CHECKLIST_ROWS
 from engine.office_section_data import hardware_rows, profile_rows, section_summary_rows
 from engine.project_documents import build_project_document_context
+from engine.pdf import section_extra_components
 
 
 def _formats(workbook: xlsxwriter.Workbook) -> dict[str, Any]:
@@ -163,6 +165,19 @@ def _formats(workbook: xlsxwriter.Workbook) -> dict[str, Any]:
                 "bold": True,
                 "font_color": f"#{RED}",
                 "align": "center",
+                "valign": "vcenter",
+                "text_wrap": True,
+                **border,
+            }
+        ),
+        "warning": workbook.add_format(
+            {
+                "font_name": "Arial",
+                "font_size": 8,
+                "bold": True,
+                "font_color": "#7C2D12",
+                "bg_color": "#FFF4DF",
+                "align": "left",
                 "valign": "vcenter",
                 "text_wrap": True,
                 **border,
@@ -1059,6 +1074,306 @@ def _write_slide_checklist_block(
     return row + 1
 
 
+def _write_book_warning(
+    worksheet: xlsxwriter.worksheet.Worksheet,
+    formats: dict[str, Any],
+    row: int,
+    text: str,
+) -> int:
+    worksheet.merge_range(row, 0, row + 1, 11, text, formats["warning"])
+    worksheet.set_row(row, 22)
+    worksheet.set_row(row + 1, 22)
+    return row + 2
+
+
+def _write_spanned_values(
+    worksheet: xlsxwriter.worksheet.Worksheet,
+    formats: dict[str, Any],
+    row: int,
+    values: tuple[Any, ...],
+    spans: tuple[tuple[int, int], ...],
+    *,
+    center: set[int] | None = None,
+) -> int:
+    center = center or set()
+    for index, (value, (first, last)) in enumerate(zip(values, spans, strict=True)):
+        cell_format = formats["center"] if index in center else formats["cell"]
+        if first == last:
+            worksheet.write(row, first, value, cell_format)
+        else:
+            worksheet.merge_range(row, first, row, last, value, cell_format)
+    return row + 1
+
+
+def _write_book_summary(
+    worksheet: xlsxwriter.worksheet.Worksheet,
+    formats: dict[str, Any],
+    row: int,
+    sheet: BookSheetData,
+) -> int:
+    row = _write_bar(worksheet, formats, row, "Параметры")
+    for index, (label, value) in enumerate(sheet.summary_rows):
+        line = row + index // 3
+        start = (index % 3) * 4
+        worksheet.merge_range(line, start, line, start + 1, label, formats["label"])
+        worksheet.merge_range(line, start + 2, line, start + 3, value, formats["cell"])
+        worksheet.set_row(line, 22)
+    return row + (len(sheet.summary_rows) + 2) // 3
+
+
+def _write_book_main_sheet(
+    workbook: xlsxwriter.Workbook,
+    formats: dict[str, Any],
+    project: object,
+    section: object,
+    calc: object,
+    sheet: BookSheetData,
+    overrides: dict[str, Any],
+) -> None:
+    worksheet = workbook.add_worksheet("ПЛ КНИЖКА")
+    _setup_sheet(worksheet, landscape=False, paper=9)
+    worksheet.fit_to_pages(1, 0)
+    worksheet.repeat_rows(0, 1)
+    _section_sheet_columns(worksheet)
+    row = _write_section_header(
+        worksheet,
+        formats,
+        project,
+        section,
+        f"{sheet.system_label} · ПРЕДВАРИТЕЛЬНЫЙ ПЛ",
+    )
+    row = _write_book_warning(worksheet, formats, row, sheet.warning)
+    row = _write_diagrams(worksheet, formats, row, section, calc)
+    row = _write_book_summary(worksheet, formats, row, sheet)
+
+    row = _write_bar(worksheet, formats, row, "Стекло")
+    glass_spans = ((0, 3), (4, 5), (6, 7), (8, 9), (10, 11))
+    row = _write_headers(
+        worksheet,
+        formats,
+        row,
+        ("Тип", "Ширина, мм", "Высота, мм", "Кол-во, шт", "Панели"),
+        glass_spans,
+    )
+    for item in sheet.glass_rows:
+        row = _write_spanned_values(
+            worksheet,
+            formats,
+            row,
+            (
+                item.glass_type,
+                override_value(overrides, f"{item.field_prefix}_width", format_dimension(item.width_mm)),
+                override_value(overrides, f"{item.field_prefix}_height", format_dimension(item.height_mm)),
+                override_value(overrides, f"{item.field_prefix}_qty", item.qty),
+                item.positions_text,
+            ),
+            glass_spans,
+            center={1, 2, 3, 4},
+        )
+        worksheet.set_row(row - 1, 24)
+    if not sheet.glass_supplied:
+        worksheet.merge_range(
+            row,
+            0,
+            row,
+            11,
+            "Стекло не входит в комплект поставки, размеры сохранены для самостоятельного заказа.",
+            formats["warning"],
+        )
+        worksheet.set_row(row, 24)
+        row += 1
+
+    row = _write_bar(worksheet, formats, row, "Панели при склейке")
+    assembly_spans = ((0, 2), (3, 5), (6, 8), (9, 11))
+    row = _write_headers(
+        worksheet,
+        formats,
+        row,
+        ("Ширина, мм", "Высота, мм", "Кол-во, шт", "Панели"),
+        assembly_spans,
+    )
+    for item in sheet.assembly_rows:
+        row = _write_spanned_values(
+            worksheet,
+            formats,
+            row,
+            (
+                override_value(overrides, f"{item.field_prefix}_width", format_dimension(item.width_mm)),
+                override_value(overrides, f"{item.field_prefix}_height", format_dimension(item.height_mm)),
+                override_value(overrides, f"{item.field_prefix}_qty", item.qty),
+                item.positions_text,
+            ),
+            assembly_spans,
+            center={0, 1, 2, 3},
+        )
+        worksheet.set_row(row - 1, 24)
+    worksheet.print_area(0, 0, max(row - 1, 1), 11)
+
+
+def _write_book_details_sheet(
+    workbook: xlsxwriter.Workbook,
+    formats: dict[str, Any],
+    project: object,
+    section: object,
+    sheet: BookSheetData,
+    overrides: dict[str, Any],
+) -> None:
+    worksheet = workbook.add_worksheet("Комплектация")
+    _setup_sheet(worksheet, landscape=False, paper=9)
+    worksheet.fit_to_pages(1, 0)
+    worksheet.repeat_rows(0, 1)
+    _section_sheet_columns(worksheet)
+    row = _write_section_header(
+        worksheet,
+        formats,
+        project,
+        section,
+        "КНИЖКА · НАРЕЗКА И КОМПЛЕКТАЦИЯ",
+    )
+    row = _write_book_warning(
+        worksheet,
+        formats,
+        row,
+        "Сверловка направляющих и профилей по этому ПЛ не выполняется.",
+    )
+
+    row = _write_bar(worksheet, formats, row, "Профили")
+    profile_spans = ((0, 1), (2, 4), (5, 7), (8, 11))
+    row = _write_headers(
+        worksheet,
+        formats,
+        row,
+        ("Профиль", "Артикул и наименование", "Нарезка", "Назначение"),
+        profile_spans,
+    )
+    for item in sheet.profile_rows:
+        values = (
+            "",
+            f"{item.article}\n{item.name}" + (f"\n{item.formula}" if item.formula else ""),
+            (
+                f"{override_value(overrides, f'{item.field_prefix}_length', format_dimension(item.length_mm))} мм × "
+                f"{override_value(overrides, f'{item.field_prefix}_qty', item.qty)} {item.unit}"
+            ),
+            item.positions_text,
+        )
+        current_row = row
+        row = _write_spanned_values(
+            worksheet,
+            formats,
+            row,
+            values,
+            profile_spans,
+            center={0, 2},
+        )
+        worksheet.set_row(current_row, 54)
+        _insert_image(
+            worksheet,
+            current_row,
+            0,
+            image_stream(item.image, max_size=(600, 420)),
+            max_width_px=120,
+            max_height_px=62,
+            x_offset=10,
+            y_offset=6,
+            allow_enlarge=False,
+        )
+
+    row = _write_bar(worksheet, formats, row, "Фурнитура")
+    hardware_spans = ((0, 1), (2, 5), (6, 7), (8, 8), (9, 11))
+    row = _write_headers(
+        worksheet,
+        formats,
+        row,
+        ("Артикул", "Наименование", "Количество", "Этап", "Примечание"),
+        hardware_spans,
+    )
+    for item in sheet.hardware_rows:
+        row = _write_spanned_values(
+            worksheet,
+            formats,
+            row,
+            (
+                item.article,
+                item.name,
+                f"{override_value(overrides, f'{item.field_prefix}_qty', format_number(item.qty))} {item.unit}".strip(),
+                item.shipment_stage or "—",
+                item.note,
+            ),
+            hardware_spans,
+            center={0, 2, 3},
+        )
+        worksheet.set_row(row - 1, 28)
+
+    extra_rows = section_extra_components(section, overrides)
+    if extra_rows:
+        row = _write_bar(worksheet, formats, row, "Дополнительные комплектующие")
+        extra_spans = ((0, 1), (2, 5), (6, 7), (8, 9), (10, 11))
+        row = _write_headers(
+            worksheet,
+            formats,
+            row,
+            ("Артикул", "Наименование", "Размер", "Количество", "Цвет"),
+            extra_spans,
+        )
+        for item in extra_rows:
+            row = _write_spanned_values(
+                worksheet,
+                formats,
+                row,
+                tuple(item.get(key, "") for key in ("art", "name", "size", "qty", "color")),
+                extra_spans,
+                center={0, 2, 3, 4},
+            )
+
+    checklist_start = row
+    row = _write_bar(worksheet, formats, row, "Чек-лист производства")
+    checklist_spans = ((0, 0), (1, 1), (2, 8), (9, 11))
+    row = _write_headers(
+        worksheet,
+        formats,
+        row,
+        ("№", "Отм.", "Операция", "Примечание"),
+        checklist_spans,
+    )
+    for number, action, note in sheet.checklist_rows:
+        row = _write_spanned_values(
+            worksheet,
+            formats,
+            row,
+            (number, "☐", action, note),
+            checklist_spans,
+            center={0, 1},
+        )
+        worksheet.set_row(row - 1, 26)
+
+    row = _write_bar(worksheet, formats, row, "Примечания и особые отметки")
+    worksheet.merge_range(
+        row,
+        0,
+        row + 4,
+        11,
+        override_value(overrides, "section_comments", getattr(section, "comments", "") or ""),
+        formats["cell"],
+    )
+    row += 5
+    signature_spans = ((0, 3), (4, 7), (8, 11))
+    row = _write_spanned_values(
+        worksheet,
+        formats,
+        row,
+        (
+            "Производство\n\n________________ / ________________",
+            "ОТК\n\n________________ / ________________",
+            "Дата\n\n«____» ____________ 20___ г.",
+        ),
+        signature_spans,
+        center={0, 1, 2},
+    )
+    worksheet.set_row(row - 1, 58)
+    worksheet.set_h_pagebreaks([checklist_start])
+    worksheet.print_area(0, 0, max(row - 1, 1), 11)
+
+
 def build_section_xlsx(project: object, section: object, calc: object) -> bytes:
     output = io.BytesIO()
     workbook = xlsxwriter.Workbook(output, {"in_memory": True})
@@ -1072,6 +1387,28 @@ def build_section_xlsx(project: object, section: object, calc: object) -> bytes:
     formats = _formats(workbook)
     overrides = load_overrides(section)
     system = str(getattr(section, "system", "") or "").strip().upper()
+
+    if system == "КНИЖКА":
+        sheet = build_book_sheet_data(section, calc)
+        _write_book_main_sheet(
+            workbook,
+            formats,
+            project,
+            section,
+            calc,
+            sheet,
+            overrides,
+        )
+        _write_book_details_sheet(
+            workbook,
+            formats,
+            project,
+            section,
+            sheet,
+            overrides,
+        )
+        workbook.close()
+        return output.getvalue()
 
     worksheet = workbook.add_worksheet("Производственный лист")
     _setup_sheet(worksheet, landscape=False, paper=9)

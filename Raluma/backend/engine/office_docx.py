@@ -19,6 +19,7 @@ from docx.oxml.ns import qn
 from docx.shared import Mm, Pt, RGBColor
 from PIL import Image
 
+from engine.book_sheet import BookSheetData, build_book_sheet_data
 from engine.office_common import (
     BLACK,
     BRAND_DARK,
@@ -44,6 +45,7 @@ from engine.office_section_data import (
     section_summary_rows,
 )
 from engine.project_documents import build_project_document_context
+from engine.pdf import section_extra_components
 from engine.quote_diagrams import render_quote_room_png
 
 
@@ -907,18 +909,251 @@ def _add_slide_drawings(document: Document, section: object) -> None:
     table.style = "Table Grid"
 
 
+def _add_book_warning(document: Document, text: str) -> None:
+    table = document.add_table(rows=1, cols=1)
+    table.style = "Table Grid"
+    cell = table.cell(0, 0)
+    _set_cell_shading(cell, "FFF4DF")
+    _set_cell_margins(cell, top=80, start=120, bottom=80, end=120)
+    _set_cell_text(cell, text, bold=True, size=8)
+    for run in cell.paragraphs[0].runs:
+        run.font.color.rgb = RGBColor.from_string("8A3B00")
+
+
+def _add_book_summary(document: Document, sheet: BookSheetData) -> None:
+    _add_bar(document, "Параметры")
+    columns = 3
+    table = document.add_table(rows=ceil_div(len(sheet.summary_rows), columns), cols=6)
+    table.autofit = False
+    for index, (label, value) in enumerate(sheet.summary_rows):
+        row_index = index // columns
+        pair = index % columns
+        label_cell = table.cell(row_index, pair * 2)
+        value_cell = table.cell(row_index, pair * 2 + 1)
+        _set_cell_width(label_cell, 28)
+        _set_cell_width(value_cell, 34)
+        _set_cell_shading(label_cell, HEADER_GRAY)
+        _set_cell_text(label_cell, label, bold=True, size=6.5)
+        _set_cell_text(value_cell, value, bold=True, size=7)
+    table.style = "Table Grid"
+
+
+def _add_book_glass(document: Document, sheet: BookSheetData, overrides: dict[str, Any]) -> None:
+    _add_bar(document, "Стекло")
+    table = document.add_table(rows=1, cols=5)
+    headers = ("Тип", "Ширина, мм", "Высота, мм", "Кол-во, шт", "Панели")
+    for index, header in enumerate(headers):
+        _set_cell_text(table.cell(0, index), header, bold=True, size=7, align=WD_ALIGN_PARAGRAPH.CENTER)
+        _set_cell_shading(table.cell(0, index), HEADER_GRAY)
+    for item in sheet.glass_rows:
+        row = table.add_row()
+        values = (
+            item.glass_type,
+            override_value(overrides, f"{item.field_prefix}_width", format_dimension(item.width_mm)),
+            override_value(overrides, f"{item.field_prefix}_height", format_dimension(item.height_mm)),
+            override_value(overrides, f"{item.field_prefix}_qty", item.qty),
+            item.positions_text,
+        )
+        for column, value in enumerate(values):
+            _set_cell_text(row.cells[column], value, size=7, align=WD_ALIGN_PARAGRAPH.CENTER if column else None)
+    table.style = "Table Grid"
+    if not sheet.glass_supplied:
+        paragraph = document.add_paragraph()
+        paragraph.paragraph_format.space_before = Pt(1)
+        paragraph.paragraph_format.space_after = Pt(1)
+        run = paragraph.add_run(
+            "Стекло не входит в комплект поставки, размеры сохранены для самостоятельного заказа."
+        )
+        run.bold = True
+        run.font.name = "Arial"
+        run.font.size = Pt(7.5)
+        run.font.color.rgb = RGBColor.from_string("9A3412")
+
+
+def _add_book_assemblies(document: Document, sheet: BookSheetData, overrides: dict[str, Any]) -> None:
+    _add_bar(document, "Панели при склейке")
+    table = document.add_table(rows=1, cols=4)
+    headers = ("Ширина, мм", "Высота, мм", "Кол-во, шт", "Панели")
+    for index, header in enumerate(headers):
+        _set_cell_text(table.cell(0, index), header, bold=True, size=7, align=WD_ALIGN_PARAGRAPH.CENTER)
+        _set_cell_shading(table.cell(0, index), HEADER_GRAY)
+    for item in sheet.assembly_rows:
+        row = table.add_row()
+        values = (
+            override_value(overrides, f"{item.field_prefix}_width", format_dimension(item.width_mm)),
+            override_value(overrides, f"{item.field_prefix}_height", format_dimension(item.height_mm)),
+            override_value(overrides, f"{item.field_prefix}_qty", item.qty),
+            item.positions_text,
+        )
+        for column, value in enumerate(values):
+            _set_cell_text(row.cells[column], value, size=7, align=WD_ALIGN_PARAGRAPH.CENTER)
+    table.style = "Table Grid"
+
+
+def _add_book_profiles(document: Document, sheet: BookSheetData, overrides: dict[str, Any]) -> None:
+    _add_bar(document, "Профили")
+    table = document.add_table(rows=1, cols=4)
+    table.autofit = False
+    headers = ("Профиль", "Артикул и наименование", "Нарезка", "Назначение")
+    widths = (28, 48, 48, 62)
+    for index, (header, width) in enumerate(zip(headers, widths, strict=True)):
+        _set_cell_width(table.cell(0, index), width)
+        _set_cell_text(table.cell(0, index), header, bold=True, size=7, align=WD_ALIGN_PARAGRAPH.CENTER)
+        _set_cell_shading(table.cell(0, index), HEADER_GRAY)
+    for item in sheet.profile_rows:
+        row = table.add_row()
+        for index, width in enumerate(widths):
+            _set_cell_width(row.cells[index], width)
+        image = image_stream(item.image, max_size=(600, 420))
+        if image:
+            _add_picture(row.cells[0], image, 18)
+        else:
+            _set_cell_text(row.cells[0], "", size=7)
+        article_text = f"{item.article}\n{item.name}"
+        if item.formula:
+            article_text += f"\n{item.formula}"
+        _set_cell_text(row.cells[1], article_text, bold=True, size=7)
+        length = override_value(overrides, f"{item.field_prefix}_length", format_dimension(item.length_mm))
+        qty = override_value(overrides, f"{item.field_prefix}_qty", item.qty)
+        _set_cell_text(
+            row.cells[2],
+            f"{length} мм × {qty} {item.unit}",
+            bold=True,
+            size=8,
+            align=WD_ALIGN_PARAGRAPH.CENTER,
+        )
+        _set_cell_text(row.cells[3], item.positions_text, size=7)
+        _prevent_row_split(row)
+    table.style = "Table Grid"
+
+
+def _add_book_hardware(document: Document, sheet: BookSheetData, overrides: dict[str, Any]) -> None:
+    _add_bar(document, "Фурнитура")
+    table = document.add_table(rows=1, cols=5)
+    headers = ("Артикул", "Наименование", "Количество", "Этап", "Примечание")
+    for index, header in enumerate(headers):
+        _set_cell_text(table.cell(0, index), header, bold=True, size=7, align=WD_ALIGN_PARAGRAPH.CENTER)
+        _set_cell_shading(table.cell(0, index), HEADER_GRAY)
+    for item in sheet.hardware_rows:
+        row = table.add_row()
+        qty = override_value(overrides, f"{item.field_prefix}_qty", format_number(item.qty))
+        values = (
+            item.article,
+            item.name,
+            f"{qty} {item.unit}".strip(),
+            item.shipment_stage or "—",
+            item.note,
+        )
+        for column, value in enumerate(values):
+            _set_cell_text(
+                row.cells[column],
+                value,
+                size=7,
+                align=WD_ALIGN_PARAGRAPH.CENTER if column in {0, 2, 3} else None,
+            )
+        _prevent_row_split(row)
+    table.style = "Table Grid"
+
+
+def _add_book_extra_components(
+    document: Document,
+    section: object,
+    overrides: dict[str, Any],
+) -> None:
+    rows = section_extra_components(section, overrides)
+    if not rows:
+        return
+    _add_bar(document, "Дополнительные комплектующие")
+    table = document.add_table(rows=1, cols=5)
+    headers = ("Артикул", "Наименование", "Размер", "Количество", "Цвет")
+    for index, header in enumerate(headers):
+        _set_cell_text(table.cell(0, index), header, bold=True, size=7, align=WD_ALIGN_PARAGRAPH.CENTER)
+        _set_cell_shading(table.cell(0, index), HEADER_GRAY)
+    for item in rows:
+        row = table.add_row()
+        for column, key in enumerate(("art", "name", "size", "qty", "color")):
+            _set_cell_text(row.cells[column], item.get(key, ""), size=7)
+    table.style = "Table Grid"
+
+
+def _add_book_checklist(
+    document: Document,
+    sheet: BookSheetData,
+    section: object,
+    overrides: dict[str, Any],
+) -> None:
+    _add_bar(document, "Чек-лист производства")
+    table = document.add_table(rows=1, cols=4)
+    headers = ("№", "Отм.", "Операция", "Примечание")
+    for index, header in enumerate(headers):
+        _set_cell_text(table.cell(0, index), header, bold=True, size=7, align=WD_ALIGN_PARAGRAPH.CENTER)
+        _set_cell_shading(table.cell(0, index), HEADER_GRAY)
+    for number, action, note in sheet.checklist_rows:
+        row = table.add_row()
+        values = (number, "☐", action, note)
+        for column, value in enumerate(values):
+            _set_cell_text(row.cells[column], value, size=7, align=WD_ALIGN_PARAGRAPH.CENTER if column in {0, 1} else None)
+    table.style = "Table Grid"
+
+    _add_bar(document, "Примечания и особые отметки")
+    comments = document.add_table(rows=1, cols=1)
+    _set_cell_text(
+        comments.cell(0, 0),
+        override_value(overrides, "section_comments", getattr(section, "comments", "") or ""),
+        bold=True,
+        size=8,
+    )
+    comments.rows[0].height = Mm(22)
+    comments.rows[0].height_rule = WD_ROW_HEIGHT_RULE.AT_LEAST
+    comments.style = "Table Grid"
+
+    signatures = document.add_table(rows=1, cols=3)
+    for cell, value in zip(
+        signatures.rows[0].cells,
+        (
+            "Производство\n\n________________ / ________________",
+            "ОТК\n\n________________ / ________________",
+            "Дата\n\n«____» ____________ 20___ г.",
+        ),
+        strict=True,
+    ):
+        _set_cell_text(cell, value, size=7.5, align=WD_ALIGN_PARAGRAPH.CENTER)
+    signatures.style = "Table Grid"
+
+
 def build_section_docx(project: object, section: object, calc: object) -> bytes:
     document = Document()
     _configure_document(document, landscape=False)
     system = str(getattr(section, "system", "") or "").strip().upper()
-    label = (
-        "ЛИФТ · ПРОИЗВОДСТВЕННЫЙ ЛИСТ"
-        if system == "ЛИФТ"
-        else "СЛАЙД · ПРОИЗВОДСТВЕННЫЙ ЛИСТ"
-    )
+    label = {
+        "ЛИФТ": "ЛИФТ · ПРОИЗВОДСТВЕННЫЙ ЛИСТ",
+        "КНИЖКА": "КНИЖКА · ПРЕДВАРИТЕЛЬНЫЙ ПРОИЗВОДСТВЕННЫЙ ЛИСТ",
+    }.get(system, "СЛАЙД · ПРОИЗВОДСТВЕННЫЙ ЛИСТ")
     overrides = load_overrides(section)
     _add_header(document, project, section, label)
     _add_calc_warnings(document, calc)
+    if system == "КНИЖКА":
+        sheet = build_book_sheet_data(section, calc)
+        _add_book_warning(document, sheet.warning)
+        _add_diagrams(document, section, calc)
+        _add_book_summary(document, sheet)
+        _add_book_glass(document, sheet, overrides)
+        _add_book_assemblies(document, sheet, overrides)
+        document.add_page_break()
+        _add_header(document, project, section, "КНИЖКА · НАРЕЗКА И КОМПЛЕКТАЦИЯ")
+        _add_book_warning(
+            document,
+            "Сверловка направляющих и профилей по этому ПЛ не выполняется.",
+        )
+        _add_book_profiles(document, sheet, overrides)
+        _add_book_hardware(document, sheet, overrides)
+        _add_book_extra_components(document, section, overrides)
+        document.add_page_break()
+        _add_header(document, project, section, "КНИЖКА · ЧЕК-ЛИСТ ПРОИЗВОДСТВА")
+        _add_book_checklist(document, sheet, section, overrides)
+        output = io.BytesIO()
+        document.save(output)
+        return output.getvalue()
     if system == "ЛИФТ":
         _add_summary(document, section, calc)
         _add_diagrams(document, section, calc)

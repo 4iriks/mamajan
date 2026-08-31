@@ -133,6 +133,7 @@ class BookCalcResult:
     configuration_status: FormulaStatus = "confirmed"
     calculation_status: FormulaStatus = "preliminary"
     documents_allowed: bool = True
+    production_sheet_implemented: bool = True
     documents_implemented: bool = False
     document_block_reasons: list[str] = field(default_factory=list)
 
@@ -1381,11 +1382,6 @@ def calculate_book(section: object) -> BookCalcResult:
         "extra_fixed_panel": bool(fixed_indices),
         "extra_moving_door": extra_door_enabled,
     }
-    if not result.documents_implemented:
-        result.warnings.append(
-            "ПЛ, заказ стекла, покраска и накладная КНИЖКИ будут реализованы "
-            "следующим пакетом после согласования калькулятора."
-        )
     return result
 
 

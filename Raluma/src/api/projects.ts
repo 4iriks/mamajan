@@ -300,6 +300,7 @@ export interface BookCalcPreview {
   configuration_status: BookFormulaStatus;
   calculation_status: BookFormulaStatus;
   documents_allowed: boolean;
+  production_sheet_implemented: boolean;
   documents_implemented: boolean;
   document_block_reasons: string[];
 }

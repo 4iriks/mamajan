@@ -160,13 +160,17 @@ export function BookCalcResults({
       ))}
 
       <div className="flex gap-2 rounded-xl border border-tint/30 bg-black/8 px-3 py-2 text-xs text-fg/55" data-book-documents-state>
-        {calc.documents_implemented ? (
+        {calc.production_sheet_implemented && calc.documents_allowed ? (
           <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-emerald-300" />
         ) : (
           <LockKeyhole className="h-4 w-4 flex-shrink-0 text-amber-300" />
         )}
         <span>
-          Производственные документы КНИЖКИ появятся следующим пакетом после согласования калькулятора.
+          {calc.production_sheet_implemented && calc.documents_allowed
+            ? 'Предварительный ПЛ доступен. Сверловка D13/D6 и отверстия направляющих в него не включены.'
+            : calc.documents_allowed
+              ? 'Производственный лист КНИЖКИ пока недоступен.'
+              : 'Производственный лист заблокирован до подтверждения конфигурации.'}
         </span>
       </div>
     </div>

@@ -153,6 +153,7 @@ const calc: BookCalcPreview = {
   configuration_status: 'confirmed',
   calculation_status: 'preliminary',
   documents_allowed: true,
+  production_sheet_implemented: true,
   documents_implemented: false,
   document_block_reasons: [],
 };

@@ -41,6 +41,7 @@ def test_direct_sections_two_to_six_panels_use_tz_width_formula(panels):
     assert width_formula.status == "confirmed"
     assert result.configuration_status == "confirmed"
     assert result.documents_allowed is True
+    assert result.production_sheet_implemented is True
     assert result.documents_implemented is False
 
 
