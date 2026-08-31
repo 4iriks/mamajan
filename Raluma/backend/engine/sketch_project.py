@@ -195,9 +195,12 @@ def _is_sketch_component(article: object, name: object) -> bool:
 
 _SLIDE_INCLUDED_HARDWARE_TERMS = (
     "ручк",
+    "кноб",
+    "скоб",
     "замок",
     "защел",
     "защёл",
+    "фиксатор",
     "уплотн",
     "двутавр",
 )
@@ -260,6 +263,7 @@ def _component_row(
 
 def _calculated_profiles(calc: object, system: str) -> list[dict]:
     rows: list[dict] = []
+    grouped_book_profiles: dict[tuple[str, str, float, str], dict] = {}
     for item in getattr(calc, "profiles", []) or []:
         article = getattr(item, "article", "")
         name = getattr(item, "name", "")
@@ -267,7 +271,25 @@ def _calculated_profiles(calc: object, system: str) -> list[dict]:
         length = getattr(item, "length_mm", 0)
         if _number(qty) <= 0 or _number(length) <= 0:
             continue
-        if not _is_sketch_component(article, name):
+        if not _is_sketch_component(article, name) and not (
+            system == "КНИЖКА" and str(article or "").strip().upper() == "RBP002"
+        ):
+            continue
+        unit = getattr(item, "unit", "шт")
+        if system == "КНИЖКА":
+            key = (str(article), str(name), _number(length), str(unit))
+            group = grouped_book_profiles.setdefault(
+                key,
+                {
+                    "qty": 0.0,
+                    "positions": [],
+                    "image": getattr(item, "image", ""),
+                },
+            )
+            group["qty"] += _number(qty)
+            position = _text(getattr(item, "position", ""))
+            if position and position not in group["positions"]:
+                group["positions"].append(position)
             continue
         rows.append(
             _component_row(
@@ -275,9 +297,20 @@ def _calculated_profiles(calc: object, system: str) -> list[dict]:
                 name=name,
                 size=f"{_format_number(length)} мм",
                 qty=_format_number(qty),
-                unit=getattr(item, "unit", "шт"),
-                note=getattr(item, "position", "") if system == "КНИЖКА" else "",
+                unit=unit,
                 image=getattr(item, "image", ""),
+            )
+        )
+    for (article, name, length, unit), group in grouped_book_profiles.items():
+        rows.append(
+            _component_row(
+                article=article,
+                name=name,
+                size=f"{_format_number(length)} мм",
+                qty=_format_number(group["qty"]),
+                unit=unit,
+                note=", ".join(group["positions"]),
+                image=group["image"],
             )
         )
     return rows
@@ -434,7 +467,11 @@ def _diagram_rows(section: object, calc: object) -> list[dict]:
         else section_diagrams(section, calc)
     )
     room_views = [row for row in diagrams if "из помещения" in row[0].casefold()]
-    selected = diagrams[:2] if system == "СЛАЙД" else (room_views[:1] or diagrams[:1])
+    selected = (
+        diagrams[:2]
+        if system in {"СЛАЙД", "КНИЖКА"}
+        else (room_views[:1] or diagrams[:1])
+    )
     rows = []
     for title, payload in selected:
         rows.append(
@@ -484,7 +521,11 @@ def _section_data(section: object, order: int) -> dict:
         warnings = _book_warnings(calc)
         threshold = "—"
         inter_glass = "—"
-        filling = _text(getattr(section, "glass_type", None))
+        filling = (
+            _text(getattr(section, "glass_type", None))
+            if bool(getattr(section, "glass_supplied", True))
+            else "Без стекла"
+        )
     else:
         geometry_error = lift_geometry_error(section)
         if geometry_error:
@@ -510,7 +551,7 @@ def _section_data(section: object, order: int) -> dict:
         "inter_glass_profile": inter_glass,
         "filling": filling,
         "panels": panel_rows,
-        "profiles": _calculated_profiles(calc, system),
+        "profiles": _calculated_components(calc, system),
         "comments": _text(getattr(section, "comments", None), ""),
         "warnings": [f"{label}: {warning}" for warning in warnings],
         "diagrams": _diagram_rows(section, calc),

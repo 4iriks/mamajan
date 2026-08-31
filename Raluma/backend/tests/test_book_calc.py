@@ -205,11 +205,6 @@ def test_compensator_variants_keep_profile_quantity_and_position(
     [
         {"angle_left": 90},
         {
-            "book_extra_fixed_enabled": True,
-            "book_extra_fixed_width": 500,
-            "book_extra_fixed_side": "left",
-        },
-        {
             "book_extra_door_enabled": True,
             "book_extra_door_panel": 2,
             "book_extra_door_width": 700,
@@ -224,6 +219,24 @@ def test_unconfirmed_configurations_are_preliminary_and_block_documents(feature)
     assert result.documents_allowed is False
     assert result.document_block_reasons
     assert any("заблокированы" in warning for warning in result.warnings)
+
+
+def test_legacy_fixed_panel_is_confirmed_and_does_not_block_documents():
+    result = calculate_book(
+        book_section(
+            book_extra_fixed_enabled=True,
+            book_extra_fixed_width=500,
+            book_extra_fixed_side="left",
+        )
+    )
+
+    fixed = next(panel for panel in result.panels if panel.role == "fixed")
+    assert fixed.role == "fixed"
+    assert fixed.panel_width_mm == 500
+    assert fixed.status == "confirmed"
+    assert fixed.hardware_articles == []
+    assert result.configuration_status == "confirmed"
+    assert result.documents_allowed is True
 
 
 def test_left_fixed_panel_keeps_physical_numbering_for_extra_door():
@@ -280,8 +293,7 @@ def test_hardware_preserves_shipment_stage_and_tz_override():
     [
         ({"width": 20}, "Суммарная ширина стекол"),
         ({"height": 100}, "Высота стекла"),
-        ({"panels": 1}, "от 2 до 6"),
-        ({"panels": 7}, "от 2 до 6"),
+        ({"panels": 1}, "не меньше 2"),
         ({"quantity": 0}, "больше нуля"),
         ({"book_obstacle_distance": -1}, "не может быть отрицательным"),
         ({"book_handle_height": 2600}, "от 0 до высоты"),
@@ -290,6 +302,119 @@ def test_hardware_preserves_shipment_stage_and_tz_override():
 def test_invalid_or_non_positive_dimensions_return_clear_error(overrides, message):
     with pytest.raises(BookCalculationError, match=message):
         calculate_book(book_section(**overrides))
+
+
+def test_more_than_six_panels_are_supported():
+    result = calculate_book(book_section(width=9000, panels=12))
+
+    assert len(result.panels) == 12
+    assert result.normalized_config["base_panel_count"] == 12
+    assert result.documents_allowed is True
+
+
+def test_four_fixed_positions_and_two_door_widths_have_stable_physical_order():
+    result = calculate_book(
+        book_section(
+            width=5000,
+            door_side="both",
+            doors=2,
+            book_left_stack_panels=2,
+            book_left_door_hardware="handle",
+            book_left_door_opening="inside_in",
+            book_right_door_hardware="lock",
+            book_right_door_opening="outside_out",
+            book_left_door_width=700,
+            book_right_door_width=710,
+            book_left_fixed_left_enabled=True,
+            book_left_fixed_left_width=400,
+            book_left_fixed_right_enabled=True,
+            book_left_fixed_right_width=410,
+            book_right_fixed_left_enabled=True,
+            book_right_fixed_left_width=420,
+            book_right_fixed_right_enabled=True,
+            book_right_fixed_right_width=430,
+        )
+    )
+
+    assert [panel.role for panel in result.panels] == [
+        "fixed",
+        "door",
+        "fixed",
+        "standard",
+        "standard",
+        "fixed",
+        "door",
+        "fixed",
+    ]
+    assert [panel.panel_width_mm for panel in result.panels] == [
+        400,
+        700,
+        410,
+        955,
+        955,
+        420,
+        710,
+        430,
+    ]
+    assert [panel.movement_direction for panel in result.panels] == [
+        "none",
+        "left",
+        "none",
+        "left",
+        "right",
+        "none",
+        "right",
+        "none",
+    ]
+    assert sum(panel.panel_width_mm for panel in result.panels) == 4980
+    assert result.normalized_config["physical_panel_count"] == 8
+    assert result.normalized_config["fixed_panel_numbers"] == [1, 3, 6, 8]
+    assert result.normalized_config["fixed_panels"] == {
+        "left_fixed_left": 1,
+        "left_fixed_right": 3,
+        "right_fixed_left": 6,
+        "right_fixed_right": 8,
+    }
+    assert result.documents_allowed is True
+
+
+def test_fixed_panels_do_not_change_left_stack_counting():
+    result = calculate_book(
+        book_section(
+            width=5000,
+            door_side="both",
+            doors=2,
+            book_left_stack_panels=2,
+            book_left_door_hardware="handle",
+            book_left_fixed_left_enabled=True,
+            book_left_fixed_left_width=400,
+            book_left_fixed_right_enabled=True,
+            book_left_fixed_right_width=410,
+        )
+    )
+
+    moving = [panel.movement_direction for panel in result.panels if panel.role != "fixed"]
+    assert moving == ["left", "left", "right", "right"]
+
+
+def test_glass_dimensions_remain_available_when_dealer_orders_without_glass():
+    result = calculate_book(book_section(glass_supplied=False))
+
+    assert result.normalized_config["glass_supplied"] is False
+    assert all(panel.glass_width_mm > 0 for panel in result.panels)
+    assert all(panel.glass_type == "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ" for panel in result.panels)
+
+
+def test_impossible_sum_of_specified_panel_widths_is_rejected():
+    with pytest.raises(BookCalculationError, match="Ширина стекла стандартной панели"):
+        calculate_book(
+            book_section(
+                width=1500,
+                book_right_door_width=1000,
+                book_right_fixed_left_enabled=True,
+                book_right_fixed_left_width=900,
+            )
+        )
 
 
 def test_legacy_book_fields_are_migrated_without_losing_semantics():

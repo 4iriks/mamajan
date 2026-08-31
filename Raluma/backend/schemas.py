@@ -377,6 +377,16 @@ class SectionBase(BaseModel):
     book_right_door_hardware: Optional[str] = None
     book_left_door_opening: Optional[str] = None
     book_right_door_opening: Optional[str] = None
+    book_left_door_width: Optional[float] = None
+    book_right_door_width: Optional[float] = None
+    book_left_fixed_left_enabled: bool = False
+    book_left_fixed_left_width: Optional[float] = None
+    book_left_fixed_right_enabled: bool = False
+    book_left_fixed_right_width: Optional[float] = None
+    book_right_fixed_left_enabled: bool = False
+    book_right_fixed_left_width: Optional[float] = None
+    book_right_fixed_right_enabled: bool = False
+    book_right_fixed_right_width: Optional[float] = None
     book_obstacle_distance: Optional[float] = None
     book_left_stack_panels: Optional[int] = None
     book_handle_height: Optional[float] = None

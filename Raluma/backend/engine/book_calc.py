@@ -783,8 +783,8 @@ def calculate_book(section: object) -> BookCalcResult:
     quantity = _integer(_get(section, "quantity"), 1)
     if width <= 0 or height <= 0:
         raise BookCalculationError("Ширина и высота секции КНИЖКИ должны быть больше нуля")
-    if base_panel_count < 2 or base_panel_count > 6:
-        raise BookCalculationError("Для КНИЖКИ количество панелей должно быть от 2 до 6")
+    if base_panel_count < 2:
+        raise BookCalculationError("Для КНИЖКИ количество панелей должно быть не меньше 2")
     if quantity <= 0:
         raise BookCalculationError("Количество одинаковых секций должно быть больше нуля")
 
@@ -819,7 +819,6 @@ def calculate_book(section: object) -> BookCalcResult:
         angle_right_deg = 90.0
     angle_left = 0 < angle_left_deg < 180
     angle_right = 0 < angle_right_deg < 180
-    extra_fixed_enabled = bool(_get(section, "book_extra_fixed_enabled", False))
     extra_door_enabled = bool(_get(section, "book_extra_door_enabled", False))
     preliminary_features: list[str] = []
     if angle_left or angle_right or _text(_get(section, "book_subtype")).lower() in {
@@ -827,8 +826,6 @@ def calculate_book(section: object) -> BookCalcResult:
         "doors_and_angle",
     }:
         preliminary_features.append("угловая конструкция")
-    if extra_fixed_enabled:
-        preliminary_features.append("дополнительная глухая панель")
     if extra_door_enabled:
         preliminary_features.append("дополнительная двигающаяся дверь")
     if preliminary_features:
@@ -855,19 +852,118 @@ def calculate_book(section: object) -> BookCalcResult:
             "этой системы заблокированы."
         )
 
-    physical_count = base_panel_count + int(extra_fixed_enabled)
-    roles = ["standard"] * physical_count
-    fixed_index: int | None = None
-    if extra_fixed_enabled:
-        fixed_side = _text(_get(section, "book_extra_fixed_side", "left")).lower()
-        fixed_index = physical_count - 1 if fixed_side in {"right", "справа", "правая"} else 0
-        roles[fixed_index] = "fixed"
+    left_door = door_layout in {"left", "both"}
+    right_door = door_layout in {"right", "both"}
+    door_count = int(left_door) + int(right_door)
+    if door_count > base_panel_count:
+        raise BookCalculationError(
+            "Количество панелей должно включать обе основные двери"
+        )
 
+    fixed_fields = {
+        "left_fixed_left": (
+            "book_left_fixed_left_enabled",
+            "book_left_fixed_left_width",
+        ),
+        "left_fixed_right": (
+            "book_left_fixed_right_enabled",
+            "book_left_fixed_right_width",
+        ),
+        "right_fixed_left": (
+            "book_right_fixed_left_enabled",
+            "book_right_fixed_left_width",
+        ),
+        "right_fixed_right": (
+            "book_right_fixed_right_enabled",
+            "book_right_fixed_right_width",
+        ),
+    }
+    fixed_specs: dict[str, float] = {}
+    has_new_fixed = any(
+        bool(_get(section, enabled_field, False))
+        for enabled_field, _ in fixed_fields.values()
+    )
+    for key, (enabled_field, width_field) in fixed_fields.items():
+        if not bool(_get(section, enabled_field, False)):
+            continue
+        if key.startswith("left_") and not left_door:
+            continue
+        if key.startswith("right_") and not right_door:
+            continue
+        panel_width = _number(_get(section, width_field))
+        if panel_width <= 3:
+            raise BookCalculationError(
+                "Ширина каждой включённой глухой панели должна быть больше 3 мм"
+            )
+        fixed_specs[key] = panel_width
+
+    # Старое поле одной глухой панели читается без миграции данных. После
+    # сохранения новая форма пишет только четыре однозначных положения.
+    if not has_new_fixed and bool(_get(section, "book_extra_fixed_enabled", False)):
+        legacy_width = _number(_get(section, "book_extra_fixed_width"))
+        if legacy_width <= 3:
+            raise BookCalculationError(
+                "Ширина дополнительной глухой панели должна быть больше 3 мм"
+            )
+        legacy_right = _text(
+            _get(section, "book_extra_fixed_side", "left")
+        ).lower() in {"right", "справа", "правая"}
+        if door_layout == "right":
+            legacy_key = "right_fixed_right" if legacy_right else "right_fixed_left"
+        elif door_layout == "both" and legacy_right:
+            legacy_key = "right_fixed_right"
+        else:
+            legacy_key = "left_fixed_right" if legacy_right and left_door else "left_fixed_left"
+        fixed_specs[legacy_key] = legacy_width
+
+    panel_defs: list[dict[str, Any]] = []
+
+    def add_fixed(key: str) -> None:
+        if key in fixed_specs:
+            panel_defs.append(
+                {
+                    "role": "fixed",
+                    "door_side": None,
+                    "fixed_key": key,
+                    "specified_width": fixed_specs[key],
+                }
+            )
+
+    if left_door:
+        add_fixed("left_fixed_left")
+        panel_defs.append({"role": "door", "door_side": "left"})
+        add_fixed("left_fixed_right")
+    panel_defs.extend(
+        {"role": "standard", "door_side": None}
+        for _ in range(base_panel_count - door_count)
+    )
+    if right_door:
+        add_fixed("right_fixed_left")
+        panel_defs.append({"role": "door", "door_side": "right"})
+        add_fixed("right_fixed_right")
+    if not left_door and not right_door:
+        # Поддержка старых угловых сохранений без двери.
+        panel_defs = [
+            {"role": "standard", "door_side": None}
+            for _ in range(base_panel_count)
+        ]
+        if fixed_specs:
+            key, panel_width = next(iter(fixed_specs.items()))
+            fixed_def = {
+                "role": "fixed",
+                "door_side": None,
+                "fixed_key": key,
+                "specified_width": panel_width,
+            }
+            if key.endswith("_right"):
+                panel_defs.append(fixed_def)
+            else:
+                panel_defs.insert(0, fixed_def)
+
+    roles = [str(panel["role"]) for panel in panel_defs]
+    physical_count = len(panel_defs)
     folding_indices = [index for index, role in enumerate(roles) if role != "fixed"]
-    if door_layout in {"left", "both"}:
-        roles[folding_indices[0]] = "door"
-    if door_layout in {"right", "both"}:
-        roles[folding_indices[-1]] = "door"
+    fixed_indices = [index for index, role in enumerate(roles) if role == "fixed"]
 
     extra_door_index: int | None = None
     if extra_door_enabled:
@@ -886,11 +982,11 @@ def calculate_book(section: object) -> BookCalcResult:
 
     left_stack = _integer(
         _get(section, "book_left_stack_panels"),
-        max(1, physical_count // 2),
+        max(1, base_panel_count // 2),
     )
-    if door_layout == "both" and not (1 <= left_stack < physical_count):
+    if door_layout == "both" and not (1 <= left_stack < base_panel_count):
         raise BookCalculationError(
-            "Сбор слева должен быть не меньше 1 и меньше общего количества физических панелей"
+            "Сбор слева должен быть не меньше 1 и меньше количества подвижных панелей"
         )
 
     left_boundary = 27.0 if angle_left else 11.5
@@ -898,15 +994,31 @@ def calculate_book(section: object) -> BookCalcResult:
     total_glass_span = width - left_boundary - right_boundary - 3.0 * (physical_count - 1)
     _require_positive(total_glass_span, "Суммарная ширина стекол")
 
-    specified_glass: dict[int, float] = {}
-    if fixed_index is not None:
-        fixed_width = _number(_get(section, "book_extra_fixed_width"))
-        if fixed_width <= 0:
-            raise BookCalculationError("Укажите положительную ширину дополнительной глухой панели")
-        specified_glass[fixed_index] = _require_positive(
-            fixed_width - 3.0,
-            "Ширина стекла дополнительной глухой панели",
+    specified_glass: dict[int, float] = {
+        index: _require_positive(
+            float(panel["specified_width"]) - 3.0,
+            "Ширина стекла глухой панели",
         )
+        for index, panel in enumerate(panel_defs)
+        if panel.get("role") == "fixed"
+    }
+    door_width_fields = {
+        "left": "book_left_door_width",
+        "right": "book_right_door_width",
+    }
+    for index, panel in enumerate(panel_defs):
+        side = panel.get("door_side")
+        if panel.get("role") != "door" or side not in door_width_fields:
+            continue
+        raw_width = _get(section, door_width_fields[side])
+        if raw_width in (None, ""):
+            continue
+        door_width = _number(raw_width)
+        if door_width <= 3:
+            raise BookCalculationError(
+                "Заданная ширина основной двери должна быть больше 3 мм"
+            )
+        specified_glass[index] = door_width - 3.0
     if extra_door_index is not None:
         extra_door_width = _number(_get(section, "book_extra_door_width"))
         if extra_door_width <= 0 or extra_door_width > 850:
@@ -921,11 +1033,16 @@ def calculate_book(section: object) -> BookCalcResult:
     uniform_count = physical_count - len(specified_glass)
     remaining_glass = total_glass_span - sum(specified_glass.values())
     if uniform_count <= 0:
-        raise BookCalculationError("Не осталось панелей для распределения ширины")
-    uniform_glass_width = _require_positive(
-        remaining_glass / uniform_count,
-        "Ширина стекла стандартной панели",
-    )
+        if abs(remaining_glass) > 0.11:
+            raise BookCalculationError(
+                "Сумма заданных ширин панелей не помещается в ширину секции"
+            )
+        uniform_glass_width = 0.0
+    else:
+        uniform_glass_width = _require_positive(
+            remaining_glass / uniform_count,
+            "Ширина стекла стандартной панели",
+        )
     (
         height_deduction,
         door_height_adjustment,
@@ -949,7 +1066,7 @@ def calculate_book(section: object) -> BookCalcResult:
     width_status: FormulaStatus = "preliminary" if preliminary_features else "confirmed"
     width_expression = (
         "(W − Lкрай − Rкрай − 3 × (P − 1) − ΣWзаданных стекол) / Pобычных"
-        if preliminary_features
+        if specified_glass or preliminary_features
         else "(W − 11,5 − 11,5 − 3 × (P − 1)) / P"
     )
     _add_formula(
@@ -1019,24 +1136,31 @@ def calculate_book(section: object) -> BookCalcResult:
     )
 
     extra_door_opening = _normalize_opening(_get(section, "book_extra_door_opening"))
+    moving_rank_by_index = {
+        panel_index: rank
+        for rank, panel_index in enumerate(folding_indices)
+    }
     for index, role in enumerate(roles):
-        side: str | None = None
+        side: str | None = panel_defs[index].get("door_side")
         hardware: str | None = None
         opening: str | None = None
         if role == "door":
-            if index == folding_indices[0] and door_layout in {"left", "both"}:
-                side = "left"
+            if side == "left":
                 hardware = left_hardware
                 opening = left_opening
             else:
-                side = "right"
                 hardware = right_hardware
                 opening = right_opening
         elif role == "moving_door":
             hardware = "lock"
             opening = extra_door_opening
 
-        movement = _movement_direction(index, role, door_layout, left_stack)
+        movement = _movement_direction(
+            moving_rank_by_index.get(index, 0),
+            role,
+            door_layout,
+            left_stack,
+        )
         glass_width = specified_glass.get(index, uniform_glass_width)
         panel_glass_height = (
             door_glass_height if role in {"door", "moving_door"} else glass_height
@@ -1048,7 +1172,7 @@ def calculate_book(section: object) -> BookCalcResult:
             if (
                 preliminary_features
                 or book_system != "B25"
-                or role in {"fixed", "moving_door"}
+                or role == "moving_door"
             )
             else "confirmed"
         )
@@ -1146,14 +1270,19 @@ def calculate_book(section: object) -> BookCalcResult:
             }[compensator],
             panel_number=None,
             source="tz",
-            status="confirmed" if compensator != "none" else "preliminary",
+            status="confirmed",
             formula=f"{compensator_count} × W × q",
         ),
     )
 
     moving_panels = sum(1 for role in roles if role == "standard")
     extra_door_direction = (
-        _movement_direction(extra_door_index, "moving_door", door_layout, left_stack)
+        _movement_direction(
+            moving_rank_by_index.get(extra_door_index, 0),
+            "moving_door",
+            door_layout,
+            left_stack,
+        )
         if extra_door_index is not None
         else "none"
     )
@@ -1222,17 +1351,34 @@ def calculate_book(section: object) -> BookCalcResult:
         "right_door_hardware": right_hardware if door_layout in {"right", "both"} else None,
         "left_door_opening": left_opening if door_layout in {"left", "both"} else None,
         "right_door_opening": right_opening if door_layout in {"right", "both"} else None,
+        "left_door_width_mm": (
+            _mm(_number(_get(section, "book_left_door_width")))
+            if left_door and _get(section, "book_left_door_width") not in (None, "")
+            else None
+        ),
+        "right_door_width_mm": (
+            _mm(_number(_get(section, "book_right_door_width")))
+            if right_door and _get(section, "book_right_door_width") not in (None, "")
+            else None
+        ),
+        "glass_supplied": bool(_get(section, "glass_supplied", True)),
         "compensator": compensator,
         "obstacle_distance_mm": _mm(obstacle_distance),
         "left_stack_panels": left_stack if door_layout == "both" else None,
         "handle_height_mm": _mm(handle_height) if handle_height else None,
         "angle_left_deg": _mm(angle_left_deg) if angle_left else None,
         "angle_right_deg": _mm(angle_right_deg) if angle_right else None,
-        "extra_fixed_panel_number": fixed_index + 1 if fixed_index is not None else None,
+        "fixed_panel_numbers": [index + 1 for index in fixed_indices],
+        "fixed_panels": {
+            str(panel.get("fixed_key")): index + 1
+            for index, panel in enumerate(panel_defs)
+            if panel.get("role") == "fixed"
+        },
+        "extra_fixed_panel_number": fixed_indices[0] + 1 if fixed_indices else None,
         "extra_door_panel_number": (
             extra_door_index + 1 if extra_door_index is not None else None
         ),
-        "extra_fixed_panel": extra_fixed_enabled,
+        "extra_fixed_panel": bool(fixed_indices),
         "extra_moving_door": extra_door_enabled,
     }
     if not result.documents_implemented:

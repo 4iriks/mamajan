@@ -170,6 +170,38 @@ export function apiToLocal(s: SectionOut): Section {
   const bookDoorLayout = normalizeBookDoorLayout(s.door_side, s.doors);
   const legacyBookHardware = normalizeBookHardware(s.door_type);
   const legacyBookOpening = normalizeBookOpening(s.door_opening);
+  const hasNewBookFixedPanels = Boolean(
+    s.book_left_fixed_left_enabled
+    || s.book_left_fixed_right_enabled
+    || s.book_right_fixed_left_enabled
+    || s.book_right_fixed_right_enabled
+  );
+  let bookLeftFixedLeftEnabled = s.book_left_fixed_left_enabled ?? false;
+  let bookLeftFixedRightEnabled = s.book_left_fixed_right_enabled ?? false;
+  let bookRightFixedLeftEnabled = s.book_right_fixed_left_enabled ?? false;
+  let bookRightFixedRightEnabled = s.book_right_fixed_right_enabled ?? false;
+  let bookLeftFixedLeftWidth = s.book_left_fixed_left_width;
+  let bookLeftFixedRightWidth = s.book_left_fixed_right_width;
+  let bookRightFixedLeftWidth = s.book_right_fixed_left_width;
+  let bookRightFixedRightWidth = s.book_right_fixed_right_width;
+  if (!hasNewBookFixedPanels && s.book_extra_fixed_enabled) {
+    const legacyFixedRight = (s.book_extra_fixed_side || '').toLowerCase() === 'right';
+    if (bookDoorLayout === 'right') {
+      bookRightFixedLeftEnabled = !legacyFixedRight;
+      bookRightFixedRightEnabled = legacyFixedRight;
+      bookRightFixedLeftWidth = !legacyFixedRight ? s.book_extra_fixed_width : undefined;
+      bookRightFixedRightWidth = legacyFixedRight ? s.book_extra_fixed_width : undefined;
+    } else if (bookDoorLayout === 'both' && legacyFixedRight) {
+      bookRightFixedRightEnabled = true;
+      bookRightFixedRightWidth = s.book_extra_fixed_width;
+    } else if (bookDoorLayout === 'left' && legacyFixedRight) {
+      bookLeftFixedRightEnabled = true;
+      bookLeftFixedRightWidth = s.book_extra_fixed_width;
+    } else {
+      bookLeftFixedLeftEnabled = true;
+      bookLeftFixedLeftWidth = s.book_extra_fixed_width;
+    }
+  }
   return {
     id: String(s.id),
     order: s.order,
@@ -180,7 +212,7 @@ export function apiToLocal(s: SectionOut): Section {
     panels: s.panels,
     quantity: s.quantity,
     glassType: normalizeGlassType(s.glass_type, rawSystem || 'СЛАЙД'),
-    glassSupplied: s.system === 'СЛАЙД' ? (s.glass_supplied ?? true) : true,
+    glassSupplied: ['СЛАЙД', 'КНИЖКА'].includes(s.system) ? (s.glass_supplied ?? true) : true,
     priceGroupId: s.price_group_id,
     paintingType: s.painting_type as Section['paintingType'],
     ralColor: s.ral_color,
@@ -240,6 +272,16 @@ export function apiToLocal(s: SectionOut): Section {
       ?? (bookDoorLayout === 'left' || bookDoorLayout === 'both' ? legacyBookOpening : undefined),
     bookRightDoorOpening: s.book_right_door_opening
       ?? (bookDoorLayout === 'right' || bookDoorLayout === 'both' ? legacyBookOpening : undefined),
+    bookLeftDoorWidth: s.book_left_door_width,
+    bookRightDoorWidth: s.book_right_door_width,
+    bookLeftFixedLeftEnabled,
+    bookLeftFixedLeftWidth,
+    bookLeftFixedRightEnabled,
+    bookLeftFixedRightWidth,
+    bookRightFixedLeftEnabled,
+    bookRightFixedLeftWidth,
+    bookRightFixedRightEnabled,
+    bookRightFixedRightWidth,
     bookObstacleDistance: s.book_obstacle_distance,
     bookLeftStackPanels: s.book_left_stack_panels,
     bookHandleHeight: s.book_handle_height,
@@ -271,21 +313,24 @@ export function localToApi(s: Section, fallbackIndex: number): Omit<SectionOut, 
     doorLayout: s.doorSide,
     extraFixedEnabled: s.bookExtraFixedEnabled,
     extraFixedSide: s.bookExtraFixedSide,
+    leftFixedLeftEnabled: s.bookLeftFixedLeftEnabled,
+    leftFixedRightEnabled: s.bookLeftFixedRightEnabled,
+    rightFixedLeftEnabled: s.bookRightFixedLeftEnabled,
+    rightFixedRightEnabled: s.bookRightFixedRightEnabled,
   });
   const extraDoorPanel = extraDoorOptions.includes(s.bookExtraDoorPanel || 0)
     ? s.bookExtraDoorPanel
     : extraDoorOptions[0];
-  const physicalBookPanels = s.panels + (s.bookExtraFixedEnabled ? 1 : 0);
   const leftBookStackPanels = Math.max(
     1,
-    Math.min(s.bookLeftStackPanels || Math.floor(physicalBookPanels / 2), physicalBookPanels - 1),
+    Math.min(s.bookLeftStackPanels || Math.floor(s.panels / 2), s.panels - 1),
   );
   return {
     name: s.name, order: s.order ?? fallbackIndex + 1,
     system: s.system,
     width: s.width, height: s.height, panels: s.panels, quantity: s.quantity,
     glass_type: normalizeGlassType(s.glassType, s.system), painting_type: s.paintingType,
-    glass_supplied: s.system === 'СЛАЙД' ? (s.glassSupplied ?? true) : true,
+    glass_supplied: ['СЛАЙД', 'КНИЖКА'].includes(s.system) ? (s.glassSupplied ?? true) : true,
     price_group_id: s.priceGroupId,
     ral_color: s.ralColor, corner_left: s.cornerLeft, corner_right: s.cornerRight,
     external_width: s.externalWidth,
@@ -329,12 +374,22 @@ export function localToApi(s: Section, fallbackIndex: number): Omit<SectionOut, 
     book_right_door_hardware: s.bookRightDoorHardware,
     book_left_door_opening: s.bookLeftDoorOpening,
     book_right_door_opening: s.bookRightDoorOpening,
+    book_left_door_width: s.bookLeftDoorWidth,
+    book_right_door_width: s.bookRightDoorWidth,
+    book_left_fixed_left_enabled: s.bookLeftFixedLeftEnabled ?? false,
+    book_left_fixed_left_width: s.bookLeftFixedLeftWidth,
+    book_left_fixed_right_enabled: s.bookLeftFixedRightEnabled ?? false,
+    book_left_fixed_right_width: s.bookLeftFixedRightWidth,
+    book_right_fixed_left_enabled: s.bookRightFixedLeftEnabled ?? false,
+    book_right_fixed_left_width: s.bookRightFixedLeftWidth,
+    book_right_fixed_right_enabled: s.bookRightFixedRightEnabled ?? false,
+    book_right_fixed_right_width: s.bookRightFixedRightWidth,
     book_obstacle_distance: s.bookObstacleDistance,
     book_left_stack_panels: s.doorSide === 'both'
       ? leftBookStackPanels
       : s.bookLeftStackPanels,
     book_handle_height: s.bookHandleHeight,
-    book_extra_fixed_enabled: s.bookExtraFixedEnabled ?? false,
+    book_extra_fixed_enabled: false,
     book_extra_fixed_width: s.bookExtraFixedWidth,
     book_extra_fixed_side: s.bookExtraFixedSide,
     book_extra_door_enabled: s.bookExtraDoorEnabled ?? false,

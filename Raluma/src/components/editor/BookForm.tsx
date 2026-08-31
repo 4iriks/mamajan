@@ -1,7 +1,7 @@
 import { AlertTriangle } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-import { BOOK_PROFILE_SYSTEMS, bookExtraDoorPanelOptions } from '../../constants/book';
+import { bookExtraDoorPanelOptions } from '../../constants/book';
 import { Checkbox } from './FormInputs';
 import { INP, LBL, SEL, Section } from './types';
 
@@ -14,16 +14,16 @@ const OPENINGS = [
 ];
 
 const DOOR_LAYOUTS = [
-  { value: 'none', label: 'Без дверей' },
   { value: 'left', label: 'Слева' },
   { value: 'right', label: 'Справа' },
-  { value: 'both', label: 'С двух сторон' },
+  { value: 'both', label: 'Справа и слева' },
 ];
 
 const COMPENSATORS = [
-  { value: 'lower', label: 'Нижний' },
-  { value: 'upper', label: 'Верхний' },
-  { value: 'both', label: 'Оба' },
+  { value: 'lower', label: 'Снизу' },
+  { value: 'upper', label: 'Сверху' },
+  { value: 'both', label: 'Сверху и снизу' },
+  { value: 'none', label: 'Без комп. профиля' },
 ];
 
 function BookBlock({
@@ -80,25 +80,114 @@ function ChoiceButtons({
   );
 }
 
-function DoorSettings({
-  side,
-  hardware,
-  opening,
+type DoorSide = 'left' | 'right';
+type RelativeSide = 'left' | 'right';
+
+const DOOR_FIELDS: Record<DoorSide, {
+  hardware: keyof Section;
+  opening: keyof Section;
+  width: keyof Section;
+  fixed: Record<RelativeSide, { enabled: keyof Section; width: keyof Section }>;
+}> = {
+  left: {
+    hardware: 'bookLeftDoorHardware',
+    opening: 'bookLeftDoorOpening',
+    width: 'bookLeftDoorWidth',
+    fixed: {
+      left: { enabled: 'bookLeftFixedLeftEnabled', width: 'bookLeftFixedLeftWidth' },
+      right: { enabled: 'bookLeftFixedRightEnabled', width: 'bookLeftFixedRightWidth' },
+    },
+  },
+  right: {
+    hardware: 'bookRightDoorHardware',
+    opening: 'bookRightDoorOpening',
+    width: 'bookRightDoorWidth',
+    fixed: {
+      left: { enabled: 'bookRightFixedLeftEnabled', width: 'bookRightFixedLeftWidth' },
+      right: { enabled: 'bookRightFixedRightEnabled', width: 'bookRightFixedRightWidth' },
+    },
+  },
+};
+
+function FixedPanelControl({
+  doorSide,
+  relativeSide,
+  section,
   update,
 }: {
-  side: 'left' | 'right';
-  hardware?: string;
-  opening?: string;
+  doorSide: DoorSide;
+  relativeSide: RelativeSide;
+  section: Section;
   update: (updates: Partial<Section>) => void;
 }) {
-  const hardwareField = side === 'left' ? 'bookLeftDoorHardware' : 'bookRightDoorHardware';
-  const openingField = side === 'left' ? 'bookLeftDoorOpening' : 'bookRightDoorOpening';
+  const fields = DOOR_FIELDS[doorSide].fixed[relativeSide];
+  const enabled = Boolean(section[fields.enabled]);
+  const width = section[fields.width] as number | undefined;
+  return (
+    <div className="space-y-2 rounded-lg border border-tint/20 bg-black/5 p-2.5" data-book-fixed={`${doorSide}-${relativeSide}`}>
+      <Checkbox
+        checked={enabled}
+        onChange={() => update({
+          [fields.enabled]: !enabled,
+          [fields.width]: width || 500,
+        } as Partial<Section>)}
+        label={`Глухая панель ${relativeSide === 'left' ? 'слева' : 'справа'} от двери`}
+      />
+      {enabled && (
+        <div className="space-y-1.5 pl-7">
+          <label className={LBL}>Ширина глухой панели, мм</label>
+          <input
+            type="number"
+            min={4}
+            step={0.1}
+            required
+            value={width ?? ''}
+            onChange={event => update({
+              [fields.width]: event.target.value === '' ? undefined : Number(event.target.value),
+            } as Partial<Section>)}
+            className={INP}
+            data-book-fixed-width={`${doorSide}-${relativeSide}`}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DoorSettings({
+  side,
+  section,
+  update,
+}: {
+  side: DoorSide;
+  section: Section;
+  update: (updates: Partial<Section>) => void;
+}) {
+  const fields = DOOR_FIELDS[side];
+  const hardware = section[fields.hardware] as string | undefined;
+  const opening = section[fields.opening] as string | undefined;
+  const width = section[fields.width] as number | undefined;
   return (
     <div className="rounded-xl border border-tint/25 bg-hi/5 p-3" data-book-door={side}>
       <h5 className="mb-3 text-xs font-bold text-fg/75">
         {side === 'left' ? 'Левая дверь' : 'Правая дверь'}
       </h5>
       <div className="space-y-3">
+        <div className="space-y-1.5">
+          <label className={LBL}>Ширина двери, мм (необязательно)</label>
+          <input
+            type="number"
+            min={4}
+            step={0.1}
+            value={width ?? ''}
+            onChange={event => update({
+              [fields.width]: event.target.value === '' ? undefined : Number(event.target.value),
+            } as Partial<Section>)}
+            className={INP}
+            placeholder="Рассчитать автоматически"
+            data-book-door-width={side}
+          />
+        </div>
         <div className="space-y-1.5">
           <label className={LBL}>Фурнитура</label>
           <ChoiceButtons
@@ -108,9 +197,9 @@ function DoorSettings({
               { value: 'lock', label: 'Замок с ручкой' },
             ]}
             onChange={value => update({
-              [hardwareField]: value,
+              [fields.hardware]: value,
               doorType: value === 'lock' ? 'Тип 4 / замок' : 'Тип 1 / ручка',
-            })}
+            } as Partial<Section>)}
           />
         </div>
         <div className="space-y-1.5">
@@ -120,9 +209,9 @@ function DoorSettings({
             onChange={event => {
               const next = event.target.value;
               update({
-                [openingField]: next,
+                [fields.opening]: next,
                 doorOpening: OPENINGS.find(item => item.value === next)?.label,
-              });
+              } as Partial<Section>);
             }}
             className={SEL}
             data-book-opening={side}
@@ -132,6 +221,8 @@ function DoorSettings({
             ))}
           </select>
         </div>
+        <FixedPanelControl doorSide={side} relativeSide="left" section={section} update={update} />
+        <FixedPanelControl doorSide={side} relativeSide="right" section={section} update={update} />
       </div>
     </div>
   );
@@ -144,34 +235,35 @@ export function BookSystemTab({
   s: Section;
   update: (updates: Partial<Section>) => void;
 }) {
-  const doorLayout = s.doorSide || (s.doors === 2 ? 'both' : s.doors === 1 ? 'right' : 'none');
+  const rawLayout = s.doorSide || (s.doors === 2 ? 'both' : 'right');
+  const doorLayout = rawLayout === 'none' ? 'right' : rawLayout;
   const hasLeftDoor = doorLayout === 'left' || doorLayout === 'both';
   const hasRightDoor = doorLayout === 'right' || doorLayout === 'both';
   const extraDoorPanelOptions = bookExtraDoorPanelOptions({
     panelCount: s.panels,
     doorLayout,
-    extraFixedEnabled: s.bookExtraFixedEnabled,
-    extraFixedSide: s.bookExtraFixedSide,
+    leftFixedLeftEnabled: s.bookLeftFixedLeftEnabled,
+    leftFixedRightEnabled: s.bookLeftFixedRightEnabled,
+    rightFixedLeftEnabled: s.bookRightFixedLeftEnabled,
+    rightFixedRightEnabled: s.bookRightFixedRightEnabled,
   });
-  const physicalPanelCount = s.panels + (s.bookExtraFixedEnabled ? 1 : 0);
-  const selectedExtraDoorPanel = extraDoorPanelOptions.includes(
-    s.bookExtraDoorPanel || 0,
-  )
+  const selectedExtraDoorPanel = extraDoorPanelOptions.includes(s.bookExtraDoorPanel || 0)
     ? s.bookExtraDoorPanel
     : extraDoorPanelOptions[0];
   const hasPreliminaryFeatures = Boolean(
     s.angleLeft
     || s.angleRight
-    || s.bookExtraFixedEnabled
     || s.bookExtraDoorEnabled
     || (s.bookSystem && s.bookSystem !== 'B25'),
   );
 
   const changeDoorLayout = (layout: string) => {
-    const doors = layout === 'both' ? 2 : layout === 'none' ? 0 : 1;
+    const doors = layout === 'both' ? 2 : 1;
     update({
       doorSide: layout,
       doors,
+      bookSubtype: 'doors',
+      bookSystem: s.bookSystem || 'B25',
       bookLeftDoorHardware: layout === 'left' || layout === 'both'
         ? s.bookLeftDoorHardware || 'handle'
         : undefined,
@@ -188,36 +280,20 @@ export function BookSystemTab({
   };
 
   return (
-    <div className="space-y-4" data-book-form>
+    <div className="space-y-4" data-book-form data-book-system="B25">
       <BookBlock title="Основные параметры">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <label className={LBL}>Количество панелей</label>
-            <select
-              value={s.panels}
-              onChange={event => update({ panels: Number(event.target.value) })}
-              className={SEL}
+            <label className={LBL}>Количество панелей, включая двери</label>
+            <input
+              type="number"
+              min={2}
+              step={1}
+              value={s.panels || ''}
+              onChange={event => update({ panels: Math.max(0, Number(event.target.value)) })}
+              className={INP}
               data-book-panel-count
-            >
-              {[2, 3, 4, 5, 6].map(count => (
-                <option key={count} value={count}>{count}</option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <label className={LBL}>Система книжки</label>
-            <select
-              value={s.bookSystem || 'B25'}
-              onChange={event => update({
-                bookSystem: event.target.value as Section['bookSystem'],
-              })}
-              className={SEL}
-              data-book-profile-system
-            >
-              {BOOK_PROFILE_SYSTEMS.map(system => (
-                <option key={system.value} value={system.value}>{system.label}</option>
-              ))}
-            </select>
+            />
           </div>
           <div className="space-y-1.5">
             <label className={LBL}>До препятствия, мм</label>
@@ -259,36 +335,20 @@ export function BookSystemTab({
             <label className={LBL}>Расположение дверей</label>
             <ChoiceButtons value={doorLayout} options={DOOR_LAYOUTS} onChange={changeDoorLayout} />
           </div>
-          {(hasLeftDoor || hasRightDoor) && (
-            <div className={`grid grid-cols-1 gap-3 ${hasLeftDoor && hasRightDoor ? 'sm:grid-cols-2' : ''}`}>
-              {hasLeftDoor && (
-                <DoorSettings
-                  side="left"
-                  hardware={s.bookLeftDoorHardware}
-                  opening={s.bookLeftDoorOpening}
-                  update={update}
-                />
-              )}
-              {hasRightDoor && (
-                <DoorSettings
-                  side="right"
-                  hardware={s.bookRightDoorHardware}
-                  opening={s.bookRightDoorOpening}
-                  update={update}
-                />
-              )}
-            </div>
-          )}
+          <div className={`grid grid-cols-1 gap-3 ${hasLeftDoor && hasRightDoor ? 'sm:grid-cols-2' : ''}`}>
+            {hasLeftDoor && <DoorSettings side="left" section={s} update={update} />}
+            {hasRightDoor && <DoorSettings side="right" section={s} update={update} />}
+          </div>
           {doorLayout === 'both' && (
             <div className="space-y-1.5">
-              <label className={LBL}>Физических панелей в левом сборе</label>
+              <label className={LBL}>Подвижных панелей в левом сборе</label>
               <select
                 value={s.bookLeftStackPanels ?? Math.max(1, Math.floor(s.panels / 2))}
                 onChange={event => update({ bookLeftStackPanels: Number(event.target.value) })}
                 className={SEL}
                 data-book-left-stack
               >
-                {Array.from({ length: Math.max(1, physicalPanelCount - 1) }, (_, index) => index + 1).map(count => (
+                {Array.from({ length: Math.max(1, s.panels - 1) }, (_, index) => index + 1).map(count => (
                   <option key={count} value={count}>{count}</option>
                 ))}
               </select>
@@ -297,7 +357,7 @@ export function BookSystemTab({
         </div>
       </BookBlock>
 
-      <BookBlock title="Компенсаторы">
+      <BookBlock title="Компенсирующие профили">
         <ChoiceButtons
           value={s.compensator || 'lower'}
           options={COMPENSATORS}
@@ -305,157 +365,75 @@ export function BookSystemTab({
         />
       </BookBlock>
 
-      <BookBlock title="Дополнительные элементы и углы" preliminary>
-        <div className="space-y-4">
+      <BookBlock title="Дополнительная двигающаяся дверь" preliminary>
+        <div className="space-y-3 rounded-xl border border-tint/20 p-3">
           <div className="rounded-xl border border-amber-400/30 bg-amber-500/8 px-3 py-2 text-xs text-amber-200" data-book-preliminary-note>
-            Углы, дополнительная дверь и глухая панель рассчитываются предварительно.
-            Производственные документы для них заблокированы.
+            Дополнительная двигающаяся дверь пока рассчитывается предварительно и блокирует производственные документы.
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className={LBL}>Угол слева, °</label>
-              <input
-                type="number"
-                min={0}
-                max={180}
-                step={0.1}
-                value={s.angleLeft ?? ''}
-                onChange={event => update({
-                  angleLeft: event.target.value === '' ? undefined : Number(event.target.value),
-                })}
-                className={INP}
-                placeholder="0"
-                data-book-angle="left"
-              />
+          <Checkbox
+            checked={Boolean(s.bookExtraDoorEnabled)}
+            onChange={() => update({
+              bookExtraDoorEnabled: !s.bookExtraDoorEnabled,
+              bookExtraDoorPanel: selectedExtraDoorPanel,
+              bookExtraDoorWidth: s.bookExtraDoorWidth || 700,
+              bookExtraDoorOpening: s.bookExtraDoorOpening || 'inside_in',
+            })}
+            label="Добавить дополнительную двигающуюся дверь"
+            disabled={!s.bookExtraDoorEnabled && extraDoorPanelOptions.length === 0}
+          />
+          {extraDoorPanelOptions.length === 0 && (
+            <div className="pl-7 text-[10px] font-bold text-amber-300">
+              Нет обычной подвижной панели, которую можно заменить дверью.
             </div>
-            <div className="space-y-1.5">
-              <label className={LBL}>Угол справа, °</label>
-              <input
-                type="number"
-                min={0}
-                max={180}
-                step={0.1}
-                value={s.angleRight ?? ''}
-                onChange={event => update({
-                  angleRight: event.target.value === '' ? undefined : Number(event.target.value),
-                })}
-                className={INP}
-                placeholder="0"
-                data-book-angle="right"
-              />
+          )}
+          {s.bookExtraDoorEnabled && extraDoorPanelOptions.length > 0 && (
+            <div className="grid grid-cols-1 gap-3 pl-7 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <label className={LBL}>Физическая панель №</label>
+                <select
+                  value={selectedExtraDoorPanel}
+                  onChange={event => update({ bookExtraDoorPanel: Number(event.target.value) })}
+                  className={SEL}
+                  data-book-extra-door-panels={extraDoorPanelOptions.join(',')}
+                >
+                  {extraDoorPanelOptions.map(number => (
+                    <option key={number} value={number}>{number}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className={LBL}>Ширина, мм</label>
+                <input
+                  type="number"
+                  min={4}
+                  max={850}
+                  step={0.1}
+                  value={s.bookExtraDoorWidth ?? ''}
+                  onChange={event => update({
+                    bookExtraDoorWidth: event.target.value === '' ? undefined : Number(event.target.value),
+                  })}
+                  className={INP}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className={LBL}>Открывание</label>
+                <select
+                  value={s.bookExtraDoorOpening || 'inside_in'}
+                  onChange={event => update({ bookExtraDoorOpening: event.target.value })}
+                  className={SEL}
+                >
+                  {OPENINGS.map(item => (
+                    <option key={item.value} value={item.value}>{item.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-          </div>
-
-          <div className="space-y-3 rounded-xl border border-tint/20 p-3">
-            <Checkbox
-              checked={Boolean(s.bookExtraFixedEnabled)}
-              onChange={() => update({
-                bookExtraFixedEnabled: !s.bookExtraFixedEnabled,
-                bookExtraFixedSide: s.bookExtraFixedSide || 'left',
-                bookExtraFixedWidth: s.bookExtraFixedWidth || 500,
-              })}
-              label="Дополнительная глухая панель"
-            />
-            {s.bookExtraFixedEnabled && (
-              <div className="grid grid-cols-2 gap-3 pl-7">
-                <div className="space-y-1.5">
-                  <label className={LBL}>Сторона</label>
-                  <select
-                    value={s.bookExtraFixedSide || 'left'}
-                    onChange={event => update({ bookExtraFixedSide: event.target.value })}
-                    className={SEL}
-                  >
-                    <option value="left">Слева</option>
-                    <option value="right">Справа</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className={LBL}>Ширина, мм</label>
-                  <input
-                    type="number"
-                    min={1}
-                    step={0.1}
-                    value={s.bookExtraFixedWidth ?? ''}
-                    onChange={event => update({
-                      bookExtraFixedWidth: event.target.value === '' ? undefined : Number(event.target.value),
-                    })}
-                    className={INP}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-3 rounded-xl border border-tint/20 p-3">
-            <Checkbox
-              checked={Boolean(s.bookExtraDoorEnabled)}
-              onChange={() => update({
-                bookExtraDoorEnabled: !s.bookExtraDoorEnabled,
-                bookExtraDoorPanel: selectedExtraDoorPanel,
-                bookExtraDoorWidth: s.bookExtraDoorWidth || 700,
-                bookExtraDoorOpening: s.bookExtraDoorOpening || 'inside_in',
-              })}
-              label="Дополнительная двигающаяся дверь"
-              disabled={!s.bookExtraDoorEnabled && extraDoorPanelOptions.length === 0}
-            />
-            {extraDoorPanelOptions.length === 0 && (
-              <div className="pl-7 text-[10px] font-bold text-amber-300">
-                Нет обычной подвижной панели: отключите дополнительную дверь
-                или освободите панель, занятую крайней дверью.
-              </div>
-            )}
-            {s.bookExtraDoorEnabled && extraDoorPanelOptions.length > 0 && (
-              <div className="grid grid-cols-1 gap-3 pl-7 sm:grid-cols-3">
-                <div className="space-y-1.5">
-                  <label className={LBL}>Панель №</label>
-                  <select
-                    value={selectedExtraDoorPanel}
-                    onChange={event => update({ bookExtraDoorPanel: Number(event.target.value) })}
-                    className={SEL}
-                    data-book-extra-door-panels={extraDoorPanelOptions.join(',')}
-                  >
-                    {extraDoorPanelOptions.map(number => (
-                      <option key={number} value={number}>{number}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className={LBL}>Ширина, мм</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={850}
-                    step={0.1}
-                    value={s.bookExtraDoorWidth ?? ''}
-                    onChange={event => update({
-                      bookExtraDoorWidth: event.target.value === '' ? undefined : Number(event.target.value),
-                    })}
-                    className={INP}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className={LBL}>Открывание</label>
-                  <select
-                    value={s.bookExtraDoorOpening || 'inside_in'}
-                    onChange={event => update({ bookExtraDoorOpening: event.target.value })}
-                    className={SEL}
-                  >
-                    {OPENINGS.map(item => (
-                      <option key={item.value} value={item.value}>{item.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </BookBlock>
 
       {hasPreliminaryFeatures && (
-        <div
-          className="flex gap-2 rounded-xl border border-amber-400/40 bg-amber-500/12 px-4 py-3 text-sm font-bold text-amber-200"
-          data-book-preliminary-warning
-        >
+        <div className="flex gap-2 rounded-xl border border-amber-400/40 bg-amber-500/12 px-4 py-3 text-sm font-bold text-amber-200" data-book-preliminary-warning>
           <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <span>Активна предварительная конфигурация — производственные документы недоступны.</span>
         </div>

@@ -13,7 +13,10 @@ from engine.legacy_values import normalize_section_data_values
 router = APIRouter(prefix="/api/projects", tags=["sections"])
 
 def _assign_price_group(section_data: dict, db: Session) -> None:
-    if str(section_data.get("system") or "").strip().upper() != "СЛАЙД":
+    if str(section_data.get("system") or "").strip().upper() not in {
+        "СЛАЙД",
+        "КНИЖКА",
+    }:
         section_data["glass_supplied"] = True
     group_id = section_data.get("price_group_id")
     if group_id is not None:

@@ -121,19 +121,9 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
                   </button>
                   {bookSubVisible && (
                     <div className="border-t border-[#7a4a2a]/25">
-                      <div className="grid grid-cols-2">
-                        <button onClick={() => handleAdd('КНИЖКА', { bookSubtype: 'doors' })}
-                          className={`py-2 font-bold text-[11px] transition-all border-r border-b border-[#7a4a2a]/25 ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
-                          С дверями
-                        </button>
-                        <button onClick={() => handleAdd('КНИЖКА', { bookSubtype: 'angle' })}
-                          className={`py-2 font-bold text-[11px] transition-all border-b border-[#7a4a2a]/25 ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
-                          С углом
-                        </button>
-                      </div>
-                      <button onClick={() => handleAdd('КНИЖКА', { bookSubtype: 'doors_and_angle' })}
+                      <button onClick={() => handleAdd('КНИЖКА', { bookSubtype: 'doors' })}
                         className={`w-full py-2 font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['КНИЖКА']}`}>
-                        С дверями и углом
+                        С дверями
                       </button>
                     </div>
                   )}

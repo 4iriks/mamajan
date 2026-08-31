@@ -902,7 +902,7 @@ def _build_glass_rows(
             section_number,
             include_penoplex=False,
         )
-        if system == "СЛАЙД" and not bool(
+        if system in {"СЛАЙД", "КНИЖКА"} and not bool(
             getattr(item.section, "glass_supplied", True)
         ):
             default_type = default_glass_type(system)

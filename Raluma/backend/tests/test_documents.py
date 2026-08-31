@@ -1405,7 +1405,7 @@ class TestSketchProject:
         ("section", "expected_diagram", "has_top_view"),
         [
             (_slide.__func__(), "ВИД ИЗ ПОМЕЩЕНИЯ", True),
-            (_book.__func__(), "ВИД ИЗ ПОМЕЩЕНИЯ", False),
+            (_book.__func__(), "ВИД ИЗ ПОМЕЩЕНИЯ", True),
             (_lift.__func__(), "ВИД ИЗ ПОМЕЩЕНИЯ", False),
         ],
     )
@@ -1456,14 +1456,16 @@ class TestSketchProject:
             "3043",
             "3300",
             "RS2061",
-            "ПРОФИЛИ",
+            "ПРОФИЛИ И ФУРНИТУРА",
             "RS1313",
         )
         for text in texts.values():
-            compact = re.sub(r"\s+", "", text)
+            compact = re.sub(r"\s+", "", text).casefold()
             for expected in required:
-                assert re.sub(r"\s+", "", expected) in compact
-            positions = [compact.index(marker) for marker in ("SLIDE", "BOOK", "LIFT")]
+                assert re.sub(r"\s+", "", expected).casefold() in compact
+            positions = [
+                compact.index(marker.casefold()) for marker in ("SLIDE", "BOOK", "LIFT")
+            ]
             assert positions == sorted(positions)
 
         for rendered_text in texts.values():
@@ -1599,6 +1601,106 @@ class TestSketchProject:
         assert profile["size"] == "2000 мм"
         assert profile["qty"] == "2"
         assert profile["unit"] == "шт"
+
+    def test_slide_sketch_lists_selected_handles_locks_and_latches(self):
+        project = SimpleNamespace(number="SKETCH-HARDWARE")
+        section = SimpleNamespace(
+            **SectionCreate(
+                **self._slide(
+                    width=4679,
+                    height=3000,
+                    panels=6,
+                    slide_rows=2,
+                    handle_left="Ручка-кноб RS3014",
+                    handle_right="Стеклянная ручка RS3017",
+                    center_handle="Ручка-скоба 600мм RS30201",
+                    lock_left="Замок-защёлка 1стор RS3018",
+                    lock_right="Замок 2сторон RS3020",
+                    center_lock="Замок стекло-стекло RS30301",
+                    floor_latches_left=True,
+                    floor_latches_right=True,
+                    center_floor_latches_left=True,
+                    center_floor_latches_right=True,
+                )
+            ).model_dump()
+        )
+
+        context = build_project_document_context(project, [section], "sketch")
+        rows = context["sections"][0]["profiles"]
+        articles = {row["article"] for row in rows}
+
+        assert {
+            "RS3014",
+            "RS3017",
+            "RS30201",
+            "RS3018",
+            "RS3020",
+            "RS30301",
+            "RS205",
+        } <= articles
+
+    def test_slide_sketch_room_draws_every_selected_hardware_role(self):
+        section = SimpleNamespace(
+            **SectionCreate(
+                **self._slide(
+                    width=4679,
+                    height=3000,
+                    panels=6,
+                    slide_rows=2,
+                    handle_left="Ручка-кноб RS3014",
+                    handle_right="Стеклянная ручка RS3017",
+                    center_handle="Ручка-скоба 600мм RS30201",
+                    lock_left="Замок-защёлка 1стор RS3018",
+                    lock_right="Замок 2сторон RS3020",
+                    center_lock="Замок стекло-стекло RS30301",
+                    floor_latches_left=True,
+                    floor_latches_right=True,
+                    center_floor_latches_left=True,
+                    center_floor_latches_right=True,
+                )
+            ).model_dump()
+        )
+        markers = office_diagrams._slide_room_hardware_markers(
+            section,
+            [(100 + index * 100, 200 + index * 100) for index in range(6)],
+            top=100,
+            bottom=500,
+        )
+
+        assert {(marker["role"], marker["kind"]) for marker in markers} == {
+            ("left_handle", "knob"),
+            ("right_handle", "glass_handle"),
+            ("center_left_handle", "brace"),
+            ("center_right_handle", "brace"),
+            ("left_lock", "one_way_lock"),
+            ("right_lock", "two_way_lock"),
+            ("center_lock", "center_lock"),
+            ("left_floor_latch", "floor_latch"),
+            ("right_floor_latch", "floor_latch"),
+            ("center_left_floor_latch", "floor_latch"),
+            ("center_right_floor_latch", "floor_latch"),
+        }
+
+    def test_book_sketch_lists_glass_profiles_and_hardware(self):
+        project = SimpleNamespace(number="SKETCH-BOOK-PROFILES")
+        section = SimpleNamespace(
+            **SectionCreate(
+                **self._book(
+                    width=3525,
+                    height=3000,
+                    panels=4,
+                    book_left_door_hardware="handle",
+                    book_right_door_hardware="lock",
+                )
+            ).model_dump()
+        )
+
+        context = build_project_document_context(project, [section], "sketch")
+        rows = context["sections"][0]["profiles"]
+        articles = {row["article"] for row in rows}
+
+        assert {"RBP001", "RBP002", "RBP003"} <= articles
+        assert any(article.startswith("RBA") for article in articles)
 
     def test_slide_sketch_room_numeric_labels_are_half_size(self, monkeypatch):
         section = SimpleNamespace(**SectionCreate(**self._slide()).model_dump())

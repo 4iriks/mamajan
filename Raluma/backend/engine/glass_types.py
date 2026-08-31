@@ -65,7 +65,7 @@ def normalize_slide_glass_type(value: Any) -> str:
 
 
 def normalize_glass_type(value: Any, system: str | None) -> str:
-    if (system or "").strip().upper() == "СЛАЙД":
+    if (system or "").strip().upper() in {"СЛАЙД", "КНИЖКА"}:
         return normalize_slide_glass_type(value)
     text = " ".join(str(value or "").strip().split())
     return text or NON_SLIDE_DEFAULT_GLASS_TYPE

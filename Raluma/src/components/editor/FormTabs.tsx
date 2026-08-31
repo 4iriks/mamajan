@@ -21,7 +21,9 @@ const NO_GLASS_OPTION = '__no_glass__';
 
 export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
   const glassOptions = glassTypeOptions(s.system);
-  const hasCustomGlass = !glassOptions.some(option => option === s.glassType);
+  const supportsGlassSupply = s.system === 'СЛАЙД' || s.system === 'КНИЖКА';
+  const supportsCustomGlass = s.system !== 'КНИЖКА';
+  const hasCustomGlass = supportsCustomGlass && !glassOptions.some(option => option === s.glassType);
   const [isCustomGlass, setIsCustomGlass] = useState(hasCustomGlass);
 
   useEffect(() => {
@@ -71,9 +73,10 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
         <div className="space-y-1.5">
           <label className={LBL}>Стекло</label>
           <select
-            value={s.system === 'СЛАЙД' && s.glassSupplied === false
+            value={supportsGlassSupply && s.glassSupplied === false
               ? NO_GLASS_OPTION
-              : isCustomGlass ? CUSTOM_GLASS_OPTION : s.glassType}
+              : isCustomGlass ? CUSTOM_GLASS_OPTION
+                : glassOptions.includes(s.glassType as never) ? s.glassType : defaultGlassType(s.system)}
             onChange={e => {
               if (e.target.value === NO_GLASS_OPTION) {
                 setIsCustomGlass(false);
@@ -82,22 +85,22 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
               }
               if (e.target.value === CUSTOM_GLASS_OPTION) {
                 setIsCustomGlass(true);
-                if (s.system === 'СЛАЙД') update({ glassSupplied: true });
+                if (supportsGlassSupply) update({ glassSupplied: true });
                 return;
               }
               setIsCustomGlass(false);
               update({
                 glassType: e.target.value,
-                ...(s.system === 'СЛАЙД' ? { glassSupplied: true } : {}),
+                ...(supportsGlassSupply ? { glassSupplied: true } : {}),
               });
             }}
             className={SEL}
           >
-            {s.system === 'СЛАЙД' && <option value={NO_GLASS_OPTION}>Без стекла</option>}
+            {supportsGlassSupply && <option value={NO_GLASS_OPTION}>Без стекла</option>}
             {glassOptions.map(option => <option key={option} value={option}>{option}</option>)}
-            <option value={CUSTOM_GLASS_OPTION}>Другое</option>
+            {supportsCustomGlass && <option value={CUSTOM_GLASS_OPTION}>Другое</option>}
           </select>
-          {isCustomGlass && !(s.system === 'СЛАЙД' && s.glassSupplied === false) && (
+          {supportsCustomGlass && isCustomGlass && !(supportsGlassSupply && s.glassSupplied === false) && (
             <input
               type="text"
               value={hasCustomGlass ? s.glassType : ''}

@@ -117,6 +117,16 @@ export interface SectionOut {
   book_right_door_hardware?: string;
   book_left_door_opening?: string;
   book_right_door_opening?: string;
+  book_left_door_width?: number;
+  book_right_door_width?: number;
+  book_left_fixed_left_enabled?: boolean;
+  book_left_fixed_left_width?: number;
+  book_left_fixed_right_enabled?: boolean;
+  book_left_fixed_right_width?: number;
+  book_right_fixed_left_enabled?: boolean;
+  book_right_fixed_left_width?: number;
+  book_right_fixed_right_enabled?: boolean;
+  book_right_fixed_right_width?: number;
   book_obstacle_distance?: number;
   book_left_stack_panels?: number;
   book_handle_height?: number;

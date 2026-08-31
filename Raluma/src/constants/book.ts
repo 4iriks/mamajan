@@ -36,26 +36,54 @@ export function bookExtraDoorPanelOptions({
   doorLayout,
   extraFixedEnabled,
   extraFixedSide,
+  leftFixedLeftEnabled,
+  leftFixedRightEnabled,
+  rightFixedLeftEnabled,
+  rightFixedRightEnabled,
 }: {
   panelCount: number;
   doorLayout?: string;
   extraFixedEnabled?: boolean;
   extraFixedSide?: string;
+  leftFixedLeftEnabled?: boolean;
+  leftFixedRightEnabled?: boolean;
+  rightFixedLeftEnabled?: boolean;
+  rightFixedRightEnabled?: boolean;
 }): number[] {
-  const physicalCount = panelCount + (extraFixedEnabled ? 1 : 0);
-  const allPanels = Array.from({ length: physicalCount }, (_, index) => index + 1);
-  const fixedPanel = extraFixedEnabled
-    ? extraFixedSide === 'right' ? physicalCount : 1
-    : undefined;
-  const foldingPanels = allPanels.filter(number => number !== fixedPanel);
-  const excluded = new Set<number>();
-  if (fixedPanel) excluded.add(fixedPanel);
-  if (doorLayout === 'left' || doorLayout === 'both') {
-    if (foldingPanels[0]) excluded.add(foldingPanels[0]);
+  const hasNewFixedPanels = Boolean(
+    leftFixedLeftEnabled
+    || leftFixedRightEnabled
+    || rightFixedLeftEnabled
+    || rightFixedRightEnabled
+  );
+  const leftDoor = doorLayout === 'left' || doorLayout === 'both';
+  const rightDoor = doorLayout === 'right' || doorLayout === 'both';
+  const roles: Array<'standard' | 'door' | 'fixed'> = [];
+  const baseDoorCount = Number(leftDoor) + Number(rightDoor);
+  const standardCount = Math.max(0, panelCount - baseDoorCount);
+
+  if (hasNewFixedPanels) {
+    if (leftDoor && leftFixedLeftEnabled) roles.push('fixed');
+    if (leftDoor) roles.push('door');
+    if (leftDoor && leftFixedRightEnabled) roles.push('fixed');
+    roles.push(...Array.from({ length: standardCount }, () => 'standard' as const));
+    if (rightDoor && rightFixedLeftEnabled) roles.push('fixed');
+    if (rightDoor) roles.push('door');
+    if (rightDoor && rightFixedRightEnabled) roles.push('fixed');
+  } else {
+    roles.push(...Array.from({ length: panelCount }, () => 'standard' as const));
+    const fixedPanel = extraFixedEnabled
+      ? extraFixedSide === 'right' ? roles.length : 0
+      : undefined;
+    if (fixedPanel !== undefined) roles.splice(fixedPanel, 0, 'fixed');
+    const movingIndices = roles
+      .map((role, index) => role !== 'fixed' ? index : -1)
+      .filter(index => index >= 0);
+    if (leftDoor && movingIndices[0] !== undefined) roles[movingIndices[0]] = 'door';
+    if (rightDoor && movingIndices.at(-1) !== undefined) roles[movingIndices.at(-1)!] = 'door';
   }
-  if (doorLayout === 'right' || doorLayout === 'both') {
-    const last = foldingPanels.at(-1);
-    if (last) excluded.add(last);
-  }
-  return allPanels.filter(number => !excluded.has(number));
+
+  return roles
+    .map((role, index) => role === 'standard' ? index + 1 : 0)
+    .filter(Boolean);
 }

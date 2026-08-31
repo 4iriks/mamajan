@@ -175,21 +175,23 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         };
       }
       case 'КНИЖКА': {
-        const sub = opts?.bookSubtype || 'doors';
-        const hasDoors = sub === 'doors' || sub === 'doors_and_angle';
         return {
-          bookSubtype: sub,
+          bookSubtype: 'doors',
           bookSystem: 'B25',
-          doors: hasDoors ? 1 : undefined,
-          doorSide: hasDoors ? 'right' : 'none',
-          doorType: hasDoors ? 'Ручка' : undefined,
-          doorOpening: hasDoors ? 'Изнутри внутрь' : undefined,
-          bookRightDoorHardware: hasDoors ? 'handle' : undefined,
-          bookRightDoorOpening: hasDoors ? 'inside_in' : undefined,
+          doors: 1,
+          doorSide: 'right',
+          doorType: 'Ручка',
+          doorOpening: 'Изнутри внутрь',
+          bookRightDoorHardware: 'handle',
+          bookRightDoorOpening: 'inside_in',
           compensator: 'lower',
           bookObstacleDistance: 0,
           bookHandleHeight: 1000,
           bookExtraFixedEnabled: false,
+          bookLeftFixedLeftEnabled: false,
+          bookLeftFixedRightEnabled: false,
+          bookRightFixedLeftEnabled: false,
+          bookRightFixedRightEnabled: false,
           bookExtraDoorEnabled: false,
           panels: 3,
         };

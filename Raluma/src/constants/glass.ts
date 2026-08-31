@@ -8,6 +8,8 @@ export const SLIDE_GLASS_TYPE_OPTIONS = [
 ] as const;
 
 export const SLIDE_DEFAULT_GLASS_TYPE = SLIDE_GLASS_TYPE_OPTIONS[0];
+export const BOOK_GLASS_TYPE_OPTIONS = SLIDE_GLASS_TYPE_OPTIONS.slice(0, 5);
+export const BOOK_DEFAULT_GLASS_TYPE = BOOK_GLASS_TYPE_OPTIONS[0];
 export const LEGACY_DEFAULT_GLASS_TYPE = '10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ';
 
 const SLIDE_GLASS_ALIASES: Readonly<Record<string, string>> = {
@@ -44,7 +46,7 @@ export function normalizeGlassType(
   value: string | null | undefined,
   system: string,
 ): string {
-  if (system === 'СЛАЙД') return normalizeSlideGlassType(value);
+  if (system === 'СЛАЙД' || system === 'КНИЖКА') return normalizeSlideGlassType(value);
   return value?.trim() || LEGACY_DEFAULT_GLASS_TYPE;
 }
 
@@ -91,9 +93,13 @@ export function isMatteGlass(glassType: string | null | undefined): boolean {
 }
 
 export function glassTypeOptions(system: string): readonly string[] {
-  return system === 'СЛАЙД' ? SLIDE_GLASS_TYPE_OPTIONS : LEGACY_GLASS_TYPE_OPTIONS;
+  if (system === 'СЛАЙД') return SLIDE_GLASS_TYPE_OPTIONS;
+  if (system === 'КНИЖКА') return BOOK_GLASS_TYPE_OPTIONS;
+  return LEGACY_GLASS_TYPE_OPTIONS;
 }
 
 export function defaultGlassType(system: string): string {
-  return system === 'СЛАЙД' ? SLIDE_DEFAULT_GLASS_TYPE : LEGACY_DEFAULT_GLASS_TYPE;
+  if (system === 'СЛАЙД') return SLIDE_DEFAULT_GLASS_TYPE;
+  if (system === 'КНИЖКА') return BOOK_DEFAULT_GLASS_TYPE;
+  return LEGACY_DEFAULT_GLASS_TYPE;
 }

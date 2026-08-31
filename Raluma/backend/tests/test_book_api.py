@@ -79,7 +79,19 @@ def test_book_fields_save_copy_and_legacy_mapping(
     created = client.post(
         f"/api/projects/{project['id']}/sections",
         headers=admin_headers,
-        json=book_payload(),
+        json=book_payload(
+            glass_supplied=False,
+            book_left_door_width=710,
+            book_right_door_width=720,
+            book_left_fixed_left_enabled=True,
+            book_left_fixed_left_width=450,
+            book_left_fixed_right_enabled=True,
+            book_left_fixed_right_width=460,
+            book_right_fixed_left_enabled=True,
+            book_right_fixed_left_width=470,
+            book_right_fixed_right_enabled=True,
+            book_right_fixed_right_width=480,
+        ),
     )
     assert created.status_code == 201
     data = created.json()
@@ -91,6 +103,17 @@ def test_book_fields_save_copy_and_legacy_mapping(
     assert data["book_left_stack_panels"] == 2
     assert data["book_handle_height"] == 1000
     assert data["book_system"] == "B25"
+    assert data["glass_supplied"] is False
+    assert data["book_left_door_width"] == 710
+    assert data["book_right_door_width"] == 720
+    assert data["book_left_fixed_left_enabled"] is True
+    assert data["book_left_fixed_left_width"] == 450
+    assert data["book_left_fixed_right_enabled"] is True
+    assert data["book_left_fixed_right_width"] == 460
+    assert data["book_right_fixed_left_enabled"] is True
+    assert data["book_right_fixed_left_width"] == 470
+    assert data["book_right_fixed_right_enabled"] is True
+    assert data["book_right_fixed_right_width"] == 480
 
     copied = client.post(
         f"/api/projects/{project['id']}/copy",
@@ -109,6 +132,17 @@ def test_book_fields_save_copy_and_legacy_mapping(
         "book_left_stack_panels",
         "book_handle_height",
         "book_system",
+        "glass_supplied",
+        "book_left_door_width",
+        "book_right_door_width",
+        "book_left_fixed_left_enabled",
+        "book_left_fixed_left_width",
+        "book_left_fixed_right_enabled",
+        "book_left_fixed_right_width",
+        "book_right_fixed_left_enabled",
+        "book_right_fixed_left_width",
+        "book_right_fixed_right_enabled",
+        "book_right_fixed_right_width",
     ):
         assert copied_book[field] == data[field]
     client.delete(

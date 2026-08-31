@@ -148,7 +148,9 @@ function normalizeSection(
       section.glass_type?.trim() || defaultGlassType(section.system ?? 'СЛАЙД'),
       section.system ?? 'СЛАЙД',
     ),
-    glass_supplied: section.system === 'СЛАЙД' ? (section.glass_supplied ?? true) : true,
+    glass_supplied: ['СЛАЙД', 'КНИЖКА'].includes(section.system ?? '')
+      ? (section.glass_supplied ?? true)
+      : true,
     price_group_id: section.price_group_id,
     painting_type: section.painting_type ?? 'RAL стандарт',
     ral_color: section.ral_color ?? '9016 МАТОВЫЙ',
@@ -210,6 +212,16 @@ function normalizeSection(
       ?? (bookDoorLayout === 'left' || bookDoorLayout === 'both' ? legacyOpening : undefined),
     book_right_door_opening: section.book_right_door_opening
       ?? (bookDoorLayout === 'right' || bookDoorLayout === 'both' ? legacyOpening : undefined),
+    book_left_door_width: section.book_left_door_width,
+    book_right_door_width: section.book_right_door_width,
+    book_left_fixed_left_enabled: section.book_left_fixed_left_enabled ?? false,
+    book_left_fixed_left_width: section.book_left_fixed_left_width,
+    book_left_fixed_right_enabled: section.book_left_fixed_right_enabled ?? false,
+    book_left_fixed_right_width: section.book_left_fixed_right_width,
+    book_right_fixed_left_enabled: section.book_right_fixed_left_enabled ?? false,
+    book_right_fixed_left_width: section.book_right_fixed_left_width,
+    book_right_fixed_right_enabled: section.book_right_fixed_right_enabled ?? false,
+    book_right_fixed_right_width: section.book_right_fixed_right_width,
     book_obstacle_distance: section.book_obstacle_distance,
     book_left_stack_panels: section.book_left_stack_panels,
     book_handle_height: section.book_handle_height,

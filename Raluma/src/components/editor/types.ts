@@ -90,6 +90,16 @@ export interface Section {
   bookRightDoorHardware?: string;
   bookLeftDoorOpening?: string;
   bookRightDoorOpening?: string;
+  bookLeftDoorWidth?: number;
+  bookRightDoorWidth?: number;
+  bookLeftFixedLeftEnabled?: boolean;
+  bookLeftFixedLeftWidth?: number;
+  bookLeftFixedRightEnabled?: boolean;
+  bookLeftFixedRightWidth?: number;
+  bookRightFixedLeftEnabled?: boolean;
+  bookRightFixedLeftWidth?: number;
+  bookRightFixedRightEnabled?: boolean;
+  bookRightFixedRightWidth?: number;
   bookObstacleDistance?: number;
   bookLeftStackPanels?: number;
   bookHandleHeight?: number;

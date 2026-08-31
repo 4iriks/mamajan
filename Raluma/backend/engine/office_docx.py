@@ -1188,7 +1188,7 @@ def _build_sketch_docx(context: dict) -> bytes:
                         if tall_section
                         else 176
                     ),
-                    max_height_mm=82 if diagram.get("kind") == "room" else 45,
+                    max_height_mm=82 if diagram.get("kind") == "room" else 38,
                 )
             diagram_table.style = "Table Grid"
             _set_table_geometry_mm(
@@ -1245,7 +1245,7 @@ def _build_sketch_docx(context: dict) -> bytes:
 
         profiles = sketch_section.get("profiles") or []
         if profiles:
-            _sketch_heading(document, "ПРОФИЛИ", size=8)
+            _sketch_heading(document, "ПРОФИЛИ И ФУРНИТУРА", size=8)
             profiles_table = document.add_table(rows=1, cols=4)
             profile_headers = (
                 "Артикул",

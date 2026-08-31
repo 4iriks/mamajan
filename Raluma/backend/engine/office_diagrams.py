@@ -8,6 +8,7 @@ stable in Word and Excel.
 from __future__ import annotations
 
 import io
+import math
 import re
 from types import SimpleNamespace
 
@@ -229,6 +230,181 @@ def _fit_rect(
     return max(1, round(source_width * scale)), max(1, round(source_height * scale))
 
 
+def _slide_handle_kind(value: object) -> str | None:
+    text = str(value or "").strip().casefold()
+    if _is_no_option(text) or "глух" in text or "подвижн" in text:
+        return None
+    if "кноб" in text or "rs3014" in text:
+        return "knob"
+    if "скоб" in text or "rs30201" in text:
+        return "brace"
+    if "стеклян" in text or "rs3017" in text:
+        return "glass_handle"
+    return None
+
+
+def _slide_lock_kind(value: object, *, center: bool = False) -> str | None:
+    text = str(value or "").strip().casefold()
+    if _is_no_option(text):
+        return None
+    if center:
+        return "overhead_latch" if "rs206" in text or "накидн" in text else "center_lock"
+    if "2стор" in text or "2-сторон" in text or "ключ" in text:
+        return "two_way_lock"
+    if "1стор" in text or "1-сторон" in text or "замок" in text or "защ" in text:
+        return "one_way_lock"
+    return None
+
+
+def _slide_room_hardware_markers(
+    section: object,
+    panel_boxes: list[tuple[int, int]],
+    *,
+    top: int,
+    bottom: int,
+) -> list[dict[str, float | str]]:
+    """Return the same visible hardware markers as the editable section diagram."""
+    if not panel_boxes:
+        return []
+
+    markers: list[dict[str, float | str]] = []
+    center_y = (top + bottom) / 2
+    left_edge, right_edge = panel_boxes[0][0], panel_boxes[-1][1]
+    left_panel_width = max(1, panel_boxes[0][1] - panel_boxes[0][0])
+    right_panel_width = max(1, panel_boxes[-1][1] - panel_boxes[-1][0])
+    left_inset = min(44, max(18, left_panel_width * 0.18))
+    right_inset = min(44, max(18, right_panel_width * 0.18))
+
+    for side, x, handle_value, lock_value in (
+        (
+            "left",
+            left_edge + left_inset,
+            getattr(section, "handle_left", None),
+            getattr(section, "lock_left", None),
+        ),
+        (
+            "right",
+            right_edge - right_inset,
+            getattr(section, "handle_right", None),
+            getattr(section, "lock_right", None),
+        ),
+    ):
+        handle_kind = _slide_handle_kind(handle_value)
+        if handle_kind:
+            markers.append(
+                {"kind": handle_kind, "role": f"{side}_handle", "x": x, "y": center_y}
+            )
+        lock_kind = _slide_lock_kind(lock_value)
+        if lock_kind:
+            markers.append(
+                {
+                    "kind": lock_kind,
+                    "role": f"{side}_lock",
+                    "x": left_edge + 5 if side == "left" else right_edge - 5,
+                    "y": center_y,
+                    "direction": 1 if side == "left" else -1,
+                }
+            )
+
+    slide_rows = int(getattr(section, "slide_rows", 1) or 1)
+    if slide_rows == 2 and len(panel_boxes) >= 2:
+        center_left = len(panel_boxes) // 2 - 1
+        center_right = len(panel_boxes) // 2
+        center_kind = _slide_handle_kind(getattr(section, "center_handle", None))
+        if center_kind:
+            seam_x = panel_boxes[center_left][1]
+            center_inset = min(
+                34,
+                max(
+                    15,
+                    min(
+                        panel_boxes[center_left][1] - panel_boxes[center_left][0],
+                        panel_boxes[center_right][1] - panel_boxes[center_right][0],
+                    )
+                    * 0.14,
+                ),
+            )
+            markers.extend(
+                [
+                    {
+                        "kind": center_kind,
+                        "role": "center_left_handle",
+                        "x": seam_x - center_inset,
+                        "y": center_y,
+                    },
+                    {
+                        "kind": center_kind,
+                        "role": "center_right_handle",
+                        "x": seam_x + center_inset,
+                        "y": center_y,
+                    },
+                ]
+            )
+        center_lock_kind = _slide_lock_kind(
+            getattr(section, "center_lock", None), center=True
+        )
+        if center_lock_kind:
+            markers.append(
+                {
+                    "kind": center_lock_kind,
+                    "role": "center_lock",
+                    "x": panel_boxes[center_left][1],
+                    "y": bottom - 14 if center_lock_kind == "overhead_latch" else center_y + 38,
+                }
+            )
+
+    latch_fields = (
+        ("floor_latches_left", "left_floor_latch", left_edge + 18),
+        ("floor_latches_right", "right_floor_latch", right_edge - 18),
+    )
+    for field, role, x in latch_fields:
+        if bool(getattr(section, field, False)):
+            markers.append({"kind": "floor_latch", "role": role, "x": x, "y": bottom - 5})
+
+    if slide_rows == 2 and len(panel_boxes) >= 2:
+        seam_x = panel_boxes[len(panel_boxes) // 2 - 1][1]
+        for field, role, x in (
+            ("center_floor_latches_left", "center_left_floor_latch", seam_x - 15),
+            ("center_floor_latches_right", "center_right_floor_latch", seam_x + 15),
+        ):
+            if bool(getattr(section, field, False)):
+                markers.append(
+                    {"kind": "floor_latch", "role": role, "x": x, "y": bottom - 5}
+                )
+    return markers
+
+
+def _draw_slide_room_hardware_marker(
+    draw: ImageDraw.ImageDraw,
+    marker: dict[str, float | str],
+    *,
+    color: str,
+) -> None:
+    kind = str(marker["kind"])
+    x, y = float(marker["x"]), float(marker["y"])
+    if kind == "knob":
+        draw.ellipse((x - 10, y - 10, x + 10, y + 10), fill=color, outline="#000000", width=2)
+    elif kind == "brace":
+        draw.line((x, y - 40, x, y + 40), fill=color, width=6)
+        draw.ellipse((x - 5, y - 43, x + 5, y - 33), fill=color)
+        draw.ellipse((x - 5, y + 33, x + 5, y + 43), fill=color)
+    elif kind == "glass_handle":
+        draw.rectangle((x - 9, y - 9, x + 9, y + 9), fill=color, outline="#000000", width=2)
+    elif kind in {"one_way_lock", "two_way_lock"}:
+        draw.line((x, y - 22, x, y + 22), fill=color, width=5)
+        if kind == "two_way_lock":
+            direction = float(marker.get("direction", 1))
+            key_x = x + direction * 20
+            draw.ellipse((key_x - 7, y - 16, key_x + 7, y - 2), outline=color, width=3)
+            draw.line((key_x, y - 2, key_x, y + 20), fill=color, width=3)
+            draw.line((key_x, y + 11, key_x + direction * 7, y + 11), fill=color, width=3)
+            draw.line((key_x, y + 17, key_x + direction * 5, y + 17), fill=color, width=3)
+    elif kind in {"center_lock", "overhead_latch"}:
+        draw.rounded_rectangle((x - 11, y - 7, x + 11, y + 7), radius=3, fill=color)
+    elif kind == "floor_latch":
+        draw.rectangle((x - 7, y - 7, x + 7, y + 7), fill=color, outline="#000000", width=2)
+
+
 def render_slide_room(
     section: object,
     calc: object,
@@ -340,10 +516,12 @@ def render_slide_room(
 
     x = left + 12
     inner_width = drawing_width - 24
+    panel_boxes: list[tuple[int, int]] = []
     for index, panel_width in enumerate(widths):
         panel_px = inner_width * panel_width / width_sum
         panel_left = round(x)
         panel_right = round(x + panel_px)
+        panel_boxes.append((panel_left, panel_right))
         box = (panel_left, top + 12, panel_right, bottom - 12)
         draw.rectangle(box, fill=fill, outline=GRID, width=2)
         if matte:
@@ -415,6 +593,18 @@ def render_slide_room(
             no_glass_font = _fitted_font(draw, "БЕЗ СТЕКЛА", panel_px - 10, 18)
             _center_text(draw, (cx, cy + 62), "БЕЗ СТЕКЛА", no_glass_font, MUTED)
         x += panel_px
+
+    for marker in _slide_room_hardware_markers(
+        section,
+        panel_boxes,
+        top=top + 12,
+        bottom=bottom - 12,
+    ):
+        _draw_slide_room_hardware_marker(
+            draw,
+            marker,
+            color="#000000" if print_dimensions else INK,
+        )
 
     width_dimension_y = bottom + 100
     draw.line(
@@ -718,9 +908,9 @@ def render_book_room(section: object, calc: object) -> bytes:
     canvas = Image.new("RGB", (1600, 760), BACKGROUND)
     draw = ImageDraw.Draw(canvas)
     title_font = load_font(30, bold=True)
-    number_font = load_font(28, bold=True)
-    role_font = load_font(17, bold=True)
-    dim_font = load_font(21, bold=True)
+    number_font = load_font(23, bold=True)
+    role_font = load_font(15, bold=True)
+    dim_font = load_font(19, bold=True)
     _center_text(draw, (800, 34), "ВИД ИЗ ПОМЕЩЕНИЯ", title_font)
 
     section_width = max(float(getattr(section, "width", 0) or 0), 1)
@@ -744,12 +934,9 @@ def render_book_room(section: object, calc: object) -> bytes:
         or 1
     )
     x = left
-    role_names = {
-        "standard": "ПАНЕЛЬ",
-        "door": "ДВЕРЬ",
-        "fixed": "ГЛУХАЯ",
-        "moving_door": "ДОП. ДВЕРЬ",
-    }
+    config = getattr(calc, "normalized_config", {}) or {}
+    handle_height = float(config.get("handle_height_mm") or 1000)
+    handle_y = bottom - min(1.0, max(0.0, handle_height / section_height)) * drawing_height
     for panel in panels:
         panel_width = max(float(getattr(panel, "panel_width_mm", 0) or 0), 1)
         panel_px = drawing_width * panel_width / total_panel_width
@@ -777,13 +964,18 @@ def render_book_room(section: object, calc: object) -> bytes:
             str(getattr(panel, "number", "")),
             number_font,
         )
-        _center_text(
-            draw,
-            (center_x, top + 78),
-            role_names.get(role, role.upper()),
-            role_font,
-            MUTED,
-        )
+        if role == "fixed":
+            draw.line(
+                (panel_left + 12, top + 12, panel_right - 12, bottom - 12),
+                fill="#B7791F",
+                width=2,
+            )
+            draw.line(
+                (panel_right - 12, top + 12, panel_left + 12, bottom - 12),
+                fill="#B7791F",
+                width=2,
+            )
+            _center_text(draw, (center_x, top + 80), "ГЛУХАЯ", role_font, "#9A620F")
         direction = str(getattr(panel, "movement_direction", "none") or "none")
         if direction != "none":
             span = min(70, max(24, panel_px * 0.22))
@@ -795,6 +987,28 @@ def render_book_room(section: object, calc: object) -> bytes:
                 _arrow(
                     draw, (center_x - span, bottom - 60), (center_x + span, bottom - 60)
                 )
+        if role in {"door", "moving_door"}:
+            side = str(getattr(panel, "door_side", "") or "")
+            converges_right = side == "left" or (not side and direction == "left")
+            outer_x = panel_left + 12 if converges_right else panel_right - 12
+            convergence_x = panel_right - 12 if converges_right else panel_left + 12
+            draw.line(
+                (outer_x, top + drawing_height * 0.30, convergence_x, top + drawing_height * 0.50),
+                fill=INK,
+                width=4,
+            )
+            draw.line(
+                (convergence_x, top + drawing_height * 0.50, outer_x, top + drawing_height * 0.70),
+                fill=INK,
+                width=4,
+            )
+            hardware_x = panel_left + panel_px * (0.72 if converges_right else 0.28)
+            radius = 9 if str(getattr(panel, "door_hardware", "")) == "lock" else 6
+            draw.ellipse(
+                (hardware_x - radius, handle_y - radius, hardware_x + radius, handle_y + radius),
+                outline=INK,
+                width=3,
+            )
         _center_text(
             draw,
             (center_x, bottom + 38),
@@ -815,11 +1029,22 @@ def render_book_room(section: object, calc: object) -> bytes:
     _center_text(
         draw,
         (800, bottom + 104),
-        f"{_format_book_dimension(section_width)} × {_format_book_dimension(section_height)} ММ",
+        f"{_format_book_dimension(section_width)} ММ",
         dim_font,
         RED,
     )
-    return _png(canvas)
+    height_label = Image.new("RGBA", (240, 54), (255, 255, 255, 0))
+    height_draw = ImageDraw.Draw(height_label)
+    _center_text(
+        height_draw,
+        (120, 27),
+        f"{_format_book_dimension(section_height)} ММ",
+        dim_font,
+        RED,
+    )
+    height_label = height_label.rotate(90, expand=True)
+    canvas.paste(height_label, (right + 25, int((top + bottom - height_label.height) / 2)), height_label)
+    return _cropped_png(canvas)
 
 
 def _format_book_dimension(value: object) -> str:
@@ -830,23 +1055,18 @@ def _format_book_dimension(value: object) -> str:
 
 
 def render_book_top(section: object, calc: object) -> bytes:
-    canvas = Image.new("RGB", (1600, 560), BACKGROUND)
+    canvas = Image.new("RGB", (1600, 660), BACKGROUND)
     draw = ImageDraw.Draw(canvas)
-    title_font = load_font(30, bold=True)
-    number_font = load_font(24, bold=True)
+    number_font = load_font(19, bold=True)
     dim_font = load_font(20, bold=True)
     label_font = load_font(17, bold=True)
-    _center_text(draw, (800, 34), "СХЕМА · ВИД СВЕРХУ", title_font)
-    left, right = 100, 1500
-    guide_y = 108
-    draw.rounded_rectangle(
-        (left, guide_y - 10, right, guide_y + 10),
-        radius=4,
-        fill="#DDE7E9",
-        outline=GRID,
-        width=2,
-    )
-    _center_text(draw, (800, 80), "ПРОЁМ / НАПРАВЛЯЮЩАЯ", label_font, MUTED)
+    left, right = 120, 1480
+    guide_y = 300
+    _center_text(draw, (800, 32), "УЛИЦА", label_font, MUTED)
+    _center_text(draw, (800, 490), "ПОМЕЩЕНИЕ", label_font, MUTED)
+    draw.line((left, guide_y - 12, right, guide_y - 12), fill=GRID, width=2)
+    draw.line((left, guide_y, right, guide_y), fill=INK, width=8)
+    draw.line((left, guide_y + 12, right, guide_y + 12), fill=GRID, width=2)
 
     panels = list(getattr(calc, "panels", []) or [])
     total_width = (
@@ -854,7 +1074,6 @@ def render_book_top(section: object, calc: object) -> bytes:
         or 1
     )
     x = left
-    panel_y = 180
     for panel in panels:
         logical_width = max(float(getattr(panel, "panel_width_mm", 0) or 0), 1)
         panel_px = (right - left) * logical_width / total_width
@@ -862,69 +1081,106 @@ def render_book_top(section: object, calc: object) -> bytes:
         panel_right = round(x + panel_px)
         center_x = (panel_left + panel_right) / 2
         role = str(getattr(panel, "role", "standard") or "standard")
-        color = "#F59E0B" if role == "fixed" else "#B8D7DC"
-        draw.rounded_rectangle(
-            (panel_left + 3, panel_y - 16, panel_right - 3, panel_y + 16),
-            radius=4,
-            fill=color,
-            outline="#F97316" if role == "moving_door" else INK,
-            width=4 if role in {"door", "moving_door"} else 2,
-        )
-        _center_text(
-            draw,
-            (center_x, panel_y - 43),
-            str(getattr(panel, "number", "")),
-            number_font,
-        )
-        direction = str(getattr(panel, "movement_direction", "none") or "none")
-        if direction != "none":
-            span = min(72, max(25, panel_px * 0.23))
-            if direction == "left":
-                _arrow(
-                    draw,
-                    (center_x + span, panel_y + 70),
-                    (center_x - span, panel_y + 70),
-                )
-            else:
-                _arrow(
-                    draw,
-                    (center_x - span, panel_y + 70),
-                    (center_x + span, panel_y + 70),
-                )
-        if role in {"door", "moving_door"}:
-            radius = min(95, max(42, panel_px * 0.45))
-            hinge_x = (
-                panel_right - 5
-                if getattr(panel, "door_side", "") == "right"
-                else panel_left + 5
+        if role == "fixed":
+            draw.rectangle(
+                (panel_left + 3, guide_y - 14, panel_right - 3, guide_y + 14),
+                fill="#F6D89B",
+                outline="#B7791F",
+                width=3,
             )
-            box = (
-                hinge_x - radius,
-                panel_y - radius,
-                hinge_x + radius,
-                panel_y + radius,
-            )
-            draw.arc(box, start=15, end=90, fill=INK, width=3)
+            _center_text(draw, (center_x, guide_y), "Г", number_font, "#8B5A14")
         x += panel_px
 
     config = getattr(calc, "normalized_config", {}) or {}
+    legacy_left_angle = float(config.get("angle_left_deg") or 0)
+    legacy_right_angle = float(config.get("angle_right_deg") or 0)
+    if legacy_left_angle > 0:
+        radians = math.radians(180 - legacy_left_angle)
+        draw.line(
+            (
+                left,
+                guide_y,
+                left + math.cos(radians) * 170,
+                guide_y - math.sin(radians) * 170,
+            ),
+            fill="#B7791F",
+            width=8,
+        )
+    if legacy_right_angle > 0:
+        radians = math.radians(180 - legacy_right_angle)
+        draw.line(
+            (
+                right,
+                guide_y,
+                right - math.cos(radians) * 170,
+                guide_y - math.sin(radians) * 170,
+            ),
+            fill="#B7791F",
+            width=8,
+        )
+    for direction in ("left", "right"):
+        stack = [
+            panel
+            for panel in panels
+            if str(getattr(panel, "role", "")) != "fixed"
+            and str(getattr(panel, "movement_direction", "")) == direction
+        ]
+        if not stack:
+            continue
+        door = next(
+            (
+                panel
+                for panel in stack
+                if str(getattr(panel, "role", "")) in {"door", "moving_door"}
+            ),
+            None,
+        )
+        opening = str(getattr(door, "door_opening", "inside_in") or "inside_in")
+        room_side = opening in {"inside_in", "outside_in"}
+        y_end = guide_y + (155 if room_side else -155)
+        base_x = left + 22 if direction == "left" else right - 22
+        x_step = 18 if direction == "left" else -18
+        for index, panel in enumerate(stack):
+            leaf_x = base_x + x_step * index
+            role = str(getattr(panel, "role", "standard") or "standard")
+            color = "#C05621" if role == "moving_door" else INK
+            width_px = 6 if role == "door" else 4
+            draw.line((leaf_x, guide_y, leaf_x, y_end), fill=color, width=width_px)
+            _center_text(
+                draw,
+                (leaf_x, y_end + (18 if room_side else -18)),
+                str(getattr(panel, "number", "")),
+                number_font,
+            )
+        if direction == "left":
+            _arrow(draw, (left + 300, guide_y), (left + 70, guide_y))
+        else:
+            _arrow(draw, (right - 300, guide_y), (right - 70, guide_y))
+
     obstacle = float(config.get("obstacle_distance_mm") or 0)
     if obstacle > 0:
-        obstacle_y = 350
-        draw.line((left, obstacle_y, right, obstacle_y), fill=RED, width=3)
-        _center_text(
-            draw,
-            (800, obstacle_y + 30),
-            f"ПРЕПЯТСТВИЕ · {_format_book_dimension(obstacle)} ММ",
-            label_font,
-            RED,
-        )
-    draw.line((left, 460, right, 460), fill=INK, width=2)
-    draw.line((left, 448, left, 472), fill=INK, width=2)
-    draw.line((right, 448, right, 472), fill=INK, width=2)
+        active_sides: set[str] = set()
+        for panel in panels:
+            if str(getattr(panel, "role", "")) not in {"door", "moving_door"}:
+                continue
+            opening = str(getattr(panel, "door_opening", "inside_in") or "inside_in")
+            active_sides.add("room" if opening in {"inside_in", "outside_in"} else "street")
+        for active_side in active_sides or {"room"}:
+            obstacle_y = 525 if active_side == "room" else 72
+            draw.line((left, obstacle_y, right, obstacle_y), fill=RED, width=3)
+            _center_text(
+                draw,
+                (800, obstacle_y + (24 if active_side == "room" else 22)),
+                f"ДО ПРЕПЯТСТВИЯ {_format_book_dimension(obstacle)} ММ",
+                label_font,
+                RED,
+            )
+    draw.line((left, 595, right, 595), fill=INK, width=2)
+    draw.line((left, 583, left, 607), fill=INK, width=2)
+    draw.line((right, 583, right, 607), fill=INK, width=2)
     _center_text(
         draw,
-        (800, 500),
+        (800, 630),
         f"{_format_book_dimension(getattr(section, 'width', 0))} ММ",
         dim_font,
         RED,
