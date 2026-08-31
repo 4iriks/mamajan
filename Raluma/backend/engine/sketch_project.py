@@ -258,7 +258,7 @@ def _component_row(
     }
 
 
-def _calculated_components(calc: object, system: str) -> list[dict]:
+def _calculated_profiles(calc: object, system: str) -> list[dict]:
     rows: list[dict] = []
     for item in getattr(calc, "profiles", []) or []:
         article = getattr(item, "article", "")
@@ -280,6 +280,11 @@ def _calculated_components(calc: object, system: str) -> list[dict]:
                 image=getattr(item, "image", ""),
             )
         )
+    return rows
+
+
+def _calculated_components(calc: object, system: str) -> list[dict]:
+    rows = _calculated_profiles(calc, system)
 
     for item in getattr(calc, "hardware", []) or []:
         if system == "КНИЖКА" and not bool(getattr(item, "included", True)):
@@ -505,6 +510,7 @@ def _section_data(section: object, order: int) -> dict:
         "inter_glass_profile": inter_glass,
         "filling": filling,
         "panels": panel_rows,
+        "profiles": _calculated_profiles(calc, system),
         "comments": _text(getattr(section, "comments", None), ""),
         "warnings": [f"{label}: {warning}" for warning in warnings],
         "diagrams": _diagram_rows(section, calc),

@@ -1243,6 +1243,48 @@ def _build_sketch_docx(context: dict) -> bytes:
         for row in panels_table.rows:
             _prevent_row_split(row)
 
+        profiles = sketch_section.get("profiles") or []
+        if profiles:
+            _sketch_heading(document, "ПРОФИЛИ", size=8)
+            profiles_table = document.add_table(rows=1, cols=4)
+            profile_headers = (
+                "Артикул",
+                "Наименование",
+                "Размер",
+                "Кол-во",
+            )
+            for column, header in enumerate(profile_headers):
+                _set_cell_text(
+                    profiles_table.cell(0, column),
+                    header,
+                    bold=True,
+                    size=6.5,
+                    align=WD_ALIGN_PARAGRAPH.CENTER,
+                )
+            for profile in profiles:
+                row = profiles_table.add_row()
+                values = (
+                    profile["article"] or "—",
+                    profile["name"],
+                    profile["size"],
+                    f"{profile['qty']} {profile['unit']}",
+                )
+                for column, value in enumerate(values):
+                    _set_cell_text(
+                        row.cells[column],
+                        value,
+                        size=6.3,
+                        align=(
+                            WD_ALIGN_PARAGRAPH.CENTER
+                            if column in {0, 2, 3}
+                            else WD_ALIGN_PARAGRAPH.LEFT
+                        ),
+                    )
+            _style_table(profiles_table)
+            _set_table_geometry_mm(profiles_table, (28, 82, 38, 34))
+            for row in profiles_table.rows:
+                _prevent_row_split(row)
+
     project_components = context.get("project_components") or []
     if project_components:
         if context["sections"]:

@@ -15,6 +15,7 @@ from docx import Document as DocxDocument
 from openpyxl import load_workbook
 from pypdf import PdfReader
 
+from engine import office_diagrams
 from engine.pdf import (
     _img_b64,
     brush_meters,
@@ -1455,6 +1456,8 @@ class TestSketchProject:
             "3043",
             "3300",
             "RS2061",
+            "ПРОФИЛИ",
+            "RS1313",
         )
         for text in texts.values():
             compact = re.sub(r"\s+", "", text)
@@ -1569,6 +1572,57 @@ class TestSketchProject:
         )
 
         assert actual_top == expected_top
+
+    def test_slide_sketch_restores_profile_rows_and_total_quantity(self, client):
+        section = self._slide(quantity=2)
+        response = client.post(
+            "/api/projects/local/documents/sketch/preview",
+            json=self._payload([section]),
+        )
+
+        assert response.status_code == 200, response.text
+        assert 'data-section-profiles="1"' in response.text
+        assert "Профили" in response.text
+        assert "RS2323" in response.text
+        assert re.search(r"RS2323.*?2000 мм.*?2 шт", response.text, re.DOTALL)
+
+        context = build_project_document_context(
+            SimpleNamespace(number="SKETCH-PROFILES"),
+            [SimpleNamespace(**SectionCreate(**section).model_dump())],
+            "sketch",
+        )
+        profile = next(
+            row
+            for row in context["sections"][0]["profiles"]
+            if row["article"] == "RS2323"
+        )
+        assert profile["size"] == "2000 мм"
+        assert profile["qty"] == "2"
+        assert profile["unit"] == "шт"
+
+    def test_slide_sketch_room_numeric_labels_are_half_size(self, monkeypatch):
+        section = SimpleNamespace(**SectionCreate(**self._slide()).model_dump())
+        calc = calculate_slide(section)
+        point_sizes = []
+
+        def capture_point_size(point_size, *_args, **_kwargs):
+            point_sizes.append(point_size)
+            return 20
+
+        monkeypatch.setattr(
+            office_diagrams,
+            "_print_font_pixels",
+            capture_point_size,
+        )
+
+        office_diagrams.render_slide_room(
+            section,
+            calc,
+            crop=True,
+            print_dimensions=True,
+        )
+
+        assert point_sizes == [7, 8.5, 9.5, 12]
 
     def test_context_json_has_no_price_or_internal_fields(self):
         project = SimpleNamespace(number="SAFE-001")

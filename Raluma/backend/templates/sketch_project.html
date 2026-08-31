@@ -242,6 +242,24 @@
       </tbody>
     </table>
 
+    {% if section.profiles %}
+    <div class="table-title">Профили</div>
+    <table class="profile-table" data-section-profiles="{{ section.order }}">
+      <colgroup><col style="width: 16%"><col style="width: 45%"><col style="width: 21%"><col style="width: 18%"></colgroup>
+      <thead><tr><th>Артикул</th><th>Наименование</th><th>Размер</th><th>Кол-во</th></tr></thead>
+      <tbody>
+      {% for item in section.profiles %}
+        <tr>
+          <td class="center">{{ item.article|e or '—' }}</td>
+          <td>{{ item.name|e }}</td>
+          <td class="center">{{ item.size|e }}</td>
+          <td class="center">{{ item.qty|e }} {{ item.unit|e }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
   </section>
   {% endfor %}
 

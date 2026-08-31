@@ -261,21 +261,21 @@ def render_slide_room(
     if print_dimensions:
         print_max_width_mm = 72 if section_width < section_height else 176
         number_font_size = _print_font_pixels(
-            14,
+            7,
             print_crop_width,
             print_crop_height,
             max_width_mm=print_max_width_mm,
             max_height_mm=82,
         )
         panel_font_size = _print_font_pixels(
-            17,
+            8.5,
             print_crop_width,
             print_crop_height,
             max_width_mm=print_max_width_mm,
             max_height_mm=82,
         )
         dimension_font_size = _print_font_pixels(
-            19,
+            9.5,
             print_crop_width,
             print_crop_height,
             max_width_mm=print_max_width_mm,
