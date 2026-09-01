@@ -269,6 +269,14 @@ def _round_production_mm(value: float) -> int:
     return _round_glass_difference_mm(value)
 
 
+def _is_half_mm_excess(actual_total_mm: float, control_total_mm: float) -> bool:
+    """Return whether the issued glass exceeds its control total by exactly 0.5 mm."""
+    excess = Decimal(str(float(actual_total_mm))) - Decimal(
+        str(float(control_total_mm))
+    )
+    return abs(excess - Decimal("0.5")) <= Decimal("0.000001")
+
+
 def _format_check_mm(value: float, *, signed: bool = False) -> str:
     rounded = round(float(value or 0), 1)
     prefix = "+" if signed and rounded > 0 else ""
@@ -327,6 +335,8 @@ def _glass_correction_adjustments(
 def _apply_glass_total_correction(
     result: SlideCalcResult,
     control_total_mm: float,
+    *,
+    reduce_pbar_bubble_edges_on_half_mm_excess: bool = False,
 ) -> int:
     """Reconcile physical panel widths with the independent control formula."""
     panels = result.panel_glass
@@ -408,6 +418,23 @@ def _apply_glass_total_correction(
             smaller.width_mm = round(float(smaller.width_mm) + 1, 1)
             smaller.glass_profile_length = round(
                 float(smaller.glass_profile_length) + 1,
+                1,
+            )
+
+    # Approved one-row RS1082 + RS1002 rule: after all ordinary checksum
+    # reconciliation, an exact 0.5 mm excess is removed from both physical
+    # edge panes. The same cut is carried into their RS2021 profiles.
+    corrected_total_mm = sum(float(panel.width_mm or 0) for panel in panels)
+    if (
+        reduce_pbar_bubble_edges_on_half_mm_excess
+        and len(panels) >= 2
+        and _is_half_mm_excess(corrected_total_mm, control_total_mm)
+    ):
+        for index in {0, len(panels) - 1}:
+            panel = panels[index]
+            panel.width_mm = round(float(panel.width_mm) - 1, 1)
+            panel.glass_profile_length = round(
+                float(panel.glass_profile_length) - 1,
                 1,
             )
     return difference_mm
@@ -2005,7 +2032,26 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
     control_glass_total = (
         W - ppr - ppl - rpr - rpl - pzl - pzr - pl - pr + inter_glass_overlap * (P - 1)
     )
-    _apply_glass_total_correction(result, control_glass_total)
+    reduce_pbar_bubble_edges_on_half_mm_excess = (
+        P >= 2
+        and p_bar_l
+        and p_bar_r
+        and bubble_l
+        and bubble_r
+        and not lock_bar_l
+        and not lock_bar_r
+        and not handle_bar_l
+        and not handle_bar_r
+        and not a
+        and not b
+    )
+    _apply_glass_total_correction(
+        result,
+        control_glass_total,
+        reduce_pbar_bubble_edges_on_half_mm_excess=(
+            reduce_pbar_bubble_edges_on_half_mm_excess
+        ),
+    )
     _group_1row_glass_from_panels(result, result.panel_glass, Q)
 
     # ── Профили ───────────────────────────────────────────────────────────────

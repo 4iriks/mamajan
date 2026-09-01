@@ -264,6 +264,120 @@ class TestGlassTotalCorrection:
             477,
         ]
 
+    @pytest.mark.parametrize(
+        ("width", "panels", "expected_widths", "expected_rs2021"),
+        [
+            (2633, 4, [669, 654, 654, 669], [(651, 2), (666, 2)]),
+            (2494, 4, [635, 619, 619, 635], [(616, 2), (632, 2)]),
+            (2715, 4, [690, 674, 674, 690], [(671, 2), (687, 2)]),
+            (1280, 2, [637, 637], [(634, 2)]),
+            (1290, 2, [642, 642], [(639, 2)]),
+        ],
+    )
+    def test_project_4233_bilateral_pbar_bubble_rounding(
+        self, width, panels, expected_widths, expected_rs2021
+    ):
+        result = calculate_slide(
+            _make_section(
+                width=width,
+                panels=panels,
+                rails=5 if panels == 4 else 3,
+                profile_left_wall=False,
+                profile_right_wall=False,
+                profile_left_p_bar=True,
+                profile_right_p_bar=True,
+                profile_left_bubble=True,
+                profile_right_bubble=True,
+                handle_left="Ручка-кноб RS3014",
+                handle_right="Ручка-кноб RS3014",
+            )
+        )
+
+        assert [panel.width_mm for panel in result.panel_glass] == expected_widths
+        assert sorted(
+            (profile.length_mm, profile.qty)
+            for profile in _find_profile(result, "RS2021")
+        ) == expected_rs2021
+        assert not result.warnings
+
+    def test_project_4233_correction_scales_grouped_glass_and_rs2021_with_quantity(self):
+        section = _make_section(
+            width=2633,
+            panels=4,
+            rails=5,
+            quantity=2,
+            profile_left_wall=False,
+            profile_right_wall=False,
+            profile_left_p_bar=True,
+            profile_right_p_bar=True,
+            profile_left_bubble=True,
+            profile_right_bubble=True,
+            handle_left="Ручка-кноб RS3014",
+            handle_right="Ручка-кноб RS3014",
+        )
+        result = calculate_slide(section)
+
+        assert [
+            (glass.position, glass.width_mm, glass.qty) for glass in result.glass
+        ] == [
+            ("Крайние", 669, 4),
+            ("Промежуточные", 654, 4),
+        ]
+        assert sorted(
+            (profile.length_mm, profile.qty)
+            for profile in _find_profile(result, "RS2021")
+        ) == [(651, 4), (666, 4)]
+        assert [
+            glass.width_mm for glass in _expand_glass_for_order(section, result)
+        ] == [669, 654, 654, 669, 669, 654, 654, 669]
+
+    @pytest.mark.parametrize(
+        ("control_total", "expected_widths"),
+        [
+            (1999.4, [500, 500, 500, 500]),
+            (1999.5, [499, 500, 500, 499]),
+            (1999.6, [500, 500, 500, 500]),
+        ],
+    )
+    def test_pbar_bubble_edge_rule_only_accepts_exact_half_mm_excess(
+        self, control_total, expected_widths
+    ):
+        result = SlideCalcResult(
+            panel_glass=[
+                PanelGlassItem(index, f"Панель {index}", 500, 2200, 497)
+                for index in range(1, 5)
+            ]
+        )
+
+        _apply_glass_total_correction(
+            result,
+            control_total,
+            reduce_pbar_bubble_edges_on_half_mm_excess=True,
+        )
+
+        assert [panel.width_mm for panel in result.panel_glass] == expected_widths
+        assert [panel.glass_profile_length for panel in result.panel_glass] == [
+            width - 3 for width in expected_widths
+        ]
+
+    def test_pbar_bubble_edge_rule_runs_after_ordinary_checksum_adjustment(self):
+        result = SlideCalcResult(
+            panel_glass=[
+                PanelGlassItem(index, f"Панель {index}", 500, 2200, 497)
+                for index in range(1, 5)
+            ]
+        )
+
+        _apply_glass_total_correction(
+            result,
+            2001.5,
+            reduce_pbar_bubble_edges_on_half_mm_excess=True,
+        )
+
+        assert [panel.width_mm for panel in result.panel_glass] == [500] * 4
+        assert [panel.glass_profile_length for panel in result.panel_glass] == [497] * 4
+        assert not result.warnings
+
     def test_invoice_five_section_four_keeps_edges_after_minus_two_correction(self):
         result = calculate_slide(
             _make_section(
@@ -1700,7 +1814,7 @@ class TestGlassProfile:
         assert all("Промежуточ" not in item.glass_positions for item in rs2021)
 
     def test_customer_two_panel_pbar_bubble_glass_width(self):
-        """При pzl/pzr=5 профиль 1082 + RS1002 дает стекло 932 мм."""
+        """RS1082 + RS1002 removes one mm from both edges on a 0.5 mm excess."""
         r = calculate_slide(
             _make_section(
                 width=1900,
@@ -1716,10 +1830,10 @@ class TestGlassProfile:
                 lock_right="Без",
             )
         )
-        assert [ceil(panel.width_mm) for panel in r.panel_glass] == [932, 932]
+        assert [ceil(panel.width_mm) for panel in r.panel_glass] == [931, 931]
 
     def test_customer_two_panel_pbar_bubble_rs2021_physical_lengths(self):
-        """Одинаковые крайние стекла могут иметь разный RS2021: 929 и 932."""
+        """The approved edge reduction is copied to both physical RS2021 cuts."""
         r = calculate_slide(
             _make_section(
                 width=1900,
@@ -1736,13 +1850,51 @@ class TestGlassProfile:
             )
         )
         assert [ceil(panel.glass_profile_length) for panel in r.panel_glass] == [
-            929,
-            932,
+            928,
+            931,
         ]
         rs2021 = sorted(
             ceil(profile.length_mm) for profile in _find_profile(r, "RS2021")
         )
-        assert rs2021 == [929, 932]
+        assert rs2021 == [928, 931]
+
+    @pytest.mark.parametrize(
+        ("overrides", "expected_widths"),
+        [
+            ({"profile_right_bubble": False}, [669, 653, 653, 653]),
+            ({"profile_right_p_bar": False}, [675, 659, 658, 659]),
+            ({"profile_left_handle_bar": True}, [676, 652, 652, 668]),
+            ({"profile_left_lock_bar": True}, [655, 639, 639, 655]),
+            (
+                {
+                    "handle_left": "Стеклянная ручка RS3017",
+                    "handle_offset_left": 100,
+                },
+                [733, 633, 633, 649],
+            ),
+        ],
+    )
+    def test_half_mm_edge_rule_ignores_nonmatching_side_configurations(
+        self, overrides, expected_widths
+    ):
+        base = dict(
+            width=2633,
+            panels=4,
+            rails=5,
+            profile_left_wall=False,
+            profile_right_wall=False,
+            profile_left_p_bar=True,
+            profile_right_p_bar=True,
+            profile_left_bubble=True,
+            profile_right_bubble=True,
+            handle_left="Ручка-кноб RS3014",
+            handle_right="Ручка-кноб RS3014",
+        )
+        base.update(overrides)
+
+        result = calculate_slide(_make_section(**base))
+
+        assert [panel.width_mm for panel in result.panel_glass] == expected_widths
 
     def test_customer_two_panel_handle_bar_rs2021_matches_scheme_rounding(self):
         """Схема и таблица RS2021 должны давать одну цифру: 879 (895)."""

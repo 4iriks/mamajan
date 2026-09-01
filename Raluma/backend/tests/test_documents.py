@@ -1478,6 +1478,50 @@ class TestSketchProject:
             assert "стоимость" not in lowered
             assert "итого" not in lowered
 
+    def test_project_4233_corrected_glass_reaches_sketch_glass_order_and_sheet(
+        self, client
+    ):
+        section = SectionCreate(
+            **self._slide(
+                name="Секция 1",
+                width=2633,
+                panels=4,
+                rails=5,
+                profile_left_p_bar=True,
+                profile_right_p_bar=True,
+                profile_left_bubble=True,
+                profile_right_bubble=True,
+                handle_left="Ручка-кноб RS3014",
+                handle_right="Ручка-кноб RS3014",
+            )
+        )
+        project = SimpleNamespace(number="В26-5-4233", customer="Тест")
+
+        sketch = build_project_document_context(project, [section], "sketch")
+        glass = build_project_document_context(project, [section], "glass")
+        sheet = client.post(
+            "/api/projects/local/sections/preview",
+            json={
+                "project": {"number": project.number, "customer": project.customer},
+                "section": section.model_dump(),
+            },
+        )
+
+        assert [
+            panel.width_mm for panel in sketch["sections"][0]["panels"]
+        ] == [669, 654, 654, 669]
+        assert {
+            (row["width"], row["qty"], tuple(row["markings"]))
+            for row in glass["glass_rows"]
+        } == {
+            (669, 2, ("1,1",)),
+            (654, 2, ("1,2",)),
+        }
+        assert not glass["document_warnings"]
+        assert sheet.status_code == 200
+        assert "669" in sheet.text
+        assert "654" in sheet.text
+
     def test_sketch_docx_is_allowed_but_xlsx_is_not(self, client):
         docx = client.post(
             "/api/projects/local/documents/sketch/docx",
