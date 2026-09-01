@@ -3,6 +3,7 @@
 PDF-генерацию проверяем только если установлен WeasyPrint.
 """
 
+import base64
 import io
 import json
 import re
@@ -1602,6 +1603,22 @@ class TestSketchProject:
         assert profile["qty"] == "2"
         assert profile["unit"] == "шт"
 
+    def test_slide_sketch_excludes_brush_seals_but_keeps_selected_bubble_profile(self):
+        project = SimpleNamespace(number="SKETCH-SEALS")
+        section = SimpleNamespace(
+            **SectionCreate(**self._slide(profile_left_bubble=True)).model_dump()
+        )
+
+        context = build_project_document_context(project, [section], "sketch")
+        articles = {
+            row["article"] for row in context["sections"][0]["profiles"]
+        }
+
+        assert "RS1002" in articles
+        assert "RU007" not in articles
+        assert "RU008" not in articles
+        assert "RU010" not in articles
+
     def test_slide_sketch_lists_selected_handles_locks_and_latches(self):
         project = SimpleNamespace(number="SKETCH-HARDWARE")
         section = SimpleNamespace(
@@ -1843,10 +1860,11 @@ class TestSketchProject:
                         {
                             "sku": "PROJECT-SKETCH",
                             "name": "Проектная комплектующая",
+                            "category": "profile",
                             "qty": 2,
-                            "unit": "компл.",
+                            "unit": "м.п.",
                             "color": "RAL 9005",
-                            "size": "800 мм",
+                            "size": "800",
                             "imageFile": "RS112.png",
                             "deliveryStage": "both",
                         }
@@ -1860,14 +1878,24 @@ class TestSketchProject:
             "/api/projects/local/documents/sketch/preview",
             json=payload,
         )
+        docx = client.post(
+            "/api/projects/local/documents/sketch/docx",
+            json=payload,
+        )
 
         assert response.status_code == 200, response.text
+        assert docx.status_code == 200, docx.text
         assert response.text.count("PROJECT-SKETCH") == 1
         assert "data-project-components" in response.text
         assert "Старое примечание проекта" not in response.text
-        assert "Этап: 1, 2" in response.text
-        assert re.search(r">2 компл\.<", response.text)
+        assert "Этап:" not in response.text
+        assert re.search(r">800 мм<", response.text)
+        assert re.search(r">2 шт<", response.text)
         assert "/api/catalog/profile-assets/" not in response.text
+        docx_text = self._docx_text(docx.content)
+        assert "Этап:" not in docx_text
+        assert "800 мм" in docx_text
+        assert "2 шт" in docx_text
 
     def test_project_extras_flow_to_paint_delivery_order_and_sketch(self, client):
         payload = self._payload([self._slide()])
@@ -1958,6 +1986,55 @@ class TestSketchProject:
         assert "1250" in responses["paint"].text
         for document in ("delivery", "hardware_order", "sketch"):
             assert "Уголок монтажный" in responses[document].text
+
+    def test_manual_project_extra_image_flows_to_all_paint_formats(self, client):
+        encoded = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/"
+            "x8AAusB9Y9Zl9sAAAAASUVORK5CYII="
+        )
+        image_data = f"data:image/png;base64,{encoded}"
+        extra_components = json.dumps(
+            [
+                {
+                    "name": "Уголок с изображением",
+                    "color": "RAL 8017 МАТОВЫЙ",
+                    "size": "3800",
+                    "qty": 2,
+                    "unit": "шт",
+                    "image_data": image_data,
+                }
+            ],
+            ensure_ascii=False,
+        )
+        payload = self._payload([])
+        payload["project"]["extra_components"] = extra_components
+
+        preview = client.post(
+            "/api/projects/local/documents/paint/preview", json=payload
+        )
+        docx = client.post("/api/projects/local/documents/paint/docx", json=payload)
+        xlsx = client.post("/api/projects/local/documents/paint/xlsx", json=payload)
+
+        assert preview.status_code == 200, preview.text
+        assert docx.status_code == 200, docx.text
+        assert xlsx.status_code == 200, xlsx.text
+        assert image_data in preview.text
+        context = build_project_document_context(
+            SimpleNamespace(
+                number="PAINT-EXTRA-IMAGE",
+                customer="",
+                paint_manual_rows="[]",
+                extra_components=extra_components,
+            ),
+            [],
+            "paint",
+        )
+        assert context["paint_pages"][0]["groups"][0]["image_data"] == image_data
+        assert base64.b64decode(encoded)
+        with zipfile.ZipFile(io.BytesIO(docx.content)) as archive:
+            assert any(name.startswith("word/media/") for name in archive.namelist())
+        with zipfile.ZipFile(io.BytesIO(xlsx.content)) as archive:
+            assert any(name.startswith("xl/media/") for name in archive.namelist())
 
     def test_sketch_sections_and_docx_start_on_new_pages(self, client):
         payload = self._payload([self._slide(), self._book(), self._lift()])

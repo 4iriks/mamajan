@@ -19,6 +19,7 @@ export interface ExtraComponent {
   qty: string;
   unit?: string;
   imageFile?: string;
+  imageData?: string;
   deliveryStage?: '1' | '2' | 'both';
 }
 

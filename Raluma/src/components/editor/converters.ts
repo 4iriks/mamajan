@@ -36,6 +36,7 @@ export function parseExtraComponents(raw?: string): ExtraComponent[] {
         qty: String(row?.qty ?? row?.quantity ?? ''),
         unit: String(row?.unit ?? 'шт'),
         imageFile: String(row?.imageFile ?? row?.image_file ?? ''),
+        imageData: String(row?.imageData ?? row?.image_data ?? ''),
         deliveryStage: (
           (row?.deliveryStage ?? row?.delivery_stage) === '1' || (row?.deliveryStage ?? row?.delivery_stage) === '2'
             ? (row.deliveryStage ?? row.delivery_stage)
@@ -64,8 +65,9 @@ export function stringifyExtraComponents(rows?: ExtraComponent[]): string {
         requires_paint: isManual ? Boolean(color) : Boolean(row.requiresPaint),
         size: row.size.trim(),
         qty: row.qty.trim(),
-        unit: (row.unit || 'шт').trim() || 'шт',
+        unit: row.category === 'profile' ? 'шт' : (row.unit || 'шт').trim() || 'шт',
         image_file: (row.imageFile || '').trim(),
+        image_data: (row.imageData || '').trim(),
         delivery_stage: row.deliveryStage || 'both',
       };
     })

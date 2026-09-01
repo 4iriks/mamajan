@@ -78,10 +78,22 @@ const manualSnapshot = JSON.parse(stringifyExtraComponents([{
   color: 'RAL 9005',
   size: '1200 мм',
   qty: '3',
+  imageData: 'data:image/png;base64,AAAA',
 }]))[0];
 assert.equal(manualSnapshot.category, 'component');
 assert.equal(manualSnapshot.requires_paint, true);
 assert.equal(manualSnapshot.name, 'Уголок монтажный');
+assert.equal(manualSnapshot.image_data, 'data:image/png;base64,AAAA');
+const profileSnapshot = JSON.parse(stringifyExtraComponents([{
+  sku: 'PROFILE-1',
+  name: 'Профиль',
+  category: 'profile',
+  color: '',
+  size: '3800',
+  qty: '2',
+  unit: 'м.п.',
+}]))[0];
+assert.equal(profileSnapshot.unit, 'шт');
 assert.equal(
   JSON.parse(stringifyExtraComponents([{
     sku: '',

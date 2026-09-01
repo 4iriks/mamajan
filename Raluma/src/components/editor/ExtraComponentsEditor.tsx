@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, PackagePlus, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { ImagePlus, Loader2, PackagePlus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 
 import { listHardwareCatalogOptions } from '../../api/catalog';
 import type { HardwareCatalogOption } from '../../api/catalog';
+import { toast } from '../../store/toastStore';
 import { filterCatalogOptions } from './extraComponentsCatalog';
 import { ExtraComponent, INP, LBL, SEL } from './types';
 
@@ -29,6 +30,7 @@ function normalizeItem(item?: Partial<ExtraComponent>): ExtraComponent {
     qty: item?.qty ?? '1',
     unit: item?.unit ?? 'шт',
     imageFile: item?.imageFile ?? '',
+    imageData: item?.imageData ?? '',
     deliveryStage: item?.deliveryStage ?? 'both',
   };
 }
@@ -37,6 +39,48 @@ function assetUrl(filename?: string) {
   return filename
     ? `/api/catalog/profile-assets/${encodeURIComponent(filename)}`
     : '';
+}
+
+function resizedImageData(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('invalid-type'));
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      reject(new Error('too-large'));
+      return;
+    }
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      try {
+        const maxWidth = 1200;
+        const maxHeight = 900;
+        const scale = Math.min(1, maxWidth / image.naturalWidth, maxHeight / image.naturalHeight);
+        const width = Math.max(1, Math.round(image.naturalWidth * scale));
+        const height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('canvas');
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, width, height);
+        context.drawImage(image, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.86));
+      } catch (error) {
+        reject(error);
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('decode'));
+    };
+    image.src = objectUrl;
+  });
 }
 
 export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
@@ -100,8 +144,9 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
       finishName: firstVariant?.name === 'Без цвета' ? '' : firstVariant?.name || '',
       requiresPaint: firstVariant?.requiresPaint ?? false,
       unitPrice: undefined,
-      unit: item.unit || 'шт',
+      unit: item.category === 'profile' ? 'шт' : item.unit || 'шт',
       imageFile: item.imageFile || '',
+      imageData: '',
       qty: '1',
     })]);
     setQuery('');
@@ -119,6 +164,20 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
       qty: '1',
       unit: 'шт',
     })]);
+  };
+
+  const uploadManualImage = async (id: string, file?: File) => {
+    if (!file) return;
+    try {
+      const imageData = await resizedImageData(file);
+      updateRow(id, { imageData, imageFile: '' });
+    } catch (error) {
+      toast.error(
+        error instanceof Error && error.message === 'too-large'
+          ? 'Картинка слишком большая. Максимум 15 МБ.'
+          : 'Не удалось загрузить картинку',
+      );
+    }
   };
 
   return (
@@ -205,6 +264,7 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
         {rows.map(row => {
             const catalogItem = catalog.find(item => item.id === row.catalogItemId);
             const isManual = !row.catalogItemId;
+            const imageSrc = row.imageData || assetUrl(row.imageFile);
             const finishVariants = (catalogItem?.finishVariants || []).filter(
               variant => variant.isActive,
             );
@@ -214,15 +274,42 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
             className="rounded-2xl border border-tint/25 bg-surface/30 p-3 sm:p-4"
           >
             <div className="flex items-start gap-3">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-tint/25 bg-white/90 p-1">
-                {row.imageFile ? (
+              <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-tint/25 bg-white/90 p-1">
+                {imageSrc ? (
                   <img
-                    src={assetUrl(row.imageFile)}
+                    src={imageSrc}
                     alt={row.name}
                     className="max-h-full max-w-full object-contain"
                     onError={event => { event.currentTarget.style.display = 'none'; }}
                   />
                 ) : <PackagePlus className="h-6 w-6 text-slate-400" />}
+                {isManual && (
+                  <label
+                    className="absolute inset-0 flex cursor-pointer items-center justify-center bg-slate-950/0 text-transparent transition hover:bg-slate-950/55 hover:text-white"
+                    title="Добавить или заменить изображение"
+                  >
+                    <ImagePlus className="h-5 w-5" />
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="sr-only"
+                      onChange={event => {
+                        void uploadManualImage(row.id!, event.target.files?.[0]);
+                        event.currentTarget.value = '';
+                      }}
+                    />
+                  </label>
+                )}
+                {isManual && row.imageData && (
+                  <button
+                    type="button"
+                    onClick={() => updateRow(row.id!, { imageData: '' })}
+                    className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow"
+                    aria-label="Удалить изображение"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="font-mono text-xs font-bold text-accent">{row.sku || (isManual ? 'Ручная позиция' : 'Без артикула')}</div>
@@ -302,8 +389,8 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
                 </label>
               )}
               <label className="space-y-1">
-                <span className={LBL}>Размер</span>
-                <input value={row.size} onChange={event => updateRow(row.id!, { size: event.target.value })} className={INP} placeholder="1200 мм" />
+                <span className={LBL}>Размер, мм</span>
+                <input value={row.size} onChange={event => updateRow(row.id!, { size: event.target.value })} className={INP} placeholder="Например, 3800" inputMode="decimal" />
               </label>
               <label className="space-y-1">
                 <span className={LBL}>Количество</span>

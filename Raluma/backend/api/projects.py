@@ -1,3 +1,5 @@
+import base64
+import binascii
 from datetime import datetime
 from decimal import Decimal, DecimalException, InvalidOperation, ROUND_HALF_UP
 import json
@@ -12,6 +14,8 @@ from auth import get_current_user
 from engine.legacy_values import normalize_center_handle_offset
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
+
+EXTRA_IMAGE_MAX_BYTES = 3 * 1024 * 1024
 
 
 def _next_invoice_number(db: Session) -> str:
@@ -41,6 +45,38 @@ def _extra_int(row: dict, snake: str, camel: str) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _extra_image_data(row: dict) -> str:
+    value = str(row.get("image_data") or row.get("imageData") or "").strip()
+    if not value:
+        return ""
+    header, separator, encoded = value.partition(",")
+    if (
+        separator != ","
+        or header.lower() not in {
+            "data:image/jpeg;base64",
+            "data:image/png;base64",
+            "data:image/webp;base64",
+        }
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Изображение доп. комплектующего должно быть JPG, PNG или WEBP",
+        )
+    try:
+        payload = base64.b64decode(encoded, validate=True)
+    except (ValueError, binascii.Error) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Некорректное изображение доп. комплектующего",
+        ) from exc
+    if len(payload) > EXTRA_IMAGE_MAX_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail="Изображение доп. комплектующего превышает 3 МБ",
+        )
+    return value
 
 
 def _normalize_project_extras(raw: str | None, db: Session) -> str:
@@ -106,31 +142,37 @@ def _normalize_project_extras(raw: str | None, db: Session) -> str:
             )
             if delivery_stage not in {"1", "2", "both"}:
                 delivery_stage = "both"
-            normalized.append(
-                {
-                    "sku": sku,
-                    "name": name,
-                    "category": category,
-                    "finish_name": str(
-                        row.get("finish_name") or row.get("finishName") or ""
-                    ).strip(),
-                    "color": color,
-                    "requires_paint": bool(color),
-                    "size": str(row.get("size") or "").strip(),
-                    "qty": quantity_text,
-                    "unit": str(row.get("unit") or "шт").strip() or "шт",
-                    "unit_price": str(
-                        row.get("unit_price") or row.get("unitPrice") or ""
-                    ).strip(),
-                    "image_file": str(
-                        row.get("image_file")
-                        or row.get("imageFile")
-                        or row.get("image")
-                        or ""
-                    ).strip(),
-                    "delivery_stage": delivery_stage,
-                }
-            )
+            manual_row = {
+                "sku": sku,
+                "name": name,
+                "category": category,
+                "finish_name": str(
+                    row.get("finish_name") or row.get("finishName") or ""
+                ).strip(),
+                "color": color,
+                "requires_paint": bool(color),
+                "size": str(row.get("size") or "").strip(),
+                "qty": quantity_text,
+                "unit": (
+                    "шт"
+                    if category == "profile"
+                    else str(row.get("unit") or "шт").strip() or "шт"
+                ),
+                "unit_price": str(
+                    row.get("unit_price") or row.get("unitPrice") or ""
+                ).strip(),
+                "image_file": str(
+                    row.get("image_file")
+                    or row.get("imageFile")
+                    or row.get("image")
+                    or ""
+                ).strip(),
+                "delivery_stage": delivery_stage,
+            }
+            image_data = _extra_image_data(row)
+            if image_data:
+                manual_row["image_data"] = image_data
+            normalized.append(manual_row)
             continue
         item = db.get(models.CatalogItem, item_id)
         if item is None or not item.is_active:
@@ -220,31 +262,32 @@ def _normalize_project_extras(raw: str | None, db: Session) -> str:
                 detail=f"Укажите цвет для {item.sku} {item.name}",
             )
 
+        category = (
+            active_price.category
+            if active_price is not None
+            and active_price.category in {"profile", "component", "service"}
+            else "service"
+            if "услуг" in str(item.group or "").casefold()
+            else "profile"
+            if any(
+                marker in str(item.group or "").casefold()
+                for marker in ("проф", "уплотн")
+            )
+            else "component"
+        )
         normalized.append(
             {
                 "catalog_item_id": item.id,
                 "finish_variant_id": variant_id,
                 "sku": item.sku,
                 "name": item.name,
-                "category": (
-                    active_price.category
-                    if active_price is not None
-                    and active_price.category in {"profile", "component", "service"}
-                    else "service"
-                    if "услуг" in str(item.group or "").casefold()
-                    else "profile"
-                    if any(
-                        marker in str(item.group or "").casefold()
-                        for marker in ("проф", "уплотн")
-                    )
-                    else "component"
-                ),
+                "category": category,
                 "finish_name": finish_name,
                 "color": color,
                 "requires_paint": requires_paint,
                 "size": str(row.get("size") or "").strip(),
                 "qty": str(row.get("qty", row.get("quantity", "1"))).strip(),
-                "unit": str(item.unit or "шт").strip(),
+                "unit": "шт" if category == "profile" else str(item.unit or "шт").strip(),
                 "unit_price": (
                     f"{unit_price.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):.2f}"
                 ),

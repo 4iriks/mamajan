@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 from dataclasses import dataclass
 from typing import Iterable
 
@@ -201,7 +202,9 @@ _SLIDE_INCLUDED_HARDWARE_TERMS = (
     "защел",
     "защёл",
     "фиксатор",
-    "уплотн",
+    "пузырьков",
+    "h-уплотн",
+    "h уплотн",
     "двутавр",
 )
 _SLIDE_INCLUDED_HARDWARE_ARTICLES = {
@@ -214,9 +217,6 @@ _SLIDE_INCLUDED_HARDWARE_ARTICLES = {
     "RS3020",
     "RS30201",
     "RS30301",
-    "RU007",
-    "RU008",
-    "RU010",
 }
 
 
@@ -399,14 +399,19 @@ def _extra_components(owner: object, *, multiply: bool) -> list[dict]:
             if _number(raw_qty) > 0
             else raw_qty
         )
-        stage = item.get("deliveryStage") or item.get("delivery_stage") or "both"
+        category = str(item.get("category") or "").strip().lower()
+        size = str(item.get("size") or "").strip()
+        if size:
+            match = re.fullmatch(r"\s*([-+]?\d+(?:[.,]\d+)?)\s*(?:мм)?\s*", size, re.I)
+            if match:
+                size = f"{_format_number(match.group(1))} мм"
         rows.append(
             _component_row(
                 article=article,
                 name=name,
-                size=item.get("size") or "",
+                size=size,
                 qty=total_qty,
-                unit=item.get("unit") or "шт",
+                unit="шт" if category == "profile" else item.get("unit") or "шт",
                 note="",
                 color=(
                     item.get("color")
@@ -420,7 +425,6 @@ def _extra_components(owner: object, *, multiply: bool) -> list[dict]:
                     or item.get("image")
                     or ""
                 ),
-                stage="1, 2" if str(stage).strip().lower() == "both" else stage,
             )
         )
     return rows

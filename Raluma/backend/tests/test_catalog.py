@@ -400,7 +400,7 @@ def test_finish_variants_have_public_prices_and_project_snapshots(
             "requires_paint": True,
             "size": "1200 мм",
             "qty": "2",
-            "unit": "п.м.",
+            "unit": "шт",
             "unit_price": "349.25",
             "image_file": "",
             "delivery_stage": "2",

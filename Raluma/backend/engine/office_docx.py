@@ -1556,9 +1556,6 @@ def _build_sketch_docx(context: dict) -> bytes:
                             f"Цвет: {component['color']}"
                             if component.get("color")
                             else "",
-                            f"Этап: {component['stage']}"
-                            if component.get("stage")
-                            else "",
                         ),
                     )
                 )

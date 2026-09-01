@@ -96,6 +96,11 @@ def test_copy_project(client, admin_headers, project, section):
 def test_manual_project_extra_is_normalized_and_color_enables_paint(
     client, admin_headers
 ):
+    image_data = (
+        "data:image/png;base64,"
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/"
+        "x8AAusB9Y9Zl9sAAAAASUVORK5CYII="
+    )
     response = client.post(
         "/api/projects",
         headers=admin_headers,
@@ -109,6 +114,7 @@ def test_manual_project_extra_is_normalized_and_color_enables_paint(
                         "color": "RAL 9005",
                         "size": "1250 мм",
                         "qty": "3",
+                        "image_data": image_data,
                     }
                 ],
                 ensure_ascii=False,
@@ -131,8 +137,64 @@ def test_manual_project_extra_is_normalized_and_color_enables_paint(
             "unit": "шт",
             "unit_price": "",
             "image_file": "",
+            "image_data": image_data,
             "delivery_stage": "both",
         }
+    finally:
+        client.delete(f"/api/projects/{response.json()['id']}", headers=admin_headers)
+
+
+def test_manual_project_extra_rejects_invalid_embedded_image(client, admin_headers):
+    response = client.post(
+        "/api/projects",
+        headers=admin_headers,
+        json={
+            "order_number": "MANUAL-EXTRA-BAD-IMAGE",
+            "customer": "Тест",
+            "extra_components": json.dumps(
+                [
+                    {
+                        "name": "Уголок",
+                        "qty": "1",
+                        "image_data": "data:text/html;base64,PGgxPk5PUEU8L2gxPg==",
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+        },
+    )
+
+    assert response.status_code == 400
+    assert "JPG, PNG или WEBP" in response.json()["detail"]
+
+
+def test_manual_profile_extra_uses_piece_unit(client, admin_headers):
+    response = client.post(
+        "/api/projects",
+        headers=admin_headers,
+        json={
+            "order_number": "MANUAL-PROFILE-UNIT",
+            "customer": "Тест",
+            "extra_components": json.dumps(
+                [
+                    {
+                        "name": "Угол алюминиевый",
+                        "category": "profile",
+                        "size": "3800",
+                        "qty": "2",
+                        "unit": "м.п.",
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    try:
+        snapshot = json.loads(response.json()["extra_components"])[0]
+        assert snapshot["unit"] == "шт"
+        assert snapshot["size"] == "3800"
     finally:
         client.delete(f"/api/projects/{response.json()['id']}", headers=admin_headers)
 
