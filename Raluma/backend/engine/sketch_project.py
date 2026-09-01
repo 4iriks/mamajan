@@ -236,6 +236,24 @@ def _is_calculated_hardware_for_sketch(
     return any(term in normalized for term in _SLIDE_INCLUDED_HARDWARE_TERMS)
 
 
+def _is_calculated_profile_for_sketch(
+    system: str,
+    article: object,
+    name: object,
+) -> bool:
+    if not _is_sketch_component(article, name):
+        return False
+    if system != "СЛАЙД":
+        return True
+    normalized = str(name or "").casefold()
+    if "уплотн" not in normalized:
+        return True
+    return any(
+        term in normalized
+        for term in ("пузырьков", "h-уплотн", "h уплотн", "двутавр")
+    )
+
+
 def _component_row(
     *,
     article: object,
@@ -271,7 +289,7 @@ def _calculated_profiles(calc: object, system: str) -> list[dict]:
         length = getattr(item, "length_mm", 0)
         if _number(qty) <= 0 or _number(length) <= 0:
             continue
-        if not _is_sketch_component(article, name) and not (
+        if not _is_calculated_profile_for_sketch(system, article, name) and not (
             system == "КНИЖКА" and str(article or "").strip().upper() == "RBP002"
         ):
             continue

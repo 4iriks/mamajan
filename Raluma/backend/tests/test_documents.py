@@ -1606,7 +1606,12 @@ class TestSketchProject:
     def test_slide_sketch_excludes_brush_seals_but_keeps_selected_bubble_profile(self):
         project = SimpleNamespace(number="SKETCH-SEALS")
         section = SimpleNamespace(
-            **SectionCreate(**self._slide(profile_left_bubble=True)).model_dump()
+            **SectionCreate(
+                **self._slide(
+                    profile_left_bubble=True,
+                    profile_left_lock_bar=True,
+                )
+            ).model_dump()
         )
 
         context = build_project_document_context(project, [section], "sketch")
