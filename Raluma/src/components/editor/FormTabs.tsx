@@ -190,7 +190,9 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
   const showUnused = is2row
     ? true
     : (s.panels ?? 3) < maxPanels1row;
+  const showUnusedStripChoice = is2row && rails === 5 && (s.panels ?? 4) === 8;
   const firstPanelsPlacement = (s.unusedTrack ?? 'Внешний') === 'Внешний' ? 'В центре' : 'Снаружи';
+  const unusedStrip = (s.unusedTrack ?? 'Внешний') === 'Внешний' ? 'Внешняя' : 'Внутренняя';
 
   const showLockLeft  = (s.profileLeftLockBar  || s.profileLeftHandleBar)  && !(s.profileLeftPBar  && s.profileLeftHandleBar);
   const showNoLockLeft  = s.profileLeftPBar  && s.profileLeftHandleBar;
@@ -237,8 +239,16 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
           </div>
           {showUnused && (
             <div className="space-y-1.5">
-              <label className={LBL}>{is2row ? 'Первые панели' : 'Неиспользуемый рельс'}</label>
-              {is2row ? (
+              <label className={LBL}>
+                {showUnusedStripChoice ? 'Неиспользуемая полоса' : is2row ? 'Первые панели' : 'Неиспользуемый рельс'}
+              </label>
+              {showUnusedStripChoice ? (
+                <ToggleGroup
+                  value={unusedStrip}
+                  options={['Внутренняя', 'Внешняя']}
+                  onChange={v => update({ unusedTrack: v === 'Внешняя' ? 'Внешний' : 'Внутренний' })}
+                />
+              ) : is2row ? (
                 <ToggleGroup
                   value={firstPanelsPlacement}
                   options={['В центре', 'Снаружи']}

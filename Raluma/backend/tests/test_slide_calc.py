@@ -2746,19 +2746,29 @@ class TestSlideTwoRows:
         assert center.width_mm == expected
         assert _find_profile(r, "RS3061")
 
-    def test_5rail_8panels_has_middle_glass(self):
+    @pytest.mark.parametrize(
+        ("unused_track", "expected_rails", "expected_numbers"),
+        [
+            ("Внешний", [1, 2, 3, 4, 4, 3, 2, 1], [4, 3, 2, 1, 1, 2, 3, 4]),
+            ("Внутренний", [3, 2, 1, 0, 0, 1, 2, 3], [1, 2, 3, 4, 4, 3, 2, 1]),
+        ],
+    )
+    def test_5rail_8panels_respects_unused_track(
+        self, unused_track, expected_rails, expected_numbers
+    ):
         r = calculate_slide(
             _make_section(
                 slide_rows=2,
                 rails=5,
                 panels=8,
-                unused_track="Внешний",
+                unused_track=unused_track,
                 first_panel_inside=None,
             )
         )
         middle = _find_glass(r, "Промежуточные")[0]
         assert middle.qty == 4
-        assert r.panel_rails == [1, 2, 3, 4, 4, 3, 2, 1]
+        assert r.panel_rails == expected_rails
+        assert r.panel_numbers == expected_numbers
 
     def test_center_rs112_adds_profiles_and_skips_rs1005(self):
         r = calculate_slide(

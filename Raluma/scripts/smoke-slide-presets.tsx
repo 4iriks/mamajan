@@ -3,6 +3,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { SlideRoomViewSVG } from '../src/components/editor/SlideDiagrams';
+import { SlideSystemTab } from '../src/components/editor/FormTabs';
 import {
   SLIDE_HARDWARE_PRESETS,
   SLIDE_ONE_ROW_LAYOUTS,
@@ -100,6 +101,22 @@ assert.equal(applied.glassType, section.glassType);
 assert.equal(applied.quantity, section.quantity);
 assert.equal(applied.ralColor, section.ralColor);
 assert.equal(applied.comments, section.comments);
+
+const fiveRailEightPanelMarkup = renderToStaticMarkup(
+  <SlideSystemTab
+    s={{
+      ...twoRowSection,
+      rails: 5,
+      panels: 8,
+      unusedTrack: 'Внешний',
+    }}
+    update={() => undefined}
+  />,
+);
+assert.match(fiveRailEightPanelMarkup, /Неиспользуемая полоса/);
+assert.match(fiveRailEightPanelMarkup, />Внутренняя</);
+assert.match(fiveRailEightPanelMarkup, />Внешняя</);
+assert.doesNotMatch(fiveRailEightPanelMarkup, /Первые панели/);
 
 const rs112 = SLIDE_HARDWARE_PRESETS[2];
 assert.equal(rs112.updates.centerLock, undefined);
