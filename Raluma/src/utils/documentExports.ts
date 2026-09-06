@@ -15,7 +15,7 @@ export function commercialDocumentNumber(project: ProjectNumbers): string {
 }
 
 export function isCommercialProjectDocument(docType: ProjectDocumentType): boolean {
-  return docType === 'commercial' || docType === 'contract_appendix';
+  return docType === 'commercial' || docType === 'contract_appendix' || docType === 'cost_report';
 }
 
 export function projectDocumentNumber(

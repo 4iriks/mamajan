@@ -8,7 +8,8 @@ from uuid import uuid4
 
 import pytest
 from openpyxl import Workbook
-from pypdf import PdfReader
+from openpyxl.styles import PatternFill
+from pypdf import PdfReader, PdfWriter
 
 import models
 from database import SessionLocal
@@ -599,6 +600,249 @@ def test_excel_import_reads_formatted_percentages_and_applies_atomically(
         _delete_catalog_item(item_id)
 
 
+def test_supplier_cost_import_updates_only_anod_or_base_and_skips_pending(
+    client,
+    admin_headers,
+):
+    paint_sku = _unique("COST-PAINT").upper()
+    base_sku = _unique("COST-BASE").upper()
+    new_sku = _unique("COST-NEW").upper()
+    touched_skus = {paint_sku, base_sku, new_sku, "RS1006", "RS3110", "RU003"}
+    seeded = client.get("/api/catalog/hardware", headers=admin_headers)
+    assert seeded.status_code == 200, seeded.text
+    db = SessionLocal()
+    existing_version_ids: set[int] = set()
+    original_items: dict[str, dict] = {}
+    try:
+        paint_item = models.CatalogItem(
+            sku=paint_sku,
+            name="Тестовый окрашиваемый профиль",
+            group="Профили",
+            system="СЛАЙД",
+            unit="м.п.",
+            purchase_price=10,
+            markup_percent=35,
+            waste_percent=4,
+            paint_mode="Красится",
+            is_active=True,
+        )
+        for code, name, cost, requires_paint in (
+            ("ANOD", "Анод", 10, False),
+            ("RAL_STANDARD", "RAL стандарт", 222.22, True),
+            ("RAL_NONSTANDARD", "RAL нестандарт", 333.33, True),
+        ):
+            paint_item.finish_variants.append(
+                models.CatalogFinishVariant(
+                    code=code,
+                    name=name,
+                    cost=cost,
+                    price=cost,
+                    profile_markup_percent=35,
+                    profile_discount_percent=0,
+                    construction_markup_percent=5,
+                    construction_discount_percent=0,
+                    requires_paint=requires_paint,
+                    is_active=True,
+                )
+            )
+        base_item = models.CatalogItem(
+            sku=base_sku,
+            name="Тестовая защёлка",
+            group="Защёлки",
+            system="СЛАЙД",
+            unit="шт",
+            purchase_price=20,
+            markup_percent=40,
+            paint_mode="Не красится",
+            is_active=True,
+        )
+        base_item.finish_variants.append(
+            models.CatalogFinishVariant(
+                code="BASE",
+                name="Без окраски",
+                cost=20,
+                price=20,
+                profile_markup_percent=40,
+                profile_discount_percent=0,
+                construction_markup_percent=0,
+                construction_discount_percent=0,
+                requires_paint=False,
+                is_active=True,
+            )
+        )
+        db.add_all([paint_item, base_item])
+        db.commit()
+
+        for sku in touched_skus - {new_sku}:
+            item = db.query(models.CatalogItem).filter_by(sku=sku).first()
+            assert item is not None
+            original_items[sku] = {
+                "id": item.id,
+                "purchase_price": item.purchase_price,
+                "variants": {
+                    variant.id: (variant.cost, variant.price)
+                    for variant in item.finish_variants
+                },
+            }
+            existing_version_ids.update(version.id for version in item.price_versions)
+    finally:
+        db.close()
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Стоим Слайд 26"
+    sheet["B5"] = "04.09.2026г."
+    sheet.merge_cells("A8:E8")
+    sheet["A8"] = "Наименование/Артикул профиля Слайд"
+    sheet["F8"] = "Себестоимость"
+    supplier_rows = (
+        (paint_sku, "Тестовый окрашиваемый профиль", "м.п.", 101.25),
+        (base_sku, "Тестовая защёлка", "шт", 45.50),
+        (new_sku, "Новый направляющий профиль", "м.п.", 77.70),
+        ("RS1006", "Прозрачный межстворочный уплотнитель", "м.п.", 390),
+        ("RS3110", "h-уплотнитель центрального стыка", "м.п.", 710),
+        ("RU003", "Ролик 2-колесный", "шт", 250),
+    )
+    for row_number, values in enumerate(supplier_rows, start=10):
+        for column, value in zip(("C", "D", "E", "F"), values):
+            sheet[f"{column}{row_number}"] = value
+    sheet["F15"].fill = PatternFill(fill_type="solid", fgColor="FFF2CC")
+    output = io.BytesIO()
+    workbook.save(output)
+
+    try:
+        preview_response = client.post(
+            "/api/pricing/catalog/import/preview",
+            headers=admin_headers,
+            files={
+                "file": (
+                    "supplier-cost.xlsx",
+                    output.getvalue(),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
+        )
+        assert preview_response.status_code == 200, preview_response.text
+        preview = preview_response.json()
+        assert preview["valid"] is True
+        assert preview["can_apply"] is True
+        rows = {row["sku"]: row for row in preview["rows"]}
+        assert rows[paint_sku]["finish_code"] == "ANOD"
+        assert rows[base_sku]["finish_code"] == "BASE"
+        assert rows[new_sku]["action"] == "create"
+        assert rows[new_sku]["finish_code"] == "ANOD"
+        assert rows["RS1006"]["cost"] == "125.81"
+        assert rows["RS3110"]["cost"] == "236.67"
+        assert rows["RU003"]["status"] == "pending"
+        assert rows["RU003"]["action"] == "skip"
+
+        applied = client.post(
+            "/api/pricing/catalog/import/apply",
+            headers=admin_headers,
+            json={"rows": preview["rows"], "reason": "Тест сверки себестоимости"},
+        )
+        assert applied.status_code == 201, applied.text
+        result = applied.json()
+        assert any(row["sku"] == new_sku for row in result["created_items"])
+        assert any(row["sku"] == "RU003" for row in result["skipped"])
+
+        db = SessionLocal()
+        try:
+            refreshed_paint = db.query(models.CatalogItem).filter_by(sku=paint_sku).one()
+            variant_costs = {
+                row.code: Decimal(str(row.cost)) for row in refreshed_paint.finish_variants
+            }
+            assert variant_costs["ANOD"] == Decimal("101.25")
+            assert variant_costs["RAL_STANDARD"] == Decimal("222.22")
+            assert variant_costs["RAL_NONSTANDARD"] == Decimal("333.33")
+            refreshed_base = db.query(models.CatalogItem).filter_by(sku=base_sku).one()
+            assert Decimal(str(refreshed_base.finish_variants[0].cost)) == Decimal("45.50")
+            created = db.query(models.CatalogItem).filter_by(sku=new_sku).one()
+            created_variants = {row.code: Decimal(str(row.cost)) for row in created.finish_variants}
+            assert created_variants == {
+                "ANOD": Decimal("77.70"),
+                "RAL_STANDARD": Decimal("0.00"),
+                "RAL_NONSTANDARD": Decimal("0.00"),
+            }
+            assert Decimal(
+                str(
+                    db.query(models.CatalogItem)
+                    .filter_by(sku="RS1006")
+                    .one()
+                    .finish_variants[0]
+                    .cost
+                )
+            ) == Decimal("125.81")
+            assert Decimal(
+                str(
+                    db.query(models.CatalogItem)
+                    .filter_by(sku="RS3110")
+                    .one()
+                    .finish_variants[0]
+                    .cost
+                )
+            ) == Decimal("236.67")
+            pending = db.query(models.CatalogItem).filter_by(sku="RU003").one()
+            assert Decimal(str(pending.finish_variants[0].cost)) == Decimal(
+                str(original_items["RU003"]["variants"][pending.finish_variants[0].id][0])
+            )
+            anod = next(row for row in refreshed_paint.finish_variants if row.code == "ANOD")
+            assert any(
+                version.finish_variant_id == anod.id
+                for version in refreshed_paint.price_versions
+            )
+        finally:
+            db.close()
+
+        repeated = client.post(
+            "/api/pricing/catalog/import/apply",
+            headers=admin_headers,
+            json={"rows": preview["rows"], "reason": "Тест сверки себестоимости"},
+        )
+        assert repeated.status_code == 201, repeated.text
+        assert set(repeated.json()["unchanged"]) >= {
+            paint_sku,
+            base_sku,
+            new_sku,
+            "RS1006",
+            "RS3110",
+        }
+        assert repeated.json()["versions"] == []
+    finally:
+        db = SessionLocal()
+        try:
+            touched_ids = [data["id"] for data in original_items.values()]
+            created_item = db.query(models.CatalogItem).filter_by(sku=new_sku).first()
+            if created_item is not None:
+                touched_ids.append(created_item.id)
+            if touched_ids:
+                db.query(models.CatalogPriceVersion).filter(
+                    models.CatalogPriceVersion.catalog_item_id.in_(touched_ids),
+                    ~models.CatalogPriceVersion.id.in_(existing_version_ids or {-1}),
+                ).delete(synchronize_session=False)
+            if created_item is not None:
+                for variant in list(created_item.finish_variants):
+                    db.delete(variant)
+                db.delete(created_item)
+            for sku, data in original_items.items():
+                item = db.get(models.CatalogItem, data["id"])
+                if item is None:
+                    continue
+                item.purchase_price = data["purchase_price"]
+                for variant in item.finish_variants:
+                    if variant.id in data["variants"]:
+                        variant.cost, variant.price = data["variants"][variant.id]
+            for sku in (paint_sku, base_sku):
+                item = db.query(models.CatalogItem).filter_by(sku=sku).first()
+                if item is not None:
+                    for variant in list(item.finish_variants):
+                        db.delete(variant)
+                    db.delete(item)
+            db.commit()
+        finally:
+            db.close()
+
+
 def test_pricing_permission_and_dealer_quote_access(client, admin_headers):
     manager, manager_password = _create_user(client, admin_headers, role="user")
     price_manager, price_password = _create_user(
@@ -710,8 +954,24 @@ def test_pricing_permission_and_dealer_quote_access(client, admin_headers):
             headers=price_headers,
         )
         assert price_manager_editor.status_code == 200
-        assert price_manager_editor.json()["calculation"] == {}
+        assert price_manager_editor.json()["calculation"] != {}
         assert price_manager_editor.json()["missing_prices"] == []
+        price_token = price_headers["Authorization"].split(" ", 1)[1]
+        manager_token = manager_headers["Authorization"].split(" ", 1)[1]
+        assert (
+            client.get(
+                f"/api/projects/{price_manager_project_id}/documents/cost_report/preview",
+                params={"token": price_token},
+            ).status_code
+            == 200
+        )
+        assert (
+            client.get(
+                f"/api/projects/{price_manager_project_id}/documents/cost_report/preview",
+                params={"token": manager_token},
+            ).status_code
+            == 403
+        )
         one_time_price = client.put(
             f"/api/projects/{price_manager_project_id}/quote/overrides",
             headers=price_headers,
@@ -725,7 +985,7 @@ def test_pricing_permission_and_dealer_quote_access(client, admin_headers):
                 ]
             },
         )
-        assert one_time_price.status_code == 403
+        assert one_time_price.status_code == 200
         margin_override = client.put(
             f"/api/projects/{price_manager_project_id}/quote/overrides",
             headers=price_headers,
@@ -777,6 +1037,179 @@ def test_pricing_permission_and_dealer_quote_access(client, admin_headers):
             db.close()
         for user in (manager, price_manager, dealer):
             client.delete(f"/api/users/{user['id']}", headers=admin_headers)
+
+
+def test_cost_report_uses_fixed_internal_revision_and_exports_pdf_xlsx(
+    client,
+    admin_headers,
+    project,
+    section,
+    monkeypatch,
+):
+    admin_id = client.get("/api/auth/me", headers=admin_headers).json()["id"]
+    public = {
+        "project": {
+            "id": project["id"],
+            "number": project["number"],
+            "invoice_number": project.get("invoice_number"),
+            "order_number": project.get("order_number"),
+            "customer": project["customer"],
+        },
+        "revision": 3,
+        "status": "fixed",
+        "fixed_at": "2026-09-04T12:00:00",
+        "lines": [
+            {"id": f"section-{section['id']}", "line_total": "500.00"},
+            {"id": "project-extra-1", "line_total": "120.00"},
+            {"id": "service-1", "line_total": "200.00"},
+        ],
+        "totals": {"grand_total": "820.00"},
+        "export_allowed": True,
+        "warnings": [],
+    }
+    internal = {
+        "public": public,
+        "sections": [
+            {
+                "section_id": section["id"],
+                "name": "Секция отчёта",
+                "internal_total": "400.00",
+                "final_price": "500.00",
+                "issues": [],
+                "bom": [
+                    {
+                        "sku": "REPORT-A",
+                        "name": "Профиль A",
+                        "finish": "Анод",
+                        "quantity": "2",
+                        "unit": "м.п.",
+                        "cost": "50.00",
+                        "base_cost_total": "100.00",
+                        "internal_total": "150.00",
+                    },
+                    {
+                        "sku": "REPORT-B",
+                        "name": "Фурнитура B",
+                        "finish": "Без окраски",
+                        "quantity": "1",
+                        "unit": "шт",
+                        "cost": "200.00",
+                        "base_cost_total": "200.00",
+                        "internal_total": "250.00",
+                    },
+                ],
+            }
+        ],
+        "project_extras": [
+            {
+                "line_id": "project-extra-1",
+                "index": 1,
+                "sku": "REPORT-X",
+                "name": "Доп. профиль",
+                "quantity": "2",
+                "unit": "шт",
+                "finish": "",
+                "cost": "50.00",
+                "base_cost_total": "100.00",
+                "internal_total": "110.00",
+                "final_price": "120.00",
+            }
+        ],
+        "services": [
+            {
+                "id": "service-1",
+                "name": "Монтаж",
+                "quantity": "1",
+                "unit": "услуга",
+                "base_cost": "100.00",
+                "internal_total": "100.00",
+                "final_price": "200.00",
+            }
+        ],
+        "issues": [],
+        "blocking_issues": [],
+        "missing_prices": [],
+    }
+    db = SessionLocal()
+    try:
+        state = db.query(models.ProjectQuoteState).filter_by(project_id=project["id"]).first()
+        if state is None:
+            state = models.ProjectQuoteState(project_id=project["id"])
+            db.add(state)
+        state.revision = 3
+        state.status = "fixed"
+        state.public_payload = json.dumps(public, ensure_ascii=False)
+        state.internal_payload = json.dumps(internal, ensure_ascii=False)
+        state.source_signature = "fixed-test-snapshot"
+        state.fixed_at = datetime(2026, 9, 4, 12, 0, 0)
+        state.fixed_by = admin_id
+        db.commit()
+    finally:
+        db.close()
+
+    token = admin_headers["Authorization"].split(" ", 1)[1]
+    preview = client.get(
+        f"/api/projects/{project['id']}/documents/cost_report/preview",
+        params={"token": token},
+    )
+    assert preview.status_code == 200, preview.text
+    assert "Себестоимость и наценка" in preview.text
+    assert "500,00 ₽" in preview.text
+    assert "610,00 ₽" in preview.text
+    assert "820,00 ₽" in preview.text
+    assert "320,00 ₽" in preview.text
+    assert "64,00 %" in preview.text
+    assert "39,02 %" in preview.text
+
+    xlsx = client.get(
+        f"/api/projects/{project['id']}/documents/cost_report/xlsx",
+        headers=admin_headers,
+    )
+    assert xlsx.status_code == 200, xlsx.text
+    assert xlsx.content.startswith(b"PK")
+    with zipfile.ZipFile(io.BytesIO(xlsx.content)) as archive:
+        workbook_xml = archive.read("xl/workbook.xml").decode("utf-8")
+        assert all(
+            name in workbook_xml
+            for name in ("Сводка", "Комплектующие", "Услуги", "Незаполненные")
+        )
+        formulas = "".join(
+            archive.read(name).decode("utf-8")
+            for name in archive.namelist()
+            if name.startswith("xl/worksheets/sheet") and name.endswith(".xml")
+        )
+        assert "IFERROR" in formulas
+        assert "#REF!" not in formulas
+        assert "#DIV/0!" not in formulas
+
+    def fake_pdf(_: str) -> bytes:
+        output = io.BytesIO()
+        writer = PdfWriter()
+        writer.add_blank_page(width=842, height=595)
+        writer.write(output)
+        return output.getvalue()
+
+    monkeypatch.setattr("api.documents.generate_pdf", fake_pdf)
+    pdf = client.get(
+        f"/api/projects/{project['id']}/documents/cost_report/pdf",
+        headers=admin_headers,
+    )
+    assert pdf.status_code == 200, pdf.text
+    reader = PdfReader(io.BytesIO(pdf.content))
+    assert len(reader.pages) == 1
+
+    local = client.post(
+        "/api/projects/local/documents/cost_report/pdf",
+        json={"project": {}, "sections": []},
+    )
+    assert local.status_code == 403
+    assert (
+        client.get(
+            f"/api/projects/{project['id']}/documents/cost_report/docx",
+            headers=admin_headers,
+        ).status_code
+        == 400
+    )
 
 
 def _seed_quote_prices(project_id: int, actor_id: int):

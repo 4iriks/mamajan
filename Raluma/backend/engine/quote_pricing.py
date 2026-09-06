@@ -2079,14 +2079,21 @@ def calculate_quote(
         )
         internal_project_extras.append(
             {
+                "line_id": f"project-extra-{index}",
                 "index": index,
                 "catalog_item_id": catalog_item_id,
                 "finish_variant_id": finish_variant_id,
-                "sku": sku,
+                "sku": sku or str(getattr(item, "sku", "") or ""),
                 "name": name,
+                "category": category,
                 "quantity": decimal_text(quantity),
+                "unit": line_unit,
+                "finish": finish_name,
+                "cost": money_text(selected_cost),
+                "base_cost_total": money_text(selected_cost * quantity),
                 "unit_sale": money_text(unit_sale),
                 "internal_total": money_text(internal_total),
+                "final_price": public_line["line_total"],
                 "minimum_total": money_text(minimum_total),
             }
         )

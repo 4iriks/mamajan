@@ -191,6 +191,7 @@ export default function ProjectDocumentModal({
   const isDeliveryDocument = docType === 'delivery';
   const isCommercialDocument = docType === 'commercial' || docType === 'contract_appendix';
   const isSketchDocument = docType === 'sketch';
+  const isCostReportDocument = docType === 'cost_report';
   const canEditCommercial = Boolean(user && user.role !== 'dealer');
   const hasDocumentEditor = isPaintDocument || isDeliveryDocument || isCommercialDocument;
   const previewUrl = useMemo(
@@ -932,7 +933,7 @@ export default function ProjectDocumentModal({
                   ...(isSketchDocument || isPaintDocument || docType === 'glass' || docType === 'hardware_order' || isCommercialDocument
                     ? [['docx', 'Word', FileText] as const]
                     : []),
-                  ...(isPaintDocument || docType === 'glass' || docType === 'hardware_order' || isDeliveryDocument
+                  ...(isPaintDocument || docType === 'glass' || docType === 'hardware_order' || isDeliveryDocument || isCostReportDocument
                     ? [['xlsx', 'Excel', FileSpreadsheet] as const]
                     : []),
                 ] as const).map(([format, label, Icon]) => (

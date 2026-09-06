@@ -34,6 +34,7 @@ DOC_TITLES = {
     "glass": "Заказ стекла",
     "delivery": "Накладная",
     "hardware_order": "Наряд-заказ на фурнитуру",
+    "cost_report": "Себестоимость и наценка",
 }
 
 COMPANY_NAME = 'ООО "СТУДИЯ СПК"'

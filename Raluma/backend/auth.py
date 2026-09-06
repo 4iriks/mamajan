@@ -83,11 +83,19 @@ def require_price_manager(
     current_user: models.User = Depends(get_current_user),
 ) -> models.User:
     """Доступ к себестоимости, версиям цен и дилерским условиям."""
-    if current_user.role in ("admin", "superadmin"):
+    if user_can_manage_prices(current_user):
         return current_user
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Недостаточно прав для управления ценами",
+    )
+
+
+def user_can_manage_prices(current_user: models.User) -> bool:
+    """Единая проверка доступа к закрытым данным себестоимости."""
+
+    return current_user.role in ("admin", "superadmin") or bool(
+        current_user.role == "user" and current_user.can_manage_prices
     )
 
 

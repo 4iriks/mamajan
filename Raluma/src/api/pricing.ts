@@ -5,6 +5,7 @@ export type PriceCategory = 'profile' | 'construction' | 'component' | 'service'
 export interface PriceVersion {
   id: number;
   catalog_item_id: number;
+  finish_variant_id?: number | null;
   cost: string;
   profile_markup_percent: string;
   profile_discount_percent: string;
@@ -100,17 +101,63 @@ export const previewBulkPriceChange = (data: BulkPriceRequest) =>
 export const applyBulkPriceChange = (data: BulkPriceRequest) =>
   client.post('/api/pricing/catalog/bulk/apply', data).then(response => response.data);
 
+export type CatalogPriceImportAction = 'update' | 'create' | 'review' | 'skip';
+export type CatalogPriceImportStatus = 'matched' | 'new' | 'needs_review' | 'pending';
+
+export interface CatalogPriceImportCandidate {
+  id: number;
+  sku: string;
+  name: string;
+  unit: string;
+}
+
+export interface CatalogPriceImportRow extends Record<string, unknown> {
+  source_row: number;
+  sku: string;
+  name: string;
+  unit: string;
+  cost: string;
+  original_cost: string;
+  current_cost: string;
+  finish_code: string;
+  finish_name: string;
+  effective_from: string;
+  action: CatalogPriceImportAction;
+  status: CatalogPriceImportStatus;
+  pending: boolean;
+  conversion: string;
+  unit_mismatch: boolean;
+  target_item_id: number | null;
+  candidates: CatalogPriceImportCandidate[];
+}
+
+export interface CatalogPriceImportPreview {
+  valid: boolean;
+  can_apply?: boolean;
+  rows: CatalogPriceImportRow[];
+  errors: string[];
+  summary?: Record<string, number>;
+}
+
+export interface CatalogPriceImportResult {
+  versions: PriceVersion[];
+  created_items: Array<{ id: number; sku: string; name: string }>;
+  skipped: Array<{ sku: string; reason: string }>;
+  unchanged: string[];
+}
+
 export const previewPriceImport = async (file: File) => {
   const body = new FormData();
   body.append('file', file);
-  return client.post<{ valid: boolean; rows: Array<Record<string, string>>; errors: string[] }>(
+  return client.post<CatalogPriceImportPreview>(
     '/api/pricing/catalog/import/preview',
     body,
   ).then(response => response.data);
 };
 
-export const applyPriceImport = (rows: Array<Record<string, string>>, reason: string) =>
-  client.post('/api/pricing/catalog/import/apply', { rows, reason }).then(response => response.data);
+export const applyPriceImport = (rows: CatalogPriceImportRow[], reason: string) =>
+  client.post<CatalogPriceImportResult>('/api/pricing/catalog/import/apply', { rows, reason })
+    .then(response => response.data);
 
 export const getDealerPricingTerms = (userId: number) =>
   client.get<DealerPricingTerms>(`/api/pricing/dealers/${userId}`).then(response => response.data);

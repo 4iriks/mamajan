@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models
 import schemas
-from auth import get_current_user, decode_token
+from auth import decode_token, get_current_user, user_can_manage_prices
 from engine.book_calc import BookCalculationError, calculate_book
 from engine.document_numbers import (
     commercial_document_number,
@@ -29,6 +29,12 @@ from engine.document_numbers import (
 )
 from engine.lift_calc import calculate_lift
 from engine.office_common import normalize_filename
+from engine.cost_report import (
+    build_cost_report_context,
+    build_cost_report_xlsx,
+    cost_report_filename,
+    render_cost_report_html,
+)
 from engine.office_docx import build_project_docx, build_section_docx
 from engine.office_xlsx import build_project_xlsx, build_section_xlsx
 from engine.office_common import drawing_files_for_sections
@@ -61,8 +67,15 @@ DOCX_PROJECT_DOCUMENTS = {
     "paint",
     "hardware_order",
 }
-XLSX_PROJECT_DOCUMENTS = {"glass", "paint", "hardware_order", "delivery"}
+XLSX_PROJECT_DOCUMENTS = {
+    "glass",
+    "paint",
+    "hardware_order",
+    "delivery",
+    "cost_report",
+}
 OFFICE_PROJECT_DOCUMENTS = DOCX_PROJECT_DOCUMENTS | XLSX_PROJECT_DOCUMENTS
+INTERNAL_DOCUMENTS = {"cost_report"}
 PRODUCTION_PROJECT_DOCUMENTS = {
     "glass",
     "paint",
@@ -84,7 +97,7 @@ def _production_project_number(project: object) -> str:
 
 
 def _project_export_number(project: object, doc_type: str) -> str:
-    if doc_type in COMMERCIAL_DOCUMENTS:
+    if doc_type in COMMERCIAL_DOCUMENTS | INTERNAL_DOCUMENTS:
         return _project_document_number(project)
     return _production_project_number(project)
 
@@ -336,6 +349,25 @@ def _validate_office_project_doc_type(doc_type: str, file_format: str) -> str:
     return doc_type
 
 
+def _ensure_internal_document_access(
+    doc_type: str,
+    current_user: models.User,
+) -> None:
+    if doc_type in INTERNAL_DOCUMENTS and not user_can_manage_prices(current_user):
+        raise HTTPException(
+            status_code=403,
+            detail="Нет доступа к себестоимости и наценке",
+        )
+
+
+def _ensure_local_document_access(doc_type: str) -> None:
+    if doc_type in INTERNAL_DOCUMENTS:
+        raise HTTPException(
+            status_code=403,
+            detail="Внутренний отчёт недоступен без входа",
+        )
+
+
 def _office_response(content: bytes, filename: str, file_format: str):
     from urllib.parse import quote
 
@@ -441,6 +473,7 @@ def calculate_local_section(payload: LocalDocumentPayload):
 @router.post("/local/documents/{doc_type}/preview", response_class=HTMLResponse)
 def preview_local_project_document(doc_type: str, payload: LocalProjectDocumentPayload):
     doc_type = _validate_project_doc_type(doc_type)
+    _ensure_local_document_access(doc_type)
     if doc_type in COMMERCIAL_DOCUMENTS:
         raise HTTPException(
             status_code=403,
@@ -504,6 +537,7 @@ def download_local_project_document_pdf(
     payload: LocalProjectDocumentPayload,
 ):
     doc_type = _validate_project_doc_type(doc_type)
+    _ensure_local_document_access(doc_type)
     if doc_type in COMMERCIAL_DOCUMENTS:
         raise HTTPException(
             status_code=403,
@@ -537,6 +571,7 @@ def _download_local_project_office(
     file_format: str,
 ):
     doc_type = _validate_office_project_doc_type(doc_type, file_format)
+    _ensure_local_document_access(doc_type)
     project, sections = _build_local_project_document_objects(payload)
     _ensure_book_project_documents_supported(doc_type, sections)
     content = _build_project_office(
@@ -574,7 +609,12 @@ def preview_project_document(
 ):
     doc_type = _validate_project_doc_type(doc_type)
     current_user = _get_user_by_token(token, db)
+    _ensure_internal_document_access(doc_type, current_user)
     project = _get_project_or_404(project_id, db, current_user)
+    if doc_type == "cost_report":
+        context = build_cost_report_context(db, project)
+        db.commit()
+        return HTMLResponse(render_cost_report_html(context))
     _ensure_book_project_documents_supported(doc_type, project.sections)
     quote = None
     if doc_type in COMMERCIAL_DOCUMENTS:
@@ -594,7 +634,26 @@ def download_project_document_pdf(
     current_user: models.User = Depends(get_current_user),
 ):
     doc_type = _validate_project_doc_type(doc_type)
+    _ensure_internal_document_access(doc_type, current_user)
     project = _get_project_or_404(project_id, db, current_user)
+    if doc_type == "cost_report":
+        context = build_cost_report_context(
+            db,
+            project,
+            freeze_for_export=True,
+            actor=current_user,
+        )
+        pdf_bytes = generate_pdf(render_cost_report_html(context, is_pdf=True))
+        db.commit()
+        filename = cost_report_filename(context, "pdf")
+        from urllib.parse import quote
+
+        encoded = quote(filename)
+        return StreamingResponse(
+            io.BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"},
+        )
     _ensure_book_project_documents_supported(doc_type, project.sections)
     quote = None
     if doc_type in COMMERCIAL_DOCUMENTS:
@@ -644,7 +703,22 @@ def _download_project_office(
         _validate_project_doc_type(doc_type)
     else:
         doc_type = _validate_office_project_doc_type(doc_type, file_format)
+    _ensure_internal_document_access(doc_type, current_user)
     project = _get_project_or_404(project_id, db, current_user)
+    if doc_type == "cost_report":
+        context = build_cost_report_context(
+            db,
+            project,
+            freeze_for_export=True,
+            actor=current_user,
+        )
+        content = build_cost_report_xlsx(context)
+        db.commit()
+        return _office_response(
+            content,
+            cost_report_filename(context, "xlsx"),
+            "xlsx",
+        )
     _ensure_book_project_documents_supported(doc_type, project.sections)
     quote = None
     if doc_type in COMMERCIAL_DOCUMENTS:

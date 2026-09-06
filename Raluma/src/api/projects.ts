@@ -162,7 +162,8 @@ export type ProjectDocumentType =
   | 'paint'
   | 'glass'
   | 'delivery'
-  | 'hardware_order';
+  | 'hardware_order'
+  | 'cost_report';
 export type DocumentFileFormat = 'pdf' | 'docx' | 'xlsx';
 export type ProjectDocumentOverrides = Partial<{
   project_number: string;

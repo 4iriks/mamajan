@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>{{ title }} — {{ project_number }}</title>
+  <style>
+    @page { size: A4 landscape; margin: 9mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #172f35; font-family: Arial, sans-serif; font-size: 9px; background: #eef3f4; }
+    .page { width: 279mm; min-height: 192mm; margin: 8px auto; padding: 9mm; background: white; page-break-after: always; }
+    .page:last-child { page-break-after: auto; }
+    h1 { margin: 0; color: #123b44; font-size: 23px; }
+    h2 { margin: 0 0 7px; padding: 6px 8px; color: white; background: #164e59; font-size: 13px; }
+    .meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 9px 0; }
+    .meta div, .metric { padding: 7px 9px; border: 1px solid #c9d9dc; border-radius: 5px; background: #f5f9f9; }
+    .label { display: block; margin-bottom: 3px; color: #6b7f83; font-size: 7px; font-weight: bold; text-transform: uppercase; letter-spacing: .5px; }
+    .value { font-size: 12px; font-weight: bold; }
+    .warning { margin: 6px 0; padding: 7px 9px; border-left: 4px solid #d45435; background: #fde8e2; color: #7a2c1c; font-weight: bold; }
+    .metrics { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin: 9px 0 12px; }
+    .metric.primary { color: white; border-color: #0f766e; background: #0f766e; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td { padding: 4px 5px; border: 1px solid #b8cace; vertical-align: top; }
+    th { color: white; background: #0f766e; font-size: 7px; text-transform: uppercase; }
+    td.num { text-align: right; white-space: nowrap; }
+    td.center { text-align: center; }
+    tr.missing td { color: #8b2e1d; background: #fff1ed; }
+    tr.total td { font-weight: bold; background: #dceff0; }
+    .muted { color: #6b7f83; }
+    .status { display: inline-block; padding: 2px 5px; border-radius: 10px; color: #166534; background: #dcfce7; font-size: 7px; font-weight: bold; }
+    .status.bad { color: #991b1b; background: #fee2e2; }
+    .footnote { margin-top: 8px; color: #6b7f83; font-size: 7px; }
+    @media screen { .page { box-shadow: 0 8px 30px rgba(24,54,61,.16); } }
+    @media print { body { background: white; } .page { margin: 0; box-shadow: none; } }
+  </style>
+</head>
+<body>
+  <section class="page">
+    <h1>{{ title }}</h1>
+    <div class="meta">
+      <div><span class="label">Счёт / проект</span><span class="value">{{ project_number }}</span></div>
+      <div><span class="label">Заказчик</span><span class="value">{{ project.customer or '—' }}</span></div>
+      <div><span class="label">Редакция</span><span class="value">{{ revision }}</span></div>
+      <div><span class="label">Статус</span><span class="value">{{ 'Зафиксирована' if status == 'fixed' else 'Черновик' }}</span></div>
+    </div>
+    {% for warning in warnings %}<div class="warning">{{ warning }}</div>{% endfor %}
+    <div class="metrics">
+      <div class="metric"><span class="label">Себестоимость</span><span class="value">{{ summary.cost_text }}</span></div>
+      <div class="metric"><span class="label">Внутренняя цена</span><span class="value">{{ summary.internal_text }}</span></div>
+      <div class="metric primary"><span class="label">Цена клиенту</span><span class="value">{{ summary.client_text }}</span></div>
+      <div class="metric"><span class="label">Прибыль</span><span class="value">{{ summary.profit_text }}</span></div>
+      <div class="metric"><span class="label">Наценка на себестоимость</span><span class="value">{{ summary.markup_text }}</span></div>
+      <div class="metric"><span class="label">Маржа</span><span class="value">{{ summary.margin_text }}</span></div>
+    </div>
+    <h2>Сводка по конструкциям</h2>
+    <table>
+      <thead><tr><th>Раздел</th><th>Себестоимость</th><th>Внутренняя цена</th><th>Цена клиенту</th><th>Прибыль</th><th>Наценка</th><th>Маржа</th><th>Статус</th></tr></thead>
+      <tbody>
+      {% for section in sections %}
+        <tr class="{{ '' if section.summary.complete else 'missing' }}">
+          <td><strong>{{ section.name }}</strong></td><td class="num">{{ section.summary.cost_text }}</td><td class="num">{{ section.summary.internal_text }}</td><td class="num">{{ section.summary.client_text }}</td><td class="num">{{ section.summary.profit_text }}</td><td class="num">{{ section.summary.markup_text }}</td><td class="num">{{ section.summary.margin_text }}</td><td class="center"><span class="status {{ '' if section.summary.complete else 'bad' }}">{{ 'OK' if section.summary.complete else 'НЕПОЛНО' }}</span></td>
+        </tr>
+      {% endfor %}
+      {% if not sections %}<tr><td colspan="8" class="muted">Конструкции отсутствуют</td></tr>{% endif %}
+      </tbody>
+    </table>
+    <p class="footnote">Наценка = прибыль / себестоимость. Маржа = прибыль / цена клиенту. При незаполненной себестоимости итоговые проценты намеренно не выводятся.</p>
+  </section>
+
+  {% for section in sections %}
+  <section class="page">
+    <h2>{{ section.name }} — детализация</h2>
+    <table>
+      <thead><tr><th style="width:9%">Артикул</th><th style="width:22%">Наименование</th><th style="width:11%">Исполнение</th><th style="width:7%">Кол-во</th><th style="width:6%">Ед.</th><th style="width:10%">Себестоимость</th><th style="width:10%">Внутренняя цена</th><th style="width:10%">Цена клиенту</th><th style="width:9%">Прибыль</th><th style="width:6%">Маржа</th></tr></thead>
+      <tbody>
+      {% for row in section.rows %}
+        <tr class="{{ '' if row.complete else 'missing' }}"><td>{{ row.sku }}</td><td>{{ row.name }}</td><td>{{ row.finish or '—' }}</td><td class="num">{{ row.quantity }}</td><td class="center">{{ row.unit }}</td><td class="num">{{ row.cost_text }}</td><td class="num">{{ row.internal_text }}</td><td class="num">{{ row.client_text }}</td><td class="num">{{ row.profit_text }}</td><td class="num">{{ row.margin_text }}</td></tr>
+      {% endfor %}
+      <tr class="total"><td colspan="5">ИТОГО</td><td class="num">{{ section.summary.cost_text }}</td><td class="num">{{ section.summary.internal_text }}</td><td class="num">{{ section.summary.client_text }}</td><td class="num">{{ section.summary.profit_text }}</td><td class="num">{{ section.summary.margin_text }}</td></tr>
+      </tbody>
+    </table>
+  </section>
+  {% endfor %}
+
+  {% if extras or services or missing %}
+  <section class="page">
+    {% if extras %}<h2>Дополнительные комплектующие</h2>
+    <table><thead><tr><th>Артикул</th><th>Наименование</th><th>Количество</th><th>Себестоимость</th><th>Внутренняя цена</th><th>Цена клиенту</th><th>Прибыль</th><th>Маржа</th></tr></thead><tbody>
+    {% for row in extras %}<tr class="{{ '' if row.complete else 'missing' }}"><td>{{ row.sku }}</td><td>{{ row.name }}</td><td class="num">{{ row.quantity }} {{ row.unit }}</td><td class="num">{{ row.cost_text }}</td><td class="num">{{ row.internal_text }}</td><td class="num">{{ row.client_text }}</td><td class="num">{{ row.profit_text }}</td><td class="num">{{ row.margin_text }}</td></tr>{% endfor %}
+    </tbody></table>{% endif %}
+    {% if services %}<h2 style="margin-top:10px">Услуги</h2>
+    <table><thead><tr><th>Наименование</th><th>Количество</th><th>Себестоимость</th><th>Внутренняя цена</th><th>Цена клиенту</th><th>Прибыль</th><th>Наценка</th><th>Маржа</th></tr></thead><tbody>
+    {% for row in services %}<tr class="{{ '' if row.complete else 'missing' }}"><td>{{ row.name }}</td><td class="num">{{ row.quantity }} {{ row.unit }}</td><td class="num">{{ row.cost_text }}</td><td class="num">{{ row.internal_text }}</td><td class="num">{{ row.client_text }}</td><td class="num">{{ row.profit_text }}</td><td class="num">{{ row.markup_text }}</td><td class="num">{{ row.margin_text }}</td></tr>{% endfor %}
+    </tbody></table>{% endif %}
+    {% if missing %}<h2 style="margin-top:10px">Незаполненные позиции</h2>
+    <table><thead><tr><th>Раздел</th><th>Артикул</th><th>Наименование</th><th>Причина</th></tr></thead><tbody>
+    {% for row in missing %}<tr class="missing"><td>{{ row.scope }}</td><td>{{ row.sku or '—' }}</td><td>{{ row.name or '—' }}</td><td>{{ row.reason }}</td></tr>{% endfor %}
+    </tbody></table>{% endif %}
+  </section>
+  {% endif %}
+</body>
+</html>

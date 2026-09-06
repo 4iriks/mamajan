@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, BadgePercent, Box, Check, Edit2, Package,
+  AlertTriangle, ArrowLeft, BadgePercent, Box, Check, Edit2, FileUp, Loader2, Package,
   ImageIcon, Plus, Ruler, Save, Scale, Search, SlidersHorizontal, Trash2, X,
 } from 'lucide-react';
 import {
@@ -21,6 +21,13 @@ import {
   type SystemGroupCode,
   type SystemMarkup,
 } from '../api/catalog';
+import {
+  applyPriceImport,
+  previewPriceImport,
+  type CatalogPriceImportAction,
+  type CatalogPriceImportPreview,
+  type CatalogPriceImportRow,
+} from '../api/pricing';
 import { useAuthStore } from '../store/authStore';
 import { toast } from '../store/toastStore';
 
@@ -813,6 +820,11 @@ export default function HardwareCatalogPage() {
   const [systemMarkups, setSystemMarkups] = useState<SystemMarkup[]>([]);
   const [systemMarkupDrafts, setSystemMarkupDrafts] = useState<Record<SystemGroupCode, string>>({ SLIDE_1: '', SLIDE_2: '' });
   const [savingSystemGroup, setSavingSystemGroup] = useState<SystemGroupCode | null>(null);
+  const [costImport, setCostImport] = useState<CatalogPriceImportPreview | null>(null);
+  const [costImportOpen, setCostImportOpen] = useState(false);
+  const [costImportLoading, setCostImportLoading] = useState(false);
+  const [costImportFilename, setCostImportFilename] = useState('');
+  const [costImportReason, setCostImportReason] = useState('Сверка себестоимости из файла поставщика');
 
   useEffect(() => {
     if (!isAdmin()) navigate('/');
@@ -969,6 +981,69 @@ export default function HardwareCatalogPage() {
     }
   };
 
+  const updateImportRow = (sourceRow: number, updates: Partial<CatalogPriceImportRow>) => {
+    setCostImport(current => current ? {
+      ...current,
+      rows: current.rows.map(row => row.source_row === sourceRow ? { ...row, ...updates } : row),
+    } : current);
+  };
+
+  const handleCostImportFile = async (file?: File) => {
+    if (!file) return;
+    setCostImportLoading(true);
+    setCostImportFilename(file.name);
+    try {
+      const preview = await previewPriceImport(file);
+      setCostImport(preview);
+      if (!preview.valid) toast.error(preview.errors[0] || 'Файл не прошёл проверку');
+    } catch {
+      setCostImport(null);
+      toast.error('Не удалось прочитать файл себестоимости');
+    } finally {
+      setCostImportLoading(false);
+    }
+  };
+
+  const handleImportAction = (
+    row: CatalogPriceImportRow,
+    value: string,
+  ) => {
+    if (value.startsWith('update:')) {
+      const targetId = Number(value.slice('update:'.length));
+      updateImportRow(row.source_row, { action: 'update', target_item_id: targetId });
+      return;
+    }
+    updateImportRow(row.source_row, {
+      action: value as CatalogPriceImportAction,
+      target_item_id: value === 'create' ? null : row.target_item_id,
+    });
+  };
+
+  const handleApplyCostImport = async () => {
+    if (!costImport || !costImportReason.trim()) return;
+    const unresolved = costImport.rows.find(row => row.action === 'review');
+    if (unresolved) {
+      toast.error(`Завершите сверку позиции ${unresolved.sku}`);
+      return;
+    }
+    setCostImportLoading(true);
+    try {
+      const result = await applyPriceImport(costImport.rows, costImportReason.trim());
+      const remoteItems = await listHardwareCatalog();
+      setItems(remoteItems.map(item => normalizeItem(item)));
+      setCostImportOpen(false);
+      setCostImport(null);
+      const changed = result.versions.length + result.created_items.length;
+      toast.success(`Себестоимость загружена: изменений ${changed}, пропущено ${result.skipped.length}`);
+    } catch (error) {
+      const detail = (error as { response?: { data?: { detail?: { errors?: string[] } | string } } }).response?.data?.detail;
+      const message = typeof detail === 'string' ? detail : detail?.errors?.[0];
+      toast.error(message || 'Не удалось применить себестоимость');
+    } finally {
+      setCostImportLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-page text-fg font-sans flex flex-col">
       <nav className="sticky top-0 z-40 bg-page/90 backdrop-blur-md border-b border-tint/25 px-6 py-4 flex items-center justify-between">
@@ -1003,11 +1078,18 @@ export default function HardwareCatalogPage() {
                 </div>
               </div>
             </div>
-            <button onClick={() => setDraft(emptyDraft())}
-              className="flex items-center justify-center gap-2 px-6 py-3.5 bg-primary hover:bg-primary-h text-white font-bold rounded-2xl transition-all shadow-lg shadow-primary/20">
-              <Plus className="w-5 h-5" />
-              Добавить позицию
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => { setCostImportOpen(true); setCostImport(null); setCostImportFilename(''); }}
+                className="flex items-center justify-center gap-2 px-5 py-3.5 border border-accent/35 bg-accent/10 hover:bg-accent/20 text-accent font-bold rounded-2xl transition-all">
+                <FileUp className="w-5 h-5" />
+                Импорт себестоимости
+              </button>
+              <button onClick={() => setDraft(emptyDraft())}
+                className="flex items-center justify-center gap-2 px-6 py-3.5 bg-primary hover:bg-primary-h text-white font-bold rounded-2xl transition-all shadow-lg shadow-primary/20">
+                <Plus className="w-5 h-5" />
+                Добавить позицию
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1240,6 +1322,90 @@ export default function HardwareCatalogPage() {
       </main>
 
       <AnimatePresence>
+        {costImportOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => !costImportLoading && setCostImportOpen(false)} className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+            <motion.div initial={{ scale: 0.96, opacity: 0, y: 16 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.96, opacity: 0, y: 16 }}
+              className="relative z-10 flex max-h-[94vh] w-full max-w-7xl flex-col overflow-hidden rounded-[2rem] border border-tint/35 bg-modal shadow-2xl">
+              <div className="flex items-center justify-between border-b border-tint/20 px-6 py-5">
+                <div>
+                  <h2 className="text-xl font-bold">Сверка себестоимости</h2>
+                  <p className="mt-1 text-xs text-fg/40">ANOD для окрашиваемых профилей, BASE для фурнитуры и уплотнителей</p>
+                </div>
+                <button onClick={() => setCostImportOpen(false)} disabled={costImportLoading} className="text-fg/30 hover:text-fg disabled:opacity-40"><X className="h-5 w-5" /></button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-6 py-5">
+                <label className="flex cursor-pointer items-center justify-center gap-3 rounded-2xl border border-dashed border-accent/40 bg-accent/5 px-5 py-5 text-sm font-bold text-accent hover:bg-accent/10">
+                  {costImportLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileUp className="h-5 w-5" />}
+                  {costImportFilename || 'Выбрать Excel с себестоимостью'}
+                  <input type="file" accept=".xlsx" className="hidden" disabled={costImportLoading} onChange={event => handleCostImportFile(event.target.files?.[0])} />
+                </label>
+
+                {costImport?.errors?.length ? (
+                  <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+                    {costImport.errors.map(error => <div key={error}>{error}</div>)}
+                  </div>
+                ) : null}
+
+                {costImport?.rows?.length ? (
+                  <>
+                    <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                      {Object.entries(costImport.summary || {}).map(([key, value]) => (
+                        <span key={key} className="rounded-lg border border-tint/25 bg-hi/5 px-3 py-1.5">
+                          {({ matched: 'Совпало', new: 'Новых', needs_review: 'На сверку', pending: 'Ожидают уточнения' } as Record<string, string>)[key] || key}: <b>{value}</b>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-4 max-h-[48vh] overflow-auto rounded-2xl border border-tint/25">
+                      <table className="w-full min-w-[1050px] text-left text-xs">
+                        <thead className="sticky top-0 z-10 bg-surface text-[10px] uppercase tracking-wider text-fg/45">
+                          <tr><th className="px-3 py-3">Строка</th><th className="px-3 py-3">Артикул / название</th><th className="px-3 py-3">Ед.</th><th className="px-3 py-3">Исполнение</th><th className="px-3 py-3">Было</th><th className="px-3 py-3">Станет</th><th className="px-3 py-3">Действие</th></tr>
+                        </thead>
+                        <tbody className="divide-y divide-tint/15">
+                          {costImport.rows.map(row => (
+                            <tr key={row.source_row} className={row.pending || row.action === 'review' ? 'bg-amber-500/5' : ''}>
+                              <td className="px-3 py-3 font-mono text-fg/45">{row.source_row}</td>
+                              <td className="px-3 py-3"><div className="font-mono font-bold">{row.sku}</div><div className="mt-0.5 text-fg/55">{row.name}</div>{row.conversion && <div className="mt-1 text-[10px] text-accent/70">{row.conversion}</div>}</td>
+                              <td className="px-3 py-3">{row.unit}</td>
+                              <td className="px-3 py-3">{row.finish_name}</td>
+                              <td className="px-3 py-3 font-mono">{row.current_cost ? `${row.current_cost} ₽` : '—'}</td>
+                              <td className="px-3 py-3 font-mono font-bold text-emerald-300">{row.cost} ₽</td>
+                              <td className="px-3 py-3">
+                                {row.pending ? (
+                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/15 px-2.5 py-1.5 text-amber-300"><AlertTriangle className="h-3.5 w-3.5" /> Ожидает уточнения — пропустить</span>
+                                ) : (
+                                  <select value={row.action === 'update' ? `update:${row.target_item_id}` : row.action} onChange={event => handleImportAction(row, event.target.value)} className="min-w-52 rounded-lg border border-tint/30 bg-page px-2 py-2 outline-none focus:border-accent/50">
+                                    {row.target_item_id && <option value={`update:${row.target_item_id}`}>Обновить {row.sku}</option>}
+                                    {row.candidates.map(candidate => <option key={candidate.id} value={`update:${candidate.id}`}>Связать с {candidate.sku} — {candidate.name}</option>)}
+                                    {!row.target_item_id && <option value="create">Создать отдельную позицию</option>}
+                                    <option value="skip">Пропустить</option>
+                                    {row.action === 'review' && <option value="review">Требует решения</option>}
+                                  </select>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="mt-4">
+                      <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-widest text-fg/40">Причина изменения</label>
+                      <input value={costImportReason} onChange={event => setCostImportReason(event.target.value)} className={INPUT_CLS} />
+                    </div>
+                  </>
+                ) : null}
+              </div>
+              <div className="flex justify-end gap-3 border-t border-tint/20 px-6 py-4">
+                <button onClick={() => setCostImportOpen(false)} disabled={costImportLoading} className="rounded-xl bg-hi/5 px-5 py-3 font-bold hover:bg-hi/10 disabled:opacity-50">Закрыть</button>
+                <button onClick={handleApplyCostImport} disabled={!costImport?.valid || costImportLoading || !costImportReason.trim()} className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 font-bold text-white hover:bg-primary-h disabled:opacity-40">
+                  {costImportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Применить
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
         {draft && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}

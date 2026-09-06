@@ -58,7 +58,7 @@ export type { Section };
 
 export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack }) => {
   const navigate = useNavigate();
-  const { token, user } = useAuthStore();
+  const { token, user, canManagePrices } = useAuthStore();
   const [project, setProject] = useState<{
     id: number;
     number: string;
@@ -611,7 +611,11 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             { name: 'Накладная', icon: ClipboardList, projectDoc: 'delivery' as const },
             { name: 'Заказ стекла', icon: WindowIcon, projectDoc: 'glass' as const },
             { name: 'Заявка на покраску', icon: Palette, projectDoc: 'paint' as const },
-          ].filter(doc => Boolean(token) || !['commercial', 'contract_appendix'].includes(doc.projectDoc)).map(doc => (
+            { name: 'Себестоимость и наценка', icon: FileText, projectDoc: 'cost_report' as const, internal: true },
+          ].filter(doc => (
+            (!('internal' in doc) || !doc.internal || canManagePrices())
+            && (Boolean(token) || !['commercial', 'contract_appendix', 'cost_report'].includes(doc.projectDoc))
+          )).map(doc => (
             <button
               key={doc.name}
               onClick={() => doc.projectDoc ? openProjectDocument(doc.projectDoc, doc.name) : openPreview(doc.name)}
