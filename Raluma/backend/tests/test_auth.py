@@ -1,6 +1,6 @@
 def test_login_success(client):
     r = client.post(
-        "/api/auth/login", json={"username": "admin", "password": "admin123"}
+        "/api/auth/login", json={"username": "admin", "password": "test-admin-pass-123"}
     )
     assert r.status_code == 200
     data = r.json()

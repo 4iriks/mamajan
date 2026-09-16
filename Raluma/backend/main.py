@@ -20,17 +20,19 @@ def seed_superadmin():
     try:
         existing = db.query(models.User).filter(models.User.username == "admin").first()
         if not existing:
+            initial_password = os.environ.get("INITIAL_ADMIN_PASSWORD", "")
+            if len(initial_password) < 12 or initial_password.lower().startswith("replace"):
+                raise RuntimeError("Set INITIAL_ADMIN_PASSWORD to at least 12 characters")
             superadmin = models.User(
                 username="admin",
-                password_hash=hash_password("admin123"),
+                password_hash=hash_password(initial_password),
                 display_name="Администратор",
                 role="superadmin",
                 is_active=True,
             )
             db.add(superadmin)
             db.commit()
-            print("✅ Создан superadmin: admin / admin123")
-            print("⚠️  Смените пароль после первого входа!")
+            print("Initial admin account created")
     finally:
         db.close()
 

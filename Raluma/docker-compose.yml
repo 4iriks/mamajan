@@ -4,6 +4,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
+    env_file:
+      - .env
     volumes:
       - db_data:/app/data
     environment:

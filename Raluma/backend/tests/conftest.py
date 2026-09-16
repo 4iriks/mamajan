@@ -3,6 +3,8 @@ import sys
 
 # Must be set BEFORE any app imports — overrides the DB engine at module load time
 os.environ["DATABASE_URL"] = "sqlite:///./test_raluma.db"
+os.environ["SECRET_KEY"] = "test-only-secret-key-with-32-chars-123"
+os.environ["INITIAL_ADMIN_PASSWORD"] = "test-admin-pass-123"
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -29,7 +31,7 @@ def client():
 def admin_headers(client):
     """Auth headers for the seeded superadmin account."""
     r = client.post(
-        "/api/auth/login", json={"username": "admin", "password": "admin123"}
+        "/api/auth/login", json={"username": "admin", "password": "test-admin-pass-123"}
     )
     assert r.status_code == 200, f"Admin login failed: {r.text}"
     return {"Authorization": f"Bearer {r.json()['access_token']}"}

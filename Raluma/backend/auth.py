@@ -12,7 +12,9 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models
 
-SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production-please-use-env-var")
+SECRET_KEY = os.environ.get("SECRET_KEY", "")
+if len(SECRET_KEY) < 32 or SECRET_KEY.lower().startswith(("change", "replace")):
+    raise RuntimeError("Set SECRET_KEY to a random value of at least 32 characters")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 часа
 

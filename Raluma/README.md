@@ -1,20 +1,24 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Raluma
 
-# Run and deploy your AI Studio app
+Приложение для учёта заказов и расчёта стеклянных конструкций. Интерфейс написан на React и TypeScript, API — на FastAPI. Данные хранятся в SQLite, производственные листы формируются в PDF.
 
-This contains everything you need to run your app locally.
+## Структура
 
-View your app in AI Studio: https://ai.studio/apps/632644e7-8295-4f04-8459-b511a7a4c464
+- `src/` — страницы проектов и редактор секций;
+- `backend/api/` — HTTP API;
+- `backend/engine/` — расчёты и генерация документов;
+- `backend/tests/` — тесты API и расчётного модуля.
 
-## Run Locally
+## Запуск для разработки
 
-**Prerequisites:**  Node.js
+1. Скопируйте `.env.example` в `.env` и задайте случайный `SECRET_KEY` длиной не менее 32 символов и `INITIAL_ADMIN_PASSWORD` длиной не менее 12 символов. Значения из старых версий приложения использовать нельзя.
+2. В одном терминале установите зависимости из `backend/requirements.txt`, загрузите переменные из `.env` и запустите `uvicorn main:app --reload` из каталога `backend/`.
+3. В другом терминале выполните `npm ci` и `npm run dev` из этого каталога.
 
+Для развёртывания используется `docker-compose.yml`. Его backend-сервис читает значения из локального `.env`; этот файл не коммитится.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Проверки
+
+Из `backend/` выполните `pytest`. Из каталога приложения выполните `npm run check` и `npm run build`.
+
+Учётная запись администратора создаётся только при пустой базе. Пароль берётся из `INITIAL_ADMIN_PASSWORD`; в исходниках нет рабочего пароля по умолчанию.
