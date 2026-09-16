@@ -21,8 +21,12 @@ def seed_superadmin():
         existing = db.query(models.User).filter(models.User.username == "admin").first()
         if not existing:
             initial_password = os.environ.get("INITIAL_ADMIN_PASSWORD", "")
-            if len(initial_password) < 12 or initial_password.lower().startswith("replace"):
-                raise RuntimeError("Set INITIAL_ADMIN_PASSWORD to at least 12 characters")
+            if len(initial_password) < 12 or initial_password.lower().startswith(
+                "replace"
+            ):
+                raise RuntimeError(
+                    "Set INITIAL_ADMIN_PASSWORD to at least 12 characters"
+                )
             superadmin = models.User(
                 username="admin",
                 password_hash=hash_password(initial_password),

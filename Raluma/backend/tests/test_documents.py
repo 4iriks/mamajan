@@ -109,9 +109,7 @@ class TestOverrides:
         )
 
         # Читаем секцию, проверяем что оба поля на месте
-        s = client.get(
-            f"/api/projects/{pid}/sections", headers=admin_headers
-        ).json()
+        s = client.get(f"/api/projects/{pid}/sections", headers=admin_headers).json()
         sec = [x for x in s if x["id"] == sid][0]
         overrides = json.loads(sec.get("document_overrides", "{}"))
         assert overrides["field_a"] == "111"
@@ -133,9 +131,7 @@ class TestOverrides:
         )
         assert r.status_code == 200
 
-        s = client.get(
-            f"/api/projects/{pid}/sections", headers=admin_headers
-        ).json()
+        s = client.get(f"/api/projects/{pid}/sections", headers=admin_headers).json()
         sec = [x for x in s if x["id"] == sid][0]
         overrides = json.loads(sec.get("document_overrides", "{}"))
         assert overrides == {}
