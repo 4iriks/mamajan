@@ -531,8 +531,8 @@ class TestPreview:
         )
         assert r.status_code == 404
 
-    def test_preview_non_slide(self, client, admin_headers, project):
-        """Не-СЛАЙД секция возвращает HTML с сообщением."""
+    def test_preview_cs_returns_preliminary_sheet(self, client, admin_headers, project):
+        """ЦС возвращает предварительный производственный лист."""
         s = client.post(
             f"/api/projects/{project['id']}/sections",
             headers=admin_headers,
@@ -544,7 +544,9 @@ class TestPreview:
             params={"token": token},
         )
         assert r.status_code == 200
-        assert "для этой системы пока не реализован" in r.text
+        assert "Предварительный производственный лист ЦС" in r.text
+        assert "Расчёт ЦС предварительный" in r.text
+        assert "Зажимной профиль внешнего контура" in r.text
 
 
 class TestLocalPreview:
@@ -1549,7 +1551,6 @@ class TestSketchProject:
             assert response.status_code == 409
             detail = response.json()["detail"]
             assert detail["unsupported_sections"] == [
-                "ЦС 7 (ЦС)",
                 "Комплект 8 (КОМПЛЕКТАЦИЯ)",
             ]
 
@@ -5014,7 +5015,7 @@ class TestDeliveryNote:
         assert "RS1005" not in hardware
         assert "delivery_total_qty" not in context
 
-    def test_lift_uses_calculated_dimensions_while_unimplemented_systems_do_not(self):
+    def test_lift_and_cs_use_calculated_dimensions_while_book_uses_placeholder(self):
         project = self.project(
             delivery_note_data=json.dumps(
                 {"includeGlass": True, "places": {}}, ensure_ascii=False
@@ -5062,10 +5063,13 @@ class TestDeliveryNote:
         ]
         assert all(detail["width"] is not None for detail in lift_rows)
         assert all(detail["height"] is not None for detail in lift_rows)
+        cs_rows = [
+            detail for detail in detail_rows if detail["marking"].startswith("3,")
+        ]
+        assert all(detail["width"] is not None for detail in cs_rows)
+        assert all(detail["height"] is not None for detail in cs_rows)
         placeholder_rows = [
-            detail
-            for detail in detail_rows
-            if not detail["marking"].startswith("2,")
+            detail for detail in detail_rows if detail["marking"].startswith("1,")
         ]
         assert all(detail["width"] is None for detail in placeholder_rows)
         assert all(detail["height"] is None for detail in placeholder_rows)

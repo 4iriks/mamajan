@@ -22,6 +22,7 @@ from api.catalog import (
     SYSTEM_GROUPS,
     _decode_system_groups,
     _ensure_catalog_seed,
+    _finish_code,
     _price_category,
 )
 from auth import get_current_user, require_admin, user_can_manage_prices
@@ -102,7 +103,7 @@ def _apply_group_markup_to_catalog(
                     cost=variant.cost,
                     profile_markup_percent=variant.profile_markup_percent,
                     profile_discount_percent=variant.profile_discount_percent,
-                    waste_markup_percent=item.waste_percent,
+                    waste_markup_percent=variant.waste_markup_percent,
                     construction_markup_percent=group.markup_percent,
                     construction_discount_percent=variant.construction_discount_percent,
                     category=current.category
@@ -697,17 +698,36 @@ def _import_paint_mode(name: str, group: str, unit: str) -> str:
     return "Не красится" if non_paintable else "Красится"
 
 
+def _import_finish_code(variant: models.CatalogFinishVariant) -> str:
+    """Map legacy supplier-import rows without treating BASE as paintable anod."""
+
+    explicit = str(getattr(variant, "code", "") or "").strip().upper()
+    if explicit == "BASE":
+        return "COLORLESS"
+    if explicit == "ANOD":
+        return "ANOD_UNPAINTED"
+    return _finish_code(variant.name, explicit)
+
+
 def _target_finish_code(item: models.CatalogItem | None, paint_mode: str = "") -> str:
     if item is not None:
-        codes = {str(row.code or "").upper() for row in item.finish_variants if row.is_active}
+        codes = {
+            _import_finish_code(row)
+            for row in item.finish_variants
+            if row.is_active
+        }
+        if "ANOD_UNPAINTED" in codes:
+            return "ANOD_UNPAINTED"
+        if "COLORLESS" in codes:
+            return "COLORLESS"
         if "ANOD" in codes:
-            return "ANOD"
+            return "ANOD_UNPAINTED"
         if "BASE" in codes:
-            return "BASE"
+            return "COLORLESS"
         if not codes and "крас" in str(item.paint_mode or "").casefold() and "не крас" not in str(item.paint_mode or "").casefold():
-            return "ANOD"
-        return "BASE"
-    return "BASE" if paint_mode == "Не красится" else "ANOD"
+            return "ANOD_UNPAINTED"
+        return "COLORLESS"
+    return "COLORLESS" if paint_mode == "Не красится" else "ANOD_UNPAINTED"
 
 
 def _infer_category(item: models.CatalogItem) -> str:
@@ -849,7 +869,8 @@ def _import_preview(db: Session, content: bytes) -> dict:
             (
                 variant
                 for variant in getattr(item, "finish_variants", [])
-                if variant.is_active and str(variant.code or "").upper() == finish_code
+                if variant.is_active
+                and _import_finish_code(variant) == finish_code
             ),
             None,
         )
@@ -870,7 +891,11 @@ def _import_preview(db: Session, content: bytes) -> dict:
             if item is not None
             else "",
             "finish_code": finish_code,
-            "finish_name": "Анод" if finish_code == "ANOD" else "Без окраски",
+            "finish_name": (
+                "Анод/неокрас"
+                if finish_code == "ANOD_UNPAINTED"
+                else "Без цвета"
+            ),
             "effective_from": effective_from.isoformat(),
             "action": action,
             "status": status,
@@ -950,9 +975,9 @@ def _create_import_catalog_item(row: dict[str, Any], cost: Decimal) -> models.Ca
     markup = Decimal("35") if group in {"Профили", "Уплотнители"} else Decimal("40")
     waste = Decimal("4") if unit == "м.п." else Decimal("0")
     finish_codes = (
-        ["ANOD", "RAL_STANDARD", "RAL_NONSTANDARD"]
+        ["ANOD_UNPAINTED", "RAL_STANDARD", "RAL_MOIRE", "SUBLIMATION"]
         if paint_mode != "Не красится"
-        else ["BASE"]
+        else ["COLORLESS"]
     )
     item = models.CatalogItem(
         sku=str(row.get("sku") or "").strip().upper(),
@@ -993,6 +1018,7 @@ def _create_import_catalog_item(row: dict[str, Any], cost: Decimal) -> models.Ca
                 cost=selected_cost,
                 profile_markup_percent=markup,
                 profile_discount_percent=0,
+                waste_markup_percent=waste if code != "SUBLIMATION" else 0,
                 construction_markup_percent=0,
                 construction_discount_percent=0,
                 requires_paint=requires_paint,
@@ -1043,7 +1069,11 @@ def _import_version_payload(
         ),
         waste_markup_percent=selected(
             "waste_markup_percent",
-            current.waste_markup_percent if current is not None else item.waste_percent,
+            variant.waste_markup_percent
+            if variant is not None
+            else current.waste_markup_percent
+            if current is not None
+            else item.waste_percent,
         ),
         construction_markup_percent=selected(
             "construction_markup_percent",
@@ -1156,7 +1186,7 @@ def apply_price_import(
                     f"{item.unit} у {item.sku}"
                 )
                 continue
-        finish_code = str(row.get("finish_code") or "BASE").upper()
+        finish_code = str(row.get("finish_code") or "COLORLESS").upper()
         identity = (target_key, finish_code)
         if identity in seen_targets:
             errors.append(
@@ -1187,7 +1217,7 @@ def apply_price_import(
                     candidate
                     for candidate in item.finish_variants
                     if candidate.is_active
-                    and str(candidate.code or "").upper() == finish_code
+                    and _import_finish_code(candidate) == finish_code
                 ),
                 None,
             )
@@ -1213,6 +1243,7 @@ def apply_price_import(
                 variant.price = money(cost)
                 variant.profile_markup_percent = payload.profile_markup_percent
                 variant.profile_discount_percent = payload.profile_discount_percent
+                variant.waste_markup_percent = payload.waste_markup_percent
                 variant.construction_markup_percent = (
                     payload.construction_markup_percent
                 )

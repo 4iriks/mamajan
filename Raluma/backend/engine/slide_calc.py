@@ -152,11 +152,11 @@ def _is_standard_threshold(threshold: str | None) -> bool:
 
 
 def _is_painted(painting_type: str | None) -> bool:
-    """True если профиль красится (RAL стандарт или нестандарт)."""
+    """True для окрашиваемых и сублимируемых исполнений."""
     if not painting_type:
         return False
     pt = painting_type.lower()
-    return "рал" in pt or "ral" in pt
+    return "рал" in pt or "ral" in pt or "сублим" in pt
 
 
 def _normalize_threshold_for_painting(
@@ -188,8 +188,10 @@ def _format_color_text(
 ) -> str:
     """Текст цвета для производственного листа без служебного стандарт/нестандарт."""
     if _is_painted(painting_type):
-        ral = " ".join((ral_color or "").split())
-        return f"RAL {ral}" if ral else "RAL"
+        color = " ".join((ral_color or "").split())
+        if "сублим" in str(painting_type or "").casefold():
+            return f"Сублимация {color}".strip()
+        return f"RAL {color}" if color else "RAL"
     if "анод" in (threshold or "").lower():
         return "Анодированный"
     return painting_type or "—"

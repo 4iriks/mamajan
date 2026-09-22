@@ -1121,6 +1121,103 @@ def _add_book_checklist(
     signatures.style = "Table Grid"
 
 
+def _add_cs_glass(document: Document, calc: object) -> None:
+    _add_bar(document, "Стекла · предварительные размеры")
+    table = document.add_table(rows=1, cols=6)
+    headers = ("№", "Ширина, мм", "Высота, мм", "Площадь, м²", "Кол-во", "Примечание")
+    for index, header in enumerate(headers):
+        _set_cell_text(
+            table.cell(0, index),
+            header,
+            bold=True,
+            size=7,
+            align=WD_ALIGN_PARAGRAPH.CENTER,
+        )
+        _set_cell_shading(table.cell(0, index), HEADER_GRAY)
+    for pane in getattr(calc, "panes", None) or []:
+        row = table.add_row()
+        values = (
+            getattr(pane, "number", ""),
+            format_dimension(getattr(pane, "width_mm", 0)),
+            format_dimension(getattr(pane, "height_mm", 0)),
+            format_dimension(getattr(pane, "area_m2", 0)),
+            getattr(pane, "qty", 1),
+            "Контур по схеме; размеры габаритные",
+        )
+        for column, value in enumerate(values):
+            _set_cell_text(
+                row.cells[column],
+                value,
+                size=7,
+                align=WD_ALIGN_PARAGRAPH.CENTER if column < 5 else None,
+            )
+        _prevent_row_split(row)
+    table.style = "Table Grid"
+
+
+def _add_cs_profiles(document: Document, calc: object) -> None:
+    _add_bar(document, "Профили · предварительная ведомость")
+    table = document.add_table(rows=1, cols=5)
+    headers = ("Артикул", "Наименование", "Общая длина, мм", "Отрезков, шт", "Статус")
+    for index, header in enumerate(headers):
+        _set_cell_text(
+            table.cell(0, index),
+            header,
+            bold=True,
+            size=7,
+            align=WD_ALIGN_PARAGRAPH.CENTER,
+        )
+        _set_cell_shading(table.cell(0, index), HEADER_GRAY)
+    for profile in getattr(calc, "profiles", None) or []:
+        row = table.add_row()
+        values = (
+            getattr(profile, "article", ""),
+            getattr(profile, "name", ""),
+            format_dimension(getattr(profile, "total_length_mm", 0)),
+            getattr(profile, "pieces", 0),
+            "ПРЕДВАРИТЕЛЬНО",
+        )
+        for column, value in enumerate(values):
+            _set_cell_text(
+                row.cells[column],
+                value,
+                bold=column == 4,
+                size=7,
+                color=RED if column == 4 else BLACK,
+                align=WD_ALIGN_PARAGRAPH.CENTER if column != 1 else None,
+            )
+        _prevent_row_split(row)
+    table.style = "Table Grid"
+
+
+def _add_cs_notes(
+    document: Document,
+    section: object,
+    overrides: dict[str, Any],
+) -> None:
+    _add_bar(document, "Примечания")
+    table = document.add_table(rows=1, cols=1)
+    text = override_value(
+        overrides,
+        "section_comments",
+        getattr(section, "comments", "") or "",
+    )
+    _set_cell_text(table.cell(0, 0), text, size=8)
+    table.rows[0].height = Mm(16)
+    table.rows[0].height_rule = WD_ROW_HEIGHT_RULE.AT_LEAST
+    table.style = "Table Grid"
+    paragraph = document.add_paragraph()
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = paragraph.add_run(
+        "Коммерческая стоимость и дверная фурнитура ЦС не формируются до "
+        "подтверждения расчётных формул заказчиком."
+    )
+    run.bold = True
+    run.font.name = "Arial"
+    run.font.size = Pt(7)
+    run.font.color.rgb = RGBColor.from_string(RED)
+
+
 def build_section_docx(project: object, section: object, calc: object) -> bytes:
     document = Document()
     _configure_document(document, landscape=False)
@@ -1128,10 +1225,20 @@ def build_section_docx(project: object, section: object, calc: object) -> bytes:
     label = {
         "ЛИФТ": "ЛИФТ · ПРОИЗВОДСТВЕННЫЙ ЛИСТ",
         "КНИЖКА": "КНИЖКА · ПРЕДВАРИТЕЛЬНЫЙ ПРОИЗВОДСТВЕННЫЙ ЛИСТ",
+        "ЦС": "ЦС · ПРЕДВАРИТЕЛЬНЫЙ ПРОИЗВОДСТВЕННЫЙ ЛИСТ",
     }.get(system, "СЛАЙД · ПРОИЗВОДСТВЕННЫЙ ЛИСТ")
     overrides = load_overrides(section)
     _add_header(document, project, section, label)
     _add_calc_warnings(document, calc)
+    if system == "ЦС":
+        _add_summary(document, section, calc)
+        _add_diagrams(document, section, calc)
+        _add_cs_glass(document, calc)
+        _add_cs_profiles(document, calc)
+        _add_cs_notes(document, section, overrides)
+        output = io.BytesIO()
+        document.save(output)
+        return output.getvalue()
     if system == "КНИЖКА":
         sheet = build_book_sheet_data(section, calc)
         _add_book_warning(document, sheet.warning)

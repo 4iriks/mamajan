@@ -61,7 +61,7 @@ const section: Section = {
   panels: 4,
   quantity: 1,
   glassType: 'Стекло 10мм',
-  paintingType: 'Анодированный',
+  paintingType: 'Анод/неокрас',
   cornerLeft: false,
   cornerRight: false,
   rails: 3,

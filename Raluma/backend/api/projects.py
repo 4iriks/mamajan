@@ -182,8 +182,9 @@ def _normalize_project_extras(raw: str | None, db: Session) -> str:
         visible_variants = [
             entry
             for entry in variants
-            if str(getattr(entry, "code", "") or "").strip().upper() != "BASE"
-            and entry.name.strip().casefold() not in {"без цвета", "без окраски"}
+            if str(getattr(entry, "code", "") or "").strip().upper()
+            not in {"BASE", "COLORLESS"}
+            and entry.name.strip().casefold() not in {"без цвета"}
         ]
         if variant_id is not None and variant is None:
             raise HTTPException(
@@ -245,8 +246,9 @@ def _normalize_project_extras(raw: str | None, db: Session) -> str:
         if variant is not None:
             finish_name = (
                 ""
-                if str(getattr(variant, "code", "") or "").strip().upper() == "BASE"
-                or variant.name.strip().casefold() in {"без цвета", "без окраски"}
+                if str(getattr(variant, "code", "") or "").strip().upper()
+                in {"BASE", "COLORLESS"}
+                or variant.name.strip().casefold() in {"без цвета"}
                 else variant.name
             )
             requires_paint = bool(variant.requires_paint)

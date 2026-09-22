@@ -39,7 +39,7 @@ def _profile(
         unit="м.п.",
         paint_mode=paint_mode,
         color_variants=(
-            ("Анод", "RAL стандарт", "RAL нестандарт")
+            ("Анод/неокрас", "RAL стандарт", "RAL муар", "Сублимация")
             if painted or partial
             else ("Без цвета",)
         ),

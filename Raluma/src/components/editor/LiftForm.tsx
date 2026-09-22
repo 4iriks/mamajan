@@ -77,7 +77,7 @@ function PaintingFields({
     <div className="space-y-1.5">
       <label className={LBL}>Окрашивание</label>
       <div className="space-y-1.5">
-        {(['RAL стандарт', 'RAL нестандарт', 'Анодированный'] as const).map(type => (
+        {(['Анод/неокрас', 'RAL стандарт', 'RAL муар', 'Сублимация'] as const).map(type => (
           <button
             key={type}
             type="button"
@@ -100,15 +100,15 @@ function PaintingFields({
         ))}
       </div>
 
-      {section.paintingType.includes('RAL') && (
+      {(section.paintingType.includes('RAL') || section.paintingType === 'Сублимация') && (
         <div className="mt-2 space-y-1.5">
-          <label className={LBL}>Цвет RAL</label>
+          <label className={LBL}>{section.paintingType === 'Сублимация' ? 'Декор' : 'Цвет RAL'}</label>
           <input
             type="text"
             value={section.ralColor || ''}
             onChange={event => update({ ralColor: event.target.value })}
             className={INP}
-            placeholder="Напр. 9016 МАТОВЫЙ"
+            placeholder={section.paintingType === 'Сублимация' ? 'Название декора' : 'Напр. 9016 МАТОВЫЙ'}
           />
         </div>
       )}

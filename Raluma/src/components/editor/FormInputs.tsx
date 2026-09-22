@@ -127,7 +127,8 @@ export function getSectionTypeLabel(s: Section): string {
 }
 
 export function getSectionColorLabel(s: Section): string {
-  if (s.paintingType === 'Анодированный') return 'Анод.';
+  if (s.paintingType === 'Анод/неокрас') return 'Анод/неокрас';
   if (s.paintingType.includes('RAL')) return s.ralColor ? `RAL ${s.ralColor}` : 'RAL';
+  if (s.paintingType === 'Сублимация') return s.ralColor ? `Сублимация · ${s.ralColor}` : 'Сублимация';
   return '';
 }

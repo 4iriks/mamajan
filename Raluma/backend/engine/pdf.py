@@ -428,6 +428,8 @@ def _section_sheet_template(section) -> str:
         return "lift_section_sheet.html"
     if system == "КНИЖКА":
         return "book_section_sheet.html"
+    if system == "ЦС":
+        return "cs_section_sheet.html"
     return "section_sheet.html"
 
 
@@ -444,6 +446,21 @@ def _book_sheet_context(section: object, calc: object) -> dict:
     return {
         "book_sheet": build_book_sheet_data(section, calc),
         "book_diagrams": diagrams,
+    }
+
+
+def _cs_sheet_context(section: object, calc: object) -> dict:
+    if str(getattr(section, "system", "") or "").strip().upper() != "ЦС":
+        return {}
+    from engine.office_diagrams import section_diagrams
+
+    diagrams = section_diagrams(section, calc)
+    return {
+        "cs_diagram": (
+            f"data:image/png;base64,{base64.b64encode(diagrams[0][1]).decode('ascii')}"
+            if diagrams
+            else ""
+        )
     }
 
 
@@ -469,6 +486,7 @@ def render_preview(project, section, calc) -> str:
         overrides=overrides,
         is_pdf=False,
         **_book_sheet_context(section, calc),
+        **_cs_sheet_context(section, calc),
     )
 
 
@@ -493,6 +511,7 @@ def render_pdf_html(project, section, calc) -> str:
         overrides=overrides,
         is_pdf=True,
         **_book_sheet_context(section, calc),
+        **_cs_sheet_context(section, calc),
     )
 
 

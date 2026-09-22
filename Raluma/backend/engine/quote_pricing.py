@@ -635,18 +635,28 @@ def _catalog_finish_name(section: object, *, painted: bool) -> str:
         str(getattr(section, "painting_type", "") or "").strip().split()
     )
     if not painted:
-        return "Анод" if painting_type == "Анодированный" else "Анод"
-    if painting_type in {"RAL стандарт", "RAL нестандарт"}:
-        return painting_type
-    return "Анод"
+        return "Анод/неокрас"
+    aliases = {
+        "Анод": "Анод/неокрас",
+        "Анодированный": "Анод/неокрас",
+        "Без окраски": "Анод/неокрас",
+        "RAL нестандарт": "RAL муар",
+    }
+    normalized = aliases.get(painting_type, painting_type)
+    if normalized in {"Анод/неокрас", "RAL стандарт", "RAL муар", "Сублимация"}:
+        return normalized
+    return "Анод/неокрас"
 
 
 def _normalized_finish(value: object) -> str:
     normalized = " ".join(str(value or "").strip().casefold().split())
     aliases = {
-        "анодированный": "анод",
-        "анодирование": "анод",
-        "без окраски": "без цвета",
+        "анод": "анод/неокрас",
+        "анодированный": "анод/неокрас",
+        "анодирование": "анод/неокрас",
+        "неокрас": "анод/неокрас",
+        "без окраски": "анод/неокрас",
+        "ral нестандарт": "ral муар",
     }
     return aliases.get(normalized, normalized)
 
@@ -662,7 +672,7 @@ def _finish_variant_cost(
     requested = _normalized_finish(requested_finish)
     candidates = {_normalized_finish(row.name): row for row in active_variants}
     variant = candidates.get(requested)
-    if variant is None and requested == "анод":
+    if variant is None and requested == "анод/неокрас":
         variant = next(
             (row for row in active_variants if "анод" in _normalized_finish(row.name)),
             None,
@@ -1132,7 +1142,11 @@ def _price_requirement(
             if finish_variant is not None
             else version.profile_discount_percent
         )
-        waste_markup = decimal_value(version.waste_markup_percent)
+        waste_markup = decimal_value(
+            finish_variant.waste_markup_percent
+            if finish_variant is not None
+            else version.waste_markup_percent
+        )
         construction_markup = decimal_value(
             finish_variant.construction_markup_percent
             if finish_variant is not None
@@ -1147,23 +1161,23 @@ def _price_requirement(
 
     quantity = decimal_value(required["quantity"])
     base_cost = cost * quantity
+    profile_after_markup = base_cost * _markup_factor(profile_markup)
+    profile_after_discount = profile_after_markup * _discount_factor(profile_discount)
+    construction_after_waste = base_cost * _markup_factor(waste_markup)
+    construction_after_markup = construction_after_waste * _markup_factor(
+        construction_markup
+    )
+    construction_after_discount = construction_after_markup * _discount_factor(
+        construction_discount
+    )
     waste_markup_applied = False
     if mode == "construction":
-        multiplier = (
-            _markup_factor(profile_markup)
-            * _discount_factor(profile_discount)
-            * _markup_factor(construction_markup)
-            * _discount_factor(construction_discount)
-        )
-        waste_markup_applied = (
-            _canonical_unit(required["unit"]) not in {"piece", "set"}
-            and waste_markup > 0
-        )
-        if waste_markup_applied:
-            multiplier *= _markup_factor(waste_markup)
+        # The two price chains are deliberately independent.  A construction
+        # starts from cost and never inherits standalone profile markup/discount.
+        waste_markup_applied = waste_markup > 0
+        internal_total = money(construction_after_discount)
     else:
-        multiplier = _markup_factor(profile_markup) * _discount_factor(profile_discount)
-    internal_total = money(base_cost * multiplier)
+        internal_total = money(profile_after_discount)
     minimum_total = money(base_cost * _markup_factor(min_margin))
     return {
         **required,
@@ -1184,6 +1198,19 @@ def _price_requirement(
         "waste_markup_applied": waste_markup_applied,
         "construction_markup_percent": decimal_text(construction_markup),
         "construction_discount_percent": decimal_text(construction_discount),
+        "price_stages": {
+            "profile": {
+                "base_cost": money_text(base_cost),
+                "after_markup": money_text(profile_after_markup),
+                "after_discount": money_text(profile_after_discount),
+            },
+            "construction": {
+                "base_cost": money_text(base_cost),
+                "after_waste": money_text(construction_after_waste),
+                "after_markup": money_text(construction_after_markup),
+                "after_discount": money_text(construction_after_discount),
+            },
+        },
         "min_margin_percent": decimal_text(min_margin),
         "internal_total": money_text(internal_total),
         "minimum_total": money_text(minimum_total),

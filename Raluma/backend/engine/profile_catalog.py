@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from engine.lift_catalog import LIFT_CATALOG_SPECS
 
 
-DEFAULT_COLOR_VARIANTS = ("Анод", "RAL стандарт", "RAL нестандарт")
+DEFAULT_COLOR_VARIANTS = ("Анод/неокрас", "RAL стандарт", "RAL муар", "Сублимация")
 
 
 @dataclass(frozen=True)

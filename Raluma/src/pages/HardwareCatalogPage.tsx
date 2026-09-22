@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -6,12 +6,20 @@ import {
   ImageIcon, Plus, Ruler, Save, Scale, Search, SlidersHorizontal, Trash2, X,
 } from 'lucide-react';
 import {
+  applyCatalogPricingBulk,
   archiveHardwareCatalogItem,
+  createCsSystem,
   createHardwareCatalogItem,
+  listCsSystems,
   listHardwareCatalog,
   listSystemMarkups,
+  previewCatalogPricingBulk,
   updateSystemMarkup,
   updateHardwareCatalogItem,
+  updateCsSystem,
+  type CatalogPricingBulkRequest,
+  type CatalogPricingBulkResult,
+  type CsSystem,
   type CatalogUnit,
   type CatalogFinishVariant,
   type FinishCode,
@@ -37,22 +45,39 @@ const STORAGE_KEY = 'raluma-hardware-catalog-draft-v1';
 
 const GROUPS: HardwareGroup[] = ['Профили', 'Фурнитура', 'Ручки', 'Замки', 'Защёлки', 'Уплотнители', 'Крепёж', 'Расходники', 'Услуги'];
 const UNITS: CatalogUnit[] = ['шт', 'м.п.', 'м²', 'компл.', 'кг'];
-const DEFAULT_COLOR_VARIANTS = ['Анод', 'RAL стандарт', 'RAL нестандарт'];
+const DEFAULT_COLOR_VARIANTS = ['Анод/неокрас', 'RAL стандарт', 'RAL муар', 'Сублимация'];
 const SYSTEM_GROUPS: Array<{ code: SystemGroupCode; label: string }> = [
   { code: 'SLIDE_1', label: 'СЛАЙД 1 ряд' },
   { code: 'SLIDE_2', label: 'СЛАЙД 2 ряда' },
+  { code: 'CS', label: 'ЦС' },
 ];
 const FINISHES: Record<FinishCode, { name: string; requiresPaint: boolean }> = {
-  BASE: { name: 'Без окраски', requiresPaint: false },
-  ANOD: { name: 'Анод', requiresPaint: false },
+  COLORLESS: { name: 'Без цвета', requiresPaint: false },
+  ANOD_UNPAINTED: { name: 'Анод/неокрас', requiresPaint: false },
   RAL_STANDARD: { name: 'RAL стандарт', requiresPaint: true },
-  RAL_NONSTANDARD: { name: 'RAL нестандарт', requiresPaint: true },
+  RAL_MOIRE: { name: 'RAL муар', requiresPaint: true },
+  SUBLIMATION: { name: 'Сублимация', requiresPaint: true },
 };
 
 function finishCodes(paintMode: PaintMode): FinishCode[] {
   return paintMode === 'Не красится'
-    ? ['BASE']
-    : ['ANOD', 'RAL_STANDARD', 'RAL_NONSTANDARD'];
+    ? ['COLORLESS']
+    : ['ANOD_UNPAINTED', 'RAL_STANDARD', 'RAL_MOIRE', 'SUBLIMATION'];
+}
+
+function normalizeFinishCode(code: string | undefined, name: string, paintMode: PaintMode): FinishCode {
+  const normalizedCode = (code || '').trim().toUpperCase();
+  if (normalizedCode === 'ANOD' || normalizedCode === 'BASE') {
+    return paintMode === 'Не красится' ? 'COLORLESS' : 'ANOD_UNPAINTED';
+  }
+  if (normalizedCode === 'RAL_NONSTANDARD') return 'RAL_MOIRE';
+  if (normalizedCode in FINISHES) return normalizedCode as FinishCode;
+  const normalizedName = name.toLowerCase();
+  if (normalizedName.includes('сублим')) return 'SUBLIMATION';
+  if (normalizedName.includes('нестандарт') || normalizedName.includes('муар')) return 'RAL_MOIRE';
+  if (normalizedName.includes('ral')) return 'RAL_STANDARD';
+  if (normalizedName.includes('анод') || normalizedName.includes('неокрас')) return 'ANOD_UNPAINTED';
+  return paintMode === 'Не красится' ? 'COLORLESS' : 'ANOD_UNPAINTED';
 }
 
 function defaultFinish(code: FinishCode, cost = 0): CatalogFinishVariant {
@@ -62,6 +87,7 @@ function defaultFinish(code: FinishCode, cost = 0): CatalogFinishVariant {
     cost,
     profileMarkupPercent: 0,
     profileDiscountPercent: 0,
+    wasteMarkupPercent: 0,
     constructionMarkupPercent: 0,
     constructionDiscountPercent: 0,
     requiresPaint: FINISHES[code].requiresPaint,
@@ -617,8 +643,8 @@ const emptyDraft = (): HardwareItem => ({
   sectionHeightMm: 0,
   imageFile: '',
   paintMode: 'Не красится',
-  colorVariants: ['Без окраски'],
-  finishVariants: [defaultFinish('BASE')],
+  colorVariants: ['Без цвета'],
+  finishVariants: [defaultFinish('COLORLESS')],
   supplier: '',
   isActive: true,
   updatedAt: new Date().toISOString().slice(0, 10),
@@ -630,11 +656,7 @@ function normalizeItem(item: Partial<HardwareItem>): HardwareItem {
   const paintMode = item.paintMode ?? 'Не красится';
   const existingVariants = new Map(
     (item.finishVariants || []).map(variant => [
-      variant.code || (
-        variant.name.toLowerCase().includes('нестандарт') ? 'RAL_NONSTANDARD'
-          : variant.name.toLowerCase().includes('ral') ? 'RAL_STANDARD'
-            : variant.name.toLowerCase().includes('анод') ? 'ANOD' : 'BASE'
-      ),
+      normalizeFinishCode(variant.code, variant.name, paintMode),
       variant,
     ]),
   );
@@ -647,6 +669,7 @@ function normalizeItem(item: Partial<HardwareItem>): HardwareItem {
       name: FINISHES[code].name,
       profileMarkupPercent: Number(existing?.profileMarkupPercent ?? item.markupPercent ?? 0),
       profileDiscountPercent: Number(existing?.profileDiscountPercent ?? item.profileDiscountPercent ?? 0),
+      wasteMarkupPercent: Number(existing?.wasteMarkupPercent ?? item.wastePercent ?? 0),
       constructionMarkupPercent: Number(existing?.constructionMarkupPercent ?? item.constructionMarkupPercent ?? 0),
       constructionDiscountPercent: Number(existing?.constructionDiscountPercent ?? item.constructionDiscountPercent ?? 0),
       requiresPaint: FINISHES[code].requiresPaint,
@@ -718,9 +741,9 @@ function profileSale(variant: CatalogFinishVariant) {
     * (1 - Number(variant.profileDiscountPercent || 0) / 100);
 }
 
-function costWithWaste(item: HardwareItem, variant: CatalogFinishVariant) {
-  const waste = ['шт', 'компл.'].includes(item.unit) ? 0 : item.wastePercent;
-  return profileSale(variant) * (1 + waste / 100);
+function costWithWaste(_item: HardwareItem, variant: CatalogFinishVariant) {
+  return Number(variant.cost || 0)
+    * (1 + Number(variant.wasteMarkupPercent || 0) / 100);
 }
 
 function constructionPrice(item: HardwareItem, variant: CatalogFinishVariant) {
@@ -766,6 +789,7 @@ function NumberInput({
           type="number"
           value={value}
           onChange={event => onChange(Number(event.target.value))}
+          onWheel={event => event.currentTarget.blur()}
           className={`${INPUT_CLS} pr-14 font-mono`}
           min={0}
           max={max}
@@ -797,12 +821,28 @@ function PriceField({
           step="0.01"
           value={value}
           onChange={event => onChange(event.target.value)}
+          onWheel={event => event.currentTarget.blur()}
           className="h-11 w-full rounded-xl border border-tint/30 bg-hi/[0.04] px-3 pr-8 font-mono text-sm outline-none transition-colors focus:border-accent/60"
         />
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-fg/35">{suffix}</span>
       </span>
     </label>
   );
+}
+
+function PriceOutput({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="min-w-[116px]">
+      <span className="mb-1.5 block text-[9px] font-bold uppercase leading-tight tracking-wider text-fg/35">{label}</span>
+      <div className="flex h-11 items-center rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] px-3 font-mono text-sm font-bold text-emerald-200">
+        {formatMoney(value)}
+      </div>
+    </div>
+  );
+}
+
+function ChainArrow() {
+  return <span className="hidden pt-6 text-sm font-bold text-accent/55 xl:block">→</span>;
 }
 
 export default function HardwareCatalogPage() {
@@ -817,18 +857,66 @@ export default function HardwareCatalogPage() {
   const [status, setStatus] = useState<'all' | 'active' | 'inactive'>('active');
   const [activeCatalogTab, setActiveCatalogTab] = useState<'items' | 'markups'>('items');
   const [draft, setDraft] = useState<HardwareItem | null>(null);
+  const [originalDraft, setOriginalDraft] = useState('');
+  const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
   const [systemMarkups, setSystemMarkups] = useState<SystemMarkup[]>([]);
-  const [systemMarkupDrafts, setSystemMarkupDrafts] = useState<Record<SystemGroupCode, string>>({ SLIDE_1: '', SLIDE_2: '' });
+  const [csSystems, setCsSystems] = useState<CsSystem[]>([]);
+  const [savingCsSystem, setSavingCsSystem] = useState<number | null>(null);
+  const [systemMarkupDrafts, setSystemMarkupDrafts] = useState<Record<SystemGroupCode, string>>({ SLIDE_1: '', SLIDE_2: '', CS: '' });
   const [savingSystemGroup, setSavingSystemGroup] = useState<SystemGroupCode | null>(null);
+  const [bulkScope, setBulkScope] = useState<'filtered' | 'all'>('filtered');
+  const [bulkFinishCodes, setBulkFinishCodes] = useState<FinishCode[]>(['ANOD_UNPAINTED', 'RAL_STANDARD', 'RAL_MOIRE', 'SUBLIMATION', 'COLORLESS']);
+  const [bulkValues, setBulkValues] = useState({
+    profile_markup_percent: '',
+    profile_discount_percent: '',
+    waste_markup_percent: '',
+    construction_markup_percent: '',
+    construction_discount_percent: '',
+  });
+  const [bulkReason, setBulkReason] = useState('Массовая настройка цен каталога');
+  const [bulkPreview, setBulkPreview] = useState<CatalogPricingBulkResult | null>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
   const [costImport, setCostImport] = useState<CatalogPriceImportPreview | null>(null);
   const [costImportOpen, setCostImportOpen] = useState(false);
   const [costImportLoading, setCostImportLoading] = useState(false);
   const [costImportFilename, setCostImportFilename] = useState('');
   const [costImportReason, setCostImportReason] = useState('Сверка себестоимости из файла поставщика');
 
+  const isDraftDirty = Boolean(draft && JSON.stringify(draft) !== originalDraft);
+
+  const openDraft = (source: HardwareItem) => {
+    const next = normalizeItem(JSON.parse(JSON.stringify(source)) as HardwareItem);
+    setDraft(next);
+    setOriginalDraft(JSON.stringify(next));
+    setUnsavedDialogOpen(false);
+  };
+
+  const closeDraft = useCallback(() => {
+    setDraft(null);
+    setOriginalDraft('');
+    setUnsavedDialogOpen(false);
+  }, []);
+
+  const requestCloseDraft = useCallback(() => {
+    if (isDraftDirty) {
+      setUnsavedDialogOpen(true);
+      return;
+    }
+    closeDraft();
+  }, [closeDraft, isDraftDirty]);
+
   useEffect(() => {
     if (!isAdmin()) navigate('/');
   }, [isAdmin, navigate]);
+
+  useEffect(() => {
+    if (!draft) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') requestCloseDraft();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [draft, requestCloseDraft]);
 
   useEffect(() => {
     if (!isAdmin()) return;
@@ -837,15 +925,17 @@ export default function HardwareCatalogPage() {
     setIsCatalogLoading(true);
     setCatalogError(false);
 
-    Promise.all([listHardwareCatalog(), listSystemMarkups()])
-      .then(([remoteItems, markups]) => {
+    Promise.all([listHardwareCatalog(), listSystemMarkups(), listCsSystems()])
+      .then(([remoteItems, markups, csRows]) => {
         if (cancelled) return;
         const next = remoteItems.map(item => normalizeItem(item));
         setItems(next);
         setSystemMarkups(markups);
+        setCsSystems(csRows);
         setSystemMarkupDrafts({
           SLIDE_1: markups.find(row => row.code === 'SLIDE_1')?.constructionMarkupPercent?.toString() ?? '',
           SLIDE_2: markups.find(row => row.code === 'SLIDE_2')?.constructionMarkupPercent?.toString() ?? '',
+          CS: markups.find(row => row.code === 'CS')?.constructionMarkupPercent?.toString() ?? '',
         });
       })
       .catch(() => {
@@ -918,13 +1008,14 @@ export default function HardwareCatalogPage() {
       sku: draft.sku.trim(),
       name: draft.name.trim(),
       system: draft.system || 'СЛАЙД',
-      wastePercent: ['шт', 'компл.'].includes(draft.unit) ? 0 : draft.wastePercent,
+      wastePercent: Number(draft.finishVariants?.[0]?.wasteMarkupPercent || 0),
       colorVariants: (draft.finishVariants || []).map(variant => variant.name),
       finishVariants: (draft.finishVariants || []).map(variant => ({
         ...variant,
         cost: Number(variant.cost) || 0,
         profileMarkupPercent: Number(variant.profileMarkupPercent) || 0,
         profileDiscountPercent: Number(variant.profileDiscountPercent) || 0,
+        wasteMarkupPercent: Number(variant.wasteMarkupPercent) || 0,
         constructionMarkupPercent: Number(variant.constructionMarkupPercent) || 0,
         constructionDiscountPercent: Number(variant.constructionDiscountPercent) || 0,
       })),
@@ -939,7 +1030,7 @@ export default function HardwareCatalogPage() {
       setItems(prev => exists
         ? prev.map(item => item.id === normalizedSaved.id ? normalizedSaved : item)
         : [normalizedSaved, ...prev]);
-      setDraft(null);
+      closeDraft();
       toast.success('Позиция сохранена');
     } catch {
       toast.error('Не удалось сохранить позицию');
@@ -964,6 +1055,42 @@ export default function HardwareCatalogPage() {
       toast.error('Не удалось изменить наценку группы');
     } finally {
       setSavingSystemGroup(null);
+    }
+  };
+
+  const handleCsSystemSave = async (row: CsSystem) => {
+    setSavingCsSystem(row.id);
+    try {
+      const saved = await updateCsSystem(row.id, {
+        code: row.code.trim(),
+        name: row.name.trim(),
+        outer_profile_item_id: row.outer_profile_item_id,
+        joint_profile_item_id: row.joint_profile_item_id,
+        is_active: row.is_active,
+      });
+      setCsSystems(current => current.map(system => system.id === saved.id ? saved : system));
+      toast.success('Система ЦС сохранена');
+    } catch {
+      toast.error('Не удалось сохранить систему ЦС');
+    } finally {
+      setSavingCsSystem(null);
+    }
+  };
+
+  const handleCsSystemAdd = async () => {
+    try {
+      const sequence = csSystems.length + 1;
+      const saved = await createCsSystem({
+        code: `CS_${sequence}`,
+        name: `Система ЦС ${sequence}`,
+        outer_profile_item_id: null,
+        joint_profile_item_id: null,
+        is_active: true,
+      });
+      setCsSystems(current => [...current, saved]);
+      toast.success('Система ЦС добавлена');
+    } catch {
+      toast.error('Не удалось добавить систему ЦС');
     }
   };
 
@@ -1044,6 +1171,65 @@ export default function HardwareCatalogPage() {
     }
   };
 
+  const buildBulkRequest = (): CatalogPricingBulkRequest | null => {
+    const itemIds = (bulkScope === 'filtered' ? filtered : items.filter(item => item.isActive)).map(item => item.id);
+    const values = (Object.entries(bulkValues) as Array<[keyof typeof bulkValues, string]>)
+      .filter(([, value]) => value.trim() !== '');
+    if (!itemIds.length) {
+      toast.error('Нет позиций для изменения');
+      return null;
+    }
+    if (!bulkFinishCodes.length) {
+      toast.error('Выберите хотя бы одно исполнение');
+      return null;
+    }
+    if (!values.length) {
+      toast.error('Заполните хотя бы одно поле цены');
+      return null;
+    }
+    if (!bulkReason.trim()) {
+      toast.error('Укажите причину изменения');
+      return null;
+    }
+    return {
+      item_ids: itemIds,
+      finish_codes: bulkFinishCodes,
+      reason: bulkReason.trim(),
+      ...Object.fromEntries(values.map(([key, value]) => [key, Number(value)])),
+    } as CatalogPricingBulkRequest;
+  };
+
+  const handleBulkPreview = async () => {
+    const payload = buildBulkRequest();
+    if (!payload) return;
+    setBulkLoading(true);
+    try {
+      setBulkPreview(await previewCatalogPricingBulk(payload));
+    } catch {
+      setBulkPreview(null);
+      toast.error('Не удалось подготовить массовое изменение');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleBulkApply = async () => {
+    const payload = buildBulkRequest();
+    if (!payload) return;
+    setBulkLoading(true);
+    try {
+      const result = await applyCatalogPricingBulk(payload);
+      const remoteItems = await listHardwareCatalog();
+      setItems(remoteItems.map(item => normalizeItem(item)));
+      setBulkPreview(null);
+      toast.success(`Обновлено исполнений: ${result.count}`);
+    } catch {
+      toast.error('Не удалось применить массовое изменение');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-page text-fg font-sans flex flex-col">
       <nav className="sticky top-0 z-40 bg-page/90 backdrop-blur-md border-b border-tint/25 px-6 py-4 flex items-center justify-between">
@@ -1084,7 +1270,7 @@ export default function HardwareCatalogPage() {
                 <FileUp className="w-5 h-5" />
                 Импорт себестоимости
               </button>
-              <button onClick={() => setDraft(emptyDraft())}
+              <button onClick={() => openDraft(emptyDraft())}
                 className="flex items-center justify-center gap-2 px-6 py-3.5 bg-primary hover:bg-primary-h text-white font-bold rounded-2xl transition-all shadow-lg shadow-primary/20">
                 <Plus className="w-5 h-5" />
                 Добавить позицию
@@ -1180,6 +1366,20 @@ export default function HardwareCatalogPage() {
         </div>}
 
         {activeCatalogTab === 'markups' && <section className="mx-auto mb-5 w-full max-w-5xl rounded-2xl border border-tint/25 bg-surface/30 p-5 sm:p-6">
+          <div className="mb-5 flex items-center justify-between gap-3 border-b border-tint/20 pb-4">
+            <div><h2 className="text-lg font-bold">Системы ЦС</h2><p className="mt-1 text-sm text-fg/45">Связь внешнего зажимного профиля и профиля стыка с единым каталогом.</p></div>
+            <button type="button" onClick={handleCsSystemAdd} className="flex items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-4 py-2.5 text-xs font-bold text-accent"><Plus className="h-4 w-4" />Добавить</button>
+          </div>
+          <div className="space-y-3">{csSystems.map(row => <div key={row.id} className="grid gap-3 rounded-xl border border-tint/25 bg-hi/[0.025] p-3 lg:grid-cols-[120px_1fr_1fr_1fr_auto] lg:items-end">
+            <label><span className="mb-1.5 block text-[9px] font-bold uppercase tracking-wider text-fg/40">Код</span><input value={row.code} onChange={event => setCsSystems(current => current.map(system => system.id === row.id ? { ...system, code: event.target.value } : system))} className={`${INPUT_CLS} font-mono`} /></label>
+            <label><span className="mb-1.5 block text-[9px] font-bold uppercase tracking-wider text-fg/40">Название</span><input value={row.name} onChange={event => setCsSystems(current => current.map(system => system.id === row.id ? { ...system, name: event.target.value } : system))} className={INPUT_CLS} /></label>
+            <label><span className="mb-1.5 block text-[9px] font-bold uppercase tracking-wider text-fg/40">Внешний профиль</span><select value={row.outer_profile_item_id || ''} onChange={event => setCsSystems(current => current.map(system => system.id === row.id ? { ...system, outer_profile_item_id: Number(event.target.value) || null } : system))} className={SELECT_CLS}><option value="">Артикул уточняется</option>{items.filter(item => item.isActive && item.group === 'Профили').map(item => <option key={item.id} value={item.id}>{item.sku} — {item.name}</option>)}</select></label>
+            <label><span className="mb-1.5 block text-[9px] font-bold uppercase tracking-wider text-fg/40">Профиль стыка</span><select value={row.joint_profile_item_id || ''} onChange={event => setCsSystems(current => current.map(system => system.id === row.id ? { ...system, joint_profile_item_id: Number(event.target.value) || null } : system))} className={SELECT_CLS}><option value="">Артикул уточняется</option>{items.filter(item => item.isActive && item.group === 'Профили').map(item => <option key={item.id} value={item.id}>{item.sku} — {item.name}</option>)}</select></label>
+            <button type="button" onClick={() => handleCsSystemSave(row)} disabled={savingCsSystem === row.id} className="flex h-[52px] items-center justify-center rounded-xl bg-primary px-4 text-white disabled:opacity-50"><Save className="h-4 w-4" /></button>
+          </div>)}</div>
+        </section>}
+
+        {activeCatalogTab === 'markups' && <section className="mx-auto mb-5 w-full max-w-5xl rounded-2xl border border-tint/25 bg-surface/30 p-5 sm:p-6">
           <div className="mb-5 flex items-start gap-3 border-b border-tint/20 pb-4">
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent">
               <BadgePercent className="h-5 w-5" />
@@ -1206,6 +1406,7 @@ export default function HardwareCatalogPage() {
                       value={systemMarkupDrafts[systemGroup.code]}
                       placeholder={state?.mixed ? 'Разные' : '0'}
                       onChange={event => setSystemMarkupDrafts(current => ({ ...current, [systemGroup.code]: event.target.value }))}
+                      onWheel={event => event.currentTarget.blur()}
                       className="h-10 w-full rounded-lg border border-tint/30 bg-page/40 px-3 pr-7 font-mono text-sm outline-none focus:border-accent/60"
                     />
                     <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-fg/35">%</span>
@@ -1223,6 +1424,69 @@ export default function HardwareCatalogPage() {
               );
             })}
           </div>
+        </section>}
+
+        {activeCatalogTab === 'markups' && <section className="mx-auto mb-5 w-full max-w-5xl rounded-2xl border border-tint/25 bg-surface/30 p-5 sm:p-6">
+          <div className="mb-5 border-b border-tint/20 pb-4">
+            <h2 className="text-lg font-bold">Массовая настройка цепочек</h2>
+            <p className="mt-1 text-sm text-fg/45">Изменяются только заполненные поля. Перед применением показывается предпросмотр, каждое изменение записывается новой версией.</p>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-[180px_minmax(0,1fr)]">
+            <div>
+              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-widest text-fg/40">Позиции</label>
+              <select value={bulkScope} onChange={event => { setBulkScope(event.target.value as typeof bulkScope); setBulkPreview(null); }} className={SELECT_CLS}>
+                <option value="filtered">Текущий фильтр ({filtered.length})</option>
+                <option value="all">Все активные ({items.filter(item => item.isActive).length})</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-widest text-fg/40">Исполнения</label>
+              <div className="flex min-h-[52px] flex-wrap items-center gap-2 rounded-2xl border border-tint/30 bg-hi/[0.025] p-2">
+                {(Object.entries(FINISHES) as Array<[FinishCode, (typeof FINISHES)[FinishCode]]>).map(([code, finish]) => {
+                  const active = bulkFinishCodes.includes(code);
+                  return <button key={code} type="button" onClick={() => { setBulkFinishCodes(current => active ? current.filter(value => value !== code) : [...current, code]); setBulkPreview(null); }}
+                    className={`rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${active ? 'border-accent/40 bg-accent/15 text-accent' : 'border-tint/20 bg-hi/[0.03] text-fg/45'}`}>
+                    {finish.name}
+                  </button>;
+                })}
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {([
+              ['profile_markup_percent', 'Профиль: наценка'],
+              ['profile_discount_percent', 'Профиль: скидка'],
+              ['waste_markup_percent', 'Конструкция: отходы'],
+              ['construction_markup_percent', 'Конструкция: наценка'],
+              ['construction_discount_percent', 'Конструкция: скидка'],
+            ] as const).map(([field, label]) => (
+              <div key={field}>
+                <PriceField label={label} value={bulkValues[field]} suffix="%" max={field.includes('discount') ? 100 : undefined}
+                  onChange={value => { setBulkValues(current => ({ ...current, [field]: value })); setBulkPreview(null); }} />
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
+            <label>
+              <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-widest text-fg/40">Причина изменения</span>
+              <input value={bulkReason} onChange={event => { setBulkReason(event.target.value); setBulkPreview(null); }} className={INPUT_CLS} />
+            </label>
+            <button type="button" onClick={handleBulkPreview} disabled={bulkLoading} className="h-[52px] rounded-xl border border-accent/35 bg-accent/10 px-5 font-bold text-accent hover:bg-accent/15 disabled:opacity-50">
+              Предпросмотр
+            </button>
+            <button type="button" onClick={handleBulkApply} disabled={bulkLoading || !bulkPreview} className="h-[52px] rounded-xl bg-primary px-5 font-bold text-white hover:bg-primary-h disabled:opacity-40">
+              Применить
+            </button>
+          </div>
+          {bulkPreview && <div className="mt-5 overflow-hidden rounded-xl border border-tint/25">
+            <div className="flex items-center justify-between bg-hi/[0.04] px-4 py-3 text-sm"><b>Будет изменено исполнений: {bulkPreview.count}</b><span className="text-fg/45">Показаны первые 20</span></div>
+            <div className="max-h-72 overflow-auto">
+              <table className="w-full min-w-[760px] text-left text-xs">
+                <thead className="sticky top-0 bg-surface"><tr><th className="px-3 py-2">Позиция</th><th className="px-3 py-2">Исполнение</th><th className="px-3 py-2">Профиль: было → станет</th><th className="px-3 py-2">Конструкция: было → станет</th></tr></thead>
+                <tbody className="divide-y divide-tint/15">{bulkPreview.rows.slice(0, 20).map(row => <tr key={`${row.itemId}-${row.finishCode}`}><td className="px-3 py-2"><b className="font-mono">{row.sku}</b><div className="text-fg/45">{row.name}</div></td><td className="px-3 py-2">{row.finishName}</td><td className="px-3 py-2 font-mono">{row.before.profile.final} → <b>{row.after.profile.final} ₽</b></td><td className="px-3 py-2 font-mono">{row.before.construction.final} → <b>{row.after.construction.final} ₽</b></td></tr>)}</tbody>
+              </table>
+            </div>
+          </div>}
         </section>}
 
         {activeCatalogTab === 'items' && <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-[2rem] border border-tint/25 bg-surface/30 shadow-2xl backdrop-blur-xl">
@@ -1248,7 +1512,7 @@ export default function HardwareCatalogPage() {
                   <th className="px-2.5 py-3.5 text-[10px] font-bold uppercase tracking-wider text-fg/45">Наценка</th>
                   <th className="px-2.5 py-3.5 text-[10px] font-bold uppercase tracking-wider text-fg/45">Продажа</th>
                   <th className="px-2.5 py-3.5 text-[10px] font-bold uppercase tracking-wider text-fg/45">Вес</th>
-                  <th className="px-2.5 py-3.5 text-[10px] font-bold uppercase tracking-wider text-fg/45">Отход</th>
+                  <th className="px-2.5 py-3.5 text-[10px] font-bold uppercase tracking-wider text-fg/45">Отходы</th>
                   <th className="px-2.5 py-3.5 text-right text-[10px] font-bold uppercase tracking-wider text-fg/45">Действия</th>
                 </tr>
               </thead>
@@ -1297,10 +1561,10 @@ export default function HardwareCatalogPage() {
                     <td className="px-2.5 py-3 font-mono text-sm text-amber-400">{percentRange(item, 'profileMarkupPercent')}</td>
                     <td className="px-2.5 py-3 font-mono text-sm text-emerald-400">{priceRange(item, (_item, variant) => profileSale(variant))}</td>
                     <td className="px-2.5 py-3 font-mono text-sm text-fg/65">{item.weight}</td>
-                    <td className="px-2.5 py-3 font-mono text-sm text-fg/65">{item.wastePercent}%</td>
+                    <td className="px-2.5 py-3 font-mono text-sm text-fg/65">{percentRange(item, 'wasteMarkupPercent')}</td>
                     <td className="px-1.5 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => setDraft(item)}
+                        <button onClick={() => openDraft(item)}
                           className="p-2 rounded-lg hover:bg-tint/25 text-accent transition-colors" title="Изменить">
                           <Edit2 className="w-4 h-4" />
                         </button>
@@ -1331,7 +1595,7 @@ export default function HardwareCatalogPage() {
               <div className="flex items-center justify-between border-b border-tint/20 px-6 py-5">
                 <div>
                   <h2 className="text-xl font-bold">Сверка себестоимости</h2>
-                  <p className="mt-1 text-xs text-fg/40">ANOD для окрашиваемых профилей, BASE для фурнитуры и уплотнителей</p>
+                  <p className="mt-1 text-xs text-fg/40">Анод/неокрас для окрашиваемых профилей, «Без цвета» для фурнитуры и уплотнителей</p>
                 </div>
                 <button onClick={() => setCostImportOpen(false)} disabled={costImportLoading} className="text-fg/30 hover:text-fg disabled:opacity-40"><X className="h-5 w-5" /></button>
               </div>
@@ -1409,11 +1673,11 @@ export default function HardwareCatalogPage() {
         {draft && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setDraft(null)} className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
+              onClick={requestCloseDraft} className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
             <motion.div initial={{ scale: 0.94, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.94, opacity: 0, y: 20 }}
               className="relative z-10 flex max-h-[95vh] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem] border border-tint/40 bg-modal shadow-2xl">
-              <button onClick={() => setDraft(null)} className="absolute right-6 top-6 z-10 text-fg/30 hover:text-fg transition-colors">
+              <button onClick={requestCloseDraft} className="absolute right-6 top-6 z-10 text-fg/30 hover:text-fg transition-colors">
                 <X className="w-6 h-6" />
               </button>
 
@@ -1474,11 +1738,8 @@ export default function HardwareCatalogPage() {
                       ))}
                     </div>
 
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="max-w-sm">
                       <NumberInput label="Вес на единицу" value={draft.weight} suffix="кг" onChange={value => setDraft({ ...draft, weight: value })} />
-                      {!['шт', 'компл.'].includes(draft.unit) && (
-                        <NumberInput label="Наценка на отходы" value={draft.wastePercent} suffix="%" onChange={value => setDraft({ ...draft, wastePercent: value })} />
-                      )}
                     </div>
                   </div>
 
@@ -1498,35 +1759,63 @@ export default function HardwareCatalogPage() {
                 </div>
 
                 <section className="mt-6">
-                  <h3 className="mb-3 text-sm font-bold">Цены по исполнениям</h3>
-                  <div className="space-y-2">
-                    {(draft.finishVariants || []).map((variant, index) => (
-                      <div key={variant.code} className="grid gap-3 rounded-2xl border border-tint/25 bg-hi/[0.025] p-3 sm:grid-cols-2 lg:grid-cols-[130px_repeat(5,minmax(0,1fr))] lg:items-end">
-                        <div className="flex min-h-11 items-center text-sm font-bold sm:col-span-2 lg:col-span-1">
-                          {FINISHES[variant.code].name}
-                        </div>
-                        {([
-                          ['cost', 'Себестоимость', variant.cost ?? 0, '₽'],
-                          ['profileMarkupPercent', 'Наценка профиль', variant.profileMarkupPercent, '%'],
-                          ['profileDiscountPercent', 'Скидка профиль', variant.profileDiscountPercent, '%'],
-                          ['constructionMarkupPercent', 'Наценка конструкция', variant.constructionMarkupPercent, '%'],
-                          ['constructionDiscountPercent', 'Скидка конструкция', variant.constructionDiscountPercent, '%'],
-                        ] as const).map(([field, label, value, suffix]) => (
-                          <div key={field} className="min-w-0">
-                            <PriceField
-                              label={label}
-                              value={value}
-                              suffix={suffix}
-                              max={field.includes('Discount') ? 100 : undefined}
-                              onChange={nextValue => setDraft({
-                                ...draft,
-                                finishVariants: (draft.finishVariants || []).map((row, rowIndex) => rowIndex === index ? { ...row, [field]: nextValue } : row),
-                              })}
-                            />
+                  <div className="mb-3">
+                    <h3 className="text-sm font-bold">Цены по исполнениям</h3>
+                    <p className="mt-1 text-xs text-fg/40">Продажа профиля и готовая конструкция считаются независимо от одной себестоимости.</p>
+                  </div>
+                  <div className="space-y-3">
+                    {(draft.finishVariants || []).map((variant, index) => {
+                      const cost = Number(variant.cost || 0);
+                      const profileAfterMarkup = cost * (1 + Number(variant.profileMarkupPercent || 0) / 100);
+                      const profileFinal = profileAfterMarkup * (1 - Number(variant.profileDiscountPercent || 0) / 100);
+                      const constructionAfterWaste = cost * (1 + Number(variant.wasteMarkupPercent || 0) / 100);
+                      const constructionAfterMarkup = constructionAfterWaste * (1 + Number(variant.constructionMarkupPercent || 0) / 100);
+                      const constructionFinal = constructionAfterMarkup * (1 - Number(variant.constructionDiscountPercent || 0) / 100);
+                      const changeField = (field: keyof CatalogFinishVariant, value: string) => setDraft({
+                        ...draft,
+                        finishVariants: (draft.finishVariants || []).map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row),
+                      });
+                      return (
+                        <div key={variant.code} className="rounded-2xl border border-tint/25 bg-hi/[0.025] p-3.5">
+                          <div className="grid gap-3 lg:grid-cols-[150px_minmax(0,1fr)]">
+                            <div>
+                              <div className="mb-2 text-sm font-bold">{FINISHES[variant.code].name}</div>
+                              <PriceField label="Себестоимость" value={variant.cost ?? 0} suffix="₽" onChange={value => changeField('cost', value)} />
+                            </div>
+                            <div className="min-w-0 space-y-3">
+                              <div className="rounded-xl border border-sky-500/20 bg-sky-500/[0.035] p-3">
+                                <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-sky-300">Профиль отдельно</div>
+                                <div className="grid gap-2 sm:grid-cols-2 xl:flex xl:items-end">
+                                  <PriceField label="Наценка" value={variant.profileMarkupPercent} suffix="%" onChange={value => changeField('profileMarkupPercent', value)} />
+                                  <ChainArrow />
+                                  <PriceOutput label="После наценки" value={profileAfterMarkup} />
+                                  <ChainArrow />
+                                  <PriceField label="Скидка" value={variant.profileDiscountPercent} suffix="%" max={100} onChange={value => changeField('profileDiscountPercent', value)} />
+                                  <ChainArrow />
+                                  <PriceOutput label="Итог профиля" value={profileFinal} />
+                                </div>
+                              </div>
+                              <div className="rounded-xl border border-violet-500/20 bg-violet-500/[0.035] p-3">
+                                <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-violet-300">В готовой конструкции</div>
+                                <div className="grid gap-2 sm:grid-cols-2 xl:flex xl:items-end">
+                                  <PriceField label="Отходы" value={variant.wasteMarkupPercent} suffix="%" onChange={value => changeField('wasteMarkupPercent', value)} />
+                                  <ChainArrow />
+                                  <PriceOutput label="После отходов" value={constructionAfterWaste} />
+                                  <ChainArrow />
+                                  <PriceField label="Наценка" value={variant.constructionMarkupPercent} suffix="%" onChange={value => changeField('constructionMarkupPercent', value)} />
+                                  <ChainArrow />
+                                  <PriceOutput label="После наценки" value={constructionAfterMarkup} />
+                                  <ChainArrow />
+                                  <PriceField label="Скидка" value={variant.constructionDiscountPercent} suffix="%" max={100} onChange={value => changeField('constructionDiscountPercent', value)} />
+                                  <ChainArrow />
+                                  <PriceOutput label="Итог конструкции" value={constructionFinal} />
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                        ))}
-                      </div>
-                    ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 </section>
 
@@ -1534,7 +1823,7 @@ export default function HardwareCatalogPage() {
                   <div className="grid grid-cols-3 gap-2 sm:col-span-2 lg:col-span-3">
                     {[
                       { label: 'Цена профиля', value: priceRange(draft, (_item, variant) => profileSale(variant)), icon: BadgePercent },
-                      { label: 'С отходами', value: priceRange(draft, costWithWaste), icon: Ruler },
+                      { label: 'После отходов', value: priceRange(draft, costWithWaste), icon: Ruler },
                       { label: 'Цена в конструкции', value: priceRange(draft, constructionPrice), icon: Scale },
                     ].map(card => (
                       <div key={card.label} className="rounded-xl border border-tint/25 bg-hi/[0.04] p-3">
@@ -1560,13 +1849,28 @@ export default function HardwareCatalogPage() {
               </div>
 
               <div className="flex gap-3 border-t border-tint/20 bg-modal px-6 py-4 sm:justify-end sm:px-8">
-                <button onClick={() => setDraft(null)}
+                <button onClick={requestCloseDraft}
                   className="flex-1 rounded-xl bg-hi/5 px-6 py-3 font-bold transition-all hover:bg-hi/10 sm:flex-none">Отмена</button>
                 <button onClick={handleSave}
                   className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-8 py-3 font-bold text-white shadow-lg shadow-primary/20 transition-all hover:bg-primary-h sm:flex-none">
                   <Save className="w-4 h-4" />
                   Сохранить
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+        {draft && unsavedDialogOpen && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+            <motion.div initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.96, opacity: 0 }}
+              className="relative z-10 w-full max-w-lg rounded-2xl border border-tint/35 bg-modal p-6 shadow-2xl">
+              <h3 className="text-lg font-bold">Сохранить изменения?</h3>
+              <p className="mt-2 text-sm text-fg/55">В карточке есть несохранённые изменения.</p>
+              <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button onClick={() => setUnsavedDialogOpen(false)} className="rounded-xl bg-hi/5 px-5 py-3 font-bold hover:bg-hi/10">Продолжить редактирование</button>
+                <button onClick={closeDraft} className="rounded-xl border border-red-500/25 bg-red-500/10 px-5 py-3 font-bold text-red-300 hover:bg-red-500/15">Не сохранять</button>
+                <button onClick={handleSave} className="rounded-xl bg-primary px-5 py-3 font-bold text-white hover:bg-primary-h">Сохранить</button>
               </div>
             </motion.div>
           </div>

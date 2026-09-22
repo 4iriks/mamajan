@@ -147,6 +147,8 @@ export interface SectionOut {
   door_system?: string;
   cs_shape?: string;
   cs_width2?: number;
+  cs_system_id?: number;
+  cs_config?: import('../components/editor/types').CsConfig;
   extra_parts?: string;
   extra_components?: string;
   comments?: string;
@@ -306,11 +308,51 @@ export interface BookCalcPreview {
   document_block_reasons: string[];
 }
 
-export type SectionCalcPreview = SlideCalcPreview | BookCalcPreview;
+export interface CsCalcPane {
+  number: number;
+  column: number;
+  row: number;
+  width_mm: number;
+  height_mm: number;
+  area_m2: number;
+  qty: number;
+  polygon: Array<{ x: number; y: number }>;
+}
+
+export interface CsCalcProfile {
+  role: 'outer' | 'joint';
+  article: string;
+  name: string;
+  length_mm: number;
+  total_length_mm: number;
+  pieces: number;
+  unit: string;
+  preliminary: boolean;
+}
+
+export interface CsCalcPreview {
+  system: { id?: number | null; code: string; name: string };
+  normalized_config: import('../components/editor/types').CsConfig;
+  panes: CsCalcPane[];
+  profiles: CsCalcProfile[];
+  outer_edge_lengths_mm: number[];
+  divider_lengths_mm: number[];
+  glass_area_m2: number;
+  warnings: string[];
+  status: 'preliminary';
+  commercial_price_allowed: false;
+  doors_phase: 'planned';
+}
+
+export type SectionCalcPreview = SlideCalcPreview | BookCalcPreview | CsCalcPreview;
 
 export const isBookCalcPreview = (
   calc?: SectionCalcPreview | null,
-): calc is BookCalcPreview => Boolean(calc && 'normalized_config' in calc && 'panels' in calc);
+): calc is BookCalcPreview => Boolean(calc && 'normalized_config' in calc && 'panels' in calc && 'source_priority' in calc);
+
+export const isCsCalcPreview = (
+  calc?: SectionCalcPreview | null,
+): calc is CsCalcPreview => Boolean(calc && 'panes' in calc && 'commercial_price_allowed' in calc);
 
 // Documents
 export const getPreviewUrl = (projectId: number, sectionId: number) =>
@@ -341,6 +383,14 @@ export const calculateLocalSection = async (section: Partial<SectionOut>) => {
   if (section.system === 'КНИЖКА') {
     const url = hasAuthToken() ? '/api/calculate/book' : '/api/calculate/local/book';
     const resp = await client.post<BookCalcPreview>(url, {
+      name: 'Секция',
+      ...section,
+    });
+    return resp.data;
+  }
+  if (section.system === 'ЦС') {
+    const url = hasAuthToken() ? '/api/calculate/cs' : '/api/calculate/local/cs';
+    const resp = await client.post<CsCalcPreview>(url, {
       name: 'Секция',
       ...section,
     });

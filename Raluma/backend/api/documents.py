@@ -22,6 +22,7 @@ import models
 import schemas
 from auth import decode_token, get_current_user, user_can_manage_prices
 from engine.book_calc import BookCalculationError, calculate_book
+from engine.cs_calc import CsCalculationError, calculate_cs, cs_result_namespace
 from engine.document_numbers import (
     commercial_document_number,
     production_project_number,
@@ -59,7 +60,7 @@ from engine.quote_pricing import (
 
 router = APIRouter(prefix="/api/projects", tags=["documents"])
 
-PRODUCTION_SHEET_SYSTEMS = {"СЛАЙД", "ЛИФТ", "КНИЖКА"}
+PRODUCTION_SHEET_SYSTEMS = {"СЛАЙД", "ЛИФТ", "КНИЖКА", "ЦС"}
 COMMERCIAL_DOCUMENTS = {"commercial", "contract_appendix"}
 DOCX_PROJECT_DOCUMENTS = {
     "sketch",
@@ -111,7 +112,19 @@ def _calculate_section(section):
             return calculate_lift(section)
         if system == "КНИЖКА":
             return calculate_book(section)
+        if system == "ЦС":
+            cs_system = getattr(section, "cs_system", None)
+            return cs_result_namespace(
+                calculate_cs(
+                    section,
+                    system=cs_system,
+                    outer_profile=getattr(cs_system, "outer_profile", None),
+                    joint_profile=getattr(cs_system, "joint_profile", None),
+                )
+            )
     except BookCalculationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except CsCalculationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     raise HTTPException(
         status_code=400,
@@ -409,7 +422,7 @@ def _build_project_office(
                 "unsupported_sections": exc.sections,
             },
         ) from exc
-    except (BookCalculationError, SketchGeometryError) as exc:
+    except (BookCalculationError, CsCalculationError, SketchGeometryError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
@@ -437,7 +450,7 @@ def _render_project_document_or_error(
                 "unsupported_sections": exc.sections,
             },
         ) from exc
-    except (BookCalculationError, SketchGeometryError) as exc:
+    except (BookCalculationError, CsCalculationError, SketchGeometryError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 

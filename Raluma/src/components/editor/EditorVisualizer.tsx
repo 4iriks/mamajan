@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import type { BookCalcPreview, SectionCalcPreview } from '../../api/projects';
+import { isCsCalcPreview, type BookCalcPreview, type CsCalcPreview, type SectionCalcPreview } from '../../api/projects';
 import { Section } from './types';
 import { BookRoomViewSVG, BookTopViewSVG } from './BookDiagrams';
 import { SlideSchemeSVG, SlideRoomViewSVG } from './SlideDiagrams';
@@ -22,12 +22,30 @@ export interface EditorVisualizerProps {
 function isBookCalcPreview(
   calc?: SectionCalcPreview | null,
 ): calc is BookCalcPreview {
-  return Boolean(calc && 'normalized_config' in calc && 'panels' in calc);
+  return Boolean(calc && 'normalized_config' in calc && 'panels' in calc && 'source_priority' in calc);
+}
+
+function CsRoomView({ section, calc }: { section: Section; calc: CsCalcPreview }) {
+  const width = Math.max(1, section.width || 1);
+  const height = Math.max(1, section.height || 1);
+  return <svg viewBox={`-120 -120 ${width + 240} ${height + 240}`} className="h-auto w-full" role="img" aria-label="Схема ЦС">
+    {calc.panes.map(pane => <g key={pane.number}>
+      <polygon points={pane.polygon.map(point => `${point.x},${height - point.y}`).join(' ')} fill="#dff3f7" stroke="#66858c" strokeWidth={Math.max(width, height) / 350} />
+      {(() => {
+        const x = pane.polygon.reduce((sum, point) => sum + point.x, 0) / pane.polygon.length;
+        const y = pane.polygon.reduce((sum, point) => sum + point.y, 0) / pane.polygon.length;
+        return <g><text x={x} y={height - y - 18} textAnchor="middle" fontSize={Math.max(width, height) / 30} fontWeight="700" fill="#102f35">{pane.number}</text><text x={x} y={height - y + 34} textAnchor="middle" fontSize={Math.max(width, height) / 48} fill="#102f35">{pane.width_mm}×{pane.height_mm}</text></g>;
+      })()}
+    </g>)}
+    <text x={width / 2} y={height + 90} textAnchor="middle" fontSize={Math.max(width, height) / 35} fontWeight="700" fill="currentColor">{section.width} мм</text>
+    <text x={width + 75} y={height / 2} textAnchor="middle" fontSize={Math.max(width, height) / 35} fontWeight="700" fill="currentColor" transform={`rotate(-90 ${width + 75} ${height / 2})`}>{section.height} мм</text>
+  </svg>;
 }
 
 export const EditorVisualizer: React.FC<EditorVisualizerProps> = ({ section, variant, calc }) => {
   const bookCalc = isBookCalcPreview(calc) ? calc : null;
-  const slideCalc = calc && !isBookCalcPreview(calc) ? calc : null;
+  const csCalc = isCsCalcPreview(calc) ? calc : null;
+  const slideCalc = calc && !isBookCalcPreview(calc) && !isCsCalcPreview(calc) ? calc : null;
 
   if (section.system === 'КНИЖКА') {
     if (!bookCalc) return null;
@@ -114,6 +132,18 @@ export const EditorVisualizer: React.FC<EditorVisualizerProps> = ({ section, var
         </div>
       </div>
     );
+  }
+
+  if (section.system === 'ЦС') {
+    if (!csCalc) return null;
+    const diagram = <div className="rounded-2xl border border-tint/30 bg-surface/25 p-4">
+      <div className="mb-3 flex items-center justify-between"><span className="text-[10px] font-bold uppercase tracking-widest text-accent/50">Вид из помещения · ЦС</span><span className="text-[10px] text-fg/30">предварительно</span></div>
+      <CsRoomView section={section} calc={csCalc} />
+      <div className="mt-3 text-xs text-fg/45">{csCalc.system.name} · {csCalc.panes.length} стекол · {csCalc.glass_area_m2.toFixed(2)} м²</div>
+    </div>;
+    return variant === 'mobile'
+      ? <div className="mb-4 xl:hidden">{diagram}</div>
+      : <div className="hidden xl:sticky xl:top-4 xl:block xl:w-[500px] xl:flex-shrink-0">{diagram}</div>;
   }
 
   if (section.system !== 'СЛАЙД') return null;

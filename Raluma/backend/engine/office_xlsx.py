@@ -576,6 +576,65 @@ def _write_section_glass_or_panels(
     return row
 
 
+def _write_cs_glass_and_profiles(
+    worksheet: xlsxwriter.worksheet.Worksheet,
+    formats: dict[str, Any],
+    row: int,
+    calc: object,
+) -> int:
+    row = _write_bar(worksheet, formats, row, "Стекла · предварительные размеры")
+    glass_spans = ((0, 0), (1, 2), (3, 4), (5, 6), (7, 8), (9, 11))
+    row = _write_headers(
+        worksheet,
+        formats,
+        row,
+        ("№", "Ширина, мм", "Высота, мм", "Площадь, м²", "Кол-во", "Примечание"),
+        glass_spans,
+    )
+    for pane in getattr(calc, "panes", None) or []:
+        row = _write_spanned_values(
+            worksheet,
+            formats,
+            row,
+            (
+                getattr(pane, "number", ""),
+                format_dimension(getattr(pane, "width_mm", 0)),
+                format_dimension(getattr(pane, "height_mm", 0)),
+                format_dimension(getattr(pane, "area_m2", 0)),
+                getattr(pane, "qty", 1),
+                "Контур по схеме; размеры габаритные",
+            ),
+            glass_spans,
+            center={0, 1, 2, 3, 4},
+        )
+
+    row = _write_bar(worksheet, formats, row, "Профили · предварительная ведомость")
+    profile_spans = ((0, 1), (2, 5), (6, 7), (8, 9), (10, 11))
+    row = _write_headers(
+        worksheet,
+        formats,
+        row,
+        ("Артикул", "Наименование", "Общая длина, мм", "Отрезков, шт", "Статус"),
+        profile_spans,
+    )
+    for profile in getattr(calc, "profiles", None) or []:
+        row = _write_spanned_values(
+            worksheet,
+            formats,
+            row,
+            (
+                getattr(profile, "article", ""),
+                getattr(profile, "name", ""),
+                format_dimension(getattr(profile, "total_length_mm", 0)),
+                getattr(profile, "pieces", 0),
+                "ПРЕДВАРИТЕЛЬНО",
+            ),
+            profile_spans,
+            center={0, 2, 3, 4},
+        )
+    return row
+
+
 def _write_profiles(
     worksheet: xlsxwriter.worksheet.Worksheet,
     formats: dict[str, Any],
@@ -1433,7 +1492,10 @@ def build_section_xlsx(project: object, section: object, calc: object) -> bytes:
         row += 1
     row = _write_summary(worksheet, formats, row, section, calc)
     row = _write_diagrams(worksheet, formats, row, section, calc)
-    row = _write_section_glass_or_panels(worksheet, formats, row, calc, overrides)
+    if system == "ЦС":
+        row = _write_cs_glass_and_profiles(worksheet, formats, row, calc)
+    else:
+        row = _write_section_glass_or_panels(worksheet, formats, row, calc, overrides)
     if system == "СЛАЙД":
         row = _write_compact_profiles(worksheet, formats, row, calc, overrides)
         row = _write_compact_hardware(worksheet, formats, row, calc, overrides)
@@ -1441,7 +1503,7 @@ def build_section_xlsx(project: object, section: object, calc: object) -> bytes:
 
     if system == "ЛИФТ":
         _build_details_sheet(workbook, formats, project, section, calc, overrides)
-    else:
+    elif system == "СЛАЙД":
         _build_slide_checklist_sheet(workbook, formats, project, section, overrides)
 
     workbook.close()

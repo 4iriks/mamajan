@@ -2259,7 +2259,12 @@ class TestPainting:
         assert threshold.section_height_mm == 23
         assert threshold.paint_mode == "Частично"
         assert threshold.paint_note == "НЕ КРАСИТЬ!!!"
-        assert threshold.color_variants == ["Анод", "RAL стандарт", "RAL нестандарт"]
+        assert threshold.color_variants == [
+            "Анод/неокрас",
+            "RAL стандарт",
+            "RAL муар",
+            "Сублимация",
+        ]
 
     def test_catalog_overrides_profile_image(self):
         r = calculate_slide(_make_section(rails=5))

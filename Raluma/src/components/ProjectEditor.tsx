@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -283,13 +283,13 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     }
   };
 
-  const updateActiveSection = (updates: Partial<Section>) => {
+  const updateActiveSection = useCallback((updates: Partial<Section>) => {
     if (!activeSectionId) return;
     setIsDirty(true);
     setSections(currentSections =>
       updateLiftRemoteSections(currentSections, activeSectionId, updates),
     );
-  };
+  }, [activeSectionId]);
 
   const handleSaveSection = async () => {
     if (!activeSection || !project || isSaving) return;

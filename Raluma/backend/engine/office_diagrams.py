@@ -1188,6 +1188,132 @@ def render_book_top(section: object, calc: object) -> bytes:
     return _png(canvas)
 
 
+def _cs_point_value(point: object, axis: str) -> float:
+    if isinstance(point, dict):
+        value = point.get(axis, 0)
+    else:
+        value = getattr(point, axis, 0)
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def render_cs_front(section: object, calc: object) -> bytes:
+    """Render the preliminary all-glass contour and every calculated pane."""
+
+    canvas = Image.new("RGB", (1600, 900), BACKGROUND)
+    draw = ImageDraw.Draw(canvas)
+    config = getattr(calc, "normalized_config", None)
+    vertices = list(getattr(config, "vertices", None) or [])
+    if len(vertices) < 3:
+        width = max(1.0, float(getattr(section, "width", 1) or 1))
+        height = max(1.0, float(getattr(section, "height", 1) or 1))
+        vertices = [
+            SimpleNamespace(x=0, y=0),
+            SimpleNamespace(x=width, y=0),
+            SimpleNamespace(x=width, y=height),
+            SimpleNamespace(x=0, y=height),
+        ]
+
+    xs = [_cs_point_value(point, "x") for point in vertices]
+    ys = [_cs_point_value(point, "y") for point in vertices]
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+    span_x = max(max_x - min_x, 1)
+    span_y = max(max_y - min_y, 1)
+    drawing_left, drawing_top = 130, 85
+    drawing_right, drawing_bottom = 1380, 700
+    scale = min(
+        (drawing_right - drawing_left) / span_x,
+        (drawing_bottom - drawing_top) / span_y,
+    )
+    used_width = span_x * scale
+    used_height = span_y * scale
+    offset_x = drawing_left + ((drawing_right - drawing_left) - used_width) / 2
+    offset_y = drawing_top + ((drawing_bottom - drawing_top) - used_height) / 2
+
+    def project(point: object) -> tuple[float, float]:
+        x = offset_x + (_cs_point_value(point, "x") - min_x) * scale
+        y = offset_y + (max_y - _cs_point_value(point, "y")) * scale
+        return x, y
+
+    pane_fill = "#DCEFF3"
+    pane_font = load_font(30, bold=True)
+    dim_font = load_font(28, bold=True)
+    note_font = load_font(22, bold=True)
+    for pane in getattr(calc, "panes", None) or []:
+        polygon = list(getattr(pane, "polygon", None) or [])
+        points = [project(point) for point in polygon]
+        if len(points) < 3:
+            continue
+        draw.polygon(points, fill=pane_fill, outline=GRID)
+        draw.line([*points, points[0]], fill=GRID, width=3, joint="curve")
+        center_x = sum(point[0] for point in points) / len(points)
+        center_y = sum(point[1] for point in points) / len(points)
+        _center_text(
+            draw,
+            (center_x, center_y),
+            str(getattr(pane, "number", "")),
+            pane_font,
+            INK,
+        )
+
+    outer = [project(point) for point in vertices]
+    profiled = set(getattr(config, "profiledEdges", None) or [])
+    for index, start in enumerate(outer):
+        end = outer[(index + 1) % len(outer)]
+        draw.line(
+            (start, end),
+            fill=INK if index in profiled else MUTED,
+            width=8 if index in profiled else 3,
+        )
+    for point in outer:
+        draw.ellipse(
+            (point[0] - 5, point[1] - 5, point[0] + 5, point[1] + 5),
+            fill=INK,
+        )
+
+    dimension_y = offset_y + used_height + 70
+    draw.line((offset_x, dimension_y, offset_x + used_width, dimension_y), fill=INK, width=3)
+    draw.line((offset_x, dimension_y - 12, offset_x, dimension_y + 12), fill=INK, width=3)
+    draw.line(
+        (offset_x + used_width, dimension_y - 12, offset_x + used_width, dimension_y + 12),
+        fill=INK,
+        width=3,
+    )
+    _center_text(
+        draw,
+        (offset_x + used_width / 2, dimension_y + 35),
+        f"{round(span_x):g} мм",
+        dim_font,
+        INK,
+    )
+    dimension_x = offset_x + used_width + 70
+    draw.line((dimension_x, offset_y, dimension_x, offset_y + used_height), fill=INK, width=3)
+    draw.line((dimension_x - 12, offset_y, dimension_x + 12, offset_y), fill=INK, width=3)
+    draw.line(
+        (dimension_x - 12, offset_y + used_height, dimension_x + 12, offset_y + used_height),
+        fill=INK,
+        width=3,
+    )
+    _center_vertical_text(
+        canvas,
+        (dimension_x + 38, offset_y + used_height / 2),
+        f"{round(span_y):g} мм",
+        dim_font,
+        INK,
+    )
+    _center_text(
+        draw,
+        (800, 845),
+        "ПРЕДВАРИТЕЛЬНАЯ ГЕОМЕТРИЯ · ЦЕНА НЕ ФОРМИРУЕТСЯ",
+        note_font,
+        RED,
+    )
+    return _png(canvas)
+
+
 def section_diagrams(
     section: object,
     calc: object,
@@ -1198,6 +1324,8 @@ def section_diagrams(
             ("Вид из помещения", render_book_room(section, calc)),
             ("Схема · вид сверху", render_book_top(section, calc)),
         ]
+    if system == "ЦС":
+        return [("Вид из помещения · геометрия ЦС", render_cs_front(section, calc))]
     reference = _reference_diagrams(section, calc)
     if system == "ЛИФТ":
         if len(reference) >= 2:

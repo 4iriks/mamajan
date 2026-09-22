@@ -8,17 +8,19 @@ import { AlertTriangle, ArrowLeft, Save, FileText, ClipboardList, Map } from 'lu
 import {
   calculateLocalSection,
   isBookCalcPreview,
+  isCsCalcPreview,
   SectionCalcPreview,
 } from '../../api/projects';
 import { Section, LBL, SYSTEM_COLORS } from './types';
 import { localToApi } from './converters';
 import { SectionDivider } from './FormInputs';
-import { MainTab, SlideSystemTab, CsShapeTab, DoorSystemTab } from './FormTabs';
+import { MainTab, SlideSystemTab, DoorSystemTab } from './FormTabs';
 import { BookSystemTab } from './BookForm';
 import { LiftMainTab, LiftSystemTab } from './LiftForm';
 import { EditorVisualizer } from './EditorVisualizer';
 import { SlidePresetsPanel } from './SlidePresetsPanel';
 import { BookCalcResults } from './BookCalcResults';
+import { CsEditor } from './CsEditor';
 
 export interface SectionFormWrapperProps {
   section: Section;
@@ -36,7 +38,8 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
   const [sectionCalc, setSectionCalc] = useState<SectionCalcPreview | null>(null);
   const [calcError, setCalcError] = useState<string | null>(null);
   const bookCalc = isBookCalcPreview(sectionCalc) ? sectionCalc : null;
-  const slideCalc = sectionCalc && !isBookCalcPreview(sectionCalc) ? sectionCalc : null;
+  const csCalc = isCsCalcPreview(sectionCalc) ? sectionCalc : null;
+  const slideCalc = sectionCalc && !isBookCalcPreview(sectionCalc) && !isCsCalcPreview(sectionCalc) ? sectionCalc : null;
   const glassWidths = (slideCalc?.glass || [])
     .filter(glass => glass.qty > 0)
     .map(glass => glass.width_mm);
@@ -66,7 +69,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
   }, [isDirty]);
 
   useEffect(() => {
-    if (!['СЛАЙД', 'ЛИФТ', 'КНИЖКА'].includes(section.system)) {
+    if (!['СЛАЙД', 'ЛИФТ', 'КНИЖКА', 'ЦС'].includes(section.system)) {
       setSectionCalc(null);
       setCalcError(null);
       return;
@@ -138,9 +141,9 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
       </div>
 
       {/* Flex-контейнер: форма слева, схема справа (на xl) */}
-      <div className={['СЛАЙД', 'ЛИФТ', 'КНИЖКА'].includes(section.system) ? 'xl:flex xl:gap-5 xl:items-start' : ''}>
+      <div className={['СЛАЙД', 'ЛИФТ', 'КНИЖКА', 'ЦС'].includes(section.system) ? 'xl:flex xl:gap-5 xl:items-start' : ''}>
 
-        <div className={['СЛАЙД', 'ЛИФТ', 'КНИЖКА'].includes(section.system) ? 'xl:flex-1 xl:min-w-0' : ''}>
+        <div className={['СЛАЙД', 'ЛИФТ', 'КНИЖКА', 'ЦС'].includes(section.system) ? 'xl:flex-1 xl:min-w-0' : ''}>
           {/* Карточка формы */}
           <div
             className="bg-surface/40 border border-tint/35 rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 mb-4"
@@ -217,9 +220,9 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
 
               {section.system === 'ЦС' && (
                 <div>
-                  <SectionDivider label="Форма" />
+                  <SectionDivider label="Контур · Деления · Профили" />
                   <div className="mt-3">
-                    <CsShapeTab s={section} update={onUpdate} />
+                    <CsEditor section={section} update={onUpdate} calc={csCalc} />
                   </div>
                 </div>
               )}

@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Iterable
 
 from engine.book_calc import calculate_book
+from engine.cs_calc import calculate_cs, cs_result_namespace
 from engine.lift_calc import calculate_lift, lift_geometry_error
 from engine.document_numbers import production_project_number, resolve_section_numbers
 from engine.office_diagrams import render_slide_room, render_slide_top, section_diagrams
@@ -19,7 +20,7 @@ from engine.slide_calc import (
 )
 
 
-SUPPORTED_SKETCH_SYSTEMS = {"СЛАЙД", "КНИЖКА", "ЛИФТ"}
+SUPPORTED_SKETCH_SYSTEMS = {"СЛАЙД", "КНИЖКА", "ЛИФТ", "ЦС"}
 
 
 class SketchUnsupportedSectionsError(ValueError):
@@ -161,6 +162,24 @@ def _lift_panels(calc: object) -> list[SketchPanelRow]:
     ]
 
 
+def _cs_panels(section: object, calc: object) -> list[SketchPanelRow]:
+    filling = _text(
+        getattr(section, "glass_type", None),
+        "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
+    )
+    return [
+        SketchPanelRow(
+            number=int(getattr(pane, "number", index) or index),
+            position=f"Стекло {int(getattr(pane, 'number', index) or index)}",
+            filling=filling,
+            width_mm=_number(getattr(pane, "width_mm", 0)),
+            height_mm=_number(getattr(pane, "height_mm", 0)),
+            qty=_positive_int(getattr(pane, "qty", 1)),
+        )
+        for index, pane in enumerate(getattr(calc, "panes", []) or [], start=1)
+    ]
+
+
 _EXCLUDED_COMPONENT_TERMS = (
     "щеточн",
     "щёточн",
@@ -281,6 +300,23 @@ def _component_row(
 
 def _calculated_profiles(calc: object, system: str) -> list[dict]:
     rows: list[dict] = []
+    if system == "ЦС":
+        for item in getattr(calc, "profiles", []) or []:
+            total_length = _number(getattr(item, "total_length_mm", 0))
+            pieces = _number(getattr(item, "pieces", 0))
+            if total_length <= 0 and pieces <= 0:
+                continue
+            rows.append(
+                _component_row(
+                    article=getattr(item, "article", ""),
+                    name=getattr(item, "name", ""),
+                    size=f"{_format_number(total_length)} мм",
+                    qty=_format_number(pieces),
+                    unit="шт",
+                    note="Предварительная ведомость",
+                )
+            )
+        return rows
     grouped_book_profiles: dict[tuple[str, str, float, str], dict] = {}
     for item in getattr(calc, "profiles", []) or []:
         article = getattr(item, "article", "")
@@ -514,6 +550,9 @@ def _system_text(system: str, section: object, calc: object) -> str:
     if system == "КНИЖКА":
         book_system = (getattr(calc, "normalized_config", {}) or {}).get("book_system")
         return _text(f"BOOK {book_system}" if book_system else "BOOK")
+    if system == "ЦС":
+        cs_system = getattr(calc, "system", None)
+        return _text(getattr(cs_system, "name", None), "ЦС")
     return _text(getattr(calc, "system_text", None), "LIFT")
 
 
@@ -548,7 +587,7 @@ def _section_data(section: object, order: int) -> dict:
             if bool(getattr(section, "glass_supplied", True))
             else "Без стекла"
         )
-    else:
+    elif system == "ЛИФТ":
         geometry_error = lift_geometry_error(section)
         if geometry_error:
             raise SketchGeometryError(geometry_error)
@@ -558,6 +597,24 @@ def _section_data(section: object, order: int) -> dict:
         threshold = "—"
         inter_glass = "—"
         filling = _text(getattr(calc, "filling_text", None))
+    else:
+        cs_system = getattr(section, "cs_system", None)
+        calc = cs_result_namespace(
+            calculate_cs(
+                section,
+                system=cs_system,
+                outer_profile=getattr(cs_system, "outer_profile", None),
+                joint_profile=getattr(cs_system, "joint_profile", None),
+            )
+        )
+        panel_rows = _cs_panels(section, calc)
+        warnings = list(getattr(calc, "warnings", []) or [])
+        threshold = "—"
+        inter_glass = "—"
+        filling = _text(
+            getattr(section, "glass_type", None),
+            "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
+        )
 
     label = _section_label(section, order)
     return {

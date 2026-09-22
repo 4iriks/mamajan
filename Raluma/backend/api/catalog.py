@@ -21,12 +21,14 @@ CATALOG_UPDATED_AT = "2026-06-08"
 SYSTEM_GROUPS = {
     "SLIDE_1": "СЛАЙД 1 ряд",
     "SLIDE_2": "СЛАЙД 2 ряда",
+    "CS": "ЦС",
 }
 FINISH_DEFINITIONS = {
-    "BASE": ("Без окраски", False),
-    "ANOD": ("Анод", False),
+    "ANOD_UNPAINTED": ("Анод/неокрас", False),
     "RAL_STANDARD": ("RAL стандарт", True),
-    "RAL_NONSTANDARD": ("RAL нестандарт", True),
+    "RAL_MOIRE": ("RAL муар", True),
+    "SUBLIMATION": ("Сублимация", True),
+    "COLORLESS": ("Без цвета", False),
 }
 
 
@@ -41,14 +43,22 @@ def _finish_code(name: str | None, code: str | None = None) -> str:
     explicit = str(code or "").strip().upper()
     if explicit in FINISH_DEFINITIONS:
         return explicit
+    if explicit in {"ANOD", "BASE"}:
+        return "ANOD_UNPAINTED"
+    if explicit == "RAL_NONSTANDARD":
+        return "RAL_MOIRE"
     normalized = " ".join(str(name or "").strip().casefold().split())
-    if "нестандарт" in normalized:
-        return "RAL_NONSTANDARD"
+    if "без цвет" in normalized:
+        return "COLORLESS"
+    if "сублим" in normalized:
+        return "SUBLIMATION"
+    if "нестандарт" in normalized or "муар" in normalized:
+        return "RAL_MOIRE"
     if "ral" in normalized:
         return "RAL_STANDARD"
-    if "анод" in normalized:
-        return "ANOD"
-    return "BASE"
+    if "анод" in normalized or "неокрас" in normalized or "без окраски" in normalized:
+        return "ANOD_UNPAINTED"
+    return "COLORLESS"
 
 
 def _decode_system_groups(raw: str | None, system: str | None = None) -> list[str]:
@@ -60,18 +70,24 @@ def _decode_system_groups(raw: str | None, system: str | None = None) -> list[st
     if result:
         return list(dict.fromkeys(result))
     if "СЛАЙД" in str(system or "").upper():
-        return list(SYSTEM_GROUPS)
+        return ["SLIDE_1", "SLIDE_2"]
     return []
 
 
 def _variant_requires_paint(name: str, paint_mode: str) -> bool:
     normalized = name.casefold()
     mode = paint_mode.casefold()
-    if "анод" in normalized or "без цвета" in normalized or "без окраски" in normalized:
+    if (
+        "анод" in normalized
+        or "неокрас" in normalized
+        or "без цвета" in normalized
+        or "без окраски" in normalized
+    ):
         return False
     return (
         "ral" in normalized
         or "окрас" in normalized
+        or "сублим" in normalized
         or (("красится" in mode or "частично" in mode) and "не красится" not in mode)
     )
 
@@ -93,6 +109,7 @@ def _variant_to_dict(
                 "cost": f"{cost:.2f}",
                 "profileMarkupPercent": float(variant.profile_markup_percent or 0),
                 "profileDiscountPercent": float(variant.profile_discount_percent or 0),
+                "wasteMarkupPercent": float(variant.waste_markup_percent or 0),
                 "constructionMarkupPercent": float(
                     variant.construction_markup_percent or 0
                 ),
@@ -122,7 +139,9 @@ def _seed_item_to_model(index: int, item) -> models.CatalogItem:
         group=item.group,
         system=item.system,
         system_groups=json.dumps(
-            list(SYSTEM_GROUPS) if "СЛАЙД" in str(item.system or "").upper() else [],
+            ["SLIDE_1", "SLIDE_2"]
+            if "СЛАЙД" in str(item.system or "").upper()
+            else [],
             ensure_ascii=False,
         ),
         unit=item.unit,
@@ -142,20 +161,22 @@ def _seed_item_to_model(index: int, item) -> models.CatalogItem:
         updated_at=datetime.utcnow(),
     )
     finish_codes = (
-        ["ANOD", "RAL_STANDARD", "RAL_NONSTANDARD"]
+        ["ANOD_UNPAINTED", "RAL_STANDARD", "RAL_MOIRE", "SUBLIMATION"]
         if _is_paintable(item.paint_mode)
-        else ["BASE"]
+        else ["COLORLESS"]
     )
     for code in finish_codes:
         fixed_name, requires_paint = FINISH_DEFINITIONS[code]
+        base_cost = 0 if code == "SUBLIMATION" else max(0, item.purchase_price)
         model.finish_variants.append(
             models.CatalogFinishVariant(
                 code=code,
                 name=fixed_name,
-                price=max(0, item.purchase_price),
-                cost=max(0, item.purchase_price),
+                price=base_cost,
+                cost=base_cost,
                 profile_markup_percent=max(0, item.markup_percent),
                 profile_discount_percent=0,
+                waste_markup_percent=max(0, item.waste_percent),
                 construction_markup_percent=0,
                 construction_discount_percent=0,
                 requires_paint=requires_paint,
@@ -201,7 +222,7 @@ def _ensure_catalog_seed(db: Session) -> None:
                         cost=variant.cost,
                         profile_markup_percent=variant.profile_markup_percent,
                         profile_discount_percent=variant.profile_discount_percent,
-                        waste_markup_percent=catalog_item.waste_percent,
+                        waste_markup_percent=variant.waste_markup_percent,
                         construction_markup_percent=variant.construction_markup_percent,
                         construction_discount_percent=variant.construction_discount_percent,
                         category=_price_category(catalog_item.group),
@@ -264,7 +285,11 @@ def _item_to_dict(item: models.CatalogItem) -> dict:
         if active_price
         else 0,
         "weight": item.weight,
-        "wastePercent": float(item.waste_percent or 0),
+        # Deprecated rollout fallback. New clients use the value on each
+        # finish row so different finishes can have different waste factors.
+        "wastePercent": float(representative.waste_markup_percent)
+        if representative
+        else float(item.waste_percent or 0),
         "constructionMarkupPercent": float(representative.construction_markup_percent)
         if representative
         else float(active_price.construction_markup_percent)
@@ -299,7 +324,7 @@ def _item_to_option(item: models.CatalogItem) -> dict:
         _variant_to_dict(row)
         for row in item.finish_variants
         if row.is_active
-        and _finish_code(row.name, getattr(row, "code", None)) != "BASE"
+        and _finish_code(row.name, getattr(row, "code", None)) != "COLORLESS"
     ]
     return {
         "id": item.id,
@@ -329,6 +354,8 @@ def _apply_payload(item: models.CatalogItem, data: schemas.CatalogItemBase) -> N
     item.purchase_price = data.purchasePrice
     item.markup_percent = data.markupPercent
     item.weight = data.weight
+    # Keep the legacy item-level field synchronized for old clients during the
+    # rolling deployment; it is no longer a source of truth.
     item.waste_percent = data.wastePercent
     item.section_width_mm = data.sectionWidthMm
     item.section_height_mm = data.sectionHeightMm
@@ -343,9 +370,9 @@ def _apply_payload(item: models.CatalogItem, data: schemas.CatalogItemBase) -> N
         variant.is_active = False
         variant.updated_at = datetime.utcnow()
     expected_codes = (
-        ["ANOD", "RAL_STANDARD", "RAL_NONSTANDARD"]
+        ["ANOD_UNPAINTED", "RAL_STANDARD", "RAL_MOIRE", "SUBLIMATION"]
         if _is_paintable(item.paint_mode)
-        else ["BASE"]
+        else ["COLORLESS"]
     )
     retained: list[models.CatalogFinishVariant] = []
     for code in expected_codes:
@@ -369,6 +396,9 @@ def _apply_payload(item: models.CatalogItem, data: schemas.CatalogItemBase) -> N
         variant.profile_discount_percent = (
             payload.profileDiscountPercent if payload else data.profileDiscountPercent
         )
+        variant.waste_markup_percent = (
+            payload.wasteMarkupPercent if payload else data.wastePercent
+        )
         variant.construction_markup_percent = (
             payload.constructionMarkupPercent
             if payload
@@ -386,6 +416,7 @@ def _apply_payload(item: models.CatalogItem, data: schemas.CatalogItemBase) -> N
             item.finish_variants.append(variant)
         retained.append(variant)
     item.color_variants = json.dumps([row.name for row in retained], ensure_ascii=False)
+    item.waste_percent = float(retained[0].waste_markup_percent or 0) if retained else 0
     item.supplier = (data.supplier or "").strip() or None
     item.is_active = data.isActive
     item.note = (data.note or "").strip() or None
@@ -437,7 +468,13 @@ def _sync_price_versions(
                     else data.profileDiscountPercent
                 )
             ),
-            Decimal(str(item.waste_percent)),
+            Decimal(
+                str(
+                    variant.waste_markup_percent
+                    if variant is not None
+                    else data.wastePercent
+                )
+            ),
             Decimal(
                 str(
                     variant.construction_markup_percent
@@ -520,7 +557,6 @@ def _validate_payload(
         ("Наценка на профиль", data.markupPercent),
         ("Скидка на профиль", data.profileDiscountPercent),
         ("Вес", data.weight),
-        ("Отход", data.wastePercent),
         ("Наценка на конструкцию", data.constructionMarkupPercent),
         ("Скидка на конструкцию", data.constructionDiscountPercent),
         ("Ширина сечения", data.sectionWidthMm),
@@ -546,6 +582,7 @@ def _validate_payload(
             ("Себестоимость исполнения", variant.cost or variant.price),
             ("Наценка на профиль", variant.profileMarkupPercent),
             ("Скидка на профиль", variant.profileDiscountPercent),
+            ("Наценка на отходы", variant.wasteMarkupPercent),
             ("Наценка на конструкцию", variant.constructionMarkupPercent),
             ("Скидка на конструкцию", variant.constructionDiscountPercent),
         ):
@@ -600,6 +637,179 @@ def _items_in_system_group(db: Session, code: str) -> list[models.CatalogItem]:
         .all()
         if code in _decode_system_groups(item.system_groups, item.system)
     ]
+
+
+def _bulk_targets(
+    db: Session, data: schemas.CatalogPricingBulkRequest
+) -> list[tuple[models.CatalogItem, models.CatalogFinishVariant]]:
+    items = (
+        db.query(models.CatalogItem)
+        .filter(models.CatalogItem.id.in_(set(data.item_ids)))
+        .all()
+    )
+    by_id = {item.id: item for item in items}
+    missing = sorted(set(data.item_ids) - set(by_id))
+    if missing:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Позиции каталога не найдены: {', '.join(map(str, missing))}",
+        )
+    selected_codes = {
+        _finish_code(code, code) for code in data.finish_codes if str(code).strip()
+    }
+    targets = [
+        (item, variant)
+        for item_id in dict.fromkeys(data.item_ids)
+        for item in [by_id[item_id]]
+        for variant in item.finish_variants
+        if variant.is_active
+        and (not selected_codes or _finish_code(variant.name, variant.code) in selected_codes)
+    ]
+    if not targets:
+        raise HTTPException(status_code=400, detail="Нет подходящих исполнений")
+    return targets
+
+
+def _bulk_patch(data: schemas.CatalogPricingBulkRequest) -> dict[str, Decimal]:
+    return {
+        field: value
+        for field in (
+            "profile_markup_percent",
+            "profile_discount_percent",
+            "waste_markup_percent",
+            "construction_markup_percent",
+            "construction_discount_percent",
+        )
+        if (value := getattr(data, field)) is not None
+    }
+
+
+def _finish_price_preview(variant: models.CatalogFinishVariant) -> dict:
+    cost = Decimal(str(variant.cost or 0))
+    profile_markup = Decimal(str(variant.profile_markup_percent or 0))
+    profile_discount = Decimal(str(variant.profile_discount_percent or 0))
+    waste = Decimal(str(variant.waste_markup_percent or 0))
+    construction_markup = Decimal(str(variant.construction_markup_percent or 0))
+    construction_discount = Decimal(str(variant.construction_discount_percent or 0))
+
+    def markup(value: Decimal, percent: Decimal) -> Decimal:
+        return value * (Decimal("1") + percent / Decimal("100"))
+
+    def discount(value: Decimal, percent: Decimal) -> Decimal:
+        return value * (Decimal("1") - percent / Decimal("100"))
+
+    profile_after_markup = markup(cost, profile_markup)
+    profile_final = discount(profile_after_markup, profile_discount)
+    construction_after_waste = markup(cost, waste)
+    construction_after_markup = markup(construction_after_waste, construction_markup)
+    construction_final = discount(
+        construction_after_markup, construction_discount
+    )
+    def money(value: Decimal) -> str:
+        return f"{value.quantize(Decimal('0.01')):.2f}"
+
+    return {
+        "profile": {
+            "base": money(cost),
+            "afterMarkup": money(profile_after_markup),
+            "final": money(profile_final),
+        },
+        "construction": {
+            "base": money(cost),
+            "afterWaste": money(construction_after_waste),
+            "afterMarkup": money(construction_after_markup),
+            "final": money(construction_final),
+        },
+    }
+
+
+def _bulk_preview_rows(
+    targets: list[tuple[models.CatalogItem, models.CatalogFinishVariant]],
+    patch: dict[str, Decimal],
+) -> list[dict]:
+    rows = []
+    for item, variant in targets:
+        before = _finish_price_preview(variant)
+        original = {field: getattr(variant, field) for field in patch}
+        try:
+            for field, value in patch.items():
+                setattr(variant, field, value)
+            after = _finish_price_preview(variant)
+        finally:
+            for field, value in original.items():
+                setattr(variant, field, value)
+        rows.append(
+            {
+                "itemId": item.id,
+                "sku": item.sku,
+                "name": item.name,
+                "finishCode": _finish_code(variant.name, variant.code),
+                "finishName": variant.name,
+                "before": before,
+                "after": after,
+            }
+        )
+    return rows
+
+
+@router.post("/pricing/bulk/preview")
+def preview_catalog_pricing_bulk(
+    data: schemas.CatalogPricingBulkRequest,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(require_admin),
+):
+    targets = _bulk_targets(db, data)
+    rows = _bulk_preview_rows(targets, _bulk_patch(data))
+    return {"count": len(rows), "rows": rows}
+
+
+@router.post("/pricing/bulk/apply")
+def apply_catalog_pricing_bulk(
+    data: schemas.CatalogPricingBulkRequest,
+    db: Session = Depends(get_db),
+    actor: models.User = Depends(require_admin),
+):
+    targets = _bulk_targets(db, data)
+    patch = _bulk_patch(data)
+    preview = _bulk_preview_rows(targets, patch)
+    effective_from = data.effective_from.replace(tzinfo=None)
+    now = datetime.utcnow()
+    for item, variant in targets:
+        for field, value in patch.items():
+            setattr(variant, field, value)
+        variant.updated_at = now
+        current = max(
+            (
+                row
+                for row in item.price_versions
+                if row.finish_variant_id == variant.id
+                and row.effective_from <= effective_from
+            ),
+            key=lambda row: (row.effective_from, row.id or 0),
+            default=None,
+        )
+        item.price_versions.append(
+            models.CatalogPriceVersion(
+                finish_variant_id=variant.id,
+                cost=variant.cost,
+                profile_markup_percent=variant.profile_markup_percent,
+                profile_discount_percent=variant.profile_discount_percent,
+                waste_markup_percent=variant.waste_markup_percent,
+                construction_markup_percent=variant.construction_markup_percent,
+                construction_discount_percent=variant.construction_discount_percent,
+                category=_price_category(item.group),
+                unit=item.unit,
+                min_margin_percent=current.min_margin_percent if current else 0,
+                effective_from=effective_from,
+                created_at=now,
+                created_by=actor.id,
+                reason=data.reason.strip(),
+            )
+        )
+        item.waste_percent = float(variant.waste_markup_percent or 0)
+        item.updated_at = now
+    db.commit()
+    return {"count": len(preview), "rows": preview}
 
 
 @router.get("/system-markups")
@@ -663,7 +873,7 @@ def update_system_markup(
                     cost=variant.cost,
                     profile_markup_percent=variant.profile_markup_percent,
                     profile_discount_percent=variant.profile_discount_percent,
-                    waste_markup_percent=item.waste_percent,
+                    waste_markup_percent=variant.waste_markup_percent,
                     construction_markup_percent=data.constructionMarkupPercent,
                     construction_discount_percent=variant.construction_discount_percent,
                     category=_price_category(item.group),
@@ -695,6 +905,128 @@ def update_system_markup(
         "changed": changed,
         "constructionMarkupPercent": float(data.constructionMarkupPercent),
     }
+
+
+def _cs_profile_summary(item: models.CatalogItem | None) -> dict | None:
+    if item is None:
+        return None
+    return {"id": item.id, "sku": item.sku, "name": item.name}
+
+
+def _cs_system_to_dict(row: models.CsSystem, db: Session) -> dict:
+    item_ids = {
+        value
+        for value in (row.outer_profile_item_id, row.joint_profile_item_id)
+        if value is not None
+    }
+    items = (
+        db.query(models.CatalogItem)
+        .filter(models.CatalogItem.id.in_(item_ids))
+        .all()
+        if item_ids
+        else []
+    )
+    by_id = {item.id: item for item in items}
+    return {
+        "id": row.id,
+        "code": row.code,
+        "name": row.name,
+        "outer_profile_item_id": row.outer_profile_item_id,
+        "joint_profile_item_id": row.joint_profile_item_id,
+        "is_active": row.is_active,
+        "outer_profile": _cs_profile_summary(by_id.get(row.outer_profile_item_id)),
+        "joint_profile": _cs_profile_summary(by_id.get(row.joint_profile_item_id)),
+    }
+
+
+def _validate_cs_profile_links(db: Session, data: schemas.CsSystemBase) -> None:
+    ids = {
+        value
+        for value in (data.outer_profile_item_id, data.joint_profile_item_id)
+        if value is not None
+    }
+    if not ids:
+        return
+    items = db.query(models.CatalogItem).filter(models.CatalogItem.id.in_(ids)).all()
+    found = {item.id for item in items if item.is_active}
+    missing = sorted(ids - found)
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Не найдены активные профили каталога: {', '.join(map(str, missing))}",
+        )
+    invalid = [item.sku for item in items if _price_category(item.group) != "profile"]
+    if invalid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Для системы ЦС можно выбрать только профили: {', '.join(invalid)}",
+        )
+
+
+@router.get("/cs-systems")
+def list_cs_systems(db: Session = Depends(get_db)):
+    rows = (
+        db.query(models.CsSystem)
+        .filter(models.CsSystem.is_active == True)  # noqa: E712
+        .order_by(models.CsSystem.name, models.CsSystem.id)
+        .all()
+    )
+    return [_cs_system_to_dict(row, db) for row in rows]
+
+
+@router.post("/cs-systems", status_code=201)
+def create_cs_system(
+    data: schemas.CsSystemCreate,
+    db: Session = Depends(get_db),
+    actor: models.User = Depends(require_admin),
+):
+    code = data.code.strip().upper()
+    if db.query(models.CsSystem).filter(models.CsSystem.code == code).first():
+        raise HTTPException(status_code=400, detail="Код системы ЦС уже используется")
+    _validate_cs_profile_links(db, data)
+    row = models.CsSystem(
+        code=code,
+        name=data.name.strip(),
+        outer_profile_item_id=data.outer_profile_item_id,
+        joint_profile_item_id=data.joint_profile_item_id,
+        is_active=data.is_active,
+        updated_by=actor.id,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return _cs_system_to_dict(row, db)
+
+
+@router.put("/cs-systems/{system_id}")
+def update_cs_system(
+    system_id: int,
+    data: schemas.CsSystemUpdate,
+    db: Session = Depends(get_db),
+    actor: models.User = Depends(require_admin),
+):
+    row = db.query(models.CsSystem).filter(models.CsSystem.id == system_id).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Система ЦС не найдена")
+    code = data.code.strip().upper()
+    duplicate = (
+        db.query(models.CsSystem)
+        .filter(models.CsSystem.code == code, models.CsSystem.id != system_id)
+        .first()
+    )
+    if duplicate:
+        raise HTTPException(status_code=400, detail="Код системы ЦС уже используется")
+    _validate_cs_profile_links(db, data)
+    row.code = code
+    row.name = data.name.strip()
+    row.outer_profile_item_id = data.outer_profile_item_id
+    row.joint_profile_item_id = data.joint_profile_item_id
+    row.is_active = data.is_active
+    row.updated_by = actor.id
+    row.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(row)
+    return _cs_system_to_dict(row, db)
 
 
 @router.post("/hardware", status_code=201)

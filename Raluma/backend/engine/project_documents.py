@@ -14,6 +14,7 @@ from typing import Iterable
 from jinja2 import Environment, FileSystemLoader
 
 from engine.book_calc import calculate_book
+from engine.cs_calc import calculate_cs, cs_result_namespace
 from engine.document_numbers import (
     production_project_number,
     resolve_section_numbers,
@@ -239,11 +240,22 @@ def _iter_calculated_sections(
     rows: list[CalculatedSection] = []
     for section_number, section in resolve_section_numbers(sections):
         system = str(getattr(section, "system", "") or "").strip().upper()
-        if system not in {"СЛАЙД", "ЛИФТ"}:
+        if system not in {"СЛАЙД", "ЛИФТ", "ЦС"}:
             continue
-        calc = (
-            calculate_slide(section) if system == "СЛАЙД" else calculate_lift(section)
-        )
+        if system == "СЛАЙД":
+            calc = calculate_slide(section)
+        elif system == "ЛИФТ":
+            calc = calculate_lift(section)
+        else:
+            cs_system = getattr(section, "cs_system", None)
+            calc = cs_result_namespace(
+                calculate_cs(
+                    section,
+                    system=cs_system,
+                    outer_profile=getattr(cs_system, "outer_profile", None),
+                    joint_profile=getattr(cs_system, "joint_profile", None),
+                )
+            )
         rows.append(
             CalculatedSection(
                 order=section_number,
@@ -623,6 +635,8 @@ def _build_paint_pages(
     grouped: dict[str, dict[tuple, dict]] = defaultdict(dict)
 
     for item in calculated:
+        if str(getattr(item.calc, "status", "") or "") == "preliminary":
+            continue
         color = item.calc.color_text or "Без цвета"
         for profile in item.calc.profiles:
             if not profile.painted or profile.length_mm <= 0:
@@ -811,6 +825,43 @@ def _physical_glass_pieces(
 
     system = str(getattr(section, "system", "") or "").strip().upper()
     pieces: list[dict] = []
+    if system == "ЦС":
+        glass_type = normalize_glass_type(
+            getattr(section, "glass_type", None), system
+        )
+        glass_index = 0
+        for pane in getattr(calc, "panes", []) or []:
+            pane_qty = max(1, _positive_int(getattr(pane, "qty", 1), 1))
+            polygon = list(getattr(pane, "polygon", []) or [])
+            min_polygon_x = min(
+                (float(getattr(point, "x", 0) or 0) for point in polygon),
+                default=0,
+            )
+            min_polygon_y = min(
+                (float(getattr(point, "y", 0) or 0) for point in polygon),
+                default=0,
+            )
+            shape_key = tuple(
+                (
+                    round(float(getattr(point, "x", 0) or 0) - min_polygon_x, 1),
+                    round(float(getattr(point, "y", 0) or 0) - min_polygon_y, 1),
+                )
+                for point in polygon
+            )
+            for _ in range(pane_qty):
+                glass_index += 1
+                pieces.append(
+                    {
+                        "marking": f"{section_number},{glass_index}",
+                        "glass_type": glass_type,
+                        "width": glass_mm(getattr(pane, "width_mm", 0)),
+                        "height": glass_mm(getattr(pane, "height_mm", 0)),
+                        "area": round(float(getattr(pane, "area_m2", 0) or 0), 4),
+                        "shape_key": shape_key,
+                        "note": "ПРЕДВАРИТЕЛЬНО · контур по схеме",
+                    }
+                )
+        return pieces
     if system == "СЛАЙД" or (system != "ЛИФТ" and hasattr(calc, "glass")):
         glass_type = normalize_glass_type(calc.glass_type, system)
         for glass_index, glass in enumerate(
@@ -864,6 +915,7 @@ def _group_section_glass_pieces(
             piece["width"],
             piece["height"],
             piece.get("note") or "",
+            piece.get("shape_key") or (),
         )
         row = grouped.get(key)
         if row is None:
@@ -882,7 +934,9 @@ def _group_section_glass_pieces(
         row["qty"] += 1
         width = row["width"]
         height = row["height"]
-        row["area"] = (
+        row["area"] = round(
+            row["area"] + float(piece.get("area") or 0), 4
+        ) if piece.get("area") is not None else (
             round(width * height * row["qty"] / 1_000_000, 3)
             if width is not None and height is not None
             else 0.0
@@ -1049,6 +1103,8 @@ def _section_color(section: object, calc: object | None = None) -> str:
 
     ral = str(getattr(section, "ral_color", "") or "").strip()
     if ral:
+        if "сублим" in painting.casefold():
+            return f"Сублимация {ral}"
         return normalize(ral)
     return painting or "Без цвета"
 
@@ -1208,8 +1264,19 @@ def _build_delivery_glass_rows(
                         "note": piece["note"],
                     }
                 )
-        elif system == "ЛИФТ":
-            calc = calculate_lift(section)
+        elif system in {"ЛИФТ", "ЦС"}:
+            if system == "ЛИФТ":
+                calc = calculate_lift(section)
+            else:
+                cs_system = getattr(section, "cs_system", None)
+                calc = cs_result_namespace(
+                    calculate_cs(
+                        section,
+                        system=cs_system,
+                        outer_profile=getattr(cs_system, "outer_profile", None),
+                        joint_profile=getattr(cs_system, "joint_profile", None),
+                    )
+                )
             color = _section_color(section, calc)
             pieces = _physical_glass_pieces(
                 section,
@@ -1227,6 +1294,8 @@ def _build_delivery_glass_rows(
                         "height": piece["height"],
                         "qty": 1,
                         "note": piece["note"],
+                        "area": piece.get("area"),
+                        "shape_key": piece.get("shape_key"),
                     }
                 )
         else:
@@ -2049,6 +2118,32 @@ def _build_hardware_order_page(
                     image=f"{article}.png",
                     stage=getattr(item, "shipment_stage", ""),
                 )
+    elif system == "ЦС":
+        for section in sections:
+            cs_system = getattr(section, "cs_system", None)
+            calc = cs_result_namespace(
+                calculate_cs(
+                    section,
+                    system=cs_system,
+                    outer_profile=getattr(cs_system, "outer_profile", None),
+                    joint_profile=getattr(cs_system, "joint_profile", None),
+                )
+            )
+            for item in calc.profiles:
+                _add_hardware_order_row(
+                    grouped,
+                    article=getattr(item, "article", ""),
+                    name=getattr(item, "name", ""),
+                    qty=_safe_float(getattr(item, "total_length_mm", 0), 0) / 1000,
+                    unit="м",
+                    image="",
+                    stage="",
+                    size="ПРЕДВАРИТЕЛЬНО",
+                )
+        warning = (
+            "ЦС: ведомость профилей предварительная; коммерческая цена и дверная "
+            "фурнитура не формируются до подтверждения формул."
+        )
     else:
         warning = (
             f"Расчёт фурнитуры для системы {system} пока не реализован. "

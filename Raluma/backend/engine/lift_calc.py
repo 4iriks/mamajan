@@ -114,14 +114,18 @@ def _is_igu(section: object) -> bool:
 
 
 def _is_painted(section: object) -> bool:
-    return "RAL" in str(getattr(section, "painting_type", "") or "").upper()
+    value = str(getattr(section, "painting_type", "") or "").upper()
+    return "RAL" in value or "СУБЛИМ" in value
 
 
 def _color_text(section: object) -> str:
     painting_type = str(getattr(section, "painting_type", "") or "").strip()
     if "АНОД" in painting_type.upper():
         return "Анодированный"
-    return str(getattr(section, "ral_color", "") or painting_type).strip()
+    color = str(getattr(section, "ral_color", "") or "").strip()
+    if "СУБЛИМ" in painting_type.upper():
+        return f"Сублимация {color}".strip()
+    return color or painting_type
 
 
 def _ceil_tenth(value: float) -> float:

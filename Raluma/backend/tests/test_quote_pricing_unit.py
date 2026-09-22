@@ -31,7 +31,7 @@ def _version(**overrides):
     return SimpleNamespace(**values)
 
 
-def test_construction_formula_uses_all_item_coefficients_and_automatic_waste():
+def test_construction_formula_is_independent_from_profile_chain():
     required = {
         "sku": "FORMULA-1",
         "name": "Проверка формулы",
@@ -47,12 +47,26 @@ def test_construction_formula_uses_all_item_coefficients_and_automatic_waste():
         )
     }
 
-    without_waste, issue = _price_requirement(required, active, {}, mode="construction")
+    priced, issue = _price_requirement(required, active, {}, mode="construction")
     assert issue is None
-    # 100 × 3 × profile terms × construction terms × 30% waste.
-    assert without_waste["internal_total"] == "1140.75"
-    assert without_waste["minimum_total"] == "330.00"
-    assert without_waste["waste_markup_applied"] is True
+    # Construction: 100 × 3 → +30% waste → +200% construction → −35%.
+    # The standalone profile +100%/−25% chain must not affect this result.
+    assert priced["internal_total"] == "760.50"
+    assert priced["minimum_total"] == "330.00"
+    assert priced["waste_markup_applied"] is True
+    assert priced["price_stages"] == {
+        "profile": {
+            "base_cost": "300.00",
+            "after_markup": "600.00",
+            "after_discount": "450.00",
+        },
+        "construction": {
+            "base_cost": "300.00",
+            "after_waste": "390.00",
+            "after_markup": "1170.00",
+            "after_discount": "760.50",
+        },
+    }
 
 
 def test_standalone_requirement_uses_only_profile_terms():

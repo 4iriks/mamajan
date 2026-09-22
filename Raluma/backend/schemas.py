@@ -124,6 +124,7 @@ class CatalogFinishVariantInput(BaseModel):
     cost: Optional[Decimal] = Field(default=None, ge=0)
     profileMarkupPercent: Decimal = Field(default=Decimal("0"), ge=0)
     profileDiscountPercent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
+    wasteMarkupPercent: Decimal = Field(default=Decimal("0"), ge=0)
     constructionMarkupPercent: Decimal = Field(default=Decimal("0"), ge=0)
     constructionDiscountPercent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     requiresPaint: bool = False
@@ -139,7 +140,7 @@ class CatalogItemBase(BaseModel):
     name: str
     group: str = "Профили"
     system: str = "СЛАЙД"
-    systemGroups: List[Literal["SLIDE_1", "SLIDE_2"]] = Field(
+    systemGroups: List[Literal["SLIDE_1", "SLIDE_2", "CS"]] = Field(
         default_factory=lambda: ["SLIDE_1", "SLIDE_2"]
     )
     unit: str = "шт"
@@ -167,6 +168,57 @@ class CatalogItemCreate(CatalogItemBase):
 
 class CatalogItemUpdate(CatalogItemBase):
     pass
+
+
+class CatalogPricingBulkRequest(BaseModel):
+    item_ids: list[int] = Field(min_length=1)
+    finish_codes: list[str] = Field(default_factory=list)
+    profile_markup_percent: Optional[Decimal] = Field(default=None, ge=0)
+    profile_discount_percent: Optional[Decimal] = Field(default=None, ge=0, le=100)
+    waste_markup_percent: Optional[Decimal] = Field(default=None, ge=0)
+    construction_markup_percent: Optional[Decimal] = Field(default=None, ge=0)
+    construction_discount_percent: Optional[Decimal] = Field(
+        default=None, ge=0, le=100
+    )
+    effective_from: datetime = Field(default_factory=datetime.utcnow)
+    reason: str = Field(min_length=1, max_length=1000)
+
+    @model_validator(mode="after")
+    def require_price_field(self):
+        fields = (
+            self.profile_markup_percent,
+            self.profile_discount_percent,
+            self.waste_markup_percent,
+            self.construction_markup_percent,
+            self.construction_discount_percent,
+        )
+        if all(value is None for value in fields):
+            raise ValueError("Укажите хотя бы одно изменяемое поле")
+        return self
+
+
+class CsSystemBase(BaseModel):
+    code: str = Field(min_length=1, max_length=80)
+    name: str = Field(min_length=1, max_length=160)
+    outer_profile_item_id: Optional[int] = None
+    joint_profile_item_id: Optional[int] = None
+    is_active: bool = True
+
+
+class CsSystemCreate(CsSystemBase):
+    pass
+
+
+class CsSystemUpdate(CsSystemBase):
+    pass
+
+
+class CsSystemOut(CsSystemBase):
+    id: int
+    outer_profile: Optional[dict[str, Any]] = None
+    joint_profile: Optional[dict[str, Any]] = None
+
+    model_config = {"from_attributes": True}
 
 
 # ── Версионируемые цены ──────────────────────────────────────────────────────
@@ -410,6 +462,8 @@ class SectionBase(BaseModel):
     door_system: Optional[str] = None
     cs_shape: Optional[str] = None
     cs_width2: Optional[float] = None
+    cs_system_id: Optional[int] = None
+    cs_config: Optional[dict[str, Any]] = None
     # Примечания к секции
     extra_parts: Optional[str] = None
     extra_components: Optional[str] = "[]"

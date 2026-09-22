@@ -3,6 +3,14 @@ import type { SectionOut } from '../../api/projects';
 import { bookExtraDoorPanelOptions, normalizeBookSystem } from '../../constants/book';
 import { normalizeGlassType } from '../../constants/glass';
 
+function normalizePaintingType(value?: string): Section['paintingType'] {
+  const normalized = (value || '').trim().toLowerCase();
+  if (normalized.includes('сублим')) return 'Сублимация';
+  if (normalized.includes('муар') || normalized.includes('нестандарт')) return 'RAL муар';
+  if (normalized.includes('анод') || normalized.includes('неокрас') || normalized.includes('без окраск')) return 'Анод/неокрас';
+  return 'RAL стандарт';
+}
+
 export function cloneExtraComponents(rows?: ExtraComponent[]): ExtraComponent[] {
   return (rows ?? []).map(row => ({ ...row }));
 }
@@ -216,7 +224,7 @@ export function apiToLocal(s: SectionOut): Section {
     glassType: normalizeGlassType(s.glass_type, rawSystem || 'СЛАЙД'),
     glassSupplied: ['СЛАЙД', 'КНИЖКА'].includes(s.system) ? (s.glass_supplied ?? true) : true,
     priceGroupId: s.price_group_id,
-    paintingType: s.painting_type as Section['paintingType'],
+    paintingType: normalizePaintingType(s.painting_type),
     ralColor: s.ral_color,
     cornerLeft: s.corner_left,
     cornerRight: s.corner_right,
@@ -304,6 +312,8 @@ export function apiToLocal(s: SectionOut): Section {
     doorSystem: s.door_system,
     csShape: s.cs_shape,
     csWidth2: s.cs_width2,
+    csSystemId: s.cs_system_id,
+    csConfig: s.cs_config,
     comments: s.comments,
     documentOverrides: s.document_overrides,
   };
@@ -406,6 +416,7 @@ export function localToApi(s: Section, fallbackIndex: number): Omit<SectionOut, 
     lift_cable_side: s.liftCableSide,
     lift_opening_type: s.liftOpeningType,
     door_system: s.doorSystem, cs_shape: s.csShape, cs_width2: s.csWidth2,
+    cs_system_id: s.csSystemId, cs_config: s.csConfig,
     extra_parts: undefined, comments: s.comments,
     extra_components: '[]',
     document_overrides: s.documentOverrides,

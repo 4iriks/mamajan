@@ -146,9 +146,10 @@ def test_hardware_catalog_returns_calculation_seed(client, admin_headers):
     assert by_sku["RS112"]["imageFile"] == "RS112.png"
     assert by_sku["RS112"]["sectionWidthMm"] == 52
     assert by_sku["RS112"]["colorVariants"] == [
-        "Анод",
+        "Анод/неокрас",
         "RAL стандарт",
-        "RAL нестандарт",
+        "RAL муар",
+        "Сублимация",
     ]
     assert by_sku["RS2323"]["paintMode"] == "Частично"
     assert (
@@ -177,7 +178,7 @@ def test_hardware_catalog_updates_item(client, admin_headers):
                 "cost": 777,
                 "profileMarkupPercent": 41,
             }
-            if variant["code"] == "ANOD"
+            if variant["code"] == "ANOD_UNPAINTED"
             else variant
             for variant in item["finishVariants"]
         ],
@@ -193,7 +194,11 @@ def test_hardware_catalog_updates_item(client, admin_headers):
     data = r.json()
     assert data["purchasePrice"] == 777
     assert data["markupPercent"] == 41
-    anod = next(row for row in data["finishVariants"] if row["code"] == "ANOD")
+    anod = next(
+        row
+        for row in data["finishVariants"]
+        if row["code"] == "ANOD_UNPAINTED"
+    )
     assert anod["cost"] == "777.00"
     assert anod["profileMarkupPercent"] == 41
 
@@ -283,7 +288,7 @@ def test_finish_variants_have_public_prices_and_project_snapshots(
         "name": "Профиль с исполнениями",
         "group": "Профили",
         "system": "СЛАЙД",
-        "unit": "п.м.",
+        "unit": "м.п.",
         "purchasePrice": 50,
         "markupPercent": 99,
         "weight": 1.2,
@@ -292,11 +297,16 @@ def test_finish_variants_have_public_prices_and_project_snapshots(
         "sectionHeightMm": 20,
         "imageFile": "",
         "paintMode": "Красится",
-        "colorVariants": ["Анод", "RAL стандарт", "RAL нестандарт"],
+        "colorVariants": [
+            "Анод/неокрас",
+            "RAL стандарт",
+            "RAL муар",
+            "Сублимация",
+        ],
         "finishVariants": [
             {
-                "code": "ANOD",
-                "name": "Анод",
+                "code": "ANOD_UNPAINTED",
+                "name": "Анод/неокрас",
                 "cost": 120,
                 "profileMarkupPercent": 99,
                 "requiresPaint": False,
@@ -309,9 +319,16 @@ def test_finish_variants_have_public_prices_and_project_snapshots(
                 "requiresPaint": True,
             },
             {
-                "code": "RAL_NONSTANDARD",
-                "name": "RAL нестандарт",
+                "code": "RAL_MOIRE",
+                "name": "RAL муар",
                 "cost": 190,
+                "profileMarkupPercent": 99,
+                "requiresPaint": True,
+            },
+            {
+                "code": "SUBLIMATION",
+                "name": "Сублимация",
+                "cost": 205,
                 "profileMarkupPercent": 99,
                 "requiresPaint": True,
             },
@@ -326,8 +343,8 @@ def test_finish_variants_have_public_prices_and_project_snapshots(
     project_id = None
     try:
         variants = {row["name"]: row for row in item["finishVariants"]}
-        assert variants["Анод"]["cost"] == "120.00"
-        assert variants["Анод"]["requiresPaint"] is False
+        assert variants["Анод/неокрас"]["cost"] == "120.00"
+        assert variants["Анод/неокрас"]["requiresPaint"] is False
         assert variants["RAL стандарт"]["cost"] == "175.50"
         assert variants["RAL стандарт"]["requiresPaint"] is True
 
@@ -592,3 +609,222 @@ def test_profile_asset_rejects_non_image_extension(client):
     r = client.get("/api/catalog/profile-assets/models.py")
 
     assert r.status_code == 404
+
+
+def test_catalog_bulk_pricing_preview_and_apply_keep_chains_independent(
+    client, admin_headers
+):
+    payload = {
+        "sku": "TEST-BULK-PRICING-001",
+        "name": "Профиль для массового изменения цен",
+        "group": "Профили",
+        "system": "ЦС",
+        "systemGroups": ["CS"],
+        "unit": "п.м.",
+        "purchasePrice": 100,
+        "markupPercent": 10,
+        "profileDiscountPercent": 0,
+        "weight": 1,
+        "wastePercent": 2,
+        "constructionMarkupPercent": 20,
+        "constructionDiscountPercent": 0,
+        "sectionWidthMm": 40,
+        "sectionHeightMm": 20,
+        "imageFile": "",
+        "paintMode": "Красится",
+        "colorVariants": ["Анод/неокрас"],
+        "finishVariants": [
+            {
+                "code": "ANOD_UNPAINTED",
+                "name": "Анод/неокрас",
+                "cost": 100,
+                "profileMarkupPercent": 10,
+                "profileDiscountPercent": 0,
+                "wasteMarkupPercent": 2,
+                "constructionMarkupPercent": 20,
+                "constructionDiscountPercent": 0,
+                "requiresPaint": False,
+            }
+        ],
+        "supplier": "pytest",
+        "isActive": True,
+        "note": "bulk pricing pytest",
+    }
+    created = client.post("/api/catalog/hardware", headers=admin_headers, json=payload)
+    assert created.status_code == 201, created.text
+    item = created.json()
+    variant_id = item["finishVariants"][0]["id"]
+    update = {
+        "item_ids": [item["id"]],
+        # Legacy aliases are deliberately accepted at the API boundary.
+        "finish_codes": ["ANOD"],
+        "profile_markup_percent": 35,
+        "profile_discount_percent": 10,
+        "waste_markup_percent": 4,
+        "construction_markup_percent": 50,
+        "construction_discount_percent": 5,
+        "effective_from": "2026-09-22T12:00:00",
+        "reason": "Контроль независимых цепочек",
+    }
+    try:
+        preview = client.post(
+            "/api/catalog/pricing/bulk/preview",
+            headers=admin_headers,
+            json=update,
+        )
+        assert preview.status_code == 200, preview.text
+        assert preview.json() == {
+            "count": 1,
+            "rows": [
+                {
+                    "itemId": item["id"],
+                    "sku": payload["sku"],
+                    "name": payload["name"],
+                    "finishCode": "ANOD_UNPAINTED",
+                    "finishName": "Анод/неокрас",
+                    "before": {
+                        "profile": {
+                            "base": "100.00",
+                            "afterMarkup": "110.00",
+                            "final": "110.00",
+                        },
+                        "construction": {
+                            "base": "100.00",
+                            "afterWaste": "102.00",
+                            "afterMarkup": "122.40",
+                            "final": "122.40",
+                        },
+                    },
+                    "after": {
+                        "profile": {
+                            "base": "100.00",
+                            "afterMarkup": "135.00",
+                            "final": "121.50",
+                        },
+                        "construction": {
+                            "base": "100.00",
+                            "afterWaste": "104.00",
+                            "afterMarkup": "156.00",
+                            "final": "148.20",
+                        },
+                    },
+                }
+            ],
+        }
+
+        unchanged = client.get(
+            "/api/catalog/hardware", headers=admin_headers
+        ).json()
+        unchanged_variant = next(
+            row for row in unchanged if row["id"] == item["id"]
+        )["finishVariants"][0]
+        assert unchanged_variant["profileMarkupPercent"] == 10
+        assert unchanged_variant["wasteMarkupPercent"] == 2
+
+        applied = client.post(
+            "/api/catalog/pricing/bulk/apply",
+            headers=admin_headers,
+            json=update,
+        )
+        assert applied.status_code == 200, applied.text
+        assert applied.json() == preview.json()
+
+        updated = client.get("/api/catalog/hardware", headers=admin_headers).json()
+        updated_variant = next(row for row in updated if row["id"] == item["id"])[
+            "finishVariants"
+        ][0]
+        assert updated_variant["profileMarkupPercent"] == 35
+        assert updated_variant["profileDiscountPercent"] == 10
+        assert updated_variant["wasteMarkupPercent"] == 4
+        assert updated_variant["constructionMarkupPercent"] == 50
+        assert updated_variant["constructionDiscountPercent"] == 5
+
+        db = SessionLocal()
+        try:
+            version = (
+                db.query(models.CatalogPriceVersion)
+                .filter_by(finish_variant_id=variant_id)
+                .order_by(models.CatalogPriceVersion.id.desc())
+                .first()
+            )
+            assert version.reason == update["reason"]
+            assert Decimal(version.profile_markup_percent) == Decimal("35")
+            assert Decimal(version.waste_markup_percent) == Decimal("4")
+            assert Decimal(version.construction_markup_percent) == Decimal("50")
+        finally:
+            db.close()
+    finally:
+        client.delete(f"/api/catalog/hardware/{item['id']}", headers=admin_headers)
+
+
+def test_cs_system_admin_crud_and_profile_validation(client, admin_headers):
+    items = client.get("/api/catalog/hardware", headers=admin_headers).json()
+    profiles = [
+        row
+        for row in items
+        if row["group"] == "Профили" and row["isActive"]
+    ]
+    non_profile = next(
+        row
+        for row in items
+        if row["group"] == "Фурнитура" and row["isActive"]
+    )
+    assert len(profiles) >= 2
+    code = "PYTEST_CS_SYSTEM"
+    payload = {
+        "code": code,
+        "name": "Тестовая система ЦС",
+        "outer_profile_item_id": profiles[0]["id"],
+        "joint_profile_item_id": profiles[1]["id"],
+        "is_active": True,
+    }
+    created_id = None
+    try:
+        created = client.post(
+            "/api/catalog/cs-systems", headers=admin_headers, json=payload
+        )
+        assert created.status_code == 201, created.text
+        created_data = created.json()
+        created_id = created_data["id"]
+        assert created_data["code"] == code
+        assert created_data["outer_profile"]["id"] == profiles[0]["id"]
+        assert created_data["joint_profile"]["id"] == profiles[1]["id"]
+
+        listed = client.get("/api/catalog/cs-systems")
+        assert listed.status_code == 200, listed.text
+        assert any(row["id"] == created_id for row in listed.json())
+
+        duplicate = client.post(
+            "/api/catalog/cs-systems", headers=admin_headers, json=payload
+        )
+        assert duplicate.status_code == 400
+
+        invalid = client.put(
+            f"/api/catalog/cs-systems/{created_id}",
+            headers=admin_headers,
+            json={**payload, "outer_profile_item_id": non_profile["id"]},
+        )
+        assert invalid.status_code == 400
+        assert "только профили" in invalid.json()["detail"].lower()
+
+        updated = client.put(
+            f"/api/catalog/cs-systems/{created_id}",
+            headers=admin_headers,
+            json={
+                **payload,
+                "name": "Тестовая система ЦС, обновлённая",
+                "joint_profile_item_id": None,
+            },
+        )
+        assert updated.status_code == 200, updated.text
+        assert updated.json()["name"].endswith("обновлённая")
+        assert updated.json()["joint_profile_item_id"] is None
+        assert updated.json()["joint_profile"] is None
+    finally:
+        if created_id is not None:
+            db = SessionLocal()
+            try:
+                db.query(models.CsSystem).filter_by(id=created_id).delete()
+                db.commit()
+            finally:
+                db.close()

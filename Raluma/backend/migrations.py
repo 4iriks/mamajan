@@ -146,6 +146,7 @@ _CREATE_TABLES = [
         cost NUMERIC(14, 2) NOT NULL DEFAULT 0,
         profile_markup_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
         profile_discount_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
+        waste_markup_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
         construction_markup_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
         construction_discount_percent NUMERIC(8, 4) NOT NULL DEFAULT 0,
         requires_paint BOOLEAN NOT NULL DEFAULT 0,
@@ -158,6 +159,22 @@ _CREATE_TABLES = [
     """
     CREATE INDEX IF NOT EXISTS ix_catalog_finish_variants_item
     ON catalog_finish_variants (catalog_item_id)
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS cs_systems (
+        id INTEGER PRIMARY KEY,
+        code VARCHAR NOT NULL UNIQUE,
+        name VARCHAR NOT NULL,
+        outer_profile_item_id INTEGER,
+        joint_profile_item_id INTEGER,
+        is_active BOOLEAN NOT NULL DEFAULT 1,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_by INTEGER,
+        FOREIGN KEY(outer_profile_item_id) REFERENCES catalog_items(id),
+        FOREIGN KEY(joint_profile_item_id) REFERENCES catalog_items(id),
+        FOREIGN KEY(updated_by) REFERENCES users(id)
+    )
     """,
     """
     CREATE TABLE IF NOT EXISTS construction_price_groups (
@@ -213,6 +230,7 @@ _ADD_COLUMNS = [
     "ALTER TABLE catalog_finish_variants ADD COLUMN code VARCHAR NOT NULL DEFAULT 'BASE'",
     "ALTER TABLE catalog_finish_variants ADD COLUMN profile_markup_percent NUMERIC(8, 4) NOT NULL DEFAULT 0",
     "ALTER TABLE catalog_finish_variants ADD COLUMN profile_discount_percent NUMERIC(8, 4) NOT NULL DEFAULT 0",
+    "ALTER TABLE catalog_finish_variants ADD COLUMN waste_markup_percent NUMERIC(8, 4) NOT NULL DEFAULT 0",
     "ALTER TABLE catalog_finish_variants ADD COLUMN construction_markup_percent NUMERIC(8, 4) NOT NULL DEFAULT 0",
     "ALTER TABLE catalog_finish_variants ADD COLUMN construction_discount_percent NUMERIC(8, 4) NOT NULL DEFAULT 0",
     "ALTER TABLE catalog_price_versions ADD COLUMN finish_variant_id INTEGER",
@@ -243,6 +261,8 @@ _ADD_COLUMNS = [
     "ALTER TABLE sections ADD COLUMN door_system VARCHAR",
     "ALTER TABLE sections ADD COLUMN cs_shape VARCHAR",
     "ALTER TABLE sections ADD COLUMN cs_width2 FLOAT",
+    "ALTER TABLE sections ADD COLUMN cs_system_id INTEGER",
+    "ALTER TABLE sections ADD COLUMN cs_config TEXT",
     "ALTER TABLE sections ADD COLUMN profile_left_wall BOOLEAN DEFAULT 0",
     "ALTER TABLE sections ADD COLUMN profile_left_lock_bar BOOLEAN DEFAULT 0",
     "ALTER TABLE sections ADD COLUMN profile_left_p_bar BOOLEAN DEFAULT 0",
@@ -327,6 +347,7 @@ _DATA_MIGRATIONS = [
     "INSERT OR IGNORE INTO construction_price_groups (code, name, markup_percent, is_active, created_at, updated_at) VALUES ('LIFT', 'ЛИФТ', 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
     "INSERT OR IGNORE INTO construction_price_groups (code, name, markup_percent, is_active, created_at, updated_at) VALUES ('SLIDE_1', 'СЛАЙД 1 ряд', 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
     "INSERT OR IGNORE INTO construction_price_groups (code, name, markup_percent, is_active, created_at, updated_at) VALUES ('SLIDE_2', 'СЛАЙД 2 ряда', 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+    "INSERT OR IGNORE INTO cs_systems (code, name, is_active, created_at, updated_at) VALUES ('CS_CLAMP', 'ЦС — зажимной профиль', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
     "UPDATE construction_price_groups SET is_active = 0 WHERE code IN ('SLIDE', 'BOOK', 'LIFT')",
     "UPDATE sections SET price_group_id = (SELECT id FROM construction_price_groups WHERE code = CASE WHEN COALESCE(slide_rows, 1) = 2 THEN 'SLIDE_2' ELSE 'SLIDE_1' END) WHERE UPPER(TRIM(system)) = 'СЛАЙД'",
     "UPDATE sections SET price_group_id = (SELECT id FROM construction_price_groups WHERE code = 'SLIDE') WHERE price_group_id IS NULL AND UPPER(TRIM(system)) = 'СЛАЙД'",
@@ -964,6 +985,232 @@ def _sync_invoice_counter(conn) -> None:
     )
 
 
+def _migrate_finish_chains_v2(conn) -> None:
+    """Create the four public finishes and move waste to each finish row.
+
+    Existing variant ids are retained whenever possible so historical price
+    versions and fixed quote snapshots keep their references.  The migration
+    also emits a fresh active version because construction pricing now reads
+    the per-finish waste value.
+    """
+
+    marker = "catalog-finish-chains-v2"
+    if conn.execute(
+        text("SELECT 1 FROM migration_markers WHERE name = :name"),
+        {"name": marker},
+    ).first():
+        return
+
+    actor_id = conn.execute(
+        text(
+            "SELECT id FROM users WHERE role IN ('admin', 'superadmin') "
+            "ORDER BY CASE WHEN role = 'superadmin' THEN 0 ELSE 1 END, id LIMIT 1"
+        )
+    ).scalar()
+    finish_defs = {
+        "ANOD_UNPAINTED": ("Анод/неокрас", False),
+        "RAL_STANDARD": ("RAL стандарт", True),
+        "RAL_MOIRE": ("RAL муар", True),
+        "SUBLIMATION": ("Сублимация", True),
+        "COLORLESS": ("Без цвета", False),
+    }
+
+    items = conn.execute(
+        text(
+            "SELECT id, paint_mode, waste_percent, \"group\", unit "
+            "FROM catalog_items ORDER BY id"
+        )
+    ).fetchall()
+    for item_id, paint_mode, legacy_waste, group_name, unit in items:
+        mode = " ".join(str(paint_mode or "").strip().casefold().split())
+        paintable = (
+            "красится" in mode and "не красится" not in mode
+        ) or "частично" in mode
+        expected = (
+            ["ANOD_UNPAINTED", "RAL_STANDARD", "RAL_MOIRE", "SUBLIMATION"]
+            if paintable
+            else ["COLORLESS"]
+        )
+        variants = conn.execute(
+            text(
+                "SELECT id, code, name, cost, profile_markup_percent, "
+                "profile_discount_percent, construction_markup_percent, "
+                "construction_discount_percent FROM catalog_finish_variants "
+                "WHERE catalog_item_id = :item_id ORDER BY is_active DESC, id"
+            ),
+            {"item_id": item_id},
+        ).fetchall()
+
+        by_code: dict[str, tuple] = {}
+        for row in variants:
+            variant_id, raw_code, raw_name, *_ = row
+            code = str(raw_code or "").strip().upper()
+            normalized_name = " ".join(str(raw_name or "").casefold().split())
+            if code in {"ANOD", "BASE"} or "анод" in normalized_name:
+                canonical = "ANOD_UNPAINTED" if paintable else "COLORLESS"
+            elif code == "RAL_NONSTANDARD" or "нестандарт" in normalized_name or "муар" in normalized_name:
+                canonical = "RAL_MOIRE"
+            elif code == "RAL_STANDARD" or "ral" in normalized_name:
+                canonical = "RAL_STANDARD"
+            elif code == "SUBLIMATION" or "сублим" in normalized_name:
+                canonical = "SUBLIMATION"
+            elif code == "COLORLESS" or "без цвет" in normalized_name:
+                canonical = "COLORLESS"
+            else:
+                canonical = "COLORLESS" if not paintable else "ANOD_UNPAINTED"
+            by_code.setdefault(canonical, row)
+
+        retained: list[int] = []
+        for code in expected:
+            name, requires_paint = finish_defs[code]
+            source = by_code.get(code)
+            if source is None and code == "ANOD_UNPAINTED":
+                source = by_code.get("COLORLESS")
+            if source is None:
+                result = conn.execute(
+                    text(
+                        "INSERT INTO catalog_finish_variants "
+                        "(catalog_item_id, code, name, price, cost, "
+                        "profile_markup_percent, profile_discount_percent, "
+                        "waste_markup_percent, construction_markup_percent, "
+                        "construction_discount_percent, requires_paint, is_active, "
+                        "created_at, updated_at) VALUES "
+                        "(:item_id, :code, :name, 0, 0, 0, 0, 0, 0, 0, "
+                        ":requires_paint, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                    ),
+                    {
+                        "item_id": item_id,
+                        "code": code,
+                        "name": name,
+                        "requires_paint": requires_paint,
+                    },
+                )
+                variant_id = int(result.lastrowid)
+                cost = profile_markup = profile_discount = 0
+                construction_markup = construction_discount = 0
+                waste = 0
+            else:
+                (
+                    variant_id,
+                    _raw_code,
+                    _raw_name,
+                    cost,
+                    profile_markup,
+                    profile_discount,
+                    construction_markup,
+                    construction_discount,
+                ) = source
+                waste = legacy_waste or 0
+                conn.execute(
+                    text(
+                        "UPDATE catalog_finish_variants SET code = :code, name = :name, "
+                        "price = :cost, cost = :cost, waste_markup_percent = :waste, "
+                        "requires_paint = :requires_paint, is_active = 1, "
+                        "updated_at = CURRENT_TIMESTAMP WHERE id = :variant_id"
+                    ),
+                    {
+                        "code": code,
+                        "name": name,
+                        "cost": cost or 0,
+                        "waste": waste,
+                        "requires_paint": requires_paint,
+                        "variant_id": variant_id,
+                    },
+                )
+            retained.append(int(variant_id))
+
+            if actor_id:
+                current = conn.execute(
+                    text(
+                        "SELECT category, unit, min_margin_percent FROM "
+                        "catalog_price_versions WHERE catalog_item_id = :item_id "
+                        "AND finish_variant_id = :variant_id "
+                        "ORDER BY effective_from DESC, id DESC LIMIT 1"
+                    ),
+                    {"item_id": item_id, "variant_id": variant_id},
+                ).first()
+                category = (
+                    current[0]
+                    if current
+                    else "profile"
+                    if "проф" in str(group_name or "").casefold()
+                    or "уплотн" in str(group_name or "").casefold()
+                    else "service"
+                    if "услуг" in str(group_name or "").casefold()
+                    else "component"
+                )
+                price_unit = current[1] if current else unit or "шт"
+                min_margin = current[2] if current else 0
+                conn.execute(
+                    text(
+                        "INSERT INTO catalog_price_versions "
+                        "(catalog_item_id, finish_variant_id, cost, "
+                        "profile_markup_percent, profile_discount_percent, "
+                        "waste_markup_percent, construction_markup_percent, "
+                        "construction_discount_percent, category, unit, "
+                        "min_margin_percent, effective_from, created_at, created_by, reason) "
+                        "VALUES (:item_id, :variant_id, :cost, :profile_markup, "
+                        ":profile_discount, :waste, :construction_markup, "
+                        ":construction_discount, :category, :unit, :min_margin, "
+                        "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, :actor_id, :reason)"
+                    ),
+                    {
+                        "item_id": item_id,
+                        "variant_id": variant_id,
+                        "cost": cost or 0,
+                        "profile_markup": profile_markup or 0,
+                        "profile_discount": profile_discount or 0,
+                        "waste": waste,
+                        "construction_markup": construction_markup or 0,
+                        "construction_discount": construction_discount or 0,
+                        "category": category,
+                        "unit": price_unit,
+                        "min_margin": min_margin,
+                        "actor_id": actor_id,
+                        "reason": f"Миграция цепочек цены: {name}",
+                    },
+                )
+
+        if retained:
+            placeholders = ", ".join(str(value) for value in retained)
+            conn.execute(
+                text(
+                    "UPDATE catalog_finish_variants SET is_active = 0 "
+                    f"WHERE catalog_item_id = :item_id AND id NOT IN ({placeholders})"
+                ),
+                {"item_id": item_id},
+            )
+        conn.execute(
+            text(
+                "UPDATE catalog_items SET color_variants = :variants "
+                "WHERE id = :item_id"
+            ),
+            {
+                "variants": json.dumps(
+                    [finish_defs[code][0] for code in expected], ensure_ascii=False
+                ),
+                "item_id": item_id,
+            },
+        )
+
+    conn.execute(
+        text(
+            "UPDATE sections SET painting_type = 'Анод/неокрас' "
+            "WHERE LOWER(TRIM(painting_type)) IN ('анод', 'анодированный', 'без окраски', 'неокрас')"
+        )
+    )
+    conn.execute(
+        text(
+            "UPDATE sections SET painting_type = 'RAL муар' "
+            "WHERE LOWER(TRIM(painting_type)) = 'ral нестандарт'"
+        )
+    )
+    conn.execute(
+        text("INSERT INTO migration_markers (name) VALUES (:name)"),
+        {"name": marker},
+    )
+
+
 def run_migrations():
     """Выполнить все миграции. Безопасно вызывать при каждом старте."""
     # Прежние пользовательские шаблоны заменены фиксированным каталогом СЛАЙД.
@@ -1018,6 +1265,7 @@ def run_migrations():
             _backfill_finish_variant_costs_once,
             _backfill_finish_variants,
             _migrate_unified_catalog_pricing_once,
+            _migrate_finish_chains_v2,
             _migrate_section_extras_to_project,
             _sync_invoice_counter,
         )

@@ -3,7 +3,8 @@ import axios from 'axios';
 // Production must always use relative /api paths through Caddy. Keeping this
 // branch compile-time constant prevents a local .env.local from leaking a
 // localhost backend address into an offline production build.
-const BASE_URL = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || '');
+const viteEnv = import.meta.env as ImportMetaEnv | undefined;
+const BASE_URL = viteEnv?.PROD ? '' : (viteEnv?.VITE_API_URL || '');
 
 const client = axios.create({
   baseURL: BASE_URL,

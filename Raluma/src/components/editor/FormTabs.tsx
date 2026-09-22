@@ -35,7 +35,7 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
     const thresholdKind = threshold.includes('Накладной') ? 'Накладной' : 'Стандартный';
     update({
       paintingType: type,
-      ...(type === 'Анодированный' && threshold.toLowerCase().includes('окраш')
+      ...(type === 'Анод/неокрас' && threshold.toLowerCase().includes('окраш')
         ? { threshold: `${thresholdKind} анод` }
         : {}),
       ...(type.includes('RAL') && !s.ralColor ? { ralColor: '9016 МАТОВЫЙ' } : {}),
@@ -127,7 +127,7 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
         <div className="space-y-1.5">
           <label className={LBL}>Окрашивание</label>
           <div className="space-y-1.5">
-            {(['RAL стандарт', 'RAL нестандарт', 'Анодированный'] as const).map(type => (
+            {(['Анод/неокрас', 'RAL стандарт', 'RAL муар', 'Сублимация'] as const).map(type => (
               <button key={type} onClick={() => setPaintingType(type)}
                 className={`flex items-center gap-3 w-full px-3 py-2 rounded-xl border transition-all text-left ${
                   s.paintingType === type ? 'bg-accent/10 border-accent/50 text-accent' : 'bg-black/10 border-tint/20 text-fg/50 hover:border-tint/50'
@@ -142,10 +142,10 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
               </button>
             ))}
           </div>
-          {s.paintingType.includes('RAL') && (
+          {(s.paintingType.includes('RAL') || s.paintingType === 'Сублимация') && (
             <div className="mt-2 space-y-1.5">
-              <label className={LBL}>Цвет RAL</label>
-              <input type="text" value={s.ralColor || ''} onChange={e => update({ ralColor: e.target.value })} className={INP} placeholder="Напр. 9016 МАТОВЫЙ" />
+              <label className={LBL}>{s.paintingType === 'Сублимация' ? 'Декор' : 'Цвет RAL'}</label>
+              <input type="text" value={s.ralColor || ''} onChange={e => update({ ralColor: e.target.value })} className={INP} placeholder={s.paintingType === 'Сублимация' ? 'Название декора' : 'Напр. 9016 МАТОВЫЙ'} />
             </div>
           )}
         </div>
@@ -161,7 +161,7 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
   const is2row = (s.slideRows ?? 1) === 2;
   const rails = s.rails ?? 3;
   const thresholdKind = (s.threshold || '').includes('Накладной') ? 'Накладной' : 'Стандартный';
-  const thresholdOptions = s.paintingType === 'Анодированный'
+  const thresholdOptions = s.paintingType === 'Анод/неокрас'
     ? [
         { value: 'Стандартный анод', label: 'Стандартный анод RS2323/RS2325' },
         { value: 'Накладной анод', label: 'Накладной анод RS23231/RS23251' },
@@ -176,7 +176,7 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
   const normalizedAnodThreshold = `${thresholdKind} анод`;
   const thresholdValue = thresholdValues.includes(s.threshold || '')
     ? s.threshold || thresholdOptions[0].value
-    : s.paintingType === 'Анодированный'
+    : s.paintingType === 'Анод/неокрас'
       ? normalizedAnodThreshold
     : `${thresholdKind} ${(s.threshold || '').toLowerCase().includes('анод') ? 'анод' : 'окраш'}`;
 

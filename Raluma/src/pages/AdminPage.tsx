@@ -125,6 +125,7 @@ export default function AdminPage() {
   const [editingUser, setEditingUser] = useState<UserOut | null>(null);
   const [form, setForm] = useState<UserCreate & { id?: number }>(emptyForm);
   const [dealerTerms, setDealerTerms] = useState<DealerTermsForm>(EMPTY_DEALER_TERMS);
+  const [dealerPreviewBase, setDealerPreviewBase] = useState(1000);
 
   // Модал сброса пароля
   const [resetResult, setResetResult] = useState<{ userId: number; name: string; password: string } | null>(null);
@@ -644,12 +645,58 @@ export default function AdminPage() {
                                 step="0.01"
                                 value={dealerTerms[field]}
                                 onChange={event => setDealerTerms(current => ({ ...current, [field]: event.target.value }))}
+                                onWheel={event => event.currentTarget.blur()}
                                 className={`${INPUT_CLS} pr-12 font-mono`}
                               />
                               <span className="absolute right-5 top-1/2 -translate-y-1/2 text-xs font-bold text-fg/35">%</span>
                             </div>
                           </div>
                         ))}
+                      </div>
+                      <div className="mt-5 rounded-2xl border border-tint/25 bg-hi/[0.025] p-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                          <div>
+                            <h4 className="text-sm font-bold">Проверка на условной сумме</h4>
+                            <p className="mt-1 text-xs text-fg/40">Это только наглядный пример; в расчёте используется фактическая цена позиции.</p>
+                          </div>
+                          <label className="w-full sm:w-48">
+                            <span className="mb-1.5 block text-[9px] font-bold uppercase tracking-widest text-fg/40">Базовая сумма</span>
+                            <span className="relative block">
+                              <input type="number" min="0" step="0.01" value={dealerPreviewBase}
+                                onChange={event => setDealerPreviewBase(Math.max(0, Number(event.target.value) || 0))}
+                                onWheel={event => event.currentTarget.blur()}
+                                className={`${INPUT_CLS} pr-12 font-mono`} />
+                              <span className="absolute right-5 top-1/2 -translate-y-1/2 text-xs text-fg/35">₽</span>
+                            </span>
+                          </label>
+                        </div>
+                        {(() => {
+                          const money = (value: number) => `${value.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`;
+                          const afterMarkup = dealerPreviewBase * (1 + Number(dealerTerms.dealer_markup_percent || 0) / 100);
+                          const profileFinal = afterMarkup * (1 - Number(dealerTerms.profile_discount_percent || 0) / 100);
+                          const constructionFinal = afterMarkup * (1 - Number(dealerTerms.construction_discount_percent || 0) / 100);
+                          const Chain = ({ title, discount, final }: { title: string; discount: string | number; final: number }) => (
+                            <div className="rounded-xl border border-tint/20 bg-page/20 p-3">
+                              <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-accent/70">{title}</div>
+                              <div className="flex flex-wrap items-center gap-2 text-xs">
+                                <span className="rounded-lg bg-hi/[0.05] px-3 py-2 font-mono">{money(dealerPreviewBase)}</span>
+                                <b className="text-accent/50">×</b>
+                                <span className="rounded-lg bg-hi/[0.05] px-3 py-2">наценка {dealerTerms.dealer_markup_percent || 0}%</span>
+                                <b className="text-accent/50">=</b>
+                                <span className="rounded-lg bg-hi/[0.05] px-3 py-2 font-mono">{money(afterMarkup)}</span>
+                                <b className="text-accent/50">×</b>
+                                <span className="rounded-lg bg-hi/[0.05] px-3 py-2">скидка {discount || 0}%</span>
+                                <b className="text-accent/50">=</b>
+                                <span className="rounded-lg bg-emerald-500/10 px-3 py-2 font-mono font-bold text-emerald-300">{money(final)}</span>
+                              </div>
+                            </div>
+                          );
+                          return <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                            <Chain title="Продажа профиля" discount={dealerTerms.profile_discount_percent} final={profileFinal} />
+                            <Chain title="Продажа конструкции" discount={dealerTerms.construction_discount_percent} final={constructionFinal} />
+                          </div>;
+                        })()}
+                        <p className="mt-3 text-[11px] text-fg/40">Для комплектующих и услуг та же общая скрытая наценка применяется перед их отдельной скидкой.</p>
                       </div>
                     </div>
                     <div className="space-y-2">

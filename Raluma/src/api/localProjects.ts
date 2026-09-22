@@ -242,6 +242,8 @@ function normalizeSection(
     door_system: section.door_system,
     cs_shape: section.cs_shape,
     cs_width2: section.cs_width2,
+    cs_system_id: section.cs_system_id,
+    cs_config: section.cs_config,
     extra_parts: undefined,
     extra_components: '[]',
     comments: section.comments,

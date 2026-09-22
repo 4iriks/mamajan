@@ -3,8 +3,8 @@ import client from './client';
 export type HardwareGroup = 'Профили' | 'Фурнитура' | 'Ручки' | 'Замки' | 'Защёлки' | 'Уплотнители' | 'Крепёж' | 'Расходники' | 'Услуги';
 export type CatalogUnit = 'шт' | 'м.п.' | 'м²' | 'компл.' | 'кг';
 export type PaintMode = 'Красится' | 'Не красится' | 'Частично';
-export type SystemGroupCode = 'SLIDE_1' | 'SLIDE_2';
-export type FinishCode = 'BASE' | 'ANOD' | 'RAL_STANDARD' | 'RAL_NONSTANDARD';
+export type SystemGroupCode = 'SLIDE_1' | 'SLIDE_2' | 'CS';
+export type FinishCode = 'COLORLESS' | 'ANOD_UNPAINTED' | 'RAL_STANDARD' | 'RAL_MOIRE' | 'SUBLIMATION';
 
 export interface CatalogFinishVariant {
   id?: number;
@@ -13,6 +13,7 @@ export interface CatalogFinishVariant {
   cost?: string | number;
   profileMarkupPercent: number | string;
   profileDiscountPercent: number | string;
+  wasteMarkupPercent: number | string;
   constructionMarkupPercent: number | string;
   constructionDiscountPercent: number | string;
   requiresPaint: boolean;
@@ -73,6 +74,51 @@ export interface SystemMarkup {
   mixed: boolean;
 }
 
+export interface CatalogPricingBulkRequest {
+  item_ids: number[];
+  finish_codes: FinishCode[];
+  profile_markup_percent?: number;
+  profile_discount_percent?: number;
+  waste_markup_percent?: number;
+  construction_markup_percent?: number;
+  construction_discount_percent?: number;
+  effective_from?: string;
+  reason: string;
+}
+
+export interface CatalogPricingChain {
+  base: string;
+  afterMarkup?: string;
+  afterWaste?: string;
+  final: string;
+}
+
+export interface CatalogPricingBulkRow {
+  itemId: number;
+  sku: string;
+  name: string;
+  finishCode: FinishCode;
+  finishName: string;
+  before: { profile: CatalogPricingChain; construction: CatalogPricingChain };
+  after: { profile: CatalogPricingChain; construction: CatalogPricingChain };
+}
+
+export interface CatalogPricingBulkResult {
+  count: number;
+  rows: CatalogPricingBulkRow[];
+}
+
+export interface CsSystem {
+  id: number;
+  code: string;
+  name: string;
+  outer_profile_item_id: number | null;
+  joint_profile_item_id: number | null;
+  is_active: boolean;
+  outer_profile?: { id: number; sku: string; name: string } | null;
+  joint_profile?: { id: number; sku: string; name: string } | null;
+}
+
 export const listHardwareCatalog = async () => {
   const resp = await client.get<HardwareCatalogItem[]>('/api/catalog/hardware');
   return resp.data;
@@ -95,6 +141,31 @@ export const listSystemMarkups = async () => {
 
 export const updateSystemMarkup = async (code: SystemGroupCode, constructionMarkupPercent: number) => {
   const resp = await client.put(`/api/catalog/system-markups/${code}`, { constructionMarkupPercent });
+  return resp.data;
+};
+
+export const previewCatalogPricingBulk = async (data: CatalogPricingBulkRequest) => {
+  const resp = await client.post<CatalogPricingBulkResult>('/api/catalog/pricing/bulk/preview', data);
+  return resp.data;
+};
+
+export const applyCatalogPricingBulk = async (data: CatalogPricingBulkRequest) => {
+  const resp = await client.post<CatalogPricingBulkResult>('/api/catalog/pricing/bulk/apply', data);
+  return resp.data;
+};
+
+export const listCsSystems = async () => {
+  const resp = await client.get<CsSystem[]>('/api/catalog/cs-systems');
+  return resp.data;
+};
+
+export const createCsSystem = async (data: Omit<CsSystem, 'id' | 'outer_profile' | 'joint_profile'>) => {
+  const resp = await client.post<CsSystem>('/api/catalog/cs-systems', data);
+  return resp.data;
+};
+
+export const updateCsSystem = async (id: number, data: Omit<CsSystem, 'id' | 'outer_profile' | 'joint_profile'>) => {
+  const resp = await client.put<CsSystem>(`/api/catalog/cs-systems/${id}`, data);
   return resp.data;
 };
 

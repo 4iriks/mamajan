@@ -35,7 +35,7 @@ export interface Section {
   glassType: string;
   glassSupplied?: boolean;
   priceGroupId?: number;
-  paintingType: 'RAL стандарт' | 'RAL нестандарт' | 'Анодированный';
+  paintingType: 'Анод/неокрас' | 'RAL стандарт' | 'RAL муар' | 'Сублимация';
   ralColor?: string;
   cornerLeft: boolean;
   cornerRight: boolean;
@@ -123,6 +123,8 @@ export interface Section {
   doorSystem?: string;
   csShape?: string;
   csWidth2?: number;
+  csSystemId?: number;
+  csConfig?: CsConfig;
   // Обычный комментарий к секции. Допкомплектующие хранятся на проекте.
   /** @deprecated legacy data is migrated to project level and no longer edited here. */
   extraParts?: string;
@@ -130,6 +132,29 @@ export interface Section {
   extraComponents?: ExtraComponent[];
   comments?: string;
   documentOverrides?: string;
+}
+
+export interface CsPoint {
+  x: number;
+  y: number;
+}
+
+export type CsSplitMode = 'equal' | 'from-left' | 'from-right' | 'manual';
+
+export interface CsSplitConfig {
+  count: number;
+  mode: CsSplitMode;
+  step?: number;
+  positions?: number[];
+}
+
+export interface CsConfig {
+  version: 1;
+  vertices: CsPoint[];
+  vertical: CsSplitConfig;
+  horizontal: CsSplitConfig;
+  profiledEdges: number[];
+  doors?: Array<Record<string, unknown>>;
 }
 
 export interface OrderItem {

@@ -10,6 +10,20 @@ from engine.pdf import display_hardware, display_profiles
 
 def section_summary_rows(section: object, calc: object) -> list[tuple[str, str]]:
     system = str(getattr(section, "system", "") or "").strip().upper()
+    if system == "ЦС":
+        cs_system = getattr(calc, "system", None)
+        system_name = str(getattr(cs_system, "name", "") or "Система не выбрана")
+        panes = list(getattr(calc, "panes", None) or [])
+        return [
+            ("Ширина контура, мм", format_dimension(getattr(section, "width", 0))),
+            ("Высота контура, мм", format_dimension(getattr(section, "height", 0))),
+            ("Количество секций, шт", str(getattr(section, "quantity", 1) or 1)),
+            ("Количество стекол, шт", str(sum(int(getattr(pane, "qty", 1) or 1) for pane in panes))),
+            ("Система ЦС", system_name),
+            ("Стекло", str(getattr(section, "glass_type", "") or "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ")),
+            ("Площадь стекла, м²", format_dimension(getattr(calc, "glass_area_m2", 0))),
+            ("Статус", "ПРЕДВАРИТЕЛЬНЫЙ РАСЧЁТ"),
+        ]
     rows = [
         ("Ширина секции, мм", format_dimension(getattr(section, "width", 0))),
         ("Высота секции, мм", format_dimension(getattr(section, "height", 0))),

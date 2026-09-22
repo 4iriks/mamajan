@@ -6,6 +6,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    JSON,
     Numeric,
     String,
     Text,
@@ -226,6 +227,10 @@ class Section(Base):
         String, nullable=True
     )  # Треугольник | Прямоугольник | Трапеция | Сложная форма
     cs_width2 = Column(Float, nullable=True)  # вторая ширина для трапеции
+    cs_system_id = Column(Integer, ForeignKey("cs_systems.id"), nullable=True)
+    # Versioned JSON geometry for frameless all-glass constructions.  Legacy
+    # ``cs_shape`` / ``cs_width2`` remain readable during the rollout.
+    cs_config = Column(JSON, nullable=True)
 
     # Примечания к секции
     extra_parts = Column(String, nullable=True)
@@ -236,6 +241,7 @@ class Section(Base):
     document_overrides = Column(Text, default="{}")
 
     project = relationship("Project", back_populates="sections")
+    cs_system = relationship("CsSystem", foreign_keys=[cs_system_id])
 
 
 class CatalogItem(Base):
@@ -297,6 +303,9 @@ class CatalogFinishVariant(Base):
     profile_discount_percent = Column(Numeric(8, 4), default=0, nullable=False)
     construction_markup_percent = Column(Numeric(8, 4), default=0, nullable=False)
     construction_discount_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    # Waste belongs to the finished-construction price chain and can differ by
+    # finish.  ``CatalogItem.waste_percent`` is retained as a rollout fallback.
+    waste_markup_percent = Column(Numeric(8, 4), default=0, nullable=False)
     requires_paint = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -309,6 +318,34 @@ class CatalogFinishVariant(Base):
         "CatalogPriceVersion",
         back_populates="finish_variant",
         order_by="CatalogPriceVersion.effective_from.desc()",
+    )
+
+
+class CsSystem(Base):
+    """Administrator-managed frameless construction system."""
+
+    __tablename__ = "cs_systems"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    outer_profile_item_id = Column(
+        Integer, ForeignKey("catalog_items.id"), nullable=True
+    )
+    joint_profile_item_id = Column(
+        Integer, ForeignKey("catalog_items.id"), nullable=True
+    )
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+    updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    outer_profile = relationship(
+        "CatalogItem", foreign_keys=[outer_profile_item_id], lazy="joined"
+    )
+    joint_profile = relationship(
+        "CatalogItem", foreign_keys=[joint_profile_item_id], lazy="joined"
     )
 
 

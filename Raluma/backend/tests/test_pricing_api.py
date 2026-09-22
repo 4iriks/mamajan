@@ -358,7 +358,7 @@ def test_construction_price_groups_are_admin_managed_and_publicly_safe(
 
     fixed = client.get("/api/catalog/system-markups", headers=admin_headers)
     assert fixed.status_code == 200
-    assert {row["code"] for row in fixed.json()} == {"SLIDE_1", "SLIDE_2"}
+    assert {row["code"] for row in fixed.json()} == {"SLIDE_1", "SLIDE_2", "CS"}
 
     rejected = client.post(
         "/api/pricing/price-groups",
@@ -401,7 +401,7 @@ def test_unified_catalog_uses_fixed_finish_rows_and_versioned_prices(
         "colorVariants": [],
         "finishVariants": [
             {
-                "code": "ANOD",
+                "code": "ANOD_UNPAINTED",
                 "name": "Имя от клиента игнорируется",
                 "cost": 110,
                 "profileMarkupPercent": 11,
@@ -423,7 +423,7 @@ def test_unified_catalog_uses_fixed_finish_rows_and_versioned_prices(
                 "isActive": True,
             },
             {
-                "code": "RAL_NONSTANDARD",
+                "code": "RAL_MOIRE",
                 "name": "Еще одно имя",
                 "cost": 130,
                 "profileMarkupPercent": 13,
@@ -431,6 +431,18 @@ def test_unified_catalog_uses_fixed_finish_rows_and_versioned_prices(
                 "constructionMarkupPercent": 23,
                 "constructionDiscountPercent": 6,
                 "requiresPaint": False,
+                "isActive": True,
+            },
+            {
+                "code": "SUBLIMATION",
+                "name": "Сублимация",
+                "cost": 140,
+                "profileMarkupPercent": 14,
+                "profileDiscountPercent": 7,
+                "wasteMarkupPercent": 17,
+                "constructionMarkupPercent": 24,
+                "constructionDiscountPercent": 8,
+                "requiresPaint": True,
                 "isActive": True,
             },
         ],
@@ -447,17 +459,20 @@ def test_unified_catalog_uses_fixed_finish_rows_and_versioned_prices(
         item_id = item["id"]
         assert item["systemGroups"] == ["SLIDE_1", "SLIDE_2"]
         assert [row["code"] for row in item["finishVariants"]] == [
-            "ANOD",
+            "ANOD_UNPAINTED",
             "RAL_STANDARD",
-            "RAL_NONSTANDARD",
+            "RAL_MOIRE",
+            "SUBLIMATION",
         ]
         assert [row["name"] for row in item["finishVariants"]] == [
-            "Анод",
+            "Анод/неокрас",
             "RAL стандарт",
-            "RAL нестандарт",
+            "RAL муар",
+            "Сублимация",
         ]
         assert [row["requiresPaint"] for row in item["finishVariants"]] == [
             False,
+            True,
             True,
             True,
         ]
@@ -465,13 +480,14 @@ def test_unified_catalog_uses_fixed_finish_rows_and_versioned_prices(
             110,
             120,
             130,
+            140,
         ]
 
         db = SessionLocal()
         try:
             saved = db.get(models.CatalogItem, item_id)
-            assert len(saved.finish_variants) == 3
-            assert len(saved.price_versions) == 3
+            assert len(saved.finish_variants) == 4
+            assert len(saved.price_versions) == 4
             assert all(row.finish_variant_id for row in saved.price_versions)
         finally:
             db.close()
@@ -481,7 +497,7 @@ def test_unified_catalog_uses_fixed_finish_rows_and_versioned_prices(
             "paintMode": "Не красится",
             "finishVariants": [
                 {
-                    "code": "BASE",
+                    "code": "COLORLESS",
                     "name": "Произвольное имя",
                     "cost": 95,
                     "profileMarkupPercent": 9,
@@ -499,8 +515,10 @@ def test_unified_catalog_uses_fixed_finish_rows_and_versioned_prices(
             json=base_payload,
         )
         assert updated.status_code == 200, updated.text
-        assert [row["code"] for row in updated.json()["finishVariants"]] == ["BASE"]
-        assert updated.json()["finishVariants"][0]["name"] == "Без окраски"
+        assert [row["code"] for row in updated.json()["finishVariants"]] == [
+            "COLORLESS"
+        ]
+        assert updated.json()["finishVariants"][0]["name"] == "Без цвета"
         assert updated.json()["finishVariants"][0]["requiresPaint"] is False
 
         standalone = client.post(
@@ -513,11 +531,11 @@ def test_unified_catalog_uses_fixed_finish_rows_and_versioned_prices(
         db = SessionLocal()
         try:
             saved = db.get(models.CatalogItem, item_id)
-            assert len(saved.finish_variants) == 4
+            assert len(saved.finish_variants) == 5
             assert {row.code for row in saved.finish_variants if row.is_active} == {
-                "BASE"
+                "COLORLESS"
             }
-            assert len(saved.price_versions) == 4
+            assert len(saved.price_versions) == 5
         finally:
             db.close()
     finally:
@@ -727,10 +745,10 @@ def test_supplier_cost_import_updates_only_anod_or_base_and_skips_pending(
         assert preview["valid"] is True
         assert preview["can_apply"] is True
         rows = {row["sku"]: row for row in preview["rows"]}
-        assert rows[paint_sku]["finish_code"] == "ANOD"
-        assert rows[base_sku]["finish_code"] == "BASE"
+        assert rows[paint_sku]["finish_code"] == "ANOD_UNPAINTED"
+        assert rows[base_sku]["finish_code"] == "COLORLESS"
         assert rows[new_sku]["action"] == "create"
-        assert rows[new_sku]["finish_code"] == "ANOD"
+        assert rows[new_sku]["finish_code"] == "ANOD_UNPAINTED"
         assert rows["RS1006"]["cost"] == "125.81"
         assert rows["RS3110"]["cost"] == "236.67"
         assert rows["RU003"]["status"] == "pending"
@@ -760,9 +778,10 @@ def test_supplier_cost_import_updates_only_anod_or_base_and_skips_pending(
             created = db.query(models.CatalogItem).filter_by(sku=new_sku).one()
             created_variants = {row.code: Decimal(str(row.cost)) for row in created.finish_variants}
             assert created_variants == {
-                "ANOD": Decimal("77.70"),
+                "ANOD_UNPAINTED": Decimal("77.70"),
                 "RAL_STANDARD": Decimal("0.00"),
-                "RAL_NONSTANDARD": Decimal("0.00"),
+                "RAL_MOIRE": Decimal("0.00"),
+                "SUBLIMATION": Decimal("0.00"),
             }
             assert Decimal(
                 str(
