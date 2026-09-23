@@ -41,6 +41,7 @@ import { SectionFormWrapper } from './editor/SectionFormWrapper';
 import { ExtraComponentsEditor } from './editor/ExtraComponentsEditor';
 import { buildCustomerOptions, filterCustomerOptions } from '../utils/customers';
 import { defaultGlassType } from '../constants/glass';
+import { csDimensionUpdates } from './editor/csGeometry';
 import {
   isLiftRemoteSection,
   sharedLiftRemoteCounts,
@@ -286,9 +287,12 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const updateActiveSection = useCallback((updates: Partial<Section>) => {
     if (!activeSectionId) return;
     setIsDirty(true);
-    setSections(currentSections =>
-      updateLiftRemoteSections(currentSections, activeSectionId, updates),
-    );
+    setSections(currentSections => {
+      const current = currentSections.find(section => section.id === activeSectionId);
+      return updateLiftRemoteSections(
+        currentSections, activeSectionId, current ? csDimensionUpdates(current, updates) : updates,
+      );
+    });
   }, [activeSectionId]);
 
   const handleSaveSection = async () => {

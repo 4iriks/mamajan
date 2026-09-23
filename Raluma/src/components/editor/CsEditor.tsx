@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
 import { listCsSystems, type CsSystem } from '../../api/catalog';
 import type { CsCalcPreview } from '../../api/projects';
 import { INP, LBL, SEL, type CsConfig, type CsPoint, type Section } from './types';
+import { csBounds, csSplitPositions, parseCsPositions } from './csGeometry';
 
 const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value));
 
@@ -36,32 +37,33 @@ function activeConfig(section: Section): CsConfig {
   return section.csConfig?.version === 1 ? section.csConfig : presetConfig(section);
 }
 
-function splitPositions(config: CsConfig['vertical'], maximum: number): number[] {
-  const count = Math.max(0, Number(config.count) || 0);
-  if (config.mode === 'manual') return (config.positions || []).filter(value => value > 0 && value < maximum).sort((a, b) => a - b);
-  if (config.mode === 'from-left') return Array.from({ length: count }, (_, index) => (index + 1) * (config.step || maximum / (count + 1))).filter(value => value < maximum);
-  if (config.mode === 'from-right') return Array.from({ length: count }, (_, index) => maximum - (index + 1) * (config.step || maximum / (count + 1))).filter(value => value > 0).sort((a, b) => a - b);
-  return Array.from({ length: count }, (_, index) => maximum * (index + 1) / (count + 1));
-}
-
 function SplitControls({
-  title, value, maximum, onChange,
+  title, value, minimum, maximum, onChange,
 }: {
   title: string;
   value: CsConfig['vertical'];
+  minimum: number;
   maximum: number;
   onChange: (value: CsConfig['vertical']) => void;
 }) {
+  const [coordinateDraft, setCoordinateDraft] = useState<string | null>(null);
+  const coordinateText = coordinateDraft ?? (value.positions || []).join(', ');
+  const parsed = parseCsPositions(coordinateText, minimum, maximum);
   return <div className="rounded-xl border border-tint/25 bg-hi/[0.025] p-3">
     <div className="mb-3 text-xs font-bold">{title}</div>
     <div className="grid gap-3 sm:grid-cols-2">
       <label>
         <span className={LBL}>Количество линий</span>
-        <input type="number" min="0" max="20" value={value.count} onChange={event => onChange({ ...value, count: clamp(Number(event.target.value) || 0, 0, 20) })} className={INP} />
+        <input type="number" min="0" max="20" readOnly={value.mode === 'manual'} value={value.count} onChange={event => onChange({ ...value, count: clamp(Number(event.target.value) || 0, 0, 20) })} className={INP} />
       </label>
       <label>
         <span className={LBL}>Расположение</span>
-        <select value={value.mode} onChange={event => onChange({ ...value, mode: event.target.value as CsConfig['vertical']['mode'] })} className={SEL}>
+        <select value={value.mode} onChange={event => {
+          setCoordinateDraft(null);
+          const mode = event.target.value as CsConfig['vertical']['mode'];
+          const positions = csSplitPositions(value, minimum, maximum);
+          onChange({ ...value, mode, ...(mode === 'manual' ? { positions, count: positions.length } : {}) });
+        }} className={SEL}>
           <option value="equal">Равномерно</option>
           <option value="from-left">С шагом от начала</option>
           <option value="from-right">С шагом от конца</option>
@@ -74,10 +76,14 @@ function SplitControls({
       </label>}
       {value.mode === 'manual' && <label className="sm:col-span-2">
         <span className={LBL}>Координаты, мм, через запятую</span>
-        <input value={(value.positions || []).join(', ')} onChange={event => {
-          const positions = event.target.value.split(/[;,\s]+/).map(Number).filter(number => Number.isFinite(number) && number > 0 && number < maximum);
-          onChange({ ...value, count: positions.length, positions });
-        }} className={INP} placeholder="1000, 2000" />
+        <input value={coordinateText} onChange={event => {
+          // Keep the literal draft, including separators and partially typed numbers.
+          setCoordinateDraft(event.target.value);
+          const next = parseCsPositions(event.target.value, minimum, maximum);
+          if (!next.error) onChange({ ...value, count: next.positions.length, positions: next.positions });
+        }} onBlur={() => { if (!parsed.error) setCoordinateDraft(null); }}
+          aria-invalid={Boolean(parsed.error)} className={INP} placeholder="1000, 2000" />
+        {parsed.error && <span className="mt-1 block text-xs text-red-400" role="alert">{parsed.error}</span>}
       </label>}
     </div>
   </div>;
@@ -93,11 +99,13 @@ export function CsEditor({
   const [systems, setSystems] = useState<CsSystem[]>([]);
   const [selectedVertex, setSelectedVertex] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const clipId = useId();
   const config = useMemo(() => activeConfig(section), [section]);
   const width = Math.max(1, section.width || 1);
   const height = Math.max(1, section.height || 1);
-  const vertical = splitPositions(config.vertical, width);
-  const horizontal = splitPositions(config.horizontal, height);
+  const bounds = csBounds(config.vertices);
+  const vertical = csSplitPositions(config.vertical, bounds.minX, bounds.maxX);
+  const horizontal = csSplitPositions(config.horizontal, bounds.minY, bounds.maxY);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,11 +123,16 @@ export function CsEditor({
     update({ csShape: shape, csConfig: presetConfig(section, shape) });
   };
   const pointerPoint = (event: ReactPointerEvent<SVGSVGElement>): CsPoint => {
-    const bounds = svgRef.current?.getBoundingClientRect();
-    if (!bounds) return { x: 0, y: 0 };
+    const svg = svgRef.current;
+    const matrix = svg?.getScreenCTM();
+    if (!svg || !matrix) return { x: 0, y: 0 };
+    const point = svg.createSVGPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    const local = point.matrixTransform(matrix.inverse());
     return {
-      x: Math.round(clamp((event.clientX - bounds.left) / bounds.width * width, 0, width)),
-      y: Math.round(clamp((1 - (event.clientY - bounds.top) / bounds.height) * height, 0, height)),
+      x: Math.round(clamp(local.x, 0, width)),
+      y: Math.round(clamp(height - local.y, 0, height)),
     };
   };
   const updateVertex = (index: number, point: CsPoint) => commitConfig({ ...config, vertices: config.vertices.map((value, vertexIndex) => vertexIndex === index ? point : value) });
@@ -185,9 +198,12 @@ export function CsEditor({
             if (selectedVertex === null || event.buttons !== 1) return;
             updateVertex(selectedVertex, pointerPoint(event));
           }}>
+          <defs><clipPath id={clipId}><polygon points={config.vertices.map(point => `${point.x},${height - point.y}`).join(' ')} /></clipPath></defs>
           <polygon points={config.vertices.map(point => `${point.x},${height - point.y}`).join(' ')} fill="#dff3f7" stroke="#174d57" strokeWidth={Math.max(width, height) / 300} />
+          <g clipPath={`url(#${clipId})`}>
           {vertical.map(position => <line key={`v-${position}`} x1={position} x2={position} y1={0} y2={height} stroke="#758e96" strokeDasharray="18 12" strokeWidth={Math.max(width, height) / 500} />)}
           {horizontal.map(position => <line key={`h-${position}`} x1={0} x2={width} y1={height - position} y2={height - position} stroke="#758e96" strokeDasharray="18 12" strokeWidth={Math.max(width, height) / 500} />)}
+          </g>
           {config.profiledEdges.map(index => {
             const start = config.vertices[index];
             const end = config.vertices[(index + 1) % config.vertices.length];
@@ -220,9 +236,9 @@ export function CsEditor({
       </div>
     </div>
 
-    <div className="grid gap-3 xl:grid-cols-2">
-      <SplitControls title="Вертикальное деление" value={config.vertical} maximum={width} onChange={value => commitConfig({ ...config, vertical: value })} />
-      <SplitControls title="Горизонтальное деление" value={config.horizontal} maximum={height} onChange={value => commitConfig({ ...config, horizontal: value })} />
+    <div key={section.id} className="grid gap-3 xl:grid-cols-2">
+      <SplitControls title="Вертикальное деление" value={config.vertical} minimum={bounds.minX} maximum={bounds.maxX} onChange={value => commitConfig({ ...config, vertical: value })} />
+      <SplitControls title="Горизонтальное деление" value={config.horizontal} minimum={bounds.minY} maximum={bounds.maxY} onChange={value => commitConfig({ ...config, horizontal: value })} />
     </div>
 
     {calc && <div className="rounded-2xl border border-tint/25 bg-hi/[0.025] p-4">

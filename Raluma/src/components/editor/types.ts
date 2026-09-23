@@ -150,6 +150,8 @@ export interface CsSplitConfig {
 
 export interface CsConfig {
   version: 1;
+  referenceWidth?: number;
+  referenceHeight?: number;
   vertices: CsPoint[];
   vertical: CsSplitConfig;
   horizontal: CsSplitConfig;
