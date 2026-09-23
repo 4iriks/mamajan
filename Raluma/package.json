@@ -16,6 +16,7 @@
     "smoke:presets": "tsx scripts/smoke-slide-presets.tsx",
     "smoke:components": "tsx scripts/smoke-extra-components.ts",
     "smoke:cs": "tsx scripts/smoke-cs-geometry.ts",
+    "smoke:cs-editor": "node scripts/smoke-cs-editor-browser.mjs",
     "smoke:book": "tsx scripts/smoke-book-diagrams.tsx",
     "smoke:lift": "tsx scripts/smoke-lift-diagrams.tsx",
     "smoke:lift-input": "node scripts/smoke-lift-input-browser.mjs",

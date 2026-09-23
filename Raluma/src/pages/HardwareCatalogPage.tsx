@@ -834,7 +834,7 @@ function PriceOutput({ label, value }: { label: string; value: number }) {
   return (
     <div className="min-w-[116px]">
       <span className="mb-1.5 block text-[9px] font-bold uppercase leading-tight tracking-wider text-fg/35">{label}</span>
-      <div className="flex h-11 items-center rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] px-3 font-mono text-sm font-bold text-emerald-200">
+      <div className="flex h-11 items-center rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] px-3 font-mono text-sm font-bold text-[var(--catalog-price)]">
         {formatMoney(value)}
       </div>
     </div>
@@ -1559,7 +1559,7 @@ export default function HardwareCatalogPage() {
                     </td>
                     <td className="px-2.5 py-3 font-mono text-sm">{formatPriceRange(pricingCosts(item))}</td>
                     <td className="px-2.5 py-3 font-mono text-sm text-amber-400">{percentRange(item, 'profileMarkupPercent')}</td>
-                    <td className="px-2.5 py-3 font-mono text-sm text-emerald-400">{priceRange(item, (_item, variant) => profileSale(variant))}</td>
+                    <td className="px-2.5 py-3 font-mono text-sm text-[var(--catalog-price)]">{priceRange(item, (_item, variant) => profileSale(variant))}</td>
                     <td className="px-2.5 py-3 font-mono text-sm text-fg/65">{item.weight}</td>
                     <td className="px-2.5 py-3 font-mono text-sm text-fg/65">{percentRange(item, 'wasteMarkupPercent')}</td>
                     <td className="px-1.5 py-3 text-right">
@@ -1635,7 +1635,7 @@ export default function HardwareCatalogPage() {
                               <td className="px-3 py-3">{row.unit}</td>
                               <td className="px-3 py-3">{row.finish_name}</td>
                               <td className="px-3 py-3 font-mono">{row.current_cost ? `${row.current_cost} ₽` : '—'}</td>
-                              <td className="px-3 py-3 font-mono font-bold text-emerald-300">{row.cost} ₽</td>
+                              <td className="px-3 py-3 font-mono font-bold text-[var(--catalog-price)]">{row.cost} ₽</td>
                               <td className="px-3 py-3">
                                 {row.pending ? (
                                   <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/15 px-2.5 py-1.5 text-amber-300"><AlertTriangle className="h-3.5 w-3.5" /> Ожидает уточнения — пропустить</span>
@@ -1689,7 +1689,7 @@ export default function HardwareCatalogPage() {
                   <h2 className="text-xl font-bold">Позиция каталога</h2>
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-fg/40">
                     <span>{draft.sku || 'Новая позиция'}</span>
-                    <span className="font-mono font-bold text-emerald-300">{priceRange(draft, (_item, variant) => profileSale(variant))}</span>
+                    <span className="font-mono font-bold text-[var(--catalog-price)]">{priceRange(draft, (_item, variant) => profileSale(variant))}</span>
                   </div>
                 </div>
               </div>

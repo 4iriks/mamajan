@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { csBounds, csDimensionUpdates, csSplitPositions, parseCsPositions } from '../src/components/editor/csGeometry';
+import { csAngleEnd, csBounds, csContourError, csDimensionUpdates, csSide, csSideEnd, csSplitPositions, csVertexAngle, parseCsPositions } from '../src/components/editor/csGeometry';
 import type { CsConfig, CsSplitConfig, Section } from '../src/components/editor/types';
 import { apiToLocal, localToApi } from '../src/components/editor/converters';
 
@@ -21,6 +21,24 @@ const original = {
   profileRightHandleBar: false, profileRightBubble: false,
   csConfig: config,
 } satisfies Section;
+const near = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.000001, `${actual} ≠ ${expected}`);
+for (const vertices of [config.vertices, [...config.vertices].reverse()]) {
+  vertices.forEach((_, index) => near(csVertexAngle(vertices, index), 90));
+  const moved = [...vertices];
+  moved[1] = csAngleEnd(vertices, 0, 60);
+  near(csVertexAngle(moved, 0), 60);
+  near(csSide(moved, 0).length, 3000);
+}
+assert.deepEqual(csSide(config.vertices, 0), { length: 3000, angle: 0 });
+near(csSideEnd(config.vertices, 0, 2000, 90).y, 2000);
+near(csSideEnd(config.vertices, 0, 2000, 90).x, 0);
+const concave = [{ x: 0, y: 0 }, { x: 3000, y: 0 }, { x: 1500, y: 1500 }, { x: 3000, y: 3000 }, { x: 0, y: 3000 }];
+near(csVertexAngle(concave, 2), 270);
+near(csVertexAngle([...concave].reverse(), 2), 270);
+assert.equal(csContourError(concave), undefined);
+assert.ok(csContourError([{ x: 0, y: 0 }, { x: 3000, y: 3000 }, { x: 3000, y: 0 }, { x: 0, y: 3000 }]));
+assert.ok(csContourError([{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 3000 }]));
+assert.ok(csContourError([{ x: 0, y: 0 }, { x: 1000, y: 0 }, { x: 3000, y: 0 }]));
 function change(section: Section, updates: Partial<Section>): Section {
   return { ...section, ...csDimensionUpdates(section, updates) };
 }

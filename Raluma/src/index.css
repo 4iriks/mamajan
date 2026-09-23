@@ -6,6 +6,7 @@
    ──────────────────────────────────────────────────────────────────────────── */
 
 :root {
+  --catalog-price: #a7f3d0;
   --theme-page: #0c1d2d;
   --theme-surface: #1a4b54;
   --theme-tint: #2a7a8a;
@@ -32,6 +33,7 @@
 }
 
 html.light {
+  --catalog-price: #065f46;
   --theme-page: #f0f3f6;
   --theme-surface: #ffffff;
   --theme-tint: #14505e;

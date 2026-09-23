@@ -2,6 +2,62 @@ import type { CsConfig, CsPoint, CsSplitConfig, Section } from './types';
 
 const EPS = 1e-7;
 
+export function csSide(vertices: CsPoint[], index: number) {
+  const start = vertices[index];
+  const end = vertices[(index + 1) % vertices.length];
+  return { length: Math.hypot(end.x - start.x, end.y - start.y),
+    angle: (Math.atan2(end.y - start.y, end.x - start.x) * 180 / Math.PI + 360) % 360 };
+}
+
+function orientation(vertices: CsPoint[]) {
+  return Math.sign(vertices.reduce((area, point, index) => {
+    const next = vertices[(index + 1) % vertices.length];
+    return area + point.x * next.y - next.x * point.y;
+  }, 0)) || 1;
+}
+
+export function csVertexAngle(vertices: CsPoint[], index: number) {
+  const point = vertices[index];
+  const prev = vertices[(index - 1 + vertices.length) % vertices.length];
+  const next = vertices[(index + 1) % vertices.length];
+  const incoming = Math.atan2(prev.y - point.y, prev.x - point.x);
+  const outgoing = Math.atan2(next.y - point.y, next.x - point.x);
+  return ((incoming - outgoing) * orientation(vertices) * 180 / Math.PI + 720) % 360;
+}
+
+export function csSideEnd(vertices: CsPoint[], index: number, length: number, angle: number): CsPoint {
+  const start = vertices[index];
+  return { x: start.x + length * Math.cos(angle * Math.PI / 180),
+    y: start.y + length * Math.sin(angle * Math.PI / 180) };
+}
+
+export function csAngleEnd(vertices: CsPoint[], index: number, angle: number): CsPoint {
+  const point = vertices[index];
+  const prev = vertices[(index - 1 + vertices.length) % vertices.length];
+  const direction = Math.atan2(prev.y - point.y, prev.x - point.x) * 180 / Math.PI;
+  return csSideEnd(vertices, index, csSide(vertices, index).length, direction - orientation(vertices) * angle);
+}
+
+export function csContourError(vertices: CsPoint[]): string | undefined {
+  const cross = (a: CsPoint, b: CsPoint, c: CsPoint) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  let area = 0;
+  for (let index = 0; index < vertices.length; index++) {
+    const a = vertices[index];
+    const b = vertices[(index + 1) % vertices.length];
+    if (Math.hypot(b.x - a.x, b.y - a.y) <= EPS) return 'Соседние углы не должны совпадать.';
+    area += a.x * b.y - b.x * a.y;
+    for (let other = index + 2; other < vertices.length; other++) {
+      if (index === 0 && other === vertices.length - 1) continue;
+      const c = vertices[other];
+      const d = vertices[(other + 1) % vertices.length];
+      if (cross(a, b, c) * cross(a, b, d) < -EPS && cross(c, d, a) * cross(c, d, b) < -EPS) {
+        return 'Изменение не применено: стороны контура пересекаются.';
+      }
+    }
+  }
+  if (Math.abs(area) / 2 <= EPS) return 'Площадь контура должна быть больше нуля.';
+}
+
 export function csBounds(vertices: CsPoint[]) {
   return {
     minX: Math.min(...vertices.map(point => point.x)),
