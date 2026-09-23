@@ -598,9 +598,9 @@ def _write_cs_glass_and_profiles(
             row,
             (
                 getattr(pane, "number", ""),
-                format_dimension(getattr(pane, "width_mm", 0)),
-                format_dimension(getattr(pane, "height_mm", 0)),
-                format_dimension(getattr(pane, "area_m2", 0)),
+                format_number(getattr(pane, "width_mm", 0)),
+                format_number(getattr(pane, "height_mm", 0)),
+                format_number(getattr(pane, "area_m2", 0), 3),
                 getattr(pane, "qty", 1),
                 "Контур по схеме; размеры габаритные",
             ),
@@ -614,7 +614,7 @@ def _write_cs_glass_and_profiles(
         worksheet,
         formats,
         row,
-        ("Артикул", "Наименование", "Общая длина, мм", "Отрезков, шт", "Статус"),
+        ("Артикул", "Наименование", "Общая длина, мм", "Отрезков, шт", "Нарезка"),
         profile_spans,
     )
     for profile in getattr(calc, "profiles", None) or []:
@@ -625,9 +625,9 @@ def _write_cs_glass_and_profiles(
             (
                 getattr(profile, "article", ""),
                 getattr(profile, "name", ""),
-                format_dimension(getattr(profile, "total_length_mm", 0)),
+                format_number(getattr(profile, "total_length_mm", 0)),
                 getattr(profile, "pieces", 0),
-                "ПРЕДВАРИТЕЛЬНО",
+                getattr(profile, "cutting_text", "ПРЕДВАРИТЕЛЬНО"),
             ),
             profile_spans,
             center={0, 2, 3, 4},
@@ -1494,6 +1494,7 @@ def build_section_xlsx(project: object, section: object, calc: object) -> bytes:
     row = _write_diagrams(worksheet, formats, row, section, calc)
     if system == "ЦС":
         row = _write_cs_glass_and_profiles(worksheet, formats, row, calc)
+        row = _write_compact_hardware(worksheet, formats, row, calc, overrides)
     else:
         row = _write_section_glass_or_panels(worksheet, formats, row, calc, overrides)
     if system == "СЛАЙД":
@@ -1602,10 +1603,15 @@ def _build_glass_xlsx(context: dict) -> bytes:
                 formats["cell"] if column in {1, 2, 7} else formats["center"],
             )
         excel_row = row + 1
+        area_formula = (
+            f"=ROUND({item['shape_area_m2']:.12f}*F{excel_row},3)"
+            if item.get("shape_area_m2") is not None else
+            f"=ROUND(D{excel_row}*E{excel_row}*F{excel_row}/1000000,3)"
+        )
         worksheet.write_formula(
             row,
             6,
-            f"=ROUND(D{excel_row}*E{excel_row}*F{excel_row}/1000000,3)",
+            area_formula,
             formats["center"],
             item["area"],
         )
@@ -1721,7 +1727,7 @@ def _build_paint_xlsx(context: dict) -> bytes:
             "Сечение",
             "Кол-во",
             "Чистовые размеры",
-            "С припуском 50 мм",
+            page.get("allowance_label", "С припуском 50 мм"),
             "Общее, м.п.",
         )
         for column, header in enumerate(headers):

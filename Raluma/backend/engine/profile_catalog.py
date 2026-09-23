@@ -28,6 +28,7 @@ class ProfileCatalogItem:
     supplier: str = "Raluma"
     is_active: bool = True
     note: str = ""
+    photo: str = ""
 
 
 PROFILE_CATALOG: dict[str, ProfileCatalogItem] = {
@@ -505,6 +506,21 @@ PROFILE_CATALOG.update(
         for spec in LIFT_CATALOG_SPECS
     }
 )
+
+
+PROFILE_CATALOG.update({
+    'Т40Т': ProfileCatalogItem('Т40Т', 'Зажимной профиль Т40Т в сборе', 'T40T-section.jpg', 28, 40,
+                               'Не красится', color_variants=('Без цвета',), system='ЦС',
+                               markup_percent=0, waste_percent=0, supplier='Титан', photo='T40T-photo.jpg',
+                               note='Клипса, винт и внутренний уплотнитель входят в сборку. Цена и вес не заполнены.'),
+    'Т40К': ProfileCatalogItem('Т40К', 'Крышка зажимного профиля Т40К', 'T40K-section.jpg', 10, 39,
+                               'Красится', system='ЦС', markup_percent=0, waste_percent=0, supplier='Титан',
+                               photo='T40K-photo.jpg', note='Две крышки на каждый отрезок Т40Т. Цена и вес не заполнены.'),
+    'CS-PVC-PAD': ProfileCatalogItem('CS-PVC-PAD', 'Подкладка ПВХ под ЦС-стекло', '', 0, 0,
+                                    'Не красится', color_variants=('Без цвета',), system='ЦС', unit='шт',
+                                    group='Расходники', markup_percent=0, waste_percent=0,
+                                    note='Внутренний код. Две штуки на каждое стекло. Цена и вес не заполнены.'),
+})
 
 
 def get_profile_catalog_item(article: str | None) -> ProfileCatalogItem | None:

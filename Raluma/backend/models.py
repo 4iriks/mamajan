@@ -261,6 +261,7 @@ class CatalogItem(Base):
     section_width_mm = Column(Float, default=0, nullable=False)
     section_height_mm = Column(Float, default=0, nullable=False)
     image_file = Column(String, nullable=True)
+    photo_file = Column(String, nullable=True)
     paint_mode = Column(String, default="Не красится", nullable=False)
     color_variants = Column(Text, default="[]", nullable=False)
     supplier = Column(String, nullable=True)
@@ -335,6 +336,9 @@ class CsSystem(Base):
     joint_profile_item_id = Column(
         Integer, ForeignKey("catalog_items.id"), nullable=True
     )
+    cover_profile_item_id = Column(Integer, ForeignKey("catalog_items.id"), nullable=True)
+    bubble_seal_item_id = Column(Integer, ForeignKey("catalog_items.id"), nullable=True)
+    glass_pad_item_id = Column(Integer, ForeignKey("catalog_items.id"), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(
@@ -347,6 +351,9 @@ class CsSystem(Base):
     joint_profile = relationship(
         "CatalogItem", foreign_keys=[joint_profile_item_id], lazy="joined"
     )
+    cover_profile = relationship("CatalogItem", foreign_keys=[cover_profile_item_id], lazy="joined")
+    bubble_seal = relationship("CatalogItem", foreign_keys=[bubble_seal_item_id], lazy="joined")
+    glass_pad = relationship("CatalogItem", foreign_keys=[glass_pad_item_id], lazy="joined")
 
 
 class ConstructionPriceGroup(Base):

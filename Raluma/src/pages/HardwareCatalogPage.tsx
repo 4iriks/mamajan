@@ -694,6 +694,7 @@ function normalizeItem(item: Partial<HardwareItem>): HardwareItem {
     sectionWidthMm: item.sectionWidthMm ?? 0,
     sectionHeightMm: item.sectionHeightMm ?? 0,
     imageFile: item.imageFile ?? '',
+    photoFile: item.photoFile ?? '',
     paintMode,
     colorVariants: variants.map(variant => variant.name),
     finishVariants: variants,
@@ -1066,6 +1067,9 @@ export default function HardwareCatalogPage() {
         name: row.name.trim(),
         outer_profile_item_id: row.outer_profile_item_id,
         joint_profile_item_id: row.joint_profile_item_id,
+        cover_profile_item_id: row.cover_profile_item_id,
+        bubble_seal_item_id: row.bubble_seal_item_id,
+        glass_pad_item_id: row.glass_pad_item_id,
         is_active: row.is_active,
       });
       setCsSystems(current => current.map(system => system.id === saved.id ? saved : system));
@@ -1367,14 +1371,18 @@ export default function HardwareCatalogPage() {
 
         {activeCatalogTab === 'markups' && <section className="mx-auto mb-5 w-full max-w-5xl rounded-2xl border border-tint/25 bg-surface/30 p-5 sm:p-6">
           <div className="mb-5 flex items-center justify-between gap-3 border-b border-tint/20 pb-4">
-            <div><h2 className="text-lg font-bold">Системы ЦС</h2><p className="mt-1 text-sm text-fg/45">Связь внешнего зажимного профиля и профиля стыка с единым каталогом.</p></div>
+            <div><h2 className="text-lg font-bold">Системы ЦС</h2><p className="mt-1 text-sm text-fg/45">Зажимной профиль, две крышки на профиль, уплотнитель и две подкладки на стекло. Скотч считается по длине стыков.</p></div>
             <button type="button" onClick={handleCsSystemAdd} className="flex items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-4 py-2.5 text-xs font-bold text-accent"><Plus className="h-4 w-4" />Добавить</button>
           </div>
           <div className="space-y-3">{csSystems.map(row => <div key={row.id} className="grid gap-3 rounded-xl border border-tint/25 bg-hi/[0.025] p-3 lg:grid-cols-[120px_1fr_1fr_1fr_auto] lg:items-end">
             <label><span className="mb-1.5 block text-[9px] font-bold uppercase tracking-wider text-fg/40">Код</span><input value={row.code} onChange={event => setCsSystems(current => current.map(system => system.id === row.id ? { ...system, code: event.target.value } : system))} className={`${INPUT_CLS} font-mono`} /></label>
             <label><span className="mb-1.5 block text-[9px] font-bold uppercase tracking-wider text-fg/40">Название</span><input value={row.name} onChange={event => setCsSystems(current => current.map(system => system.id === row.id ? { ...system, name: event.target.value } : system))} className={INPUT_CLS} /></label>
             <label><span className="mb-1.5 block text-[9px] font-bold uppercase tracking-wider text-fg/40">Внешний профиль</span><select value={row.outer_profile_item_id || ''} onChange={event => setCsSystems(current => current.map(system => system.id === row.id ? { ...system, outer_profile_item_id: Number(event.target.value) || null } : system))} className={SELECT_CLS}><option value="">Артикул уточняется</option>{items.filter(item => item.isActive && item.group === 'Профили').map(item => <option key={item.id} value={item.id}>{item.sku} — {item.name}</option>)}</select></label>
-            <label><span className="mb-1.5 block text-[9px] font-bold uppercase tracking-wider text-fg/40">Профиль стыка</span><select value={row.joint_profile_item_id || ''} onChange={event => setCsSystems(current => current.map(system => system.id === row.id ? { ...system, joint_profile_item_id: Number(event.target.value) || null } : system))} className={SELECT_CLS}><option value="">Артикул уточняется</option>{items.filter(item => item.isActive && item.group === 'Профили').map(item => <option key={item.id} value={item.id}>{item.sku} — {item.name}</option>)}</select></label>
+            {([
+              ['cover_profile_item_id', 'Крышка (2 на профиль)', 'Профили'],
+              ['bubble_seal_item_id', 'Пузырьковый уплотнитель', 'Уплотнители'],
+              ['glass_pad_item_id', 'Подкладка (2 на стекло)', 'Расходники'],
+            ] as const).map(([field, label, group]) => <label key={field}><span className="mb-1.5 block text-[9px] font-bold uppercase tracking-wider text-fg/40">{label}</span><select value={row[field] || ''} onChange={event => setCsSystems(current => current.map(system => system.id === row.id ? { ...system, [field]: Number(event.target.value) || null } : system))} className={SELECT_CLS}><option value="">По умолчанию Т40Т/Т40К</option>{items.filter(item => item.isActive && item.group === group).map(item => <option key={item.id} value={item.id}>{item.sku} — {item.name}</option>)}</select></label>)}
             <button type="button" onClick={() => handleCsSystemSave(row)} disabled={savingCsSystem === row.id} className="flex h-[52px] items-center justify-center rounded-xl bg-primary px-4 text-white disabled:opacity-50"><Save className="h-4 w-4" /></button>
           </div>)}</div>
         </section>}
@@ -1755,6 +1763,7 @@ export default function HardwareCatalogPage() {
                         <ImageIcon className="w-10 h-10 text-black/20" />
                       )}
                     </div>
+                    {draft.photoFile && <div className="mt-3 rounded-xl bg-white p-2"><img src={profileAssetUrl(draft.photoFile)} alt={`${draft.sku} — внешний вид`} className="mx-auto max-h-44 max-w-full object-contain" /></div>}
                   </div>
                 </div>
 

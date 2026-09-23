@@ -149,7 +149,10 @@ export interface CsSplitConfig {
 }
 
 export interface CsConfig {
-  version: 1;
+  version: 1 | 2;
+  dimensionMode?: 'installation' | 'clear';
+  edgeTreatments?: Array<'clamp' | 'bubble' | 'none'>;
+  bubbleDeductionMm?: number;
   referenceWidth?: number;
   referenceHeight?: number;
   vertices: CsPoint[];

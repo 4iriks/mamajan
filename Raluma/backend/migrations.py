@@ -205,6 +205,10 @@ _CREATE_TABLES = [
 # ── Новые колонки ──────────────────────────────────────────────────────────────
 
 _ADD_COLUMNS = [
+    "ALTER TABLE catalog_items ADD COLUMN photo_file VARCHAR",
+    "ALTER TABLE cs_systems ADD COLUMN cover_profile_item_id INTEGER REFERENCES catalog_items(id)",
+    "ALTER TABLE cs_systems ADD COLUMN bubble_seal_item_id INTEGER REFERENCES catalog_items(id)",
+    "ALTER TABLE cs_systems ADD COLUMN glass_pad_item_id INTEGER REFERENCES catalog_items(id)",
     # users
     "ALTER TABLE users ADD COLUMN employee_number VARCHAR",
     "ALTER TABLE users ADD COLUMN position VARCHAR",
@@ -1211,6 +1215,36 @@ def _migrate_finish_chains_v2(conn) -> None:
     )
 
 
+def _migrate_cs_t40_once(conn):
+    from engine.profile_catalog import PROFILE_CATALOG
+
+    marker = 'cs_t40_catalog_v1'
+    if conn.execute(text('SELECT 1 FROM migration_markers WHERE name=:name'), {'name': marker}).first():
+        return
+    for sku in ('Т40Т', 'Т40К', 'CS-PVC-PAD', 'RS1002'):
+        item = PROFILE_CATALOG[sku]
+        groups = ['CS'] if sku != 'RS1002' else ['SLIDE_1', 'SLIDE_2', 'CS']
+        conn.execute(text('''INSERT OR IGNORE INTO catalog_items
+            (sku, name, "group", system, system_groups, unit, purchase_price, markup_percent, weight,
+             waste_percent, section_width_mm, section_height_mm, image_file, photo_file, paint_mode,
+             color_variants, supplier, is_active, note, created_at, updated_at)
+            VALUES (:sku,:name,:group,:system,:groups,:unit,:price,:markup,:weight,:waste,:width,:height,
+                    :image,:photo,:paint,:colors,:supplier,1,:note,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)'''),
+            dict(sku=sku, name=item.name, group=item.group, system=item.system, groups=json.dumps(groups),
+                 unit=item.unit, price=item.purchase_price, markup=item.markup_percent, weight=item.weight,
+                 waste=item.waste_percent, width=item.section_width_mm, height=item.section_height_mm,
+                 image=item.image, photo=item.photo, paint=item.paint_mode,
+                 colors=json.dumps(item.color_variants, ensure_ascii=False), supplier=item.supplier, note=item.note))
+    row = conn.execute(text("SELECT system_groups FROM catalog_items WHERE sku='RS1002'")).first()
+    groups = json.loads(row[0] or '[]')
+    if 'CS' not in groups:
+        conn.execute(text("UPDATE catalog_items SET system_groups=:groups WHERE sku='RS1002'"), {'groups': json.dumps([*groups, 'CS'])})
+    for field, sku in [('outer_profile_item_id', 'Т40Т'), ('cover_profile_item_id', 'Т40К'),
+                       ('bubble_seal_item_id', 'RS1002'), ('glass_pad_item_id', 'CS-PVC-PAD')]:
+        conn.execute(text(f"UPDATE cs_systems SET {field}=COALESCE({field}, (SELECT id FROM catalog_items WHERE sku=:sku)) WHERE code='CS_CLAMP'"), {'sku': sku})
+    conn.execute(text('INSERT INTO migration_markers (name) VALUES (:name)'), {'name': marker})
+
+
 def run_migrations():
     """Выполнить все миграции. Безопасно вызывать при каждом старте."""
     # Прежние пользовательские шаблоны заменены фиксированным каталогом СЛАЙД.
@@ -1260,6 +1294,7 @@ def run_migrations():
                 pass
 
         migrations = (
+            _migrate_cs_t40_once,
             _normalize_section_center_offsets,
             _normalize_glass_catalog_items,
             _backfill_finish_variant_costs_once,

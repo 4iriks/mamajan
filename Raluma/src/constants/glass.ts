@@ -46,7 +46,7 @@ export function normalizeGlassType(
   value: string | null | undefined,
   system: string,
 ): string {
-  if (system === 'СЛАЙД' || system === 'КНИЖКА') return normalizeSlideGlassType(value);
+  if (system === 'СЛАЙД' || system === 'КНИЖКА' || system === 'ЦС') return normalizeSlideGlassType(value);
   return value?.trim() || LEGACY_DEFAULT_GLASS_TYPE;
 }
 
@@ -95,6 +95,7 @@ export function isMatteGlass(glassType: string | null | undefined): boolean {
 export function glassTypeOptions(system: string): readonly string[] {
   if (system === 'СЛАЙД') return SLIDE_GLASS_TYPE_OPTIONS;
   if (system === 'КНИЖКА') return BOOK_GLASS_TYPE_OPTIONS;
+  if (system === 'ЦС') return BOOK_GLASS_TYPE_OPTIONS;
   return LEGACY_GLASS_TYPE_OPTIONS;
 }
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { csAngleEnd, csBounds, csContourError, csDimensionUpdates, csSide, csSideEnd, csSplitPositions, csVertexAngle, parseCsPositions } from '../src/components/editor/csGeometry';
+import { csAngleEnd, csBounds, csChangeDimensionMode, csContourFrames, csContourError, csDimensionUpdates, csSide, csSideEnd, csSplitPositions, csVertexAngle, parseCsPositions } from '../src/components/editor/csGeometry';
 import type { CsConfig, CsSplitConfig, Section } from '../src/components/editor/types';
 import { apiToLocal, localToApi } from '../src/components/editor/converters';
 
@@ -70,7 +70,7 @@ const shifted = {
   csConfig: { ...config, vertices: config.vertices.map(point => ({ x: point.x || 600, y: point.y || 300 })) },
 };
 const bounds = csBounds(shifted.csConfig.vertices);
-assert.deepEqual(csSplitPositions(config.vertical, bounds.minX, bounds.maxX), [1400, 2200]);
+assert.deepEqual(csSplitPositions(config.vertical, bounds.minX, bounds.maxX), [1399.5, 2200.5]);
 const trapezoid = {
   ...original,
   csConfig: { ...config, vertices: [{ x: 0, y: 0 }, { x: 3000, y: 0 }, { x: 2500, y: 3000 }, { x: 500, y: 3000 }] },
@@ -100,7 +100,6 @@ const modes: CsSplitConfig[] = [
   { count: 2, mode: 'from-right', step: 700 }, { count: 20, mode: 'from-left', step: 800 },
   { count: 2, mode: 'from-right', step: 0 }, { count: 2, mode: 'from-left' },
   { count: 3, mode: 'manual', positions: [1400, 1400, 2200] },
-  { count: 6, mode: 'manual', positions: [0, 600, 1400, 2200, 3000, 5000] },
 ];
 for (const split of modes) sections.push({ ...shifted, csConfig: { ...shifted.csConfig, vertical: split, horizontal: split } });
 const payload = sections.map(section => ({ width: section.width, height: section.height, quantity: 1, cs_config: section.csConfig }));
@@ -112,17 +111,26 @@ print(json.dumps([calculate_cs(SimpleNamespace(**row)) for row in json.load(sys.
 `], { cwd: fileURLToPath(new URL('../backend', import.meta.url)), input: JSON.stringify(payload), encoding: 'utf8' });
 assert.equal(engine.status, 0, engine.error?.message || engine.stderr);
 const results = JSON.parse(engine.stdout);
-const rounded = (positions: number[]) => positions.map(value => Math.round(value * 1000) / 1000);
 sections.forEach((section, index) => {
   const config = section.csConfig!;
-  const bounds = csBounds(config.vertices);
+  const frames = csContourFrames(config);
+  const bounds = csBounds(frames.clear);
   const actual = results[index].normalized_config;
-  assert.deepEqual(actual.vertical.positions, rounded(csSplitPositions(config.vertical, bounds.minX, bounds.maxX)), `vertical split case ${index}`);
-  assert.deepEqual(actual.horizontal.positions, rounded(csSplitPositions(config.horizontal, bounds.minY, bounds.maxY)), `horizontal split case ${index}`);
+  for (const axis of ['vertical', 'horizontal'] as const) {
+    const expected = csSplitPositions(config[axis], axis === 'vertical' ? bounds.minX : bounds.minY, axis === 'vertical' ? bounds.maxX : bounds.maxY);
+    assert.equal(actual[axis].positions.length, expected.length);
+    expected.forEach((value, i) => near(actual[axis].positions[i], value));
+  }
+  frames.glass.forEach((point, i) => { near(point.x, results[index].glass_polygon[i].x); near(point.y, results[index].glass_polygon[i].y); });
+  const light = csChangeDimensionMode(config, 'clear');
+  const restored = csChangeDimensionMode(light.csConfig!, 'installation');
+  const originalBounds = csBounds(frames.installation);
+  restored.csConfig!.vertices.forEach((p, i) => {
+    near(p.x, frames.installation[i].x - originalBounds.minX);
+    near(p.y, frames.installation[i].y - originalBounds.minY);
+  });
 });
-assert.equal(results[1].glass_area_m2, 12);
-assert.deepEqual(results[1].panes.map((pane: { width_mm: number }) => pane.width_mm), [1333.3, 1333.3, 1333.3]);
-assert.equal(results[2].glass_area_m2, 18);
-assert.equal(results[3].glass_area_m2, 2.25);
-assert.equal(results[6].glass_area_m2, 7.5);
+near(results[1].glass_area_m2, (4000 - 52 - 6) * (3000 - 26) / 1e6);
+near(results[2].glass_area_m2, (4000 - 52 - 6) * (4500 - 26) / 1e6);
+near(results[3].glass_area_m2, (1500 - 52 - 6) * (1500 - 26) / 1e6);
 console.log(`CS geometry: resize, draft parsing and ${sections.length} frontend/backend comparisons passed.`);

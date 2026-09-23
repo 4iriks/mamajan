@@ -38,6 +38,7 @@ export interface HardwareCatalogItem {
   sectionWidthMm: number;
   sectionHeightMm: number;
   imageFile: string;
+  photoFile?: string;
   paintMode: PaintMode;
   colorVariants: string[];
   finishVariants?: CatalogFinishVariant[];
@@ -114,6 +115,9 @@ export interface CsSystem {
   name: string;
   outer_profile_item_id: number | null;
   joint_profile_item_id: number | null;
+  cover_profile_item_id?: number | null;
+  bubble_seal_item_id?: number | null;
+  glass_pad_item_id?: number | null;
   is_active: boolean;
   outer_profile?: { id: number; sku: string; name: string } | null;
   joint_profile?: { id: number; sku: string; name: string } | null;

@@ -545,8 +545,8 @@ class TestPreview:
         )
         assert r.status_code == 200
         assert "Предварительный производственный лист ЦС" in r.text
-        assert "Расчёт ЦС предварительный" in r.text
-        assert "Зажимной профиль внешнего контура" in r.text
+        assert "Коммерческая цена пока не формируется" in r.text
+        assert "Зажимной профиль Т40Т в сборе" in r.text
 
 
 class TestLocalPreview:

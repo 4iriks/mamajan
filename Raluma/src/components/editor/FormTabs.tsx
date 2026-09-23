@@ -22,7 +22,7 @@ const NO_GLASS_OPTION = '__no_glass__';
 export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
   const glassOptions = glassTypeOptions(s.system);
   const supportsGlassSupply = s.system === 'СЛАЙД' || s.system === 'КНИЖКА';
-  const supportsCustomGlass = s.system !== 'КНИЖКА';
+  const supportsCustomGlass = s.system !== 'КНИЖКА' && s.system !== 'ЦС';
   const hasCustomGlass = supportsCustomGlass && !glassOptions.some(option => option === s.glassType);
   const [isCustomGlass, setIsCustomGlass] = useState(hasCustomGlass);
 
@@ -62,12 +62,12 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <label className={LBL}>Ширина, мм</label>
-            <input type="number" value={s.width || ''} onChange={e => update({ width: parseInt(e.target.value) || 0 })} className={INP} />
+            <label className={LBL}>{s.system === 'ЦС' ? `Ширина ${s.csConfig?.dimensionMode === 'clear' ? 'светового' : 'монтажного'} проёма, мм` : 'Ширина, мм'}</label>
+            <input type="number" step={s.system === 'ЦС' ? 'any' : 1} value={s.width || ''} onChange={e => update({ width: (s.system === 'ЦС' ? parseFloat(e.target.value) : parseInt(e.target.value)) || 0 })} className={INP} />
           </div>
           <div className="space-y-1.5">
-            <label className={LBL}>Высота, мм</label>
-            <input type="number" value={s.height || ''} onChange={e => update({ height: parseInt(e.target.value) || 0 })} className={INP} />
+            <label className={LBL}>{s.system === 'ЦС' ? `Высота ${s.csConfig?.dimensionMode === 'clear' ? 'светового' : 'монтажного'} проёма, мм` : 'Высота, мм'}</label>
+            <input type="number" step={s.system === 'ЦС' ? 'any' : 1} value={s.height || ''} onChange={e => update({ height: (s.system === 'ЦС' ? parseFloat(e.target.value) : parseInt(e.target.value)) || 0 })} className={INP} />
           </div>
         </div>
         <div className="space-y-1.5">

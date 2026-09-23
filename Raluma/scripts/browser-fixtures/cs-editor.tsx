@@ -61,12 +61,13 @@ async function run() {
   assert(document.querySelector('svg[aria-label]')?.textContent?.includes('У4'), 'Vertex labels');
   assert(select('Выбранная сторона').options[3].text === 'С4: У4 → У1', 'Closing side mapping');
   for (const index of [0, 1]) {
-    await set(input('Количество линий', index), '');
-    assert(input('Количество линий', index).value === '', 'Zero must remain erasable');
-    await set(input('Количество линий', index), '2', true);
-    assert(input('Количество линий', index).value === '2', 'Two split lines');
-    await set(input('Количество линий', index), '1.5', true);
-    assert(input('Количество линий', index).value === '2', 'Fractional counts must not apply');
+    await set(input('Количество стёкол', index), '');
+    assert(input('Количество стёкол', index).value === '', 'Count must remain erasable');
+    await set(input('Количество стёкол', index), '3', true);
+    assert(input('Количество стёкол', index).value === '3', 'Three panes');
+    assert(current.csConfig![index === 0 ? 'vertical' : 'horizontal'].count === 2, 'Three panes produce two cuts');
+    await set(input('Количество стёкол', index), '1.5', true);
+    assert(input('Количество стёкол', index).value === '3', 'Fractional counts must not apply');
   }
   await set(input('X, мм'), '');
   assert(input('X, мм').value === '', 'Empty coordinate draft');
@@ -97,6 +98,17 @@ async function run() {
   document.documentElement.classList.remove('light'); await pause();
   assert(getComputedStyle(price).color === 'rgb(167, 243, 208)', 'Readable green in dark theme');
   document.documentElement.classList.add('light');
+  await click('Прямоугольник');
+  assert(current.csConfig!.edgeTreatments!.every(kind => kind === 'clamp'), 'New contour has profiles on every side');
+  await set(select('Тип введённых размеров'), 'clear');
+  assert(current.width === 2920 && current.height === 2920, 'Switch to light opening subtracts 80 mm');
+  await set(select('Тип введённых размеров'), 'installation');
+  assert(current.width === 3000 && current.height === 3000, 'Switch back preserves physical geometry');
+  await set(document.querySelector<HTMLSelectElement>('[aria-label="Комплектация С4"]')!, 'bubble');
+  assert(current.csConfig!.edgeTreatments![3] === 'bubble' && !current.csConfig!.profiledEdges.includes(3), 'Bubble excludes clamp on selected side');
+  await click('Многоугольник');
+  await set(input('Углов в новой заготовке'), '7', true);
+  assert(current.csConfig!.vertices.length === 7, 'Seven-sided preset');
   await click('Прямоугольник');
   // Make the final screenshot representative of the requested six-corner contour.
   await set(select('Выбранная сторона'), '2'); await click('Добавить угол на С3');

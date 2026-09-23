@@ -76,6 +76,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
     }
 
     let cancelled = false;
+    if (section.system === 'ЦС') { setSectionCalc(null); setCalcError(null); }
     const timer = window.setTimeout(() => {
       calculateLocalSection(localToApi(section, 0))
         .then(calc => {
@@ -222,7 +223,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
                 <div>
                   <SectionDivider label="Контур · Деления · Профили" />
                   <div className="mt-3">
-                    <CsEditor section={section} update={onUpdate} calc={csCalc} />
+                    <CsEditor section={section} update={onUpdate} calc={csCalc} error={calcError} />
                   </div>
                 </div>
               )}

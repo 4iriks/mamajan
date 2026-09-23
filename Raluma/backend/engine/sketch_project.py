@@ -310,10 +310,12 @@ def _calculated_profiles(calc: object, system: str) -> list[dict]:
                 _component_row(
                     article=getattr(item, "article", ""),
                     name=getattr(item, "name", ""),
-                    size=f"{_format_number(total_length)} мм",
+                    size=getattr(item, "cutting_text", f"{_format_number(total_length)} мм"),
                     qty=_format_number(pieces),
                     unit="шт",
                     note="Предварительная ведомость",
+                    image=getattr(item, "image", ""),
+                    color=getattr(calc, "color_text", "") if getattr(item, "role", "") == "cover" else "Без цвета",
                 )
             )
         return rows
@@ -622,8 +624,8 @@ def _section_data(section: object, order: int) -> dict:
         "label": label,
         "system": system,
         "system_text": _system_text(system, section, calc),
-        "width_mm": _number(getattr(section, "width", 0)),
-        "height_mm": _number(getattr(section, "height", 0)),
+        "width_mm": _number(getattr(calc, "installation_width_mm", getattr(section, "width", 0))),
+        "height_mm": _number(getattr(calc, "installation_height_mm", getattr(section, "height", 0))),
         "color": _section_color(section, calc),
         "quantity": _positive_int(getattr(section, "quantity", 1)),
         "threshold": threshold,

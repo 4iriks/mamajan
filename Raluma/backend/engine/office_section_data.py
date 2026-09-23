@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from engine.office_common import format_dimension
+from engine.office_common import format_dimension, format_number
 from engine.pdf import display_hardware, display_profiles
 
 
@@ -15,13 +15,13 @@ def section_summary_rows(section: object, calc: object) -> list[tuple[str, str]]
         system_name = str(getattr(cs_system, "name", "") or "Система не выбрана")
         panes = list(getattr(calc, "panes", None) or [])
         return [
-            ("Ширина контура, мм", format_dimension(getattr(section, "width", 0))),
-            ("Высота контура, мм", format_dimension(getattr(section, "height", 0))),
+            ("Монтажный проём, мм", f"{format_number(calc.installation_width_mm)} × {format_number(calc.installation_height_mm)}"),
+            ("Световой проём, мм", f"{format_number(calc.clear_width_mm)} × {format_number(calc.clear_height_mm)}"),
             ("Количество секций, шт", str(getattr(section, "quantity", 1) or 1)),
             ("Количество стекол, шт", str(sum(int(getattr(pane, "qty", 1) or 1) for pane in panes))),
             ("Система ЦС", system_name),
             ("Стекло", str(getattr(section, "glass_type", "") or "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ")),
-            ("Площадь стекла, м²", format_dimension(getattr(calc, "glass_area_m2", 0))),
+            ("Площадь стекла, м²", format_number(getattr(calc, "glass_area_m2", 0), 3)),
             ("Статус", "ПРЕДВАРИТЕЛЬНЫЙ РАСЧЁТ"),
         ]
     rows = [
@@ -108,7 +108,7 @@ def hardware_rows(
                 (
                     str(item.article),
                     str(item.name),
-                    item.value,
+                    getattr(item, "value", getattr(item, "qty", 0)),
                     str(item.unit),
                     item.image,
                     f"lift_hardware_{index}_value",

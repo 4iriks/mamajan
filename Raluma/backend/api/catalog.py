@@ -141,7 +141,7 @@ def _seed_item_to_model(index: int, item) -> models.CatalogItem:
         system_groups=json.dumps(
             ["SLIDE_1", "SLIDE_2"]
             if "СЛАЙД" in str(item.system or "").upper()
-            else [],
+            else ["CS"] if item.system == 'ЦС' else [],
             ensure_ascii=False,
         ),
         unit=item.unit,
@@ -152,6 +152,7 @@ def _seed_item_to_model(index: int, item) -> models.CatalogItem:
         section_width_mm=item.section_width_mm,
         section_height_mm=item.section_height_mm,
         image_file=item.image,
+        photo_file=item.photo,
         paint_mode=item.paint_mode,
         color_variants=json.dumps(list(item.color_variants), ensure_ascii=False),
         supplier=item.supplier,
@@ -305,6 +306,7 @@ def _item_to_dict(item: models.CatalogItem) -> dict:
         "sectionWidthMm": item.section_width_mm,
         "sectionHeightMm": item.section_height_mm,
         "imageFile": item.image_file or "",
+        "photoFile": item.photo_file or "",
         "paintMode": item.paint_mode,
         "colorVariants": _decode_color_variants(item.color_variants),
         "finishVariants": [
@@ -360,6 +362,8 @@ def _apply_payload(item: models.CatalogItem, data: schemas.CatalogItemBase) -> N
     item.section_width_mm = data.sectionWidthMm
     item.section_height_mm = data.sectionHeightMm
     item.image_file = (data.imageFile or "").strip() or None
+    if 'photoFile' in data.model_fields_set:
+        item.photo_file = (data.photoFile or '').strip() or None
     item.paint_mode = data.paintMode.strip() or "Не красится"
     current = {
         _finish_code(row.name, getattr(row, "code", None)): row
@@ -916,7 +920,7 @@ def _cs_profile_summary(item: models.CatalogItem | None) -> dict | None:
 def _cs_system_to_dict(row: models.CsSystem, db: Session) -> dict:
     item_ids = {
         value
-        for value in (row.outer_profile_item_id, row.joint_profile_item_id)
+        for value in (row.outer_profile_item_id, row.joint_profile_item_id, row.cover_profile_item_id, row.bubble_seal_item_id, row.glass_pad_item_id)
         if value is not None
     }
     items = (
@@ -933,6 +937,9 @@ def _cs_system_to_dict(row: models.CsSystem, db: Session) -> dict:
         "name": row.name,
         "outer_profile_item_id": row.outer_profile_item_id,
         "joint_profile_item_id": row.joint_profile_item_id,
+        "cover_profile_item_id": row.cover_profile_item_id,
+        "bubble_seal_item_id": row.bubble_seal_item_id,
+        "glass_pad_item_id": row.glass_pad_item_id,
         "is_active": row.is_active,
         "outer_profile": _cs_profile_summary(by_id.get(row.outer_profile_item_id)),
         "joint_profile": _cs_profile_summary(by_id.get(row.joint_profile_item_id)),
@@ -942,7 +949,7 @@ def _cs_system_to_dict(row: models.CsSystem, db: Session) -> dict:
 def _validate_cs_profile_links(db: Session, data: schemas.CsSystemBase) -> None:
     ids = {
         value
-        for value in (data.outer_profile_item_id, data.joint_profile_item_id)
+        for value in (data.outer_profile_item_id, data.joint_profile_item_id, data.cover_profile_item_id, data.bubble_seal_item_id, data.glass_pad_item_id)
         if value is not None
     }
     if not ids:
@@ -955,7 +962,8 @@ def _validate_cs_profile_links(db: Session, data: schemas.CsSystemBase) -> None:
             status_code=400,
             detail=f"Не найдены активные профили каталога: {', '.join(map(str, missing))}",
         )
-    invalid = [item.sku for item in items if _price_category(item.group) != "profile"]
+    profile_ids = {data.outer_profile_item_id, data.joint_profile_item_id, data.cover_profile_item_id}
+    invalid = [item.sku for item in items if item.id in profile_ids and _price_category(item.group) != "profile"]
     if invalid:
         raise HTTPException(
             status_code=400,
@@ -989,6 +997,9 @@ def create_cs_system(
         name=data.name.strip(),
         outer_profile_item_id=data.outer_profile_item_id,
         joint_profile_item_id=data.joint_profile_item_id,
+        cover_profile_item_id=data.cover_profile_item_id,
+        bubble_seal_item_id=data.bubble_seal_item_id,
+        glass_pad_item_id=data.glass_pad_item_id,
         is_active=data.is_active,
         updated_by=actor.id,
     )
@@ -1021,6 +1032,9 @@ def update_cs_system(
     row.name = data.name.strip()
     row.outer_profile_item_id = data.outer_profile_item_id
     row.joint_profile_item_id = data.joint_profile_item_id
+    for field in ('cover_profile_item_id', 'bubble_seal_item_id', 'glass_pad_item_id'):
+        if field in data.model_fields_set:
+            setattr(row, field, getattr(data, field))
     row.is_active = data.is_active
     row.updated_by = actor.id
     row.updated_at = datetime.utcnow()

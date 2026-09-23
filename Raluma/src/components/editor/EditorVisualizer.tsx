@@ -26,19 +26,25 @@ function isBookCalcPreview(
 }
 
 function CsRoomView({ section, calc }: { section: Section; calc: CsCalcPreview }) {
-  const width = Math.max(1, section.width || 1);
-  const height = Math.max(1, section.height || 1);
-  return <svg viewBox={`-120 -120 ${width + 240} ${height + 240}`} className="h-auto w-full" role="img" aria-label="Схема ЦС">
+  const contour = calc.installation_polygon || calc.normalized_config.vertices;
+  const minX = Math.min(...contour.map(p => p.x)), minY = Math.min(...contour.map(p => p.y));
+  const maxY = Math.max(...contour.map(p => p.y));
+  const width = Math.max(1, calc.installation_width_mm || section.width || 1);
+  const height = Math.max(1, calc.installation_height_mm || section.height || 1);
+  const margin = Math.max(width, height) * .06;
+  const path = (points: typeof contour) => points.map(p => `${p.x - minX},${maxY - p.y}`).join(' ');
+  return <svg viewBox={`${-margin} ${-margin} ${width + margin * 2} ${maxY - minY + margin * 2}`} className="h-auto w-full" role="img" aria-label="Схема ЦС — монтажный проём">
+    <polygon points={path(contour)} fill="none" stroke="#102f35" strokeWidth={Math.max(width, height) / 350} />
     {calc.panes.map(pane => <g key={pane.number}>
-      <polygon points={pane.polygon.map(point => `${point.x},${height - point.y}`).join(' ')} fill="#dff3f7" stroke="#66858c" strokeWidth={Math.max(width, height) / 350} />
+      <polygon points={path(pane.polygon)} fill="#dff3f7" stroke="#66858c" strokeWidth={Math.max(width, height) / 350} />
       {(() => {
         const x = pane.polygon.reduce((sum, point) => sum + point.x, 0) / pane.polygon.length;
         const y = pane.polygon.reduce((sum, point) => sum + point.y, 0) / pane.polygon.length;
-        return <g><text x={x} y={height - y - 18} textAnchor="middle" fontSize={Math.max(width, height) / 30} fontWeight="700" fill="#102f35">{pane.number}</text><text x={x} y={height - y + 34} textAnchor="middle" fontSize={Math.max(width, height) / 48} fill="#102f35">{pane.width_mm}×{pane.height_mm}</text></g>;
+        return <g><text x={x - minX} y={maxY - y - 18} textAnchor="middle" fontSize={Math.max(width, height) / 30} fontWeight="700" fill="#102f35">{pane.number}</text><text x={x - minX} y={maxY - y + 34} textAnchor="middle" fontSize={Math.max(width, height) / 48} fill="#102f35">{pane.width_mm.toFixed(1)}×{pane.height_mm.toFixed(1)}</text></g>;
       })()}
     </g>)}
-    <text x={width / 2} y={height + 90} textAnchor="middle" fontSize={Math.max(width, height) / 35} fontWeight="700" fill="currentColor">{section.width} мм</text>
-    <text x={width + 75} y={height / 2} textAnchor="middle" fontSize={Math.max(width, height) / 35} fontWeight="700" fill="currentColor" transform={`rotate(-90 ${width + 75} ${height / 2})`}>{section.height} мм</text>
+    <text x={width / 2} y={height + margin * .7} textAnchor="middle" fontSize={Math.max(width, height) / 35} fontWeight="700" fill="currentColor">{width.toFixed(1)} мм</text>
+    <text x={width + margin * .7} y={height / 2} textAnchor="middle" fontSize={Math.max(width, height) / 35} fontWeight="700" fill="currentColor" transform={`rotate(-90 ${width + margin * .7} ${height / 2})`}>{height.toFixed(1)} мм</text>
   </svg>;
 }
 

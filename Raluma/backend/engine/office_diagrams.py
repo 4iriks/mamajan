@@ -1205,7 +1205,7 @@ def render_cs_front(section: object, calc: object) -> bytes:
     canvas = Image.new("RGB", (1600, 900), BACKGROUND)
     draw = ImageDraw.Draw(canvas)
     config = getattr(calc, "normalized_config", None)
-    vertices = list(getattr(config, "vertices", None) or [])
+    vertices = list(getattr(calc, "installation_polygon", None) or getattr(config, "vertices", None) or [])
     if len(vertices) < 3:
         width = max(1.0, float(getattr(section, "width", 1) or 1))
         height = max(1.0, float(getattr(section, "height", 1) or 1))
@@ -1268,11 +1268,12 @@ def render_cs_front(section: object, calc: object) -> bytes:
             fill=INK if index in profiled else MUTED,
             width=8 if index in profiled else 3,
         )
-    for point in outer:
+    for index, point in enumerate(outer):
         draw.ellipse(
             (point[0] - 5, point[1] - 5, point[0] + 5, point[1] + 5),
             fill=INK,
         )
+        draw.text((point[0] + 8, point[1] - 24), f"У{index + 1}", font=note_font, fill=INK)
 
     dimension_y = offset_y + used_height + 70
     draw.line((offset_x, dimension_y, offset_x + used_width, dimension_y), fill=INK, width=3)
@@ -1311,7 +1312,7 @@ def render_cs_front(section: object, calc: object) -> bytes:
         note_font,
         RED,
     )
-    return _png(canvas)
+    return _cropped_png(canvas)
 
 
 def section_diagrams(

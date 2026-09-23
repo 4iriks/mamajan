@@ -1138,9 +1138,9 @@ def _add_cs_glass(document: Document, calc: object) -> None:
         row = table.add_row()
         values = (
             getattr(pane, "number", ""),
-            format_dimension(getattr(pane, "width_mm", 0)),
-            format_dimension(getattr(pane, "height_mm", 0)),
-            format_dimension(getattr(pane, "area_m2", 0)),
+            format_number(getattr(pane, "width_mm", 0)),
+            format_number(getattr(pane, "height_mm", 0)),
+            format_number(getattr(pane, "area_m2", 0), 3),
             getattr(pane, "qty", 1),
             "Контур по схеме; размеры габаритные",
         )
@@ -1158,7 +1158,7 @@ def _add_cs_glass(document: Document, calc: object) -> None:
 def _add_cs_profiles(document: Document, calc: object) -> None:
     _add_bar(document, "Профили · предварительная ведомость")
     table = document.add_table(rows=1, cols=5)
-    headers = ("Артикул", "Наименование", "Общая длина, мм", "Отрезков, шт", "Статус")
+    headers = ("Артикул", "Наименование", "Общая длина, мм", "Отрезков, шт", "Нарезка")
     for index, header in enumerate(headers):
         _set_cell_text(
             table.cell(0, index),
@@ -1173,9 +1173,9 @@ def _add_cs_profiles(document: Document, calc: object) -> None:
         values = (
             getattr(profile, "article", ""),
             getattr(profile, "name", ""),
-            format_dimension(getattr(profile, "total_length_mm", 0)),
+            format_number(getattr(profile, "total_length_mm", 0)),
             getattr(profile, "pieces", 0),
-            "ПРЕДВАРИТЕЛЬНО",
+            getattr(profile, "cutting_text", "ПРЕДВАРИТЕЛЬНО"),
         )
         for column, value in enumerate(values):
             _set_cell_text(
@@ -1235,6 +1235,7 @@ def build_section_docx(project: object, section: object, calc: object) -> bytes:
         _add_diagrams(document, section, calc)
         _add_cs_glass(document, calc)
         _add_cs_profiles(document, calc)
+        _add_hardware(document, calc, overrides)
         _add_cs_notes(document, section, overrides)
         output = io.BytesIO()
         document.save(output)
@@ -2135,8 +2136,8 @@ def _build_glass_docx(context: dict) -> bytes:
             row_data["index"],
             row_data["marking"],
             row_data["glass_type"],
-            format_dimension(row_data["width"]),
-            format_dimension(row_data["height"]),
+            (format_number if row_data.get("shape_area_m2") is not None else format_dimension)(row_data["width"]),
+            (format_number if row_data.get("shape_area_m2") is not None else format_dimension)(row_data["height"]),
             row_data["qty"],
             f"{row_data['area']:.3f}",
             row_data["note"],
@@ -2222,7 +2223,7 @@ def _build_paint_docx(context: dict) -> bytes:
             "Сечение",
             "Кол-во",
             "Чистовые размеры",
-            "С припуском 50 мм",
+            page.get("allowance_label", "С припуском 50 мм"),
             "Общее, м.п.",
         )
         for index, header in enumerate(headers):
@@ -2248,12 +2249,12 @@ def _build_paint_docx(context: dict) -> bytes:
                 )
                 _set_cell_text(
                     row.cells[3],
-                    format_dimension(row_data["clean"]),
+                    (format_number if row_data.get("note", "").startswith("ЦС:") else format_dimension)(row_data["clean"]),
                     align=WD_ALIGN_PARAGRAPH.CENTER,
                 )
                 _set_cell_text(
                     row.cells[4],
-                    format_dimension(row_data["allowance"]),
+                    (format_number if row_data.get("note", "").startswith("ЦС:") else format_dimension)(row_data["allowance"]),
                     align=WD_ALIGN_PARAGRAPH.CENTER,
                 )
                 _set_cell_text(

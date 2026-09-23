@@ -38,11 +38,11 @@ def test_cs_equal_grid_produces_nine_deterministic_panes_and_profile_lengths():
 
     assert len(result["panes"]) == 9
     assert [row["number"] for row in result["panes"]] == list(range(1, 10))
-    assert all(row["width_mm"] == 1000 for row in result["panes"])
-    assert all(row["height_mm"] == 1000 for row in result["panes"])
-    assert result["glass_area_m2"] == 9
+    assert [row["width_mm"] for row in result["panes"][:3]] == pytest.approx([985 + 1 / 3, 971 + 1 / 3, 985 + 1 / 3])
+    assert result["glass_area_m2"] == pytest.approx(2942 * 2968 / 1e6)
     assert result["outer_edge_lengths_mm"] == [3000, 3000, 3000]
-    assert result["divider_lengths_mm"] == [3000, 3000, 3000, 3000]
+    assert result["divider_lengths_mm"] == [2968, 2968, 2942, 2942]
+    assert result["normalized_config"]["profiledEdges"] == [1, 2, 3]
     assert result["commercial_price_allowed"] is False
     assert result["status"] == "preliminary"
 
@@ -57,9 +57,9 @@ def test_cs_trapezoid_preserves_polygon_area_and_physical_quantity():
     )
 
     assert len(result["panes"]) == 1
-    assert result["panes"][0]["area_m2"] == 6.75
+    assert result["panes"][0]["area_m2"] == pytest.approx(6.47498610000383)
     assert result["panes"][0]["qty"] == 2
-    assert result["glass_area_m2"] == 13.5
+    assert result["glass_area_m2"] == pytest.approx(12.94997220000766)
 
 
 def test_cs_rejects_self_intersecting_contour():
@@ -161,9 +161,9 @@ def test_cs_preliminary_documents_cover_sheet_sketch_glass_and_profiles(client):
         assert response.content.startswith(b"PK")
 
     for document, expected in (
-        ("sketch", "ПРЕДВАРИТЕЛЬНЫЙ"),
+        ("sketch", "Коммерческая цена пока не формируется"),
         ("glass", "1,1"),
-        ("hardware_order", "артикул уточняется"),
+        ("hardware_order", "CS-PVC-PAD"),
     ):
         response = client.post(
             f"/api/projects/local/documents/{document}/preview",

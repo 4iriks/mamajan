@@ -410,6 +410,7 @@ def _get_env() -> Environment:
     env.filters["img_b64"] = _img_b64
     env.filters["enumerate"] = enumerate
     env.filters["glass_mm"] = glass_mm
+    env.filters["cs_mm"] = _format_length_for_display
     env.filters["glass_fill"] = glass_fill
     env.filters["glass_is_matte"] = glass_is_matte
     env.filters["brush_meters"] = brush_meters

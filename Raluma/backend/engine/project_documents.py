@@ -635,6 +635,22 @@ def _build_paint_pages(
     grouped: dict[str, dict[tuple, dict]] = defaultdict(dict)
 
     for item in calculated:
+        if str(getattr(item.section, "system", "")) == "ЦС":
+            color = item.calc.color_text
+            for profile in item.calc.profiles:
+                if not profile.requires_paint:
+                    continue
+                for length in profile.cut_lengths_mm:
+                    key = (profile.article, profile.name, length, profile.image, "", "ЦС: без припуска на распил")
+                    row = grouped[color].setdefault(key, {
+                        "article": profile.article, "name": profile.name, "image": profile.image,
+                        "image_data": "", "paint_marker": False, "paint_marker_class": "",
+                        "qty": 0, "clean": length, "allowance": length, "total_m": 0,
+                        "note": "ЦС: без припуска на распил",
+                    })
+                    row["qty"] += max(1, int(getattr(item.section, "quantity", 1) or 1))
+                    row["total_m"] = round(row["qty"] * length / 1000, 3)
+            continue
         if str(getattr(item.calc, "status", "") or "") == "preliminary":
             continue
         color = item.calc.color_text or "Без цвета"
@@ -730,6 +746,7 @@ def _build_paint_pages(
                 "groups": groups,
                 "total_qty": total_qty,
                 "total_m": total_m,
+                "allowance_label": "Размер в заявку, мм" if any(row.get("note", "").startswith("ЦС:") for row in rows) else "С припуском 50 мм",
             }
         )
     return sorted(pages, key=lambda page: page["color"])
@@ -854,11 +871,11 @@ def _physical_glass_pieces(
                     {
                         "marking": f"{section_number},{glass_index}",
                         "glass_type": glass_type,
-                        "width": glass_mm(getattr(pane, "width_mm", 0)),
-                        "height": glass_mm(getattr(pane, "height_mm", 0)),
-                        "area": round(float(getattr(pane, "area_m2", 0) or 0), 4),
+                        "width": round(float(getattr(pane, "width_mm", 0)), 1),
+                        "height": round(float(getattr(pane, "height_mm", 0)), 1),
+                        "area": float(getattr(pane, "area_m2", 0) or 0),
                         "shape_key": shape_key,
-                        "note": "ПРЕДВАРИТЕЛЬНО · контур по схеме",
+                        "note": "ЦС: контур по схеме",
                     }
                 )
         return pieces
@@ -929,13 +946,14 @@ def _group_section_glass_pieces(
                 "qty": 0,
                 "area": 0.0,
                 "note": piece.get("note") or "",
+                "shape_area_m2": piece.get("area") if piece.get("shape_key") else None,
             }
             grouped[key] = row
         row["qty"] += 1
         width = row["width"]
         height = row["height"]
-        row["area"] = round(
-            row["area"] + float(piece.get("area") or 0), 4
+        row["area"] = (
+            row["area"] + float(piece.get("area") or 0)
         ) if piece.get("area") is not None else (
             round(width * height * row["qty"] / 1_000_000, 3)
             if width is not None and height is not None
@@ -2136,9 +2154,15 @@ def _build_hardware_order_page(
                     name=getattr(item, "name", ""),
                     qty=_safe_float(getattr(item, "total_length_mm", 0), 0) / 1000,
                     unit="м",
-                    image="",
+                    image=getattr(item, "image", ""),
                     stage="",
-                    size="ПРЕДВАРИТЕЛЬНО",
+                    size="Без припуска",
+                    color=calc.color_text if getattr(item, "role", "") == "cover" else "Без цвета",
+                )
+            for item in calc.hardware:
+                _add_hardware_order_row(
+                    grouped, article=item.article, name=item.name, qty=item.qty,
+                    unit=item.unit, image=item.image, stage="",
                 )
         warning = (
             "ЦС: ведомость профилей предварительная; коммерческая цена и дверная "

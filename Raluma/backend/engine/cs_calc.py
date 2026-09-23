@@ -1,17 +1,28 @@
-"""Preliminary deterministic geometry calculation for all-glass (ЦС) sections.
+"""CS geometry according to the customer's T40T specification, September 2026.
 
-Phase one intentionally calculates geometry, glass and a profile BOM only.
-Commercial pricing remains blocked until the customer confirms the formulas.
+All distances are millimetres. Calculations retain precision; presentation rounds.
+No commercial price is inferred from incomplete catalogue costs.
 """
 
 from __future__ import annotations
 
-from math import hypot
+from collections import Counter
+from math import hypot, isfinite
 from types import SimpleNamespace
 from typing import Any
 
+from shapely.geometry import LineString, Polygon, box
+from engine.glass_types import normalize_slide_glass_type
 
 EPS = 1e-7
+GAP = 3.0
+GLASS_TYPES = (
+    "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
+    "10ММ ЗАКАЛЕННОЕ БРОНЗА В МАССЕ",
+    "10ММ ЗАКАЛЕННОЕ СЕРОЕ В МАССЕ",
+    "10ММ ЗАКАЛЕННОЕ МАТОВОЕ",
+    "10ММ ЗАКАЛЕННОЕ ПРОСВЕТЛЕННОЕ",
+)
 
 
 class CsCalculationError(ValueError):
@@ -19,8 +30,6 @@ class CsCalculationError(ValueError):
 
 
 def cs_result_namespace(value: Any) -> Any:
-    """Convert a JSON-shaped result into attribute-access rows for documents."""
-
     if isinstance(value, dict):
         return SimpleNamespace(
             **{key: cs_result_namespace(item) for key, item in value.items()}
@@ -33,79 +42,100 @@ def cs_result_namespace(value: Any) -> Any:
 def _number(value: Any, fallback: float = 0) -> float:
     try:
         result = float(value)
-    except (TypeError, ValueError):
+    except (ValueError, TypeError):
         return fallback
+    if not isfinite(result):
+        raise CsCalculationError("Размеры и координаты должны быть конечными числами")
     return result
 
 
-def _area(points: list[dict[str, float]]) -> float:
-    return abs(
+def _signed_area(points):
+    return (
         sum(
-            point["x"] * points[(index + 1) % len(points)]["y"]
-            - points[(index + 1) % len(points)]["x"] * point["y"]
-            for index, point in enumerate(points)
+            p["x"] * points[(i + 1) % len(points)]["y"]
+            - points[(i + 1) % len(points)]["x"] * p["y"]
+            for i, p in enumerate(points)
         )
-    ) / 2
+        / 2
+    )
 
 
-def _signed_area(points: list[dict[str, float]]) -> float:
-    return sum(
-        point["x"] * points[(index + 1) % len(points)]["y"]
-        - points[(index + 1) % len(points)]["x"] * point["y"]
-        for index, point in enumerate(points)
-    ) / 2
+def _polygon(points):
+    if not 3 <= len(points) <= 128:
+        raise CsCalculationError("Контур должен содержать от 3 до 128 вершин")
+    for index, point in enumerate(points):
+        end = points[(index + 1) % len(points)]
+        if hypot(end["x"] - point["x"], end["y"] - point["y"]) <= EPS:
+            raise CsCalculationError("Соседние углы не должны совпадать")
+    polygon = Polygon([(p["x"], p["y"]) for p in points])
+    if not polygon.is_valid:
+        raise CsCalculationError("Контур не должен пересекать сам себя")
+    if polygon.area <= EPS:
+        raise CsCalculationError("Площадь контура должна быть больше нуля")
+    return polygon
 
 
-def _orientation(a: dict, b: dict, c: dict) -> float:
-    return (b["x"] - a["x"]) * (c["y"] - a["y"]) - (
-        b["y"] - a["y"]
-    ) * (c["x"] - a["x"])
+def offset_contour(points, distances):
+    """Intersect adjacent offset lines; retain vertex/edge numbering and winding."""
+    original = _polygon(points)
+    orientation = 1 if _signed_area(points) > 0 else -1
+    lines = []
+    for index, start in enumerate(points):
+        end = points[(index + 1) % len(points)]
+        dx, dy = end["x"] - start["x"], end["y"] - start["y"]
+        length = hypot(dx, dy)
+        nx, ny = -dy / length * orientation, dx / length * orientation
+        distance = distances[index]
+        lines.append((start["x"] + nx * distance, start["y"] + ny * distance, dx, dy))
+    result = []
+    for index, current in enumerate(lines):
+        ax, ay, ux, uy = lines[index - 1]
+        bx, by, vx, vy = current
+        determinant = ux * vy - uy * vx
+        if abs(determinant) <= EPS:
+            if (
+                abs(distances[index - 1] - distances[index]) > EPS
+                or ux * vx + uy * vy <= 0
+            ):
+                raise CsCalculationError(
+                    "На одной прямой задайте одинаковую комплектацию соседних сторон"
+                )
+            point = {"x": bx, "y": by}
+        else:
+            factor = ((bx - ax) * vy - (by - ay) * vx) / determinant
+            point = {"x": ax + factor * ux, "y": ay + factor * uy}
+        result.append(point)
+    shifted = _polygon(result)
+    for index, point in enumerate(result):
+        end = result[(index + 1) % len(result)]
+        _, _, dx, dy = lines[index]
+        if (end["x"] - point["x"]) * dx + (end["y"] - point["y"]) * dy <= EPS:
+            raise CsCalculationError(
+                "Вычеты схлопывают сторону: увеличьте проём или измените комплектацию"
+            )
+    if all(d >= 0 for d in distances) and not original.buffer(1e-5).covers(shifted):
+        raise CsCalculationError("Вычеты образуют недопустимый контур стекла")
+    if all(d <= 0 for d in distances) and not shifted.buffer(1e-5).covers(original):
+        raise CsCalculationError("Не удалось восстановить монтажный контур")
+    return result
 
 
-def _segments_cross(a: dict, b: dict, c: dict, d: dict) -> bool:
-    first = _orientation(a, b, c)
-    second = _orientation(a, b, d)
-    third = _orientation(c, d, a)
-    fourth = _orientation(c, d, b)
-    return first * second < -EPS and third * fourth < -EPS
-
-
-def _validate_polygon(points: list[dict[str, float]]) -> None:
-    if len(points) < 3:
-        raise CsCalculationError("Контур ЦС должен содержать не менее трёх точек")
-    count = len(points)
-    for index in range(count):
-        a = points[index]
-        b = points[(index + 1) % count]
-        if hypot(b["x"] - a["x"], b["y"] - a["y"]) <= EPS:
-            raise CsCalculationError("В контуре ЦС есть совпадающие соседние точки")
-        for other in range(index + 1, count):
-            if other in {index, (index + 1) % count}:
-                continue
-            if index == 0 and other == count - 1:
-                continue
-            c = points[other]
-            d = points[(other + 1) % count]
-            if _segments_cross(a, b, c, d):
-                raise CsCalculationError("Контур ЦС не должен пересекать сам себя")
-    if _area(points) <= EPS:
-        raise CsCalculationError("Площадь контура ЦС должна быть больше нуля")
-
-
-def _preset_vertices(shape: str, width: float, height: float, width2: float) -> list[dict[str, float]]:
-    normalized = str(shape or "").casefold()
-    if "треуг" in normalized:
+def _preset(section, width, height):
+    shape = str(getattr(section, "cs_shape", "") or "").lower()
+    if "треуг" in shape:
         return [{"x": 0, "y": 0}, {"x": width, "y": 0}, {"x": width / 2, "y": height}]
-    if "трап" in normalized:
-        top = min(width, max(1, width2 or width * 0.7))
-        offset = (width - top) / 2
+    if "трап" in shape:
+        top = min(
+            width, max(1, _number(getattr(section, "cs_width2", 0)) or width * 0.7)
+        )
+        left = (width - top) / 2
         return [
             {"x": 0, "y": 0},
             {"x": width, "y": 0},
-            {"x": offset + top, "y": height},
-            {"x": offset, "y": height},
+            {"x": left + top, "y": height},
+            {"x": left, "y": height},
         ]
-    if "слож" in normalized:
+    if "слож" in shape:
         return [
             {"x": 0, "y": 0},
             {"x": width, "y": 0},
@@ -121,311 +151,350 @@ def _preset_vertices(shape: str, width: float, height: float, width2: float) -> 
     ]
 
 
-def _split_positions(raw: Any, low: float, high: float) -> tuple[dict, list[float]]:
-    source = raw if isinstance(raw, dict) else {}
-    count = max(0, min(20, int(_number(source.get("count"), 0))))
-    mode = str(source.get("mode") or "equal")
-    if mode not in {"equal", "from-left", "from-right", "manual"}:
-        mode = "equal"
-    span = max(0, high - low)
-    positions: list[float]
+def _split_positions(raw, low, high):
+    config = raw if isinstance(raw, dict) else {}
+    count = max(0, min(20, int(_number(config.get("count")))))
+    mode = config.get("mode", "equal")
+    span = high - low
     if mode == "manual":
-        positions = sorted(
-            {
-                _number(value)
-                for value in source.get("positions", [])
-                if low + EPS < _number(value) < high - EPS
-            }
-        )[:20]
-        count = len(positions)
-    elif mode in {"from-left", "from-right"}:
-        step = max(0, _number(source.get("step"), span / (count + 1) if count else 0))
-        if step <= EPS:
-            positions = []
-            count = 0
-        elif mode == "from-left":
-            positions = [low + step * index for index in range(1, count + 1)]
-        else:
-            positions = [high - step * index for index in range(1, count + 1)]
-        positions = sorted(value for value in positions if low + EPS < value < high - EPS)
-        count = len(positions)
+        if not isinstance(config.get("positions", []), list):
+            raise CsCalculationError("Координаты стыков должны быть списком чисел")
+        positions = sorted(set(_number(v) for v in config.get("positions", [])))
+        if len(positions) > 20 or any(
+            v <= low + GAP / 2 or v >= high - GAP / 2 for v in positions
+        ):
+            raise CsCalculationError(
+                "Координаты стыков должны находиться внутри светового проёма с запасом на зазор 3 мм"
+            )
+    elif mode in ("from-left", "from-right"):
+        step = _number(config.get("step"), span / (count + 1))
+        positions = (
+            sorted(
+                low + step * i if mode == "from-left" else high - step * i
+                for i in range(1, count + 1)
+            )
+            if step > 0
+            else []
+        )
+        positions = [v for v in positions if low + GAP / 2 < v < high - GAP / 2]
     else:
-        positions = [low + span * index / (count + 1) for index in range(1, count + 1)]
-        step = span / (count + 1) if count else 0
+        mode = "equal"
+        pane = (span - GAP * count) / (count + 1)
+        if pane <= EPS:
+            raise CsCalculationError(
+                "Слишком много стёкол для заданного светового проёма"
+            )
+        positions = [low + pane * i + GAP * (i - 0.5) for i in range(1, count + 1)]
+    if any(b - a <= GAP + EPS for a, b in zip(positions, positions[1:])):
+        raise CsCalculationError(
+            "Между линиями деления должно оставаться место для стекла и зазора 3 мм"
+        )
     return {
-        "count": count,
+        **config,
         "mode": mode,
-        "step": round(step, 3) if mode != "manual" else None,
-        "positions": [round(value, 3) for value in positions],
+        "count": len(positions),
+        "positions": positions,
     }, positions
 
 
-def _clip_half_plane(
-    polygon: list[dict[str, float]], axis: str, boundary: float, keep_greater: bool
-) -> list[dict[str, float]]:
-    if not polygon:
-        return []
-
-    def inside(point: dict[str, float]) -> bool:
-        value = point[axis]
-        return value >= boundary - EPS if keep_greater else value <= boundary + EPS
-
-    def intersection(start: dict[str, float], end: dict[str, float]) -> dict[str, float]:
-        delta = end[axis] - start[axis]
-        ratio = 0 if abs(delta) <= EPS else (boundary - start[axis]) / delta
-        return {
-            "x": start["x"] + (end["x"] - start["x"]) * ratio,
-            "y": start["y"] + (end["y"] - start["y"]) * ratio,
-        }
-
-    output: list[dict[str, float]] = []
-    previous = polygon[-1]
-    previous_inside = inside(previous)
-    for current in polygon:
-        current_inside = inside(current)
-        if current_inside != previous_inside:
-            output.append(intersection(previous, current))
-        if current_inside:
-            output.append(dict(current))
-        previous = current
-        previous_inside = current_inside
-    return output
+def _parts(geometry):
+    if geometry.geom_type == "Polygon":
+        return [geometry] if geometry.area > EPS else []
+    return [part for child in getattr(geometry, "geoms", []) for part in _parts(child)]
 
 
-def _clip_cell(
-    polygon: list[dict[str, float]], left: float, right: float, bottom: float, top: float
-) -> list[dict[str, float]]:
-    result = _clip_half_plane(polygon, "x", left, True)
-    result = _clip_half_plane(result, "x", right, False)
-    result = _clip_half_plane(result, "y", bottom, True)
-    result = _clip_half_plane(result, "y", top, False)
-    return result if len(result) >= 3 and _area(result) > EPS else []
+def _points(polygon):
+    return [{"x": x, "y": y} for x, y in list(polygon.exterior.coords)[:-1]]
 
 
-def _point_inside(point: dict[str, float], polygon: list[dict[str, float]]) -> bool:
-    inside = False
-    x, y = point["x"], point["y"]
-    previous = polygon[-1]
-    for current in polygon:
-        crosses = (current["y"] > y) != (previous["y"] > y)
-        if crosses:
-            crossing_x = (previous["x"] - current["x"]) * (y - current["y"]) / (
-                previous["y"] - current["y"]
-            ) + current["x"]
-            if x < crossing_x:
-                inside = not inside
-        previous = current
-    return inside
+def _joint_length(polygon, position, perpendicular_cuts, axis):
+    """Only length with glass on BOTH sides; crossing air gaps need no tape."""
+    bounds = polygon.bounds
 
+    def intervals(geometry):
+        if geometry.geom_type == "LineString":
+            values = [p[1 - axis] for p in geometry.coords]
+            return [(min(values), max(values))]
+        return [
+            interval
+            for child in getattr(geometry, "geoms", [])
+            for interval in intervals(child)
+        ]
 
-def _line_length_inside(
-    polygon: list[dict[str, float]], axis: str, position: float
-) -> float:
-    other = "y" if axis == "x" else "x"
-    intersections: list[float] = []
-    for index, start in enumerate(polygon):
-        end = polygon[(index + 1) % len(polygon)]
-        start_delta = start[axis] - position
-        end_delta = end[axis] - position
-        if abs(start_delta) <= EPS:
-            intersections.append(start[other])
-        if start_delta * end_delta < -EPS:
-            ratio = (position - start[axis]) / (end[axis] - start[axis])
-            intersections.append(start[other] + ratio * (end[other] - start[other]))
-    ordered: list[float] = []
-    for value in sorted(intersections):
-        if not ordered or abs(value - ordered[-1]) > EPS:
-            ordered.append(value)
+    def at(value):
+        line = (
+            LineString([(value, bounds[1]), (value, bounds[3])])
+            if axis == 0
+            else LineString([(bounds[0], value), (bounds[2], value)])
+        )
+        return intervals(polygon.intersection(line))
+
     total = 0.0
-    for low, high in zip(ordered, ordered[1:]):
-        midpoint = (low + high) / 2
-        probe = {axis: position, other: midpoint}
-        if _point_inside(probe, polygon):
-            total += high - low
-    return total
+    for a, b in at(position - GAP / 2):
+        for c, d in at(position + GAP / 2):
+            start, end = max(a, c), min(b, d)
+            if end > start:
+                total += (
+                    end
+                    - start
+                    - sum(
+                        max(0, min(end, cut + GAP / 2) - max(start, cut - GAP / 2))
+                        for cut in perpendicular_cuts
+                    )
+                )
+    return max(0, total)
 
 
-def calculate_cs(
-    section: object,
-    *,
-    system: object | None = None,
-    outer_profile: object | None = None,
-    joint_profile: object | None = None,
-) -> dict:
-    width = _number(getattr(section, "width", 0))
-    height = _number(getattr(section, "height", 0))
+def calculate_cs(section, *, system=None, outer_profile=None, joint_profile=None):
+    width, height = (
+        _number(getattr(section, "width", 0)),
+        _number(getattr(section, "height", 0)),
+    )
     quantity = max(1, int(_number(getattr(section, "quantity", 1), 1)))
     if width <= 0 or height <= 0:
         raise CsCalculationError("Ширина и высота ЦС должны быть больше нуля")
-    raw_config = getattr(section, "cs_config", None)
-    config = raw_config if isinstance(raw_config, dict) else {}
-    raw_vertices = config.get("vertices") if isinstance(config, dict) else None
+    raw = getattr(section, "cs_config", None)
+    config = raw if isinstance(raw, dict) else {}
+    raw_vertices = config.get("vertices", [])
+    if not isinstance(raw_vertices, list) or any(
+        not isinstance(p, dict) for p in raw_vertices
+    ):
+        raise CsCalculationError("Углы должны быть списком координат X и Y")
     vertices = [
-        {"x": _number(point.get("x")), "y": _number(point.get("y"))}
-        for point in raw_vertices or []
-        if isinstance(point, dict)
-    ]
-    if not vertices:
-        vertices = _preset_vertices(
-            str(getattr(section, "cs_shape", "") or ""),
-            width,
-            height,
-            _number(getattr(section, "cs_width2", 0)),
-        )
-    if _signed_area(vertices) < 0:
-        vertices.reverse()
-    _validate_polygon(vertices)
-
-    min_x = min(point["x"] for point in vertices)
-    max_x = max(point["x"] for point in vertices)
-    min_y = min(point["y"] for point in vertices)
-    max_y = max(point["y"] for point in vertices)
-    vertical_config, vertical_positions = _split_positions(config.get("vertical"), min_x, max_x)
-    horizontal_config, horizontal_positions = _split_positions(config.get("horizontal"), min_y, max_y)
-
-    panes: list[dict] = []
-    x_boundaries = [min_x, *vertical_positions, max_x]
-    y_boundaries = [min_y, *horizontal_positions, max_y]
-    for row in range(len(y_boundaries) - 1):
-        for column in range(len(x_boundaries) - 1):
-            clipped = _clip_cell(
-                vertices,
-                x_boundaries[column],
-                x_boundaries[column + 1],
-                y_boundaries[row],
-                y_boundaries[row + 1],
+        {"x": _number(p.get("x")), "y": _number(p.get("y"))} for p in raw_vertices
+    ] or _preset(section, width, height)
+    _polygon(vertices)
+    mode = config.get("dimensionMode", "installation")
+    if mode not in ("installation", "clear"):
+        raise CsCalculationError("Неизвестный тип размеров проёма")
+    if "edgeTreatments" in config:
+        treatments = config["edgeTreatments"]
+        if (
+            not isinstance(treatments, list)
+            or len(treatments) != len(vertices)
+            or any(v not in ("clamp", "bubble", "none") for v in treatments)
+        ):
+            raise CsCalculationError(
+                "Для каждой стороны выберите профиль, уплотнитель или свободную сторону"
             )
-            if not clipped:
-                continue
-            pane_min_x = min(point["x"] for point in clipped)
-            pane_max_x = max(point["x"] for point in clipped)
-            pane_min_y = min(point["y"] for point in clipped)
-            pane_max_y = max(point["y"] for point in clipped)
-            panes.append(
-                {
-                    "column": column + 1,
-                    "row": row + 1,
-                    "width_mm": round(pane_max_x - pane_min_x, 1),
-                    "height_mm": round(pane_max_y - pane_min_y, 1),
-                    "area_m2": round(_area(clipped) / 1_000_000, 4),
-                    "qty": quantity,
-                    "polygon": [
-                        {"x": round(point["x"], 2), "y": round(point["y"], 2)}
-                        for point in clipped
-                    ],
-                    "centroid": {
-                        "x": sum(point["x"] for point in clipped) / len(clipped),
-                        "y": sum(point["y"] for point in clipped) / len(clipped),
-                    },
-                }
-            )
-    panes.sort(key=lambda pane: (-pane["centroid"]["y"], pane["centroid"]["x"]))
-    for number, pane in enumerate(panes, start=1):
-        pane["number"] = number
-        pane.pop("centroid", None)
-
-    edge_lengths = [
-        hypot(
-            vertices[(index + 1) % len(vertices)]["x"] - point["x"],
-            vertices[(index + 1) % len(vertices)]["y"] - point["y"],
-        )
-        for index, point in enumerate(vertices)
+    elif "profiledEdges" in config:
+        if not isinstance(config["profiledEdges"], list):
+            raise CsCalculationError("Стороны с профилем должны быть списком индексов")
+        treatments = [
+            "clamp" if i in config["profiledEdges"] else "none"
+            for i in range(len(vertices))
+        ]
+    else:
+        treatments = ["clamp"] * len(vertices)
+    bubble = _number(config.get("bubbleDeductionMm"), 6)
+    if not 0 <= bubble <= 50:
+        raise CsCalculationError("Вычет RS1002 должен быть от 0 до 50 мм")
+    light_distances = [
+        40 if t == "clamp" else bubble if t == "bubble" else 0 for t in treatments
     ]
-    default_edges = [
-        index
-        for index, point in enumerate(vertices)
-        if not (
-            abs(point["y"] - min_y) <= EPS
-            and abs(vertices[(index + 1) % len(vertices)]["y"] - min_y) <= EPS
-        )
+    glass_distances = [
+        26 if t == "clamp" else bubble if t == "bubble" else 0 for t in treatments
     ]
-    profiled_edges = sorted(
-        {
-            int(value)
-            for value in config.get("profiledEdges", default_edges)
-            if str(value).lstrip("-").isdigit() and 0 <= int(value) < len(vertices)
-        }
+    installation = (
+        vertices
+        if mode == "installation"
+        else offset_contour(vertices, [-d for d in light_distances])
     )
-    outer_length = sum(edge_lengths[index] for index in profiled_edges)
-    divider_lengths = [
-        _line_length_inside(vertices, "x", position) for position in vertical_positions
-    ] + [_line_length_inside(vertices, "y", position) for position in horizontal_positions]
-    joint_length = sum(divider_lengths)
+    light = offset_contour(installation, light_distances)
+    glass = offset_contour(installation, glass_distances)
+    light_polygon, glass_polygon = _polygon(light), _polygon(glass)
+    min_x, min_y, max_x, max_y = light_polygon.bounds
+    vertical, xs = _split_positions(config.get("vertical"), min_x, max_x)
+    horizontal, ys = _split_positions(config.get("horizontal"), min_y, max_y)
+    gx0, gy0, gx1, gy1 = glass_polygon.bounds
+    x_boundaries, y_boundaries = [gx0, *xs, gx1], [gy0, *ys, gy1]
+    panes = []
+    for row in range(len(y_boundaries) - 1):
+        for col in range(len(x_boundaries) - 1):
+            left = x_boundaries[col] + (GAP / 2 if col else 0)
+            right = x_boundaries[col + 1] - (GAP / 2 if col < len(xs) else 0)
+            bottom = y_boundaries[row] + (GAP / 2 if row else 0)
+            top = y_boundaries[row + 1] - (GAP / 2 if row < len(ys) else 0)
+            if right <= left or top <= bottom:
+                raise CsCalculationError(
+                    "Деление не оставляет положительного размера стекла"
+                )
+            for pane in _parts(
+                glass_polygon.intersection(box(left, bottom, right, top))
+            ):
+                px0, py0, px1, py1 = pane.bounds
+                panes.append(
+                    {
+                        "column": col + 1,
+                        "row": row + 1,
+                        "width_mm": px1 - px0,
+                        "height_mm": py1 - py0,
+                        "area_m2": pane.area / 1e6,
+                        "qty": quantity,
+                        "polygon": _points(pane),
+                        "centroid": (pane.centroid.x, pane.centroid.y),
+                    }
+                )
+    if not panes:
+        raise CsCalculationError("В результате деления не осталось стёкол")
+    panes.sort(
+        key=lambda pane: (
+            -pane["row"],
+            pane["column"],
+            -round(pane["centroid"][1], 6),
+            round(pane["centroid"][0], 6),
+        )
+    )
+    for index, pane in enumerate(panes, 1):
+        pane["number"] = index
+        del pane["centroid"]
+    cuts = [_joint_length(glass_polygon, x, ys, 0) for x in xs]
+    cuts += [_joint_length(glass_polygon, y, xs, 1) for y in ys]
+    profiled = [i for i, t in enumerate(treatments) if t == "clamp"]
 
-    normalized_config = {
-        "version": 1,
-        "vertices": [
-            {"x": round(point["x"], 3), "y": round(point["y"], 3)}
-            for point in vertices
-        ],
-        "vertical": vertical_config,
-        "horizontal": horizontal_config,
-        "profiledEdges": profiled_edges,
-        "doors": config.get("doors", []),
-    }
-    system_name = str(getattr(system, "name", "") or "Система ЦС не выбрана")
-    outer_sku = str(getattr(outer_profile, "sku", "") or "артикул уточняется")
-    joint_sku = str(getattr(joint_profile, "sku", "") or "артикул уточняется")
-    warnings = ["Расчёт ЦС предварительный: коммерческая цена не формируется."]
-    if outer_profile is None:
-        warnings.append("Для системы ЦС не выбран внешний зажимной профиль.")
-    if divider_lengths and joint_profile is None:
-        warnings.append("Для системы ЦС не выбран профиль стыка стекол.")
-    bom = [
-        {
-            "role": "outer",
-            "article": outer_sku,
-            "name": str(getattr(outer_profile, "name", "") or "Зажимной профиль внешнего контура"),
-            "length_mm": round(outer_length, 1),
-            "total_length_mm": round(outer_length * quantity, 1),
-            "pieces": len(profiled_edges) * quantity,
-            "unit": "м.п.",
-            "preliminary": True,
-        }
+    def length(points, i):
+        return hypot(
+            points[(i + 1) % len(points)]["x"] - points[i]["x"],
+            points[(i + 1) % len(points)]["y"] - points[i]["y"],
+        )
+
+    outer_lengths = [length(installation, i) for i in profiled]
+    bubble_lengths = [
+        length(glass, i) for i, t in enumerate(treatments) if t == "bubble"
     ]
-    if divider_lengths:
-        bom.append(
+    cover = getattr(system, "cover_profile", None)
+    seal = getattr(system, "bubble_seal", None)
+    pad = getattr(system, "glass_pad", None)
+    outer_profile = outer_profile or getattr(system, "outer_profile", None)
+    profiles = []
+
+    def profile(role, item, sku, name, lengths, paint, image):
+        if not lengths:
+            return
+        profiles.append(
             {
-                "role": "joint",
-                "article": joint_sku,
-                "name": str(getattr(joint_profile, "name", "") or "Профиль стыка стекол"),
-                "length_mm": round(joint_length, 1),
-                "total_length_mm": round(joint_length * quantity, 1),
-                "pieces": len(divider_lengths) * quantity,
+                "role": role,
+                "article": getattr(item, "sku", None) or sku,
+                "name": getattr(item, "name", None) or name,
+                "length_mm": sum(lengths),
+                "total_length_mm": sum(lengths) * quantity,
+                "pieces": len(lengths) * quantity,
+                "cut_lengths_mm": lengths,
+                "cutting_text": "; ".join(
+                    f"{size:g} мм × {count * quantity} шт."
+                    for size, count in Counter(round(v, 1) for v in lengths).items()
+                ),
                 "unit": "м.п.",
                 "preliminary": True,
+                "requires_paint": paint,
+                "image": getattr(item, "image_file", None) or image,
             }
         )
-    painting_code = str(getattr(section, "painting_type", "") or "").strip()
-    painting_names = {
-        "ANOD_UNPAINTED": "Анод/неокрас",
-        "RAL_STANDARD": "RAL стандарт",
-        "RAL_MOIRE": "RAL муар",
-        "SUBLIMATION": "Сублимация",
-        "COLORLESS": "Без цвета",
-    }
-    finish_name = painting_names.get(painting_code, painting_code)
-    ral_color = str(getattr(section, "ral_color", "") or "").strip()
-    color_text = " ".join(part for part in (finish_name, ral_color) if part).strip()
-    glass_type = str(
-        getattr(section, "glass_type", "") or "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"
+
+    profile(
+        "outer",
+        outer_profile,
+        "Т40Т",
+        "Зажимной профиль Т40Т в сборе",
+        outer_lengths,
+        False,
+        "T40T-section.jpg",
     )
+    profile(
+        "cover",
+        cover,
+        "Т40К",
+        "Крышка зажимного профиля Т40К",
+        [v for v in outer_lengths for _ in range(2)],
+        True,
+        "T40K-section.jpg",
+    )
+    profile(
+        "bubble",
+        seal,
+        "RS1002",
+        "Пузырьковый уплотнитель RS1002",
+        bubble_lengths,
+        False,
+        "RS1002.png",
+    )
+    hardware = [
+        {
+            "article": getattr(pad, "sku", None) or "CS-PVC-PAD",
+            "name": getattr(pad, "name", None) or "Подкладка ПВХ под ЦС-стекло",
+            "qty": len(panes) * quantity * 2,
+            "unit": "шт",
+            "image": "",
+            "role": "pad",
+        }
+    ]
+    if sum(cuts) > EPS:
+        hardware.append(
+            {
+                "article": "",
+                "name": "Двухсторонний скотч для соединения стёкол",
+                "qty": sum(cuts) * quantity / 1000,
+                "unit": "м",
+                "image": "",
+                "role": "tape",
+            }
+        )
+    glass_type = normalize_slide_glass_type(getattr(section, "glass_type", ""))
+    if glass_type not in GLASS_TYPES:
+        raise CsCalculationError(
+            "Для ЦС разрешено только закалённое стекло 10 мм: прозрачное, бронза, серое, матовое или просветлённое"
+        )
+    finish = str(getattr(section, "painting_type", "") or "Анод/неокрас")
+    color_text = " ".join(
+        v for v in [finish, str(getattr(section, "ral_color", "") or "")] if v
+    )
+    for item in profiles:
+        item["requires_paint"] = (
+            item["role"] == "cover"
+            and "анод" not in finish.casefold()
+            and "неокрас" not in finish.casefold()
+        )
+    system_name = getattr(system, "name", None) or "ЦС — Т40Т / Т40К"
     return {
         "system": {
             "id": getattr(system, "id", None),
-            "code": str(getattr(system, "code", "") or ""),
+            "code": getattr(system, "code", "") or "",
             "name": system_name,
         },
-        "normalized_config": normalized_config,
+        "normalized_config": {
+            **config,
+            "version": 2,
+            "vertices": vertices,
+            "dimensionMode": mode,
+            "edgeTreatments": treatments,
+            "bubbleDeductionMm": bubble,
+            "vertical": vertical,
+            "horizontal": horizontal,
+            "profiledEdges": profiled,
+            "doors": config.get("doors", []),
+        },
+        "installation_polygon": installation,
+        "clear_polygon": light,
+        "glass_polygon": glass,
+        "installation_width_mm": _polygon(installation).bounds[2]
+        - _polygon(installation).bounds[0],
+        "installation_height_mm": _polygon(installation).bounds[3]
+        - _polygon(installation).bounds[1],
+        "clear_width_mm": max_x - min_x,
+        "clear_height_mm": max_y - min_y,
         "panes": panes,
-        "profiles": bom,
+        "profiles": profiles,
+        "hardware": hardware,
         "system_text": f"ЦС · {system_name}",
         "glass_type": glass_type,
-        "color_text": color_text or "Без цвета",
-        "outer_edge_lengths_mm": [round(edge_lengths[index], 1) for index in profiled_edges],
-        "divider_lengths_mm": [round(value, 1) for value in divider_lengths],
-        "glass_area_m2": round(sum(pane["area_m2"] * pane["qty"] for pane in panes), 4),
-        "warnings": warnings,
+        "color_text": color_text,
+        "outer_edge_lengths_mm": outer_lengths,
+        "divider_lengths_mm": cuts,
+        "glass_area_m2": sum(pane["area_m2"] * pane["qty"] for pane in panes),
+        "warnings": [
+            "Геометрия ЦС рассчитана по ТЗ Т40Т/Т40К. Коммерческая цена пока не формируется.",
+            "Длины профилей без припусков на распил. Вес и цены новых деталей требуют заполнения.",
+        ],
         "status": "preliminary",
         "commercial_price_allowed": False,
         "doors_phase": "planned",

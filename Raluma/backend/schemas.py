@@ -154,6 +154,7 @@ class CatalogItemBase(BaseModel):
     sectionWidthMm: float = Field(default=0, ge=0)
     sectionHeightMm: float = Field(default=0, ge=0)
     imageFile: Optional[str] = None
+    photoFile: Optional[str] = None
     paintMode: str = "Не красится"
     colorVariants: List[str] = Field(default_factory=list)
     finishVariants: List[CatalogFinishVariantInput] = Field(default_factory=list)
@@ -202,6 +203,9 @@ class CsSystemBase(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     outer_profile_item_id: Optional[int] = None
     joint_profile_item_id: Optional[int] = None
+    cover_profile_item_id: Optional[int] = None
+    bubble_seal_item_id: Optional[int] = None
+    glass_pad_item_id: Optional[int] = None
     is_active: bool = True
 
 

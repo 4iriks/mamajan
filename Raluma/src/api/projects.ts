@@ -320,7 +320,7 @@ export interface CsCalcPane {
 }
 
 export interface CsCalcProfile {
-  role: 'outer' | 'joint';
+  role: 'outer' | 'joint' | 'cover' | 'bubble';
   article: string;
   name: string;
   length_mm: number;
@@ -328,6 +328,9 @@ export interface CsCalcProfile {
   pieces: number;
   unit: string;
   preliminary: boolean;
+  image?: string;
+  requires_paint?: boolean;
+  cut_lengths_mm?: number[];
 }
 
 export interface CsCalcPreview {
@@ -335,6 +338,14 @@ export interface CsCalcPreview {
   normalized_config: import('../components/editor/types').CsConfig;
   panes: CsCalcPane[];
   profiles: CsCalcProfile[];
+  hardware?: Array<{ article: string; name: string; qty: number; unit: string; image: string; role: string }>;
+  installation_polygon?: Array<{ x: number; y: number }>;
+  clear_polygon?: Array<{ x: number; y: number }>;
+  glass_polygon?: Array<{ x: number; y: number }>;
+  installation_width_mm?: number;
+  installation_height_mm?: number;
+  clear_width_mm?: number;
+  clear_height_mm?: number;
   outer_edge_lengths_mm: number[];
   divider_lengths_mm: number[];
   glass_area_m2: number;
