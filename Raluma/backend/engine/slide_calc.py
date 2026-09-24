@@ -549,16 +549,20 @@ def _p_bar_bubble_gap_mm(p_bar: bool, bubble: bool) -> float:
 
 
 def _side_glass_profile_length(
-    width_mm: float, *, handle_bar: bool, bubble: bool, is_deaf: bool
+    width_mm: float,
+    *,
+    handle_bar: bool,
+    bubble: bool,
+    is_deaf: bool,
+    preserve_precision: bool = False,
 ) -> float:
     length = float(width_mm or 0)
-    if is_deaf:
-        return round(length, 1)
-    if handle_bar:
-        return round(length + 16, 1)
-    if bubble:
-        return round(length - 3, 1)
-    return round(length, 1)
+    if not is_deaf:
+        if handle_bar:
+            length += 16
+        elif bubble:
+            length -= 3
+    return length if preserve_precision else round(length, 1)
 
 
 def _group_1row_glass_from_panels(
@@ -867,7 +871,12 @@ def _screw_mount_notes(
 
 
 def _expand_panel_glass(
-    result: SlideCalcResult, panels: int, fallback_width: float, fallback_height: float
+    result: SlideCalcResult,
+    panels: int,
+    fallback_width: float,
+    fallback_height: float,
+    *,
+    preserve_precision: bool = False,
 ) -> list[PanelGlassItem]:
     safe_panels = max(int(panels or 0), 1)
     fallback_panel = float(fallback_width or 0) / safe_panels
@@ -895,7 +904,11 @@ def _expand_panel_glass(
         height = float(getattr(glass, "height_mm", 0) or fallback_height)
         profile = float(getattr(glass, "glass_profile_length", 0) or width)
         return PanelGlassItem(
-            panel, position, round(width, 1), round(height, 1), round(profile, 1)
+            panel,
+            position,
+            width if preserve_precision else round(width, 1),
+            height if preserve_precision else round(height, 1),
+            profile if preserve_precision else round(profile, 1),
         )
 
     edge = find(lambda p: "крайн" in p)
@@ -1201,47 +1214,50 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     center_left_W = middle_W + center_offset + centr2 + center_left_edge_recovery
     center_right_W = middle_W + center_offset + centr2 + center_right_edge_recovery
 
-    result.glass.append(GlassItem("Левое", round(left_W, 1), round(glass_H, 1), Q))
+    # Keep formula precision until whole-mm production rounding/checksum.
+    # Rounding to tenths first turns 948.45 -> 948.5 -> 949, adding 1 mm
+    # to every pane and bypassing the approved +4.5 mm paired correction.
+    result.glass.append(GlassItem("Левое", left_W, glass_H, Q))
     middle_qty = max(P - 4, 0) * Q
     if middle_qty > 0:
         result.glass.append(
             GlassItem(
-                "Промежуточные", round(middle_W, 1), round(glass_H, 1), middle_qty
+                "Промежуточные", middle_W, glass_H, middle_qty
             )
         )
     if center_is_rs112:
         result.glass.append(
             GlassItem(
-                "Центральное левое", round(center_left_W, 1), round(glass_H, 1), Q
+                "Центральное левое", center_left_W, glass_H, Q
             )
         )
         result.glass.append(
             GlassItem(
                 "Центральное правое",
-                round(center_right_W, 1),
-                round(glass_H, 1),
+                center_right_W,
+                glass_H,
                 Q,
             )
         )
-    elif round(center_left_W, 1) != round(center_right_W, 1):
+    elif center_left_W != center_right_W:
         result.glass.append(
             GlassItem(
-                "Центральное левое", round(center_left_W, 1), round(glass_H, 1), Q
+                "Центральное левое", center_left_W, glass_H, Q
             )
         )
         result.glass.append(
             GlassItem(
                 "Центральное правое",
-                round(center_right_W, 1),
-                round(glass_H, 1),
+                center_right_W,
+                glass_H,
                 Q,
             )
         )
     else:
         result.glass.append(
-            GlassItem("Центральные", round(center_left_W, 1), round(glass_H, 1), 2 * Q)
+            GlassItem("Центральные", center_left_W, glass_H, 2 * Q)
         )
-    result.glass.append(GlassItem("Правое", round(right_W, 1), round(glass_H, 1), Q))
+    result.glass.append(GlassItem("Правое", right_W, glass_H, Q))
 
     threshold_articles = {
         (3, True): "RS2323",
@@ -1435,6 +1451,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 handle_bar=handle_bar_l,
                 bubble=bubble_l,
                 is_deaf=left_is_deaf,
+                preserve_precision=True,
             )
         elif glass.position == "Правое":
             base_len = _side_glass_profile_length(
@@ -1442,6 +1459,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 handle_bar=handle_bar_r,
                 bubble=bubble_r,
                 is_deaf=right_is_deaf,
+                preserve_precision=True,
             )
         elif glass.position == "Центральное левое":
             if center_is_rs112:
@@ -1461,9 +1479,11 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         elif glass.position == "Промежуточные":
             if ig_article:
                 base_len -= 3
-        glass.glass_profile_length = round(base_len, 1)
+        glass.glass_profile_length = base_len
 
-    result.panel_glass = _expand_panel_glass(result, P, W, glass_H)
+    result.panel_glass = _expand_panel_glass(
+        result, P, W, glass_H, preserve_precision=True
+    )
     _apply_two_row_glass_total_correction(result, control_glass_total)
     _group_2row_glass_from_panels(
         result,

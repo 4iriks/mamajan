@@ -460,6 +460,45 @@ class TestGlassTotalCorrection:
         ]
         assert not result.warnings
 
+    @pytest.mark.parametrize("quantity", [1, 2])
+    @pytest.mark.parametrize("mirror", [False, True])
+    def test_customer_glass_check_20260924(self, quantity, mirror):
+        """9700 mm example: avoid 948.45 -> 948.5 -> 949 double rounding."""
+        section = _make_section(
+            width=9700, height=3300, panels=10, rails=5, slide_rows=2,
+            quantity=quantity, first_panel_inside=None, unused_track="Внешний",
+            profile_left_wall=not mirror, profile_right_wall=mirror,
+            profile_left_lock_bar=not mirror, profile_right_lock_bar=mirror,
+            profile_left_handle_bar=not mirror, profile_right_handle_bar=mirror,
+            profile_left_bubble=mirror, profile_right_bubble=not mirror,
+            handle_left="Без ручки (глухая)" if mirror else None,
+            handle_right=None if mirror else "Без ручки (глухая)",
+            lock_left=None if mirror else "ЗАМОК двухсторонний с ключом RS3020",
+            lock_right="ЗАМОК двухсторонний с ключом RS3020" if mirror else None,
+            center_handle="Ручка-скоба 600мм RS30201",
+            center_lock="Замок стекло-стекло RS30301", center_handle_offset=100,
+        )
+        result = calculate_slide(section)
+        widths = [957, 948, 948, 948, 1049, 1049, 948, 948, 948, 949]
+        profiles = [973, 945, 945, 945, 1046, 1046, 945, 945, 945, 949]
+        if mirror:
+            widths.reverse()
+            profiles.reverse()
+        assert [p.width_mm for p in result.panel_glass] == widths
+        assert [p.glass_profile_length for p in result.panel_glass] == profiles
+        assert all(p.height_mm == 3194 for p in result.panel_glass)
+        assert sum(widths) == 9692  # 9692.5 control; paired additions leave 0.5 mm.
+        assert not result.warnings
+        grouped = Counter()
+        for row in result.glass:
+            grouped[row.width_mm] += row.qty
+        assert grouped == {1049: 2 * quantity, 957: quantity, 949: quantity, 948: 6 * quantity}
+        assert {p.length_mm: p.qty for p in _find_profile(result, "RS2021")} == {
+            973: quantity, 945: 6 * quantity, 1046: 2 * quantity, 949: quantity,
+        }
+        order = Counter(row.width_mm for row in _expand_glass_for_order(section, result))
+        assert order == grouped
+
     @pytest.mark.parametrize("raw_difference", [-5, -4, 4, 4.4, 4.6, 5])
     def test_other_large_two_row_differences_still_warn(self, raw_difference):
         result = SlideCalcResult(
