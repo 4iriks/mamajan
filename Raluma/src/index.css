@@ -131,10 +131,9 @@ html.light .card-shadow {
 .section-editor [class*="space-y-"] > :not([hidden]) ~ :not([hidden]) { margin-top: 8px; }
 .section-editor [class*="gap-"] { gap: 8px; }
 .section-editor-fields > div:first-child { padding: 12px; border-radius: 14px; }
-.section-editor [data-slide-presets] svg { height: 42px !important; max-height: 42px !important; }
-.section-editor [data-slide-presets] .grid { display: flex; flex-wrap: nowrap; }
-.section-editor [data-slide-presets] .grid > * { flex: 1; min-width: 0; }
-.section-editor [data-slide-presets] { max-height: 120px; overflow: auto; }
+.section-editor [data-slide-preset-preview] svg { height: 100%; max-height: none; width: 100%; }
+.section-editor [data-slide-hardware-grid] { gap: 4px; }
+.section-editor [data-slide-hardware-preset] > svg { width: 24px; height: 24px; }
 .cs-dimension-editor input { color: #123e48; background: #edf5f6; border-color: #afc5cb; }
 .cs-dimension-editor label, .cs-dimension-editor span { color: #345961; }
 @media (min-width: 1024px) {

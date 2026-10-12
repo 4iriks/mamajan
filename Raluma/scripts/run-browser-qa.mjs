@@ -41,6 +41,9 @@ try {
     const result = await page.locator('#result').textContent();
     if (state !== 'passed') throw new Error(result);
     if (fixture === 'editor-layout') {
+      await page.locator('#slide-two').click();
+      await page.locator('[data-slide-hardware-preset]').first().waitFor();
+      await page.screenshot({ path: `tmp/oct12-qa/browser/slide-two-${width}.png`, fullPage: true });
       await page.locator('#cs').click();
       const canvas = page.locator('.cs-canvas svg');
       await canvas.waitFor();

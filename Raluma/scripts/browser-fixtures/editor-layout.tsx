@@ -21,7 +21,9 @@ let current = initial;
 function App() {
   const [section, setSection] = useState(initial); current = section;
   return <div className="h-screen flex flex-col overflow-hidden">
-    <header className="h-16 flex-none border-b p-4">Контроль размеров редактора <button id="slide" onClick={() => setSection(s => ({ ...s, system: 'СЛАЙД' }))}>SLIDE</button> · <button id="cs" onClick={() => setSection(s => ({ ...s, system: 'ЦС' }))}>ЦС</button></header>
+    <header className="h-16 flex-none border-b p-4">Контроль размеров редактора <button id="slide" onClick={() => setSection(s => ({ ...s, system: 'СЛАЙД', slideRows: 1, panels: 3 }))}>SLIDE</button> · <button id="slide-two" onClick={() => setSection(s => ({ ...s, system: 'СЛАЙД', slideRows: 2, panels: 6 }))}>SLIDE 2</button> · <button id="cs" onClick={() => setSection(s => ({ ...s, system: 'ЦС' }))}>ЦС</button>
+      {(['ЛИФТ', 'КНИЖКА', 'КОМПЛЕКТАЦИЯ'] as Section['system'][]).map(system => <button key={system} id={system} onClick={() => setSection(s => ({ ...s, system }))}> · {system}</button>)}
+    </header>
     <div className="flex min-h-0 flex-1"><aside className="w-[240px] flex-none bg-surface/20 p-4">Секции</aside>
       <main className="min-w-0 flex-1 p-4 overflow-y-auto"><SectionFormWrapper section={section} onUpdate={updates => setSection(s => ({ ...s, ...csDimensionUpdates(s, updates) }))} onSave={async () => {}} onBack={() => {}} isSaving={false} isDirty={false} /></main>
     </div>
@@ -49,12 +51,38 @@ async function run() {
   fields.scrollTop = fields.scrollHeight; await pause();
   assert(Math.abs(canvas.getBoundingClientRect().top - top) < 1, 'Parameters scroll independently');
   document.getElementById('slide')!.click(); await pause(600);
+  assert(left.getBoundingClientRect().right <= fields.getBoundingClientRect().left + 1, 'SLIDE drawings left, settings right unchanged');
   const svgs = [...left.querySelectorAll('svg')].filter(svg => svg.getAttribute('viewBox'));
   assert(svgs.length === 2, 'Both SLIDE views present');
   assert(svgs.every(svg => svg.getBoundingClientRect().height > 50 && svg.getBoundingClientRect().bottom <= innerHeight), 'Both SLIDE views visible together');
   fields.scrollTop = fields.scrollHeight; await pause();
   assert(svgs.every(svg => svg.getBoundingClientRect().top > 0), 'SLIDE views stay visible when settings scroll');
   fields.scrollTop = 0;
-  document.getElementById('result')!.textContent = 'Laptop layout and stable vertices passed'; document.body.dataset.smoke = 'passed';
+  for (const button of ['slide', 'slide-two']) {
+    document.getElementById(button)!.click(); await pause(400);
+    const presets = document.querySelector<HTMLElement>('[data-slide-presets]')!;
+    assert(presets.scrollHeight <= presets.clientHeight + 1 && presets.scrollWidth <= presets.clientWidth + 1, 'No scrolling in preset panel');
+    assert(presets.getBoundingClientRect().height <= 152, 'Compact preset panel');
+    const cards = [...presets.querySelectorAll<HTMLElement>('[data-slide-layout-preset]')];
+    assert(cards.length === 4, 'All four layouts visible');
+    for (const card of cards) {
+      const box = card.getBoundingClientRect(), preview = card.querySelector('svg')!.getBoundingClientRect();
+      assert(box.top >= presets.getBoundingClientRect().top && box.bottom <= presets.getBoundingClientRect().bottom, 'Whole preset card visible');
+      assert(preview.height >= 75 && preview.height <= 90, 'Preset drawings are readable, not tiny');
+      const title = card.querySelector('span.truncate')!;
+      assert(title.scrollWidth <= title.clientWidth + 1, 'Preset title is not clipped');
+    }
+    const diagrams = [...left.querySelectorAll('svg')].filter(svg => svg.getAttribute('viewBox'));
+    assert(diagrams.length === 2 && diagrams.every(svg => svg.getBoundingClientRect().bottom <= innerHeight), 'Both SLIDE views visible for either row count');
+    cards[1].click(); await pause();
+    assert(cards[1].getAttribute('aria-pressed') === 'true', 'Selected preset stays highlighted');
+    assert(current.panels === (button === 'slide' ? 3 : 6), 'Compact cards still apply the selected layout');
+  }
+  for (const system of ['ЛИФТ', 'КНИЖКА', 'КОМПЛЕКТАЦИЯ']) {
+    document.getElementById(system)!.click(); await pause(250);
+    assert(left.getBoundingClientRect().right <= fields.getBoundingClientRect().left + 1, `${system}: drawings left, settings right unchanged`);
+  }
+  document.getElementById('slide')!.click(); await pause(300);
+  document.getElementById('result')!.textContent = 'Original editor sides, readable non-scrolling presets and stable CS vertices passed'; document.body.dataset.smoke = 'passed';
 }
 run().catch(error => { document.getElementById('result')!.textContent = String(error.stack || error); document.body.dataset.smoke = 'failed'; });

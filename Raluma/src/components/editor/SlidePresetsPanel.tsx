@@ -65,14 +65,14 @@ function LayoutCard({
           : 'border-tint/25 bg-surface/35 hover:border-accent/45 hover:bg-accent/[0.07]'
       }`}
     >
-      <span data-slide-preset-preview className="block h-[150px] overflow-hidden rounded-xl bg-page/55 [&_svg]:h-full [&_svg]:w-full">
+      <span data-slide-preset-preview className="flex h-20 items-center justify-center rounded-lg bg-page/55 [&_svg]:h-full [&_svg]:w-full">
         <SlideRoomViewSVG section={preview} compact />
       </span>
-      <span className="mt-1.5 flex h-7 items-center justify-between gap-2 px-1">
+      <span className="mt-1 flex h-5 items-center justify-between gap-1 px-0.5">
         <span className="min-w-0 truncate text-[11px] font-bold text-fg/85">{preset.title}</span>
         {active && (
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-white">
-            <Check className="h-3.5 w-3.5" />
+          <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-white">
+            <Check className="h-3 w-3" />
           </span>
         )}
       </span>
@@ -99,9 +99,9 @@ export function SlidePresetsPanel({
 
   return (
     <section data-slide-presets data-slide-presets-layout="beside-heading" className="min-w-0 rounded-2xl border border-tint/25 bg-surface/20 p-2">
-      <div className={isTwoRows ? 'grid gap-2 xl:grid-cols-[minmax(0,4fr)_minmax(210px,1fr)]' : ''}>
+      <div className={isTwoRows ? 'grid gap-2 lg:grid-cols-[minmax(0,1fr)_176px]' : ''}>
         <div className="min-w-0">
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
             {layouts.map(preset => (
               <React.Fragment key={preset.id}>
                 <LayoutCard
@@ -117,8 +117,8 @@ export function SlidePresetsPanel({
         </div>
 
         {isTwoRows && (
-          <div className="xl:border-l xl:border-tint/20 xl:pl-2">
-            <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
+          <div className="lg:border-l lg:border-tint/20 lg:pl-2">
+            <div data-slide-hardware-grid className="grid gap-1 sm:grid-cols-3 lg:grid-cols-1">
               {SLIDE_HARDWARE_PRESETS.map(preset => {
                 const active = activeHardware?.id === preset.id;
                 return (
@@ -128,7 +128,7 @@ export function SlidePresetsPanel({
                     data-slide-hardware-preset={preset.id}
                     aria-pressed={active}
                     onClick={() => onApply(preset.updates)}
-                    className={`group flex min-w-0 items-center gap-2 rounded-xl border px-2.5 py-2 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${
+                    className={`group relative flex min-w-0 items-center gap-1 rounded-lg border px-1.5 py-1 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${
                       active
                         ? 'border-accent/70 bg-accent/12'
                         : 'border-tint/25 bg-surface/35 hover:border-accent/45 hover:bg-accent/[0.07]'
@@ -137,9 +137,9 @@ export function SlidePresetsPanel({
                     <HardwareGlyph id={preset.id} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[11px] font-bold text-fg/80">{preset.title}</span>
-                      <span className="block truncate text-[9px] text-fg/40">{preset.description}</span>
+                      <span className="block truncate text-[9px] text-fg/65">{preset.description}</span>
                     </span>
-                    {active && <Check className="h-4 w-4 shrink-0 text-accent" />}
+                    {active && <Check className="absolute right-1 top-1 h-2.5 w-2.5 text-accent" />}
                   </button>
                 );
               })}
