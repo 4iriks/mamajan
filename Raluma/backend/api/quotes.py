@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import hmac
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 import models
@@ -19,12 +21,12 @@ from engine.quote_pricing import (
     QuotePricingError,
     _canonical_discounts,
     approve_margin_override,
+    current_quote_preview_token,
     decimal_value,
     decimal_text,
     get_or_create_quote_state,
     freeze_quote,
     invalidate_margin_override,
-    money_text,
     public_quote,
     quote_revision_list,
     quote_revision_snapshot,
@@ -34,6 +36,28 @@ from engine.quote_pricing import (
 
 router = APIRouter(prefix="/api/projects", tags=["quotes"])
 ADMIN_ROLES = {"admin", "superadmin"}
+
+
+class QuoteRefreshRequest(BaseModel):
+    expected_preview_token: str | None = Field(
+        default=None, pattern=r"^[a-f0-9]{64}$"
+    )
+
+
+def _require_current_preview(
+    db: Session,
+    project: models.Project,
+    data: QuoteRefreshRequest | None,
+    evaluation_at: datetime,
+) -> None:
+    if data is None or data.expected_preview_token is None:
+        return  # Backward-compatible callers still use the explicit fix action.
+    actual_token = current_quote_preview_token(db, project, at=evaluation_at)
+    if not hmac.compare_digest(data.expected_preview_token, actual_token):
+        raise HTTPException(
+            status_code=409,
+            detail="Расчёт изменился после просмотра. Проверьте обновлённую сумму и подтвердите фиксацию ещё раз.",
+        )
 
 
 def _project_or_404(
@@ -86,12 +110,15 @@ def get_quote_revision(
 @router.post("/{project_id}/quote/freeze")
 def fix_quote(
     project_id: int,
+    data: QuoteRefreshRequest | None = Body(default=None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
     project = _project_or_404(project_id, db, current_user)
+    evaluation_at = datetime.utcnow()
+    _require_current_preview(db, project, data, evaluation_at)
     try:
-        payload = freeze_quote(db, project, current_user)
+        payload = freeze_quote(db, project, current_user, at=evaluation_at)
         db.commit()
         return payload
     except QuoteExportBlocked as exc:
@@ -239,7 +266,7 @@ def update_quote_overrides(
     current_overrides = sorted(
         (
             str(row.get("sku") or "").strip(),
-            money_text(decimal_value(row.get("cost"))),
+            decimal_text(decimal_value(row.get("cost"))),
             str(row.get("comment") or "").strip(),
         )
         for row in current_rows
@@ -248,7 +275,7 @@ def update_quote_overrides(
     next_overrides = sorted(
         (
             override.sku.strip(),
-            money_text(override.cost),
+            decimal_text(override.cost),
             override.comment.strip(),
         )
         for override in data.overrides
@@ -306,12 +333,15 @@ def update_quote_overrides(
 @router.post("/{project_id}/quote/refresh")
 def refresh_quote(
     project_id: int,
+    data: QuoteRefreshRequest | None = Body(default=None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
     project = _project_or_404(project_id, db, current_user)
+    evaluation_at = datetime.utcnow()
+    _require_current_preview(db, project, data, evaluation_at)
     try:
-        payload = refresh_quote_revision(db, project, current_user)
+        payload = refresh_quote_revision(db, project, current_user, at=evaluation_at)
         db.commit()
         return payload
     except QuoteExportBlocked as exc:

@@ -18,7 +18,6 @@ import {
   updateHardwareCatalogItem,
   updateCsSystem,
   type CatalogPricingBulkRequest,
-  type CatalogPricingBulkResult,
   type CsSystem,
   type CatalogUnit,
   type CatalogFinishVariant,
@@ -41,6 +40,8 @@ import { toast } from '../store/toastStore';
 import { money, numericDraft, validMoney } from '../utils/money';
 import { PricingRules } from '../components/PricingRules';
 import { applyRuleBindings, previewRuleBindings } from '../api/pricingRules';
+import { catalogBulkPreviewKey, confirmedCatalogBulkRequest, type CatalogBulkPreview } from '../utils/catalogPricing';
+import { CatalogBulkPreviewTable } from '../components/CatalogBulkPreviewTable';
 
 type HardwareItem = HardwareCatalogItem;
 
@@ -874,7 +875,7 @@ export default function HardwareCatalogPage() {
     construction_discount_percent: '',
   });
   const [bulkReason, setBulkReason] = useState('Массовая настройка цен каталога');
-  const [bulkPreview, setBulkPreview] = useState<CatalogPricingBulkResult | null>(null);
+  const [bulkPreview, setBulkPreview] = useState<CatalogBulkPreview | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [costImport, setCostImport] = useState<CatalogPriceImportPreview | null>(null);
   const [costImportOpen, setCostImportOpen] = useState(false);
@@ -973,6 +974,11 @@ export default function HardwareCatalogPage() {
       return matchesSearch && matchesGroup && matchesSystemGroup && matchesStatus;
     });
   }, [group, items, search, status, systemGroup]);
+
+  const bulkItemIds = (bulkScope === 'filtered' ? filtered : items.filter(item => item.isActive)).map(item => item.id);
+  const bulkPreviewKey = catalogBulkPreviewKey({ itemIds: bulkItemIds, finishCodes: bulkFinishCodes, values: bulkValues, reason: bulkReason, filters: [bulkScope, search, group, systemGroup, status] });
+  const confirmedBulkRequest = confirmedCatalogBulkRequest(bulkPreview, bulkPreviewKey);
+  const currentBulkPreview = confirmedBulkRequest ? bulkPreview?.result : null;
 
   const stats = useMemo(() => {
     const active = items.filter(item => item.isActive);
@@ -1207,7 +1213,7 @@ export default function HardwareCatalogPage() {
   };
 
   const buildBulkRequest = (): CatalogPricingBulkRequest | null => {
-    const itemIds = (bulkScope === 'filtered' ? filtered : items.filter(item => item.isActive)).map(item => item.id);
+    const itemIds = bulkItemIds;
     const values = (Object.entries(bulkValues) as Array<[keyof typeof bulkValues, string]>)
       .filter(([, value]) => value.trim() !== '');
     if (!itemIds.length) {
@@ -1226,11 +1232,15 @@ export default function HardwareCatalogPage() {
       toast.error('Укажите причину изменения');
       return null;
     }
+    if (values.some(([field, value]) => !validMoney(value, String(field).includes('discount') ? 100 : undefined))) {
+      toast.error('Укажите корректные проценты от 0; скидки не более 100%');
+      return null;
+    }
     return {
       item_ids: itemIds,
       finish_codes: bulkFinishCodes,
       reason: bulkReason.trim(),
-      ...Object.fromEntries(values.map(([key, value]) => [key, Number(value)])),
+      ...Object.fromEntries(values.map(([key, value]) => [key, numericDraft(value)])),
     } as CatalogPricingBulkRequest;
   };
 
@@ -1239,7 +1249,8 @@ export default function HardwareCatalogPage() {
     if (!payload) return;
     setBulkLoading(true);
     try {
-      setBulkPreview(await previewCatalogPricingBulk(payload));
+      const result = await previewCatalogPricingBulk(payload);
+      setBulkPreview({ result, request: payload, key: bulkPreviewKey });
     } catch {
       setBulkPreview(null);
       toast.error('Не удалось подготовить массовое изменение');
@@ -1249,8 +1260,8 @@ export default function HardwareCatalogPage() {
   };
 
   const handleBulkApply = async () => {
-    const payload = buildBulkRequest();
-    if (!payload) return;
+    const payload = confirmedBulkRequest;
+    if (!payload) { toast.error('Параметры изменились. Сначала обновите предпросмотр'); return; }
     setBulkLoading(true);
     try {
       const result = await applyCatalogPricingBulk(payload);
@@ -1362,7 +1373,7 @@ export default function HardwareCatalogPage() {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-fg/25 group-focus-within:text-accent transition-colors" />
             <input
               value={search}
-              onChange={event => setSearch(event.target.value)}
+              onChange={event => { setSearch(event.target.value); setBulkPreview(null); }}
               placeholder="Поиск по артикулу, названию или исполнению..."
               className="w-full bg-surface/30 border border-tint/30 rounded-2xl pl-12 pr-4 py-4 outline-none focus:border-accent/50 transition-all text-fg"
             />
@@ -1370,7 +1381,7 @@ export default function HardwareCatalogPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <div className="flex items-center gap-2 bg-surface/30 border border-tint/30 rounded-2xl px-3 py-2">
               <SlidersHorizontal className="w-4 h-4 text-accent/60" />
-              <select value={group} onChange={event => setGroup(event.target.value as typeof group)}
+              <select value={group} onChange={event => { setGroup(event.target.value as typeof group); setBulkPreview(null); }}
                 aria-label="Тип детали"
                 className="bg-transparent outline-none text-sm font-bold text-fg min-w-[160px]">
                 <option value="Все">Все типы деталей</option>
@@ -1379,7 +1390,7 @@ export default function HardwareCatalogPage() {
             </div>
             <div className="flex items-center gap-2 bg-surface/30 border border-tint/30 rounded-2xl px-3 py-2">
               <Package className="w-4 h-4 text-accent/60" />
-              <select value={systemGroup} onChange={event => setSystemGroup(event.target.value as typeof systemGroup)}
+              <select value={systemGroup} onChange={event => { setSystemGroup(event.target.value as typeof systemGroup); setBulkPreview(null); }}
                 aria-label="Тип секции"
                 className="bg-transparent outline-none text-sm font-bold text-fg min-w-[160px]">
                 <option value="Все">Все типы секций</option>
@@ -1392,7 +1403,7 @@ export default function HardwareCatalogPage() {
                 { id: 'all', label: 'Все' },
                 { id: 'inactive', label: 'Архив' },
               ].map(item => (
-                <button key={item.id} onClick={() => setStatus(item.id as typeof status)}
+                <button key={item.id} onClick={() => { setStatus(item.id as typeof status); setBulkPreview(null); }}
                   className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
                     status === item.id ? 'bg-accent/15 text-accent border border-accent/30' : 'text-fg/35 border border-transparent hover:text-fg/60'
                   }`}>
@@ -1472,6 +1483,7 @@ export default function HardwareCatalogPage() {
           <div className="mb-5 border-b border-tint/20 pb-4">
             <h2 className="text-lg font-bold">Массовая настройка цепочек</h2>
             <p className="mt-1 text-sm text-fg/45">Изменяются только заполненные поля. Перед применением показывается предпросмотр, каждое изменение записывается новой версией.</p>
+            <p className="mt-2 text-sm text-fg/70">Это разовая настройка: выбранные исполнения перейдут в индивидуальные условия и перестанут наследовать готовые правила. Для постоянного управления общими процентами используйте вкладку «Готовые правила».</p>
           </div>
           <div className="grid gap-4 lg:grid-cols-[180px_minmax(0,1fr)]">
             <div>
@@ -1516,19 +1528,11 @@ export default function HardwareCatalogPage() {
             <button type="button" onClick={handleBulkPreview} disabled={bulkLoading} className="h-[52px] rounded-xl border border-accent/35 bg-accent/10 px-5 font-bold text-accent hover:bg-accent/15 disabled:opacity-50">
               Предпросмотр
             </button>
-            <button type="button" onClick={handleBulkApply} disabled={bulkLoading || !bulkPreview} className="h-[52px] rounded-xl bg-primary px-5 font-bold text-white hover:bg-primary-h disabled:opacity-40">
+            <button type="button" onClick={handleBulkApply} disabled={bulkLoading || !confirmedBulkRequest} className="h-[52px] rounded-xl bg-primary px-5 font-bold text-white hover:bg-primary-h disabled:opacity-40">
               Применить
             </button>
           </div>
-          {bulkPreview && <div className="mt-5 overflow-hidden rounded-xl border border-tint/25">
-            <div className="flex items-center justify-between bg-hi/[0.04] px-4 py-3 text-sm"><b>Будет изменено исполнений: {bulkPreview.count}</b><span className="text-fg/45">Показаны первые 20</span></div>
-            <div className="max-h-72 overflow-auto">
-              <table className="w-full min-w-[760px] text-left text-xs">
-                <thead className="sticky top-0 bg-surface"><tr><th className="px-3 py-2">Позиция</th><th className="px-3 py-2">Исполнение</th><th className="px-3 py-2">Профиль: было → станет</th><th className="px-3 py-2">Конструкция: было → станет</th></tr></thead>
-                <tbody className="divide-y divide-tint/15">{bulkPreview.rows.slice(0, 20).map(row => <tr key={`${row.itemId}-${row.finishCode}`}><td className="px-3 py-2"><b className="font-mono">{row.sku}</b><div className="text-fg/45">{row.name}</div></td><td className="px-3 py-2">{row.finishName}</td><td className="px-3 py-2 font-mono">{row.before.profile.final} → <b>{row.after.profile.final} ₽</b></td><td className="px-3 py-2 font-mono">{row.before.construction.final} → <b>{row.after.construction.final} ₽</b></td></tr>)}</tbody>
-              </table>
-            </div>
-          </div>}
+          {currentBulkPreview && <CatalogBulkPreviewTable preview={currentBulkPreview} />}
         </section>}
 
         {activeCatalogTab === 'items' && <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-[2rem] border border-tint/25 bg-surface/30 shadow-2xl backdrop-blur-xl">

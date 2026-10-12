@@ -14,14 +14,18 @@ const input = 'h-9 min-w-0 w-full rounded-lg border border-tint/30 bg-black/5 px
 const button = 'rounded-lg border border-tint/30 px-3 py-2 text-xs text-accent disabled:opacity-40';
 
 export function ProjectEconomics({ state }: { state: ReturnType<typeof useProjectEconomics> }) {
-  const { quote, config, internal, dirty, busy, refreshing, error, patch, save, reload } = state;
-  const { canManagePrices } = useAuthStore();
+  const { quote, currentQuote, config, internal, dirty, busy, refreshing, error, patch, save, reload } = state;
+  const calculated = currentQuote;
+  const fixed = quote?.status === 'fixed';
+  const pending = fixed && Boolean(quote.stale || internal?.stale);
+  const showingPreviousCalculation = Boolean(dirty || refreshing || error);
+  const { canManagePrices, user } = useAuthStore();
   const rules = config?.discounts || [];
   const quickIndices = quickFields.map(field => rules.findIndex(rule => rule.scope === field.scope && rule.mode === field.mode));
   const additionalRules = rules.map((rule, index) => ({ rule, index })).filter(({ index }) => !quickIndices.includes(index));
   const updateRule = (index: number, changes: Partial<QuoteDiscountRule>) => patch({ discounts: rules.map((rule, i) => i === index ? { ...rule, ...changes } : rule) });
-  const warnings = [...new Set([...(quote?.warnings || []), ...(internal?.pending_warnings || [])])];
-  const incomplete = quote && !quote.export_allowed;
+  const warnings = [...new Set([...(calculated?.warnings || []), ...(internal?.pending_warnings || [])])];
+  const incomplete = calculated && !calculated.export_allowed;
   return <section className="rounded-xl border border-tint/30 bg-surface/40 p-3 mb-3" aria-label="Стоимость и скидки">
     <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
       <h3 className="text-sm font-bold">Стоимость заказа</h3>
@@ -29,16 +33,23 @@ export function ProjectEconomics({ state }: { state: ReturnType<typeof useProjec
     </div>
     {error && <p role="alert" className="text-xs text-red-600 mb-2">{error}</p>}
     {!quote && !error && <p className="text-xs">Загрузка стоимости…</p>}
-    {warnings.length > 0 && <div role={incomplete ? 'alert' : 'status'} className="my-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs"><b>{incomplete ? 'Расчёт неполный — экспорт КП недоступен' : 'Проверьте расчёт'}</b><ul className="mt-1 list-disc pl-4">{warnings.map(warning => <li key={warning}>{warning}</li>)}</ul></div>}
-    {quote && <>
-      <div className="grid grid-cols-2 gap-2 my-3 lg:grid-cols-4">{Object.entries(categoryNames).map(([category, label]) => <div key={category} className="rounded-lg bg-black/5 p-2 text-xs"><span className="block text-fg/60">{label}</span><b>{money(quote.lines.filter(line => line.category === category).reduce((sum, line) => sum + Number(line.line_total), 0))}</b></div>)}</div>
+    {fixed && <div className="mb-3 rounded-lg border border-tint/25 bg-black/5 p-3 text-xs" aria-label="Зафиксированное КП">
+      <div className="flex flex-wrap justify-between gap-2"><b>Зафиксированное КП №{quote.revision}</b><b>{money(quote.totals.grand_total)}</b></div>
+      <p className="mt-1 text-fg/65">Это сохранённая цена для клиента. Изменение заказа её не переписывает; документ и архив доступны в окне КП.</p>
+    </div>}
+    {fixed && !calculated && user?.role !== 'dealer' && <p role="status" className="my-2 text-xs text-amber-700">Текущий расчёт ещё не загружен. Обновите расчёт перед проверкой новых цен; сохранённая сумма КП не является новым итогом.</p>}
+    {warnings.length > 0 && <div role={incomplete ? 'alert' : 'status'} className="my-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs"><b>{incomplete ? fixed ? 'Текущий расчёт неполный — новую редакцию КП пока нельзя зафиксировать' : 'Расчёт неполный — экспорт КП недоступен' : 'Проверьте текущий расчёт'}</b><ul className="mt-1 list-disc pl-4">{warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>{fixed && <p className="mt-1">Ранее зафиксированное КП остаётся доступным без изменений.</p>}</div>}
+    {calculated && <>
+      {fixed && <h4 className="text-xs font-semibold">{showingPreviousCalculation ? 'Последний успешный расчёт' : `Текущий расчёт заказа${pending ? ' · для следующей редакции' : ' · совпадает с КП'}`}</h4>}
+      <div className="grid grid-cols-2 gap-2 my-3 lg:grid-cols-4">{Object.entries(categoryNames).map(([category, label]) => <div key={category} className="rounded-lg bg-black/5 p-2 text-xs"><span className="block text-fg/60">{label}</span><b>{money(calculated.lines.filter(line => line.category === category).reduce((sum, line) => sum + Number(line.line_total), 0))}</b></div>)}</div>
       <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs">
-        <span>До скидок заказа и дилера: <b>{money(quote.totals.before_discount)}</b></span><span>Скидки: <b>{money(quote.totals.discount)}</b></span>
-        {quote.money_presentation_version === 2 && <span>Округление итога: <b>{Number(quote.totals.rounding_adjustment || 0) > 0 ? '+' : ''}{money(quote.totals.rounding_adjustment)}</b></span>}
-        <span>{incomplete ? 'Учтённая часть, не итог:' : 'Итого:'} <b className={`text-base ${incomplete ? 'text-amber-700' : ''}`}>{money(quote.totals.grand_total)}</b></span>
+        <span>До скидок заказа и дилера: <b>{money(calculated.totals.before_discount)}</b></span><span>Скидки: <b>{money(calculated.totals.discount)}</b></span>
+        {calculated.money_presentation_version === 2 && <span>Округление итога: <b>{Number(calculated.totals.rounding_adjustment || 0) > 0 ? '+' : ''}{money(calculated.totals.rounding_adjustment)}</b></span>}
+        <span>{incomplete ? 'Учтённая часть, не итог:' : fixed ? showingPreviousCalculation ? 'Последняя рассчитанная сумма:' : 'Текущая сумма:' : 'Итого:'} <b className={`text-base ${incomplete ? 'text-amber-700' : ''}`}>{money(calculated.totals.grand_total)}</b></span>
+        {fixed && !incomplete && <span>Изменение к КП: <b>{Number(calculated.totals.grand_total) - Number(quote.totals.grand_total) > 0 ? '+' : ''}{money(Number(calculated.totals.grand_total) - Number(quote.totals.grand_total))}</b></span>}
       </div>
       {(dirty || refreshing || error) && <p className="mt-2 text-xs text-amber-700">{dirty ? 'Есть несохранённые изменения. Суммы обновятся после сохранения.' : 'Не используйте показанную сумму до успешного обновления расчёта.'}</p>}
-      <p className="mt-2 text-xs text-fg/65">{quote.status === 'fixed' ? `КП №${quote.revision} зафиксировано: выше его сохранённые цены. ${quote.stale ? 'Есть новые изменения — создайте новую редакцию в окне документа.' : 'Редактирование заказа не переписывает это КП.'}` : 'Черновик: цены ещё не зафиксированы. Фиксация и история — в окне КП.'}</p>
+      {(!fixed || !showingPreviousCalculation) && <p className="mt-2 text-xs text-fg/65">{fixed ? pending ? 'Проверьте текущую сумму и расшифровку. Чтобы выдать её клиенту, создайте новую редакцию в окне КП и подтвердите показанную цену.' : 'Расчёт сохранён. Действующее КП выше не изменено.' : 'Черновик: цены ещё не зафиксированы. Фиксация и история — в окне КП.'}</p>}
       <PricingDetails state={state} />
     </>}
     {config && <fieldset disabled={busy} className="mt-3">

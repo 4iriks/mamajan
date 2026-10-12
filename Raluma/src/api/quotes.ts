@@ -159,6 +159,9 @@ export interface InternalQuoteState {
   config: QuoteConfig;
   missing_prices: Array<{ sku: string; name: string; unit: string; reason: string }>;
   pending_warnings: string[];
+  /** Safe current calculation; distinct from the immutable agreed KP. */
+  pending_quote?: PublicQuote;
+  preview_token?: string;
   margin_approval: MarginApprovalState;
   calculation: Record<string, unknown>;
 }
@@ -186,8 +189,8 @@ export const updateQuoteOverrides = (
     : {}),
 }).then(response => response.data);
 
-export const refreshQuote = (projectId: number) =>
-  client.post<PublicQuote>(`/api/projects/${projectId}/quote/refresh`)
+export const refreshQuote = (projectId: number, expectedPreviewToken?: string) =>
+  client.post<PublicQuote>(`/api/projects/${projectId}/quote/refresh`, expectedPreviewToken ? { expected_preview_token: expectedPreviewToken } : undefined)
     .then(response => response.data);
 
 export interface QuoteRevision {
@@ -198,6 +201,6 @@ export interface QuoteRevision {
   grand_total: string;
   currency: string;
 }
-export const freezeQuote = (projectId: number) => client.post<PublicQuote>(`/api/projects/${projectId}/quote/freeze`).then(response => response.data);
+export const freezeQuote = (projectId: number, expectedPreviewToken?: string) => client.post<PublicQuote>(`/api/projects/${projectId}/quote/freeze`, expectedPreviewToken ? { expected_preview_token: expectedPreviewToken } : undefined).then(response => response.data);
 export const listQuoteRevisions = (projectId: number) => client.get<QuoteRevision[]>(`/api/projects/${projectId}/quote/revisions`).then(response => response.data);
 export const getQuoteRevision = (projectId: number, revision: number) => client.get<PublicQuote>(`/api/projects/${projectId}/quote/revisions/${revision}`).then(response => response.data);

@@ -77,7 +77,7 @@ def _rule_dict(rule, at):
     versions = sorted(rule.versions, key=lambda v: (normalized_at(v.effective_from), v.id or 0), reverse=True)
     active = next((v for v in versions if normalized_at(v.effective_from) <= at), None)
     upcoming = min((v for v in versions if normalized_at(v.effective_from) > at),
-                   key=lambda v: (normalized_at(v.effective_from), v.id), default=None)
+                   key=lambda v: (normalized_at(v.effective_from), -v.id), default=None)
     return {"id": rule.id, "name": active.name if active else upcoming.name if upcoming else "",
             "scope": rule.scope, "group_name": rule.group_name,
             "is_active": bool(active and active.is_active), "active_version": _version_dict(active),

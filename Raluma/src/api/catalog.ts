@@ -103,6 +103,8 @@ export interface CatalogPricingBulkRow {
   name: string;
   finishCode: FinishCode;
   finishName: string;
+  sourceBefore?: { mode?: string; label?: string; name?: string };
+  sourceAfter?: { mode?: string; label?: string; name?: string };
   before: { profile: CatalogPricingChain; construction: CatalogPricingChain };
   after: { profile: CatalogPricingChain; construction: CatalogPricingChain };
 }

@@ -689,6 +689,18 @@ def test_catalog_bulk_pricing_preview_and_apply_keep_chains_independent(
                     "name": payload["name"],
                     "finishCode": "ANOD_UNPAINTED",
                     "finishName": "Анод/неокрас",
+                    "sourceBefore": {
+                        "mode": "individual",
+                        "scope": "individual",
+                        "rule_id": None,
+                        "rule_version_id": None,
+                        "name": "Индивидуальные условия",
+                        "label": "Индивидуальные условия",
+                    },
+                    "sourceAfter": {
+                        "mode": "individual",
+                        "label": "Индивидуальные значения",
+                    },
                     "before": {
                         "profile": {
                             "base": "100.00",

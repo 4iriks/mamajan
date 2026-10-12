@@ -37,12 +37,14 @@ from engine.quote_pricing import (
     PRICE_CATEGORIES,
     QuotePricingError,
     calculate_standalone_sale,
+    current_quote_preview_token,
     decimal_text,
     decimal_value,
     internal_quote_state,
     money,
     money_text,
     public_quote,
+    safe_public_payload,
 )
 
 
@@ -1422,9 +1424,21 @@ def get_internal_project_quote(
         raise HTTPException(status_code=404, detail="Проект не найден")
     if actor.role == "dealer":
         raise HTTPException(status_code=403, detail="Нет доступа к проекту")
-    result = internal_quote_state(db, project)
+    evaluation_at = datetime.utcnow()
+    result = internal_quote_state(db, project, at=evaluation_at)
+    # A fixed KP remains immutable, but the editor must let staff inspect the
+    # next calculation before explicitly fixing a new revision. Never expose
+    # internal calculation payloads as a substitute for this public projection.
+    pending_public = result.get("calculation", {}).get("public")
+    pending_quote = (
+        safe_public_payload(pending_public)
+        if isinstance(pending_public, dict)
+        else public_quote(db, project, at=evaluation_at)
+    )
+    preview_token = current_quote_preview_token(db, project, at=evaluation_at)
+    result["pending_quote"] = pending_quote
+    result["preview_token"] = preview_token
     if not user_can_manage_prices(actor):
-        public = public_quote(db, project)
         config = result["config"]
         result = {
             "revision": result["revision"],
@@ -1441,7 +1455,9 @@ def get_internal_project_quote(
                 "margin_override_comment": "",
             },
             "missing_prices": [],
-            "pending_warnings": list(public.get("warnings") or []),
+            "pending_warnings": list(pending_quote.get("warnings") or []),
+            "pending_quote": pending_quote,
+            "preview_token": preview_token,
             "margin_approval": {
                 "required": False,
                 "valid": False,

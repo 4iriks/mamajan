@@ -32,7 +32,7 @@ MANUAL_SERVICE_UNITS = (
     "шт.",
     "кв.м.",
 )
-QUOTE_SNAPSHOT_VERSION = 6
+QUOTE_SNAPSHOT_VERSION = 7
 
 PUBLIC_QUOTE_FIELDS = {
     "money_presentation_version",
@@ -312,12 +312,20 @@ def safe_public_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 def decimal_value(value: Any, default: Decimal = ZERO) -> Decimal:
     if isinstance(value, Decimal):
-        return value if value.is_finite() and value.copy_abs() < Decimal("1e100") else default
+        return (
+            value
+            if value.is_finite() and value.copy_abs() < Decimal("1e100")
+            else default
+        )
     if value in (None, ""):
         return default
     try:
         parsed = Decimal(str(value).strip().replace(",", "."))
-        return parsed if parsed.is_finite() and parsed.copy_abs() < Decimal("1e100") else default
+        return (
+            parsed
+            if parsed.is_finite() and parsed.copy_abs() < Decimal("1e100")
+            else default
+        )
     except (InvalidOperation, ValueError, TypeError):
         return default
 
@@ -710,6 +718,35 @@ def _parse_extra_components(raw: str | None) -> list[dict[str, Any]]:
         if isinstance(parsed, list)
         else []
     )
+
+
+def _extra_catalog_pair(extra, active, active_by_id):
+    """Shared catalogue selection for calculating and fingerprinting extras."""
+    item_id = _optional_int(extra.get("catalog_item_id") or extra.get("catalogItemId"))
+    variant_id = _optional_int(
+        extra.get("finish_variant_id") or extra.get("finishVariantId")
+    )
+    if (
+        item_id is None
+        and variant_id is None
+        and ("unit_price" in extra or "unitPrice" in extra)
+    ):
+        return None  # A freely entered manual article may match a catalogue SKU.
+    sku = str(extra.get("sku") or extra.get("art") or "").strip()
+    return active_by_id.get(item_id) if item_id else active.get(sku)
+
+
+def _extra_catalog_variant(item, variant_id):
+    if item is None:
+        return None, variant_id
+    variants = [row for row in item.finish_variants if row.is_active]
+    if variant_id is None:
+        colorless = [
+            row for row in variants if _normalized_finish(row.name) == "без цвета"
+        ]
+        if len(colorless) == 1:
+            return colorless[0], colorless[0].id
+    return next((row for row in variants if row.id == variant_id), None), variant_id
 
 
 def _extra_profile_length_metres(size: Any) -> Decimal | None:
@@ -1112,18 +1149,16 @@ def _price_requirement(
     item = None
     finish_variant_id = None
     finish_name = ""
-    if override is not None:
-        cost = decimal_value(override.get("cost"))
-        version = None
-        price_unit = required["unit"]
-        category = required["category"]
-        profile_markup = ZERO
-        profile_discount = ZERO
-        waste_markup = ZERO
-        construction_markup = ZERO
-        construction_discount = ZERO
-        min_margin = ZERO
-    else:
+    # The legacy override payload calls its sale price "cost". It must never
+    # replace the actual purchase cost or erase the catalogue's minimum markup.
+    version = None
+    cost = ZERO
+    price_unit = required["unit"]
+    category = required["category"]
+    profile_markup = profile_discount = waste_markup = ZERO
+    construction_markup = construction_discount = min_margin = ZERO
+    cost_known = False
+    if item_and_version is not None:
         item, version = item_and_version
         cost = decimal_value(version.cost)
         requested_finish = str(required.get("finish") or "").strip()
@@ -1135,7 +1170,7 @@ def _price_requirement(
                 item,
                 requested_finish,
             )
-            if item.finish_variants and finish_variant_id is None:
+            if item.finish_variants and finish_variant_id is None and override is None:
                 return None, {
                     "code": "missing_finish_price",
                     "sku": sku,
@@ -1152,17 +1187,27 @@ def _price_requirement(
             ),
             None,
         )
+        unresolved_finish = bool(
+            requested_finish and item.finish_variants and finish_variant_id is None
+        )
         if db is not None:
-            version = resolve_effective_price(db, item, finish_variant, at=at)
-            if version is None:
+            version = (
+                None
+                if unresolved_finish
+                else resolve_effective_price(db, item, finish_variant, at=at)
+            )
+            if version is None and override is None:
                 return None, {
                     "code": "missing_price",
                     "sku": sku,
                     "name": required["name"],
                     "unit": required["unit"],
                 }
-            cost = decimal_value(version.cost)
-        if not _units_compatible(required["unit"], version.unit):
+        if unresolved_finish:
+            version = None
+        if version is not None and not _units_compatible(
+            required["unit"], version.unit
+        ):
             return None, {
                 "code": "unit_mismatch",
                 "sku": sku,
@@ -1170,6 +1215,10 @@ def _price_requirement(
                 "unit": required["unit"],
                 "priced_unit": version.unit,
             }
+    if version is not None:
+        if db is not None:
+            cost = decimal_value(version.cost)
+        cost_known = True
         price_unit = version.unit
         category = version.category
         profile_markup = decimal_value(
@@ -1198,6 +1247,8 @@ def _price_requirement(
             else version.construction_discount_percent
         )
         min_margin = decimal_value(version.min_margin_percent)
+    else:
+        cost = ZERO
 
     quantity = decimal_value(required["quantity"])
     base_cost = cost * quantity
@@ -1211,7 +1262,9 @@ def _price_requirement(
         construction_discount
     )
     waste_markup_applied = False
-    if mode == "construction":
+    if override is not None:
+        internal_total = money(decimal_value(override.get("cost")) * quantity)
+    elif mode == "construction":
         # The two price chains are deliberately independent.  A construction
         # starts from cost and never inherits standalone profile markup/discount.
         waste_markup_applied = waste_markup > 0
@@ -1226,13 +1279,14 @@ def _price_requirement(
         "price_unit": price_unit,
         "price_version_id": version.id if version is not None else None,
         "price_source": getattr(version, "source", None),
-        "finish_variant_id": finish_variant_id if override is None else None,
-        "finish": finish_name
-        if override is None
-        else str(required.get("finish") or ""),
+        "finish_variant_id": finish_variant_id,
+        "finish": finish_name or str(required.get("finish") or ""),
         "override_comment": str(override.get("comment") or "") if override else "",
+        "sale_price_override": money_text(decimal_value(override.get("cost")))
+        if override is not None
+        else None,
         "cost": money_text(cost),
-        "cost_known": True,
+        "cost_known": cost_known,
         "base_cost_total": money_text(base_cost),
         "profile_markup_percent": decimal_text(profile_markup),
         "profile_discount_percent": decimal_text(profile_discount),
@@ -1585,7 +1639,7 @@ def _canonical_overrides(raw: str | None) -> list[dict[str, Any]]:
     result = [
         {
             "sku": str(row.get("sku") or "").strip(),
-            "cost": money_text(decimal_value(row.get("cost"))),
+            "cost": decimal_text(decimal_value(row.get("cost"))),
             "comment": str(row.get("comment") or "").strip(),
         }
         for row in rows
@@ -1600,13 +1654,14 @@ def _pricing_context_payload(
     state: models.ProjectQuoteState,
     at: datetime,
 ) -> dict[str, Any]:
+    """Fingerprint only inputs actually consumed by this order at ``at``.
+
+    Mutable catalogue caches are not effective-dated prices. In particular,
+    activating a scheduled finish version must invalidate a quote even if a
+    generic article version and its compatibility cache have not changed.
+    Unrelated articles, rule history and bindings must not invalidate it.
+    """
     active = _active_price_versions(db, at)
-    catalog_rows = db.query(models.CatalogItem).order_by(models.CatalogItem.id).all()
-    price_groups = (
-        db.query(models.ConstructionPriceGroup)
-        .order_by(models.ConstructionPriceGroup.id)
-        .all()
-    )
     terms = _dealer_terms(db, project.owner)
     price_fields = (
         "cost",
@@ -1618,87 +1673,77 @@ def _pricing_context_payload(
         "category",
         "unit",
         "min_margin_percent",
-        "effective_from",
     )
     section_fields = [
         column.name
         for column in models.Section.__table__.columns
-        if column.name != "document_overrides"
+        if column.name not in {"document_overrides", "updated_at", "created_at"}
     ]
-    catalog = []
-    for item in catalog_rows:
-        pair = active.get(item.sku)
-        version = pair[1] if pair is not None else None
+    used_overrides = set()
+    overrides = {
+        row["sku"]: row for row in _canonical_overrides(state.overrides_payload)
+    }
+    catalog: list[dict[str, Any]] = []
+    for section in sorted(
+        project.sections, key=lambda row: (int(row.order or 0), int(row.id or 0))
+    ):
+        if str(section.system or "").strip().upper() != "СЛАЙД":
+            continue
+        _, requirements = _section_requirements(section)
+        for required in requirements:
+            used_overrides.add(required["sku"])
+            priced, issue = _price_requirement(
+                required, active, overrides, mode="construction", db=db, at=at
+            )
+            catalog.append(
+                {
+                    "section_id": section.id,
+                    "sku": required["sku"],
+                    "priced": priced,
+                    "issue": issue,
+                }
+            )
+
+    active_by_id = {pair[0].id: pair for pair in active.values()}
+    for index, extra in enumerate(
+        _parse_extra_components(getattr(project, "extra_components", None)), start=1
+    ):
+        variant_id = _optional_int(
+            extra.get("finish_variant_id") or extra.get("finishVariantId")
+        )
+        pair = _extra_catalog_pair(extra, active, active_by_id)
+        item = pair[0] if pair else None
+        variant, _ = _extra_catalog_variant(item, variant_id)
+        if item is not None:
+            resolved = resolve_effective_price(db, item, variant, at=at)
+        else:
+            resolved = None
         catalog.append(
             {
-                "id": item.id,
-                "sku": item.sku,
-                "name": item.name,
-                "unit": item.unit,
-                "system_groups": _json_load(getattr(item, "system_groups", None), []),
-                "active": bool(item.is_active),
-                "updated_at": _signature_value(item.updated_at),
-                "finish_variants": [
-                    {
-                        "id": variant.id,
-                        "code": getattr(variant, "code", None),
-                        "name": variant.name,
-                        "cost": _signature_value(
-                            variant.cost if variant.cost is not None else variant.price
-                        ),
-                        "profile_markup_percent": _signature_value(
-                            variant.profile_markup_percent
-                        ),
-                        "profile_discount_percent": _signature_value(
-                            variant.profile_discount_percent
-                        ),
-                        "construction_markup_percent": _signature_value(
-                            variant.construction_markup_percent
-                        ),
-                        "construction_discount_percent": _signature_value(
-                            variant.construction_discount_percent
-                        ),
-                        "requires_paint": bool(variant.requires_paint),
-                        "is_active": bool(variant.is_active),
-                        "updated_at": _signature_value(variant.updated_at),
-                    }
-                    for variant in item.finish_variants
-                ],
-                "price_version": (
-                    {
-                        "id": version.id,
-                        **{
-                            field: _signature_value(getattr(version, field))
-                            for field in price_fields
-                        },
-                    }
-                    if version is not None
-                    else None
-                ),
+                "project_extra_index": index,
+                "item": {
+                    "id": item.id,
+                    "sku": item.sku,
+                    "name": item.name,
+                    "unit": item.unit,
+                }
+                if item
+                else None,
+                "finish": {"id": variant.id, "name": variant.name} if variant else None,
+                "price": {
+                    "id": resolved.id,
+                    **{
+                        field: _signature_value(getattr(resolved, field))
+                        for field in price_fields
+                    },
+                    "source": resolved.source,
+                }
+                if resolved
+                else None,
             }
         )
     return {
         "engine_version": QUOTE_SNAPSHOT_VERSION,
-        "pricing_rules": [
-            {
-                column.name: _signature_value(getattr(row, column.name))
-                for column in row.__table__.columns
-            }
-            for row in db.query(models.CatalogPricingRuleVersion)
-            .filter(models.CatalogPricingRuleVersion.effective_from <= at)
-            .order_by(models.CatalogPricingRuleVersion.id)
-            .all()
-        ],
-        "pricing_bindings": [
-            {
-                column.name: _signature_value(getattr(row, column.name))
-                for column in row.__table__.columns
-            }
-            for row in db.query(models.CatalogPricingBindingVersion)
-            .filter(models.CatalogPricingBindingVersion.effective_from <= at)
-            .order_by(models.CatalogPricingBindingVersion.id)
-            .all()
-        ],
         "project": {
             "id": project.id,
             "number": project.number,
@@ -1706,7 +1751,6 @@ def _pricing_context_payload(
             "order_number": getattr(project, "order_number", None),
             "customer": project.customer,
             "created_by": project.created_by,
-            "updated_at": _signature_value(project.updated_at),
             "extra_components": _json_load(
                 getattr(project, "extra_components", None), []
             ),
@@ -1722,17 +1766,6 @@ def _pricing_context_payload(
             ],
         },
         "catalog": catalog,
-        "construction_price_groups": [
-            {
-                "id": row.id,
-                "code": row.code,
-                "name": row.name,
-                "markup_percent": decimal_text(decimal_value(row.markup_percent)),
-                "is_active": bool(row.is_active),
-                "updated_at": _signature_value(row.updated_at),
-            }
-            for row in price_groups
-        ],
         "dealer_terms": {
             "user_id": project.owner.id
             if project.owner is not None and project.owner.role == "dealer"
@@ -1741,7 +1774,9 @@ def _pricing_context_payload(
         },
         "services": _canonical_services(state.services_payload),
         "discounts": _canonical_discounts(state.discounts_payload),
-        "overrides": _canonical_overrides(state.overrides_payload),
+        "overrides": [
+            row for sku, row in sorted(overrides.items()) if sku in used_overrides
+        ],
     }
 
 
@@ -1783,6 +1818,29 @@ def _quote_signature(
         },
     }
     return _hash_signature_payload(payload)
+
+
+def current_quote_preview_token(
+    db: Session,
+    project: models.Project,
+    *,
+    at: datetime | None = None,
+) -> str:
+    """Opaque fingerprint for confirming the exact current calculation.
+
+    Includes private cost/floor dependencies without exposing them to the
+    client. Merely reading it never changes a fixed quote or its revisions.
+    """
+    state = get_or_create_quote_state(db, project)
+    evaluation_at = _normalize_datetime(at or datetime.utcnow())
+    return _hash_signature_payload(
+        {
+            "signature": _quote_signature(db, project, state, evaluation_at),
+            "status": state.status,
+            "revision": state.revision,
+            "quote_date": evaluation_at.date().isoformat(),
+        }
+    )
 
 
 def quote_target_revision(
@@ -2079,26 +2137,6 @@ def calculate_quote(
 
     project_extras = _parse_extra_components(getattr(project, "extra_components", None))
     active_by_id = {pair[0].id: pair for pair in active.values()}
-    variant_ids = {
-        variant_id
-        for row in project_extras
-        if (
-            variant_id := _optional_int(
-                row.get("finish_variant_id") or row.get("finishVariantId")
-            )
-        )
-        is not None
-    }
-    finish_variants = {
-        row.id: row
-        for row in (
-            db.query(models.CatalogFinishVariant)
-            .filter(models.CatalogFinishVariant.id.in_(variant_ids))
-            .all()
-            if variant_ids
-            else []
-        )
-    }
     for index, extra in enumerate(project_extras, start=1):
         quantity = decimal_value(
             extra.get("qty") if "qty" in extra else extra.get("quantity")
@@ -2119,29 +2157,10 @@ def calculate_quote(
             extra.get("finish_variant_id") or extra.get("finishVariantId")
         )
         sku = str(extra.get("sku") or extra.get("art") or "").strip()
-        pair = active_by_id.get(catalog_item_id) if catalog_item_id else active.get(sku)
-        # An explicitly priced manual row must not silently turn into a catalog
-        # selection merely because its freely entered article happens to match.
-        if catalog_item_id is None and finish_variant_id is None and (
-            "unit_price" in extra or "unitPrice" in extra
-        ):
-            pair = None
+        pair = _extra_catalog_pair(extra, active, active_by_id)
         item = pair[0] if pair is not None else None
         version = pair[1] if pair is not None else None
-        variant = finish_variants.get(finish_variant_id)
-        if finish_variant_id is None and item is not None:
-            colorless = [
-                row
-                for row in item.finish_variants
-                if row.is_active and _normalized_finish(row.name) == "без цвета"
-            ]
-            if len(colorless) == 1:
-                variant = colorless[0]
-                finish_variant_id = variant.id
-        if variant is not None and (
-            not variant.is_active or item is None or variant.catalog_item_id != item.id
-        ):
-            variant = None
+        variant, finish_variant_id = _extra_catalog_variant(item, finish_variant_id)
         if item is not None:
             version = resolve_effective_price(db, item, variant, at=now)
 
@@ -2641,6 +2660,17 @@ def calculate_quote(
                 "code": "unknown_actual_cost",
             }
             for row in [*internal_project_extras, *internal_services]
+            if not row.get("cost_known")
+        ]
+        + [
+            {
+                "section_id": section["section_id"],
+                "sku": row["sku"],
+                "name": row["name"],
+                "code": "unknown_actual_cost",
+            }
+            for section in internal_sections
+            for row in section["bom"]
             if not row.get("cost_known")
         ],
     }

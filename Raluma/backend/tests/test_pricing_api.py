@@ -2143,6 +2143,7 @@ def test_margin_approval_is_bound_to_every_pricing_input(client, admin_headers):
             )
             replacement = models.CatalogPriceVersion(
                 catalog_item_id=current.catalog_item_id,
+                finish_variant_id=current.finish_variant_id,
                 cost=Decimal(current.cost) + Decimal("1"),
                 profile_markup_percent=current.profile_markup_percent,
                 profile_discount_percent=current.profile_discount_percent,

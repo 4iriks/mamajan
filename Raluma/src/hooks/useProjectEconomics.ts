@@ -132,5 +132,6 @@ export function useProjectEconomics(projectId: number, enabled: boolean, editabl
       setError(message); toast.error(message); return false;
     } finally { setBusy(false); }
   };
-  return { quote, config, internal, dirty, busy, refreshing, error, patch, save, reload, saveOverrides };
+  const currentQuote = quote?.status === 'fixed' ? internal?.pending_quote ?? null : quote;
+  return { quote, currentQuote, config, internal, dirty, busy, refreshing, error, patch, save, reload, saveOverrides };
 }

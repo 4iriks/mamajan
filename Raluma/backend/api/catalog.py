@@ -768,6 +768,8 @@ def _bulk_preview_rows(
                 "name": item.name,
                 "finishCode": _finish_code(variant.name, variant.code),
                 "finishName": variant.name,
+                "sourceBefore": effective.source,
+                "sourceAfter": {"mode": "individual", "label": "Индивидуальные значения"},
                 "before": before,
                 "after": after,
             }
