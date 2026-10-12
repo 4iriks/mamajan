@@ -10,6 +10,7 @@ from typing import Iterable
 
 from engine.book_calc import calculate_book
 from engine.cs_calc import calculate_cs, cs_result_namespace
+from engine.component_groups import group_extra_sources, group_display_rows
 from engine.lift_calc import calculate_lift, lift_geometry_error
 from engine.document_numbers import production_project_number, resolve_section_numbers
 from engine.office_diagrams import render_slide_room, render_slide_top, section_diagrams
@@ -247,6 +248,8 @@ def _is_calculated_hardware_for_sketch(
     if system != "СЛАЙД":
         return _is_sketch_component(article, name)
     article_text = str(article or "").strip().upper()
+    if article_text == "RS1121":
+        return False
     if article_text in _SLIDE_INCLUDED_HARDWARE_ARTICLES:
         return True
     if not _is_sketch_component(article, name):
@@ -260,6 +263,8 @@ def _is_calculated_profile_for_sketch(
     article: object,
     name: object,
 ) -> bool:
+    if str(article or "").upper() == "RS1121":
+        return False
     if not _is_sketch_component(article, name):
         return False
     if system != "СЛАЙД":
@@ -376,6 +381,8 @@ def _calculated_components(calc: object, system: str) -> list[dict]:
     rows = _calculated_profiles(calc, system)
 
     for item in getattr(calc, "hardware", []) or []:
+        if system == "ЦС" and getattr(item, "role", "") in {"pad", "tape"}:
+            continue
         if system == "КНИЖКА" and not bool(getattr(item, "included", True)):
             continue
         article = getattr(item, "article", "")
@@ -440,7 +447,7 @@ def _extra_components(owner: object, *, multiply: bool) -> list[dict]:
     quantity_multiplier = (
         _positive_int(getattr(owner, "quantity", 1)) if multiply else 1
     )
-    for item in source:
+    for item in group_extra_sources(source):
         if not isinstance(item, dict):
             continue
         if str(item.get("category") or "").strip().lower() == "service":
@@ -483,7 +490,9 @@ def _extra_components(owner: object, *, multiply: bool) -> list[dict]:
                 ),
             )
         )
-    return rows
+        rows[-1]["_view_group"] = item["_view_group"]
+        rows[-1]["image_data"] = item.get("imageData") or item.get("image_data") or ""
+    return group_display_rows(rows)
 
 
 def _diagram_rows(section: object, calc: object) -> list[dict]:
@@ -544,6 +553,27 @@ def _diagram_rows(section: object, calc: object) -> list[dict]:
             }
         )
     return rows
+
+
+def _side_component_tables(section, components):
+    """Allocate selected side items from the actual BOM, leaving the remainder common."""
+    from engine.quote_pricing import _section_technical_components
+
+    remaining = [dict(row) for row in components]
+    sides = {"left": [], "right": []}
+    if getattr(section, "system", "") == "СЛАЙД":
+        selected = _section_technical_components(section)
+        quantity = _positive_int(getattr(section, "quantity", 1))
+        for side in sides:
+            for item in selected[side]:
+                matches = [row for row in remaining if row["article"] == item["article"] and _number(row["qty"]) > 0]
+                if not matches:
+                    continue
+                row = matches[0]
+                count = min(quantity, _number(row["qty"]))
+                sides[side].append({**row, "qty": _format_number(count)})
+                row["qty"] = _format_number(_number(row["qty"]) - count)
+    return sides, [row for row in remaining if _number(row["qty"]) > 0]
 
 
 def _system_text(system: str, section: object, calc: object) -> str:
@@ -611,6 +641,8 @@ def _section_data(section: object, order: int) -> dict:
         )
         panel_rows = _cs_panels(section, calc)
         warnings = list(getattr(calc, "warnings", []) or [])
+        if any(getattr(row, "role", "") == "tape" for row in calc.hardware):
+            warnings.append("склейка через скотч")
         threshold = "—"
         inter_glass = "—"
         filling = _text(
@@ -619,6 +651,8 @@ def _section_data(section: object, order: int) -> dict:
         )
 
     label = _section_label(section, order)
+    components = _calculated_components(calc, system)
+    sides, common = _side_component_tables(section, components)
     return {
         "order": order,
         "label": label,
@@ -632,7 +666,9 @@ def _section_data(section: object, order: int) -> dict:
         "inter_glass_profile": inter_glass,
         "filling": filling,
         "panels": panel_rows,
-        "profiles": _calculated_components(calc, system),
+        "profiles": components,
+        "common_profiles": common,
+        "side_profiles": sides,
         "comments": _text(getattr(section, "comments", None), ""),
         "warnings": [f"{label}: {warning}" for warning in warnings],
         "diagrams": _diagram_rows(section, calc),

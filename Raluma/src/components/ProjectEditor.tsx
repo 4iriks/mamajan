@@ -11,8 +11,8 @@ import {
   ClipboardList, Square as WindowIcon, Palette,
   Loader2, X, LogIn, PackagePlus,
 } from 'lucide-react';
-import { getProject, getProjects, updateProject, createSection, updateSection, deleteSection } from '../api/projects';
-import type { ProjectDocumentType, ProjectList } from '../api/projects';
+import { getProject, updateProject, createSection, updateSection, deleteSection } from '../api/projects';
+import type { ProjectDocumentType } from '../api/projects';
 import ProductionSheetModal from './ProductionSheetModal';
 import ProjectDocumentModal from './ProjectDocumentModal';
 import { toast } from '../store/toastStore';
@@ -39,7 +39,8 @@ import {
 import { EditorSidebar } from './editor/EditorSidebar';
 import { SectionFormWrapper } from './editor/SectionFormWrapper';
 import { ExtraComponentsEditor } from './editor/ExtraComponentsEditor';
-import { buildCustomerOptions, filterCustomerOptions } from '../utils/customers';
+import { useCustomerOptions } from '../hooks/useCustomerOptions';
+import { filterCustomerOptions } from '../utils/customers';
 import { defaultGlassType } from '../constants/glass';
 import { csDimensionUpdates } from './editor/csGeometry';
 import {
@@ -59,7 +60,7 @@ export type { Section };
 
 export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack }) => {
   const navigate = useNavigate();
-  const { token, user, canManagePrices } = useAuthStore();
+  const { token, canManagePrices } = useAuthStore();
   const [project, setProject] = useState<{
     id: number;
     number: string;
@@ -70,7 +71,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const [sections, setSections] = useState<Section[]>([]);
   const savedSectionsRef = useRef<Section[]>([]);
   const [loadingProject, setLoadingProject] = useState(true);
-  const [allProjects, setAllProjects] = useState<ProjectList[]>([]);
   const [projectCustomerDraft, setProjectCustomerDraft] = useState('');
   const [showProjectCustomerDrop, setShowProjectCustomerDrop] = useState(false);
 
@@ -104,17 +104,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     }).catch(() => { setLoadingProject(false); onBack(); });
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    let cancelled = false;
-    getProjects()
-      .then(items => {
-        if (!cancelled) setAllProjects(items);
-      })
-      .catch(() => {
-        if (!cancelled) setAllProjects([]);
-      });
-    return () => { cancelled = true; };
-  }, []);
 
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -148,10 +137,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     [sections, activeSectionId]
   );
 
-  const customerOptions = useMemo(
-    () => buildCustomerOptions(allProjects, user?.customer, project?.customer),
-    [allProjects, project?.customer, user?.customer],
-  );
+  const customerOptions = useCustomerOptions();
   const filteredProjectCustomers = useMemo(
     () => filterCustomerOptions(customerOptions, projectCustomerDraft),
     [customerOptions, projectCustomerDraft],
@@ -859,7 +845,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                               <span className="mt-0.5 block truncate text-[10px] text-fg/35">{item.color || item.finishName}</span>
                             )}
                           </span>
-                          <span className="whitespace-nowrap font-mono font-bold text-fg/55">{item.qty || '0'} {item.unit || 'шт'}</span>
+                          <span className="whitespace-nowrap font-mono font-bold text-fg/55">{item.size && <span className="mr-3">{item.size} мм</span>}{item.qty || '0'} {item.unit || 'шт'}</span>
                         </div>
                       ))}
                     </div>

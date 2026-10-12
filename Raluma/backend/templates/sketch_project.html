@@ -22,7 +22,7 @@
       background: #fff;
     }
     h1 {
-      margin: 0 0 6mm;
+      margin: 0 0 4mm;
       color: #123f47;
       font-size: 18pt;
       line-height: 1.1;
@@ -54,15 +54,15 @@
       break-inside: avoid;
     }
     .meta-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      display: table;
+      font-size: inherit;
       border-top: 0.25mm solid #80959a;
       border-left: 0.25mm solid #80959a;
       margin-bottom: 2.5mm;
       break-inside: avoid;
     }
     .meta-item {
-      min-height: 13mm;
+      min-height: 11mm;
       padding: 1.4mm 1.7mm;
       border-right: 0.25mm solid #80959a;
       border-bottom: 0.25mm solid #80959a;
@@ -86,7 +86,7 @@
       page-break-inside: avoid;
     }
     .sketch-section-tall .diagram-grid {
-      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.35fr);
+      grid-template-columns: minmax(0, 1fr);
       align-items: stretch;
     }
     .sketch-section[data-system="ЦС"] .diagram-grid { grid-template-columns: minmax(0, 1fr); }
@@ -95,8 +95,8 @@
       border: 0.25mm solid #a8bbc0;
       text-align: center;
     }
-    .diagram-room { min-height: 96mm; }
-    .diagram-top { min-height: 51mm; }
+    .diagram-room { min-height: 61mm; }
+    .diagram-top { min-height: 33mm; }
     .diagram-title {
       margin-bottom: 1mm;
       color: #607b81;
@@ -109,12 +109,12 @@
       width: 100%;
       object-fit: contain;
     }
-    .diagram-room img { height: 90mm; }
-    .diagram-top img { height: 45mm; }
-    .sketch-section-dense .diagram-room { min-height: 86mm; }
-    .sketch-section-dense .diagram-top { min-height: 44mm; }
-    .sketch-section-dense .diagram-room img { height: 80mm; }
-    .sketch-section-dense .diagram-top img { height: 38mm; }
+    .diagram-room img { height: 55mm; }
+    .diagram-top img { height: 27mm; }
+    .sketch-section-dense .diagram-room { min-height: 58mm; }
+    .sketch-section-dense .diagram-top { min-height: 31mm; }
+    .sketch-section-dense .diagram-room img { height: 52mm; }
+    .sketch-section-dense .diagram-top img { height: 25mm; }
     .section-comment {
       margin: 0 0 2.5mm;
       padding: 1.5mm 2mm;
@@ -191,7 +191,7 @@
   {% endif %}
 
   {% for section in sections %}
-  <section class="sketch-section{% if section.width_mm < section.height_mm %} sketch-section-tall{% endif %}{% if section.panels|length >= 8 %} sketch-section-dense{% endif %}" data-sketch-section="{{ section.order }}" data-system="{{ section.system|e }}">
+  <section class="sketch-section{% if section.width_mm < section.height_mm %} sketch-section-tall{% endif %}{% if section.panels|length >= 6 %} sketch-section-dense{% endif %}" data-sketch-section="{{ section.order }}" data-system="{{ section.system|e }}">
     <div class="section-intro">
       <h2 class="section-heading">Изделие № {{ section.order }} · {{ section.system_text|e }}</h2>
 
@@ -199,17 +199,21 @@
         <div class="warning">{{ warning|e }}</div>
       {% endfor %}
 
-      <div class="meta-grid">
-        <div class="meta-item"><span class="meta-label">Номер изделия</span><span class="meta-value">{{ section.order }}</span></div>
-        <div class="meta-item"><span class="meta-label">Система</span><span class="meta-value">{{ section.system_text|e }}</span></div>
-        <div class="meta-item"><span class="meta-label">Ширина</span><span class="meta-value">{{ section.width_mm|format_mm }} мм</span></div>
-        <div class="meta-item"><span class="meta-label">Высота</span><span class="meta-value">{{ section.height_mm|format_mm }} мм</span></div>
-        <div class="meta-item"><span class="meta-label">Цвет</span><span class="meta-value">{{ section.color|e }}</span></div>
-        <div class="meta-item"><span class="meta-label">Количество</span><span class="meta-value">{{ section.quantity }} шт</span></div>
-        <div class="meta-item"><span class="meta-label">Порог</span><span class="meta-value">{{ section.threshold|e }}</span></div>
-        <div class="meta-item"><span class="meta-label">Межстекольный профиль</span><span class="meta-value">{{ section.inter_glass_profile|e }}</span></div>
-        <div class="meta-item" style="grid-column: span 4"><span class="meta-label">Стекло / заполнение</span><span class="meta-value">{{ section.filling|e }}</span></div>
-      </div>
+      <table class="meta-grid"><tbody>
+        <tr>
+          <td class="meta-item"><span class="meta-label">Номер изделия</span><span class="meta-value">{{ section.order }}</span></td>
+          <td class="meta-item"><span class="meta-label">Система</span><span class="meta-value">{{ section.system_text|e }}</span></td>
+          <td class="meta-item"><span class="meta-label">Ширина</span><span class="meta-value">{{ section.width_mm|format_mm }} мм</span></td>
+          <td class="meta-item"><span class="meta-label">Высота</span><span class="meta-value">{{ section.height_mm|format_mm }} мм</span></td>
+        </tr><tr>
+          <td class="meta-item"><span class="meta-label">Цвет</span><span class="meta-value">{{ section.color|e }}</span></td>
+          <td class="meta-item"><span class="meta-label">Количество</span><span class="meta-value">{{ section.quantity }} шт</span></td>
+          <td class="meta-item"><span class="meta-label">Порог</span><span class="meta-value">{{ section.threshold|e }}</span></td>
+          <td class="meta-item"><span class="meta-label">Межстекольный профиль</span><span class="meta-value">{{ section.inter_glass_profile|e }}</span></td>
+        </tr><tr>
+          <td class="meta-item" colspan="4"><span class="meta-label">Стекло / заполнение</span><span class="meta-value">{{ section.filling|e }}</span></td>
+        </tr>
+      </tbody></table>
 
       {% if section.comments %}
         <div class="section-comment"><strong>Примечание:</strong> {{ section.comments|e }}</div>
@@ -224,6 +228,30 @@
       {% endfor %}
     </div>
     </div>
+
+    {% if section.side_profiles.left or section.side_profiles.right %}
+    <table class="side-profile-table"><thead><tr><th>Профили слева</th><th>Профили справа</th></tr></thead><tbody><tr>
+    {% for side in ['left', 'right'] %}<td style="width:50%;vertical-align:top">
+      {% for item in section.side_profiles[side] %}<div>{{ item.article|e }} — {{ item.name|e }} · {{ item.size|e }} · {{ item.qty|e }} {{ item.unit|e }}</div>{% else %}Без комплектующих{% endfor %}
+    </td>{% endfor %}</tr></tbody></table>
+    {% endif %}
+    {% if section.common_profiles %}
+    <div class="table-title">Профили и фурнитура</div>
+    <table class="profile-table" data-section-profiles="{{ section.order }}">
+      <colgroup><col style="width: 16%"><col style="width: 45%"><col style="width: 21%"><col style="width: 18%"></colgroup>
+      <thead><tr><th>Артикул</th><th>Наименование</th><th>Размер</th><th>Кол-во</th></tr></thead>
+      <tbody>
+      {% for item in section.common_profiles %}
+        <tr>
+          <td class="center">{{ item.article|e or '—' }}</td>
+          <td>{{ item.name|e }}</td>
+          <td class="center">{{ item.size|e }}</td>
+          <td class="center">{{ item.qty|e }} {{ item.unit|e }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
 
     <div class="table-title">Размеры стекол</div>
     <table class="panel-table">
@@ -243,24 +271,6 @@
       </tbody>
     </table>
 
-    {% if section.profiles %}
-    <div class="table-title">Профили и фурнитура</div>
-    <table class="profile-table" data-section-profiles="{{ section.order }}">
-      <colgroup><col style="width: 16%"><col style="width: 45%"><col style="width: 21%"><col style="width: 18%"></colgroup>
-      <thead><tr><th>Артикул</th><th>Наименование</th><th>Размер</th><th>Кол-во</th></tr></thead>
-      <tbody>
-      {% for item in section.profiles %}
-        <tr>
-          <td class="center">{{ item.article|e or '—' }}</td>
-          <td>{{ item.name|e }}</td>
-          <td class="center">{{ item.size|e }}</td>
-          <td class="center">{{ item.qty|e }} {{ item.unit|e }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% endif %}
-
   </section>
   {% endfor %}
 
@@ -274,11 +284,14 @@
       <tbody>
       {% for item in project_components %}
         <tr>
-          <td class="center">{{ item.article|e or '—' }}</td>
-          <td>
+          {% if item.group_start %}
+          <td class="center" rowspan="{{ item.group_span }}">{{ item.article|e or '—' }}</td>
+          <td rowspan="{{ item.group_span }}">
             {{ item.name|e }}
             {% if item.color %}<div class="component-meta">Цвет: {{ item.color|e }}</div>{% endif %}
+            {% if item.image_data or item.image %}<img src="{{ item.image_data or (item.image|img_b64) }}" alt="" style="max-width:24mm;max-height:16mm">{% endif %}
           </td>
+          {% endif %}
           <td class="center">{{ item.size|e }}</td>
           <td class="center">{{ item.qty|e }} {{ item.unit|e }}</td>
           <td>{{ item.note|e or '—' }}</td>

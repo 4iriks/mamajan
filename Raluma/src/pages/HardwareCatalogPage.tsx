@@ -394,7 +394,7 @@ const seedItems: HardwareItem[] = [
   {
     id: 1102,
     sku: 'RS3061',
-    name: 'Профиль с зацепом',
+    name: 'Алюминиевый с зацепом RS3061',
     group: 'Профили',
     system: 'СЛАЙД',
     unit: 'м.п.',

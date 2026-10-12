@@ -9,6 +9,7 @@ from typing import Any
 from PIL import Image, ImageDraw
 
 from engine.office_common import load_font
+from engine.side_projection import snapshot_side_projection
 
 
 INK = "#123F47"
@@ -159,8 +160,15 @@ def render_quote_room_png(details: dict[str, Any]) -> bytes:
     width_total = sum(widths) or len(widths)
     fill = _glass_fill(details.get("glass_type"))
     matte = "МАТ" in str(details.get("glass_type") or "").upper()
-    x = left + 12
-    inner_width = drawing_width - 24
+    sides = snapshot_side_projection(details)
+    left_px = max(2, sides["left"] * scale) if sides["left"] else 0
+    right_px = max(2, sides["right"] * scale) if sides["right"] else 0
+    if left_px:
+        draw.rectangle((left, top, left + left_px, bottom), fill="#D9E3E5", outline=INK)
+    if right_px:
+        draw.rectangle((right - right_px, top, right, bottom), fill="#D9E3E5", outline=INK)
+    x = left + left_px
+    inner_width = max(1, drawing_width - left_px - right_px)
     for row, width_mm in zip(rows, widths):
         panel_px = inner_width * width_mm / width_total
         panel_left = round(x)

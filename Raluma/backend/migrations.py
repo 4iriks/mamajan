@@ -20,6 +20,11 @@ from engine.legacy_values import (
 # ── Новые таблицы ─────────────────────────────────────────────────────────────
 
 _CREATE_TABLES = [
+    """CREATE TABLE IF NOT EXISTS customers (
+        id INTEGER PRIMARY KEY, name VARCHAR(250) NOT NULL,
+        name_key VARCHAR(250) NOT NULL UNIQUE,
+        is_active BOOLEAN NOT NULL DEFAULT 1
+    )""",
     """
     CREATE TABLE IF NOT EXISTS migration_markers (
         name VARCHAR PRIMARY KEY,
@@ -421,7 +426,7 @@ _DATA_MIGRATIONS = [
     "INSERT OR IGNORE INTO catalog_items (sku, name, \"group\", system, unit, purchase_price, markup_percent, weight, waste_percent, section_width_mm, section_height_mm, image_file, paint_mode, color_variants, supplier, is_active, note, created_at, updated_at) VALUES ('RU005', 'Ролик 4-колесный', 'Фурнитура', 'СЛАЙД', 'шт', 0, 40, 0, 0, 0, 0, 'RU005.png', 'Не красится', '[\"Без цвета\"]', 'Фурнитура СПБ', 1, 'Для панелей шириной больше 500 мм', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
     "INSERT OR IGNORE INTO catalog_items (sku, name, \"group\", system, unit, purchase_price, markup_percent, weight, waste_percent, section_width_mm, section_height_mm, image_file, paint_mode, color_variants, supplier, is_active, note, created_at, updated_at) VALUES ('RS3061', 'Профиль с зацепом', 'Профили', 'СЛАЙД', 'м.п.', 0, 35, 0, 4, 18.8, 18.8, 'RS3061.png', 'Не красится', '[\"Без цвета\"]', 'Raluma', 1, 'Заменяет старый h-профиль RS1004, перехлест между стеклами 11,5 мм', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
     "INSERT OR IGNORE INTO catalog_items (sku, name, \"group\", system, unit, purchase_price, markup_percent, weight, waste_percent, section_width_mm, section_height_mm, image_file, paint_mode, color_variants, supplier, is_active, note, created_at, updated_at) VALUES ('RS30201', 'Ручка-скоба 600мм', 'Ручки', 'СЛАЙД', 'шт', 0, 40, 0, 0, 0, 0, 'RS30201.png', 'Не красится', '[\"Без цвета\"]', 'Фурнитура СПБ', 1, 'Боковые и центральные панели СЛАЙД', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-    "UPDATE catalog_items SET image_file = 'RS3061.png', name = 'Профиль с зацепом' WHERE sku = 'RS3061'",
+    "UPDATE catalog_items SET image_file = 'RS3061.png', name = 'Алюминиевый с зацепом RS3061' WHERE sku = 'RS3061'",
     "UPDATE catalog_items SET image_file = 'RS30201.png', name = 'Ручка-скоба 600мм' WHERE sku = 'RS30201'",
     "UPDATE catalog_items SET image_file = 'RS1006.png', name = 'Прозрачный межстекольный' WHERE sku = 'RS1006'",
     "UPDATE catalog_items SET image_file = 'RS108.png', name = 'Заглушка стекольного центральная' WHERE sku = 'RS108'",
@@ -1215,6 +1220,15 @@ def _migrate_finish_chains_v2(conn) -> None:
     )
 
 
+def _seed_customer_directory_once(conn):
+    marker = "customer_directory_v1"
+    if conn.execute(text("SELECT 1 FROM migration_markers WHERE name=:name"), {"name": marker}).first():
+        return
+    for name in ("ООО ПРОЗРАЧНЫЕ РЕШЕНИЯ", "ООО КРОКНА ИНЖИНИРИНГ"):
+        conn.execute(text("INSERT INTO customers (name, name_key, is_active) VALUES (:name, :key, 1) ON CONFLICT(name_key) DO NOTHING"), {"name": name, "key": name.casefold()})
+    conn.execute(text("INSERT INTO migration_markers (name) VALUES (:name)"), {"name": marker})
+
+
 def _migrate_cs_t40_once(conn):
     from engine.profile_catalog import PROFILE_CATALOG
 
@@ -1293,6 +1307,10 @@ def run_migrations():
             except Exception:
                 pass
 
+        # New-project validation depends on this directory. Fail visibly rather
+        # than start with an empty list after an unsuccessful seed migration.
+        _seed_customer_directory_once(conn)
+        conn.commit()
         migrations = (
             _migrate_cs_t40_once,
             _normalize_section_center_offsets,

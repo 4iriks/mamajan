@@ -189,10 +189,10 @@
   .resp-item .resp-name { padding: 0.5mm 1mm; }
   .resp-item .resp-line { border-bottom: 1px solid #000; height: 6mm; }
   .check-footer { display: grid; grid-template-columns: 1fr 62mm; gap: 4mm; align-items: end; margin-top: 3mm; }
-  .photo-date { margin-top: 3mm; font-size: 10.5pt; }
+  .photo-date { margin-top: 1mm; font-size: 10.5pt; }
   .photo-date .line { display: inline-block; width: 50mm; border-bottom: 1px solid #000; height: 4mm; vertical-align: baseline; }
-  .sign-box { justify-self: center; width: 56mm; margin-top: 5mm; text-align: center; font-size: 10pt; }
-  .sign-line { border-bottom: 1px solid #000; height: 10mm; margin-top: 5mm; }
+  .sign-box { justify-self: center; width: 56mm; margin-top: 1mm; text-align: center; font-size: 10pt; }
+  .sign-line { border-bottom: 1px solid #000; height: 6mm; margin-top: 2mm; }
   .sign-caption { font-size: 7.5pt; margin-top: 1mm; }
 
   {% if not is_pdf %}
@@ -234,9 +234,12 @@
       {% set rfW = rw - 20 %}
       {% set rfH = rh - 4 %}
       {% set rpt = 5 %}
-      {% set riX = rfX + rpt %}
+      {% set sides = side_projection(section, calc) %}
+      {% set left_px = [1, sides.left * rfW / section.width] | max if sides.left else 0 %}
+      {% set right_px = [1, sides.right * rfW / section.width] | max if sides.right else 0 %}
+      {% set riX = rfX + left_px %}
       {% set riY = rfY + rpt %}
-      {% set riW = rfW - 2 * rpt %}
+      {% set riW = rfW - left_px - right_px %}
       {% set riH = rfH - 2 * rpt %}
       {% set glass_fill_color = section.glass_type | glass_fill %}
       {% set matte_glass = section.glass_type | glass_is_matte %}
@@ -280,8 +283,8 @@
         <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rfW }}" height="{{ rfH }}" fill="none" stroke="#000" stroke-width="1.2"/>
         <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rfW }}" height="{{ rpt }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
         <rect x="{{ rfX }}" y="{{ rfY + rfH - rpt }}" width="{{ rfW }}" height="{{ rpt }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
-        <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rpt }}" height="{{ rfH }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
-        <rect x="{{ rfX + rfW - rpt }}" y="{{ rfY }}" width="{{ rpt }}" height="{{ rfH }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
+        {% if left_px %}<rect data-side="left" data-profile-width-mm="{{ sides.left }}" x="{{ rfX }}" y="{{ rfY }}" width="{{ left_px }}" height="{{ rfH }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>{% endif %}
+        {% if right_px %}<rect data-side="right" data-profile-width-mm="{{ sides.right }}" x="{{ rfX + rfW - right_px }}" y="{{ rfY }}" width="{{ right_px }}" height="{{ rfH }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>{% endif %}
         {# Panels #}
         {% set room_ns = namespace(x=riX, centerBoundary=riX + riW / 2) %}
         {% for i in range(section.panels) %}

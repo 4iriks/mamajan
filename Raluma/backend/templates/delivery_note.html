@@ -153,7 +153,7 @@
               <div class="row-title">{{ row.name|e }}</div>
               {% if row.kind == 'construction' %}
                 <div class="row-meta">
-                  {{ row.profile_set_name|e }}, {{ row.color|e }}{% if row.threshold and row.threshold != 'Пороги согласно ТЗ' %}, {{ row.threshold|e }}{% endif %}, размеры согласно ТЗ, размеры конструкции:
+                  {% if row.profile_set_name %}{{ row.profile_set_name|e }}, {% endif %}{{ row.color|e }}{% if row.threshold and row.threshold != 'Пороги согласно ТЗ' %}, {{ row.threshold|e }}{% endif %}, размеры конструкции:
                 </div>
                 {% if row.threshold == 'Пороги согласно ТЗ' %}<div class="row-meta">Пороги указаны отдельно для каждого размера.</div>{% endif %}
                 <div class="dimensions">
@@ -237,10 +237,13 @@
         <tr class="group-row">
           {% if loop.first %}<td class="item-number" rowspan="{{ delivery_project_extra_rows|length }}">3</td>{% endif %}
           <td>
+            {% if row.group_start %}
             <div class="row-title">
               {% if row.article %}<span class="nowrap">{{ row.article|e }}</span> — {% endif %}{{ row.name|e }}
             </div>
             {% if row.color %}<div class="row-meta">Цвет: {{ row.color|e }}</div>{% endif %}
+            {% if row.image_data or row.image %}<img src="{{ row.image_data or (row.image|img_b64) }}" alt="" style="max-width:22mm;max-height:14mm">{% endif %}
+            {% endif %}
             {% if row.size_display %}<div class="row-meta">Размер: {{ row.size_display|e }}</div>{% endif %}
           </td>
           <td class="quantity">{{ row.pdf_qty_display }}</td>

@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Save, FileText, ClipboardList, Map } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Save, ClipboardList } from 'lucide-react';
 import {
   calculateLocalSection,
   isBookCalcPreview,
@@ -258,7 +258,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
           </div>
 
           {/* Мобильный визуализатор */}
-          <EditorVisualizer section={section} variant="mobile" calc={sectionCalc} />
+          {section.system !== 'ЦС' && <EditorVisualizer section={section} variant="mobile" calc={sectionCalc} />}
 
           {/* Нижняя панель: сохранить + кнопки документов */}
           <div className="flex flex-wrap gap-2 sm:gap-3 items-stretch">
@@ -276,13 +276,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
             </button>
             {(section.system === 'КНИЖКА'
               ? []
-              : section.system === 'ЛИФТ'
-              ? [{ name: 'Производственный лист', icon: ClipboardList }]
-              : [
-                  { name: 'Спецификация', icon: FileText },
-                  { name: 'Производственный лист', icon: ClipboardList },
-                  { name: 'Схема', icon: Map },
-                ]
+              : [{ name: 'Производственный лист', icon: ClipboardList }]
             ).map(doc => (
               <button key={doc.name} onClick={() => onOpenDoc?.(doc.name)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface/60 border border-tint/30 hover:bg-tint/30 hover:border-accent/40 transition-all group">
@@ -290,11 +284,12 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
                 <span className="text-[10px] font-bold text-fg/50 group-hover:text-fg transition-colors whitespace-nowrap uppercase tracking-wider">{doc.name}</span>
               </button>
             ))}
+            <button type="button" onClick={onBack} className="flex items-center gap-2 rounded-xl border border-tint/30 px-3 py-2 text-sm"><ArrowLeft className="h-4 w-4" />Вернуться к проекту</button>
           </div>
         </div>
 
         {/* Десктопный визуализатор (sticky) */}
-        <EditorVisualizer section={section} variant="desktop" calc={sectionCalc} />
+        {section.system !== 'ЦС' && <EditorVisualizer section={section} variant="desktop" calc={sectionCalc} />}
 
       </div>
     </>

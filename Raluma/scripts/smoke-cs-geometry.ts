@@ -124,6 +124,11 @@ sections.forEach((section, index) => {
   frames.glass.forEach((point, i) => { near(point.x, results[index].glass_polygon[i].x); near(point.y, results[index].glass_polygon[i].y); });
   const light = csChangeDimensionMode(config, 'clear');
   const restored = csChangeDimensionMode(light.csConfig!, 'installation');
+  const savedClear = JSON.parse(JSON.stringify({ ...localToApi({ ...section, ...light }, 0), id: 1, project_id: 1 }));
+  const beforeOpen = JSON.stringify(savedClear);
+  const opened = apiToLocal(savedClear);
+  assert.deepEqual(opened.csConfig, restored.csConfig, 'opening a legacy clear-size section preserves the outer geometry');
+  assert.equal(JSON.stringify(savedClear), beforeOpen, 'opening must not mutate the saved payload');
   const originalBounds = csBounds(frames.installation);
   restored.csConfig!.vertices.forEach((p, i) => {
     near(p.x, frames.installation[i].x - originalBounds.minX);

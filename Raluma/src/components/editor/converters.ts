@@ -2,6 +2,7 @@ import type { ExtraComponent, Section, SystemType } from './types';
 import type { SectionOut } from '../../api/projects';
 import { bookExtraDoorPanelOptions, normalizeBookSystem } from '../../constants/book';
 import { normalizeGlassType } from '../../constants/glass';
+import { csChangeDimensionMode } from './csGeometry';
 
 function normalizePaintingType(value?: string): Section['paintingType'] {
   const normalized = (value || '').trim().toLowerCase();
@@ -85,9 +86,11 @@ export function stringifyExtraComponents(rows?: ExtraComponent[]): string {
 
 function normalizeLegacyValue(field: string, value?: string): string | undefined {
   if (!value) return value;
+  if (field === 'interGlassProfile' && /rs3061|rs1004|зацеп/i.test(value)) return 'Алюминиевый с зацепом RS3061';
   const replacements: Record<string, Record<string, string>> = {
     interGlassProfile: {
-      'h-профиль RS1004': 'Профиль с зацепом RS3061',
+      'h-профиль RS1004': 'Алюминиевый с зацепом RS3061',
+      'Профиль с зацепом RS3061': 'Алюминиевый с зацепом RS3061',
     },
     lockLeft: {
       '1-сторонний RS3018': 'ЗАМОК-ЗАЩЕЛКА 1стор RS3018',
@@ -172,6 +175,11 @@ function normalizeBookOpening(value?: string): 'inside_in' | 'inside_out' | 'out
 }
 
 export function apiToLocal(s: SectionOut): Section {
+  let outerCsDimensions: Partial<Section> = {};
+  if (s.system === 'ЦС' && s.cs_config?.dimensionMode === 'clear') {
+    try { outerCsDimensions = csChangeDimensionMode(s.cs_config, 'installation'); }
+    catch { /* Keep an invalid legacy contour intact; opening a project must not discard it. */ }
+  }
   // Backwards compat: migrate legacy 'ДВЕРЬ' value
   const rawSystem = s.system === 'ДВЕРЬ' ? 'КОМПЛЕКТАЦИЯ' : s.system;
   const centerHandle = normalizeLegacyValue('centerHandle', s.center_handle);
@@ -316,6 +324,7 @@ export function apiToLocal(s: SectionOut): Section {
     csConfig: s.cs_config,
     comments: s.comments,
     documentOverrides: s.document_overrides,
+    ...outerCsDimensions,
   };
 }
 

@@ -16,6 +16,7 @@ import cairosvg
 from PIL import Image, ImageChops, ImageDraw
 
 from engine.office_common import load_font
+from engine.side_projection import side_projection
 from engine.pdf import (
     expand_glass_widths,
     glass_fill,
@@ -490,7 +491,7 @@ def render_slide_room(
     fill = glass_fill(getattr(calc, "glass_type", "")) if glass_supplied else BACKGROUND
     matte = glass_supplied and glass_is_matte(getattr(calc, "glass_type", ""))
     slide_rows = int(getattr(section, "slide_rows", 1) or 1)
-    first_value = str(getattr(section, "first_panel_inside", "") or "")
+    first_value = str(getattr(section, "first_panel_inside", "") or "Справа")
     first_right = first_value == "Справа"
     panel_numbers = list(getattr(calc, "panel_numbers", None) or [])
 
@@ -514,8 +515,16 @@ def render_slide_room(
     center_right = panels // 2
     room_bidirectional = slide_rows == 1 and not left_deaf and not right_deaf
 
-    x = left + 12
-    inner_width = drawing_width - 24
+    sides = side_projection(section, calc)
+    scale = drawing_width / section_width
+    left_px = max(2, sides["left"] * scale) if sides["left"] else 0
+    right_px = max(2, sides["right"] * scale) if sides["right"] else 0
+    if left_px:
+        draw.rectangle((left, top, left + left_px, bottom), fill="#D9E3E5", outline=INK)
+    if right_px:
+        draw.rectangle((right - right_px, top, right, bottom), fill="#D9E3E5", outline=INK)
+    x = left + left_px
+    inner_width = max(1, drawing_width - left_px - right_px)
     panel_boxes: list[tuple[int, int]] = []
     for index, panel_width in enumerate(widths):
         panel_px = inner_width * panel_width / width_sum
@@ -1254,7 +1263,7 @@ def render_cs_front(section: object, calc: object) -> bytes:
         _center_text(
             draw,
             (center_x, center_y),
-            str(getattr(pane, "number", "")),
+            f"З{getattr(pane, 'number', '')}",
             pane_font,
             INK,
         )

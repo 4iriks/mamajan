@@ -45,6 +45,7 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
       <div className="space-y-4">
+        {s.system === 'ЦС' && <h3 className="text-sm font-bold">Размеры конструкции</h3>}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <label className={LBL}>Секция №</label>
@@ -62,11 +63,11 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <label className={LBL}>{s.system === 'ЦС' ? `Ширина ${s.csConfig?.dimensionMode === 'clear' ? 'светового' : 'монтажного'} проёма, мм` : 'Ширина, мм'}</label>
+            <label className={LBL}>Ширина, мм</label>
             <input type="number" step={s.system === 'ЦС' ? 'any' : 1} value={s.width || ''} onChange={e => update({ width: (s.system === 'ЦС' ? parseFloat(e.target.value) : parseInt(e.target.value)) || 0 })} className={INP} />
           </div>
           <div className="space-y-1.5">
-            <label className={LBL}>{s.system === 'ЦС' ? `Высота ${s.csConfig?.dimensionMode === 'clear' ? 'светового' : 'монтажного'} проёма, мм` : 'Высота, мм'}</label>
+            <label className={LBL}>Высота, мм</label>
             <input type="number" step={s.system === 'ЦС' ? 'any' : 1} value={s.height || ''} onChange={e => update({ height: (s.system === 'ЦС' ? parseFloat(e.target.value) : parseInt(e.target.value)) || 0 })} className={INP} />
           </div>
         </div>
@@ -126,7 +127,7 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
       <div className="space-y-4">
         <div className="space-y-1.5">
           <label className={LBL}>Окрашивание</label>
-          <div className="space-y-1.5">
+          <div className={s.system === 'ЦС' ? 'grid grid-cols-2 gap-2' : 'space-y-1.5'}>
             {(['Анод/неокрас', 'RAL стандарт', 'RAL муар', 'Сублимация'] as const).map(type => (
               <button key={type} onClick={() => setPaintingType(type)}
                 className={`flex items-center gap-3 w-full px-3 py-2 rounded-xl border transition-all text-left ${
@@ -281,7 +282,7 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
               <option value={NO_INTER_GLASS_PROFILE}>{NO_INTER_GLASS_PROFILE}</option>
               <option>Алюминиевый RS2061</option>
               <option>Прозрачный межстекольный RS1006</option>
-              <option>Профиль с зацепом RS3061</option>
+              <option>Алюминиевый с зацепом RS3061</option>
             </select>
           </div>
         </div>

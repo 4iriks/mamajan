@@ -1337,10 +1337,11 @@ def _project_header(
     project: object,
     *,
     production: bool = False,
+    compact: bool = False,
 ) -> None:
     table = document.add_table(rows=2, cols=3)
     title_cell = table.cell(0, 0).merge(table.cell(1, 0))
-    _set_cell_text(title_cell, title.upper(), bold=True, size=16)
+    _set_cell_text(title_cell, title.upper(), bold=True, size=12 if compact else 16)
     _set_cell_text(
         table.cell(0, 1),
         "Проект №" if production else "Счёт №",
@@ -1500,20 +1501,9 @@ def _build_sketch_docx(context: dict) -> bytes:
 
         diagrams = sketch_section["diagrams"]
         if diagrams:
-            tall_section = (
-                float(sketch_section.get("width_mm") or 0)
-                < float(sketch_section.get("height_mm") or 0)
-            )
-            if tall_section and len(diagrams) >= 2:
-                diagram_table = document.add_table(rows=1, cols=2)
-            else:
-                diagram_table = document.add_table(rows=len(diagrams), cols=1)
+            diagram_table = document.add_table(rows=len(diagrams), cols=1)
             for index, diagram in enumerate(diagrams):
-                cell = (
-                    diagram_table.cell(0, index)
-                    if tall_section and len(diagrams) >= 2
-                    else diagram_table.cell(index, 0)
-                )
+                cell = diagram_table.cell(index, 0)
                 _set_cell_text(
                     cell,
                     diagram["title"].upper(),
@@ -1524,21 +1514,69 @@ def _build_sketch_docx(context: dict) -> bytes:
                 _add_picture_fitted(
                     cell,
                     diagram["png"],
-                    max_width_mm=(
-                        72
-                        if tall_section and diagram.get("kind") == "room"
-                        else 100
-                        if tall_section
-                        else 176
-                    ),
-                    max_height_mm=82 if diagram.get("kind") == "room" else 38,
+                    max_width_mm=176,
+                    max_height_mm=(52 if diagram.get("kind") == "room" else 25)
+                    if len(sketch_section["panels"]) >= 6
+                    else (55 if diagram.get("kind") == "room" else 27),
                 )
             diagram_table.style = "Table Grid"
             _set_table_geometry_mm(
                 diagram_table,
-                (76, 106) if tall_section and len(diagrams) >= 2 else (182,),
+                (182,),
             )
             for row in diagram_table.rows:
+                _prevent_row_split(row)
+
+        sides = sketch_section.get("side_profiles") or {}
+        if sides.get("left") or sides.get("right"):
+            table = document.add_table(rows=2, cols=2)
+            for index, (side, title) in enumerate((("left", "ПРОФИЛИ СЛЕВА"), ("right", "ПРОФИЛИ СПРАВА"))):
+                _set_cell_text(table.cell(0, index), title, bold=True, size=8)
+                text = "\n".join(f"{row['article']} — {row['name']} · {row['size']} · {row['qty']} {row['unit']}" for row in sides.get(side, []))
+                _set_cell_text(table.cell(1, index), text or "Без комплектующих", size=8)
+            _style_table(table)
+            _set_table_geometry_mm(table, (91, 91))
+
+        profiles = sketch_section.get("common_profiles", sketch_section.get("profiles")) or []
+        if profiles:
+            _sketch_heading(document, "ПРОФИЛИ И ФУРНИТУРА", size=8)
+            profiles_table = document.add_table(rows=1, cols=4)
+            profile_headers = (
+                "Артикул",
+                "Наименование",
+                "Размер",
+                "Кол-во",
+            )
+            for column, header in enumerate(profile_headers):
+                _set_cell_text(
+                    profiles_table.cell(0, column),
+                    header,
+                    bold=True,
+                    size=6.5,
+                    align=WD_ALIGN_PARAGRAPH.CENTER,
+                )
+            for profile in profiles:
+                row = profiles_table.add_row()
+                values = (
+                    profile["article"] or "—",
+                    profile["name"],
+                    profile["size"],
+                    f"{profile['qty']} {profile['unit']}",
+                )
+                for column, value in enumerate(values):
+                    _set_cell_text(
+                        row.cells[column],
+                        value,
+                        size=6.3,
+                        align=(
+                            WD_ALIGN_PARAGRAPH.CENTER
+                            if column in {0, 2, 3}
+                            else WD_ALIGN_PARAGRAPH.LEFT
+                        ),
+                    )
+            _style_table(profiles_table)
+            _set_table_geometry_mm(profiles_table, (28, 82, 38, 34))
+            for row in profiles_table.rows:
                 _prevent_row_split(row)
 
         _sketch_heading(document, "РАЗМЕРЫ СТЕКОЛ", size=8)
@@ -1585,48 +1623,6 @@ def _build_sketch_docx(context: dict) -> bytes:
         _set_table_geometry_mm(panels_table, (12, 32, 70, 25, 25, 18))
         for row in panels_table.rows:
             _prevent_row_split(row)
-
-        profiles = sketch_section.get("profiles") or []
-        if profiles:
-            _sketch_heading(document, "ПРОФИЛИ И ФУРНИТУРА", size=8)
-            profiles_table = document.add_table(rows=1, cols=4)
-            profile_headers = (
-                "Артикул",
-                "Наименование",
-                "Размер",
-                "Кол-во",
-            )
-            for column, header in enumerate(profile_headers):
-                _set_cell_text(
-                    profiles_table.cell(0, column),
-                    header,
-                    bold=True,
-                    size=6.5,
-                    align=WD_ALIGN_PARAGRAPH.CENTER,
-                )
-            for profile in profiles:
-                row = profiles_table.add_row()
-                values = (
-                    profile["article"] or "—",
-                    profile["name"],
-                    profile["size"],
-                    f"{profile['qty']} {profile['unit']}",
-                )
-                for column, value in enumerate(values):
-                    _set_cell_text(
-                        row.cells[column],
-                        value,
-                        size=6.3,
-                        align=(
-                            WD_ALIGN_PARAGRAPH.CENTER
-                            if column in {0, 2, 3}
-                            else WD_ALIGN_PARAGRAPH.LEFT
-                        ),
-                    )
-            _style_table(profiles_table)
-            _set_table_geometry_mm(profiles_table, (28, 82, 38, 34))
-            for row in profiles_table.rows:
-                _prevent_row_split(row)
 
     project_components = context.get("project_components") or []
     if project_components:
@@ -1685,6 +1681,17 @@ def _build_sketch_docx(context: dict) -> bytes:
                             else WD_ALIGN_PARAGRAPH.LEFT
                         ),
                     )
+            for index, component in enumerate(project_components, start=1):
+                if not component.get("group_start", True):
+                    continue
+                end = index + component.get("group_span", 1) - 1
+                article_cell, name_cell = project_table.cell(index, 0), project_table.cell(index, 1)
+                if end > index:
+                    article_cell = article_cell.merge(project_table.cell(end, 0))
+                    name_cell = name_cell.merge(project_table.cell(end, 1))
+                _set_cell_text(article_cell, component["article"] or "—", size=7.5)
+                _set_cell_text(name_cell, component["name"] + ("\nЦвет: " + component["color"] if component.get("color") else ""), size=7.5)
+                _add_picture_fitted(name_cell, image_stream(component.get("image"), component.get("image_data")), max_width_mm=24, max_height_mm=16)
             _style_table(project_table)
             _set_table_geometry_mm(project_table, (28, 70, 28, 22, 34))
             for row in project_table.rows:
@@ -1780,7 +1787,8 @@ def _add_commercial_docx_header(
     context: dict,
     quote: dict,
 ) -> None:
-    _project_header(document, context["title"], context["project"])
+    compact = context.get("doc_type") == "commercial"
+    _project_header(document, context["title"], context["project"], compact=compact)
     company = document.add_paragraph(
         f"{context.get('company_name', '')} · {context.get('company_address', '')}"
     )
@@ -1790,7 +1798,7 @@ def _add_commercial_docx_header(
         run.font.size = Pt(7.5)
         run.font.color.rgb = RGBColor.from_string("566D73")
 
-    quote_meta = document.add_table(rows=2, cols=3)
+    quote_meta = document.add_table(rows=1 if compact else 2, cols=6 if compact else 3)
     meta_values = (
         ("Дата", quote.get("quote_date") or "—"),
         ("Менеджер", quote.get("manager") or "—"),
@@ -1806,7 +1814,7 @@ def _add_commercial_docx_header(
         ),
     )
     for index, (label, value) in enumerate(meta_values):
-        cell = quote_meta.cell(index // 3, index % 3)
+        cell = quote_meta.cell(0, index) if compact else quote_meta.cell(index // 3, index % 3)
         _set_cell_text(cell, f"{label}: {value}", bold=True, size=7.2)
     _style_table(quote_meta, header_rows=0)
 
@@ -1899,7 +1907,7 @@ def _build_commercial_docx(context: dict) -> bytes:
             sketch_cell,
             render_quote_room_png(details),
             max_width_mm=198,
-            max_height_mm=83,
+            max_height_mm=65 if context.get("doc_type") == "commercial" else 83,
         )
         _style_table(product, header_rows=0)
 

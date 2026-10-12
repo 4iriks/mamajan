@@ -11,6 +11,7 @@ from database import get_db
 import models
 import schemas
 from auth import get_current_user
+from api.customers import active_customer
 from engine.legacy_values import normalize_center_handle_offset
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -334,6 +335,7 @@ def create_project(
     current_user: models.User = Depends(get_current_user),
 ):
     values = data.model_dump()
+    values["customer"] = active_customer(db, values.get("customer"))
     # Invoice numbers are immutable and always issued by the server.
     values.pop("invoice_number", None)
     order_number = str(values.get("order_number") or values.get("number") or "").strip()
@@ -372,6 +374,8 @@ def update_project(
 ):
     project = _get_project_or_404(project_id, db, current_user)
     values = data.model_dump(exclude_unset=True)
+    if "customer" in values and values["customer"] != project.customer:
+        values["customer"] = active_customer(db, values["customer"])
     if "extra_components" in values:
         values["extra_components"] = _normalize_project_extras(
             values.get("extra_components"), db
@@ -407,17 +411,19 @@ def delete_project(
 @router.post("/{project_id}/copy", response_model=schemas.ProjectOut, status_code=201)
 def copy_project(
     project_id: int,
+    customer: str | None = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
     source = _get_project_or_404(project_id, db, current_user)
+    selected_customer = active_customer(db, customer if customer is not None else source.customer)
     new_project = models.Project(
         # A copy is a new estimate with its own invoice. The production order
         # number is assigned only after the copied estimate is approved.
         number="",
         order_number=None,
         invoice_number=_next_invoice_number(db),
-        customer=source.customer,
+        customer=selected_customer,
         system=source.system,
         subtype=source.subtype,
         extra_parts=source.extra_parts,

@@ -14,6 +14,7 @@ from api import (
     auth,
     calculations,
     catalog,
+    customers,
     documents,
     pricing,
     projects,
@@ -78,6 +79,7 @@ app.add_middleware(
 # Роутеры
 app.include_router(auth.router)
 app.include_router(users.router)
+app.include_router(customers.router)
 app.include_router(projects.router)
 app.include_router(sections.router)
 app.include_router(documents.router)

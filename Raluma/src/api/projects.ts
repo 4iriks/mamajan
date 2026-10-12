@@ -331,6 +331,7 @@ export interface CsCalcProfile {
   image?: string;
   requires_paint?: boolean;
   cut_lengths_mm?: number[];
+  cutting_text?: string;
 }
 
 export interface CsCalcPreview {
@@ -565,9 +566,9 @@ export const deleteProject = (id: number) =>
     ? client.delete(`/api/projects/${id}`)
     : Promise.resolve(deleteLocalProject(id));
 
-export const copyProject = (id: number) =>
+export const copyProject = (id: number, customer?: string) =>
   hasAuthToken()
-    ? client.post<ProjectFull>(`/api/projects/${id}/copy`).then(r => r.data)
+    ? client.post<ProjectFull>(`/api/projects/${id}/copy`, undefined, { params: customer ? { customer } : undefined }).then(r => r.data)
     : Promise.resolve(copyLocalProject(id));
 
 // Sections

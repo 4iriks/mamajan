@@ -15,6 +15,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from engine.book_calc import calculate_book
 from engine.cs_calc import calculate_cs, cs_result_namespace
+from engine.component_groups import group_extra_sources, group_display_rows
 from engine.document_numbers import (
     production_project_number,
     resolve_section_numbers,
@@ -190,7 +191,9 @@ class PhysicalGlassItem:
 
 
 def _get_env() -> Environment:
+    from engine.side_projection import snapshot_side_projection
     env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=False)
+    env.globals["snapshot_side_projection"] = snapshot_side_projection
     env.filters["img_b64"] = _img_b64
     env.filters["format_mm"] = _format_mm
     return env
@@ -554,6 +557,8 @@ def _paint_color_key(value: object) -> str:
     normalized = " ".join(str(value or "").split()).casefold()
     if normalized.startswith("ral "):
         normalized = normalized[4:].strip()
+    if normalized.startswith("стандарт "):
+        normalized = normalized[len("стандарт "):].strip()
     return normalized
 
 
@@ -583,6 +588,7 @@ def _manual_paint_row(raw: dict) -> tuple[str, dict] | None:
         "allowance": allowance,
         "total_m": total_m,
         "note": str(raw.get("note") or "").strip(),
+        "_view_group": raw.get("_view_group"),
     }
     return color, row
 
@@ -599,6 +605,9 @@ def _project_extra_paint_rows(project: object) -> list[dict]:
             or extra.get("finishName")
             or ""
         ).strip()
+        finish = str(extra.get("finishName") or extra.get("finish_name") or "").strip()
+        if explicit_color and finish and "стандарт" not in finish.casefold():
+            color = f"{finish} {explicit_color}"
         requires_paint = extra.get("requires_paint")
         if requires_paint is None:
             requires_paint = extra.get("requiresPaint")
@@ -615,6 +624,7 @@ def _project_extra_paint_rows(project: object) -> list[dict]:
             continue
         rows.append(
             {
+                "_view_group": extra.get("_view_group"),
                 "article": extra.get("sku") or extra.get("article") or "",
                 "name": extra.get("name") or "Доп. комплектующее",
                 "color": color,
@@ -637,16 +647,17 @@ def _build_paint_pages(
     for item in calculated:
         if str(getattr(item.section, "system", "")) == "ЦС":
             color = item.calc.color_text
+            color = next((existing for existing in grouped if _paint_color_key(existing) == _paint_color_key(color)), color)
             for profile in item.calc.profiles:
                 if not profile.requires_paint:
                     continue
                 for length in profile.cut_lengths_mm:
-                    key = (profile.article, profile.name, length, profile.image, "", "ЦС: без припуска на распил")
+                    key = (profile.article, profile.name, length, profile.image, "", "")
                     row = grouped[color].setdefault(key, {
                         "article": profile.article, "name": profile.name, "image": profile.image,
                         "image_data": "", "paint_marker": False, "paint_marker_class": "",
                         "qty": 0, "clean": length, "allowance": length, "total_m": 0,
-                        "note": "ЦС: без припуска на распил",
+                        "note": "", "stock_length": True,
                     })
                     row["qty"] += max(1, int(getattr(item.section, "quantity", 1) or 1))
                     row["total_m"] = round(row["qty"] * length / 1000, 3)
@@ -654,6 +665,9 @@ def _build_paint_pages(
         if str(getattr(item.calc, "status", "") or "") == "preliminary":
             continue
         color = item.calc.color_text or "Без цвета"
+        if "муар" in str(getattr(item.section, "painting_type", "")).casefold():
+            color = "RAL муар " + str(getattr(item.section, "ral_color", "") or "").strip()
+        color = next((existing for existing in grouped if _paint_color_key(existing) == _paint_color_key(color)), color)
         for profile in item.calc.profiles:
             if not profile.painted or profile.length_mm <= 0:
                 continue
@@ -746,7 +760,7 @@ def _build_paint_pages(
                 "groups": groups,
                 "total_qty": total_qty,
                 "total_m": total_m,
-                "allowance_label": "Размер в заявку, мм" if any(row.get("note", "").startswith("ЦС:") for row in rows) else "С припуском 50 мм",
+                "allowance_label": "Размер в заявку, мм" if any(row.get("stock_length") for row in rows) else "С припуском 50 мм",
             }
         )
     return sorted(pages, key=lambda page: page["color"])
@@ -756,7 +770,9 @@ def _group_paint_rows(rows: list[dict]) -> list[dict]:
     groups: list[dict] = []
     by_key: dict[tuple, dict] = {}
     for row in rows:
-        if row.get("_manual"):
+        if row.get("_view_group"):
+            key = ("extra", row["_view_group"])
+        elif row.get("_manual"):
             key = ("manual", int(row.get("_manual_order") or 0))
         else:
             key = (
@@ -875,7 +891,7 @@ def _physical_glass_pieces(
                         "height": round(float(getattr(pane, "height_mm", 0)), 1),
                         "area": float(getattr(pane, "area_m2", 0) or 0),
                         "shape_key": shape_key,
-                        "note": "ЦС: контур по схеме",
+                        "note": "" if getattr(pane, "is_rectangle", False) else "ЧЕРТЕЖ",
                     }
                 )
         return pieces
@@ -1163,8 +1179,7 @@ def _construction_name(section: object) -> str:
         panels = _positive_int(getattr(section, "panels", 2), 2)
         return f"Raluma ЛИФТ, {panels} панели"
     if system == "ЦС":
-        variant = str(getattr(section, "cs_shape", "") or "").strip()
-        return f"Raluma ЦС{f', {variant}' if variant else ''}"
+        return "ЦЕЛЬНОСТЕКЛЯННАЯ КОНСТРУКЦИЯ"
     return system or "Секция"
 
 
@@ -1179,6 +1194,8 @@ def _delivery_threshold_text(value: object) -> str:
 
 def _delivery_profile_set_name(system: object, stages: int) -> str:
     """Return the profile-set label after normalizing legacy stage data."""
+    if str(system or "").strip().upper() == "ЦС":
+        return ""
     if stages == 1:
         return "КОМПЛЕКТ ПРОФИЛЕЙ"
     if str(system or "").strip().upper() == "СЛАЙД":
@@ -1208,11 +1225,15 @@ def _build_delivery_construction_rows(
                 "qty": 0,
             },
         )
-        threshold = _delivery_threshold_text(getattr(section, "threshold", ""))
+        threshold = "" if system == "ЦС" else _delivery_threshold_text(getattr(section, "threshold", ""))
         if threshold and threshold not in group["thresholds"]:
             group["thresholds"].append(threshold)
         width = _format_mm(_safe_float(getattr(section, "width", 0)))
         height = _format_mm(_safe_float(getattr(section, "height", 0)))
+        if system == "ЦС":
+            cs = calculate_cs(section)
+            width = _format_mm(cs["installation_width_mm"])
+            height = _format_mm(cs["installation_height_mm"])
         quantity = max(1, _positive_int(getattr(section, "quantity", 1), 1))
         dimension_key = (f"{width}×{height} мм", threshold)
         group["dimensions"][dimension_key] = (
@@ -1381,7 +1402,7 @@ def _parse_extra_components(raw: object) -> list[dict]:
             parsed = json.loads(raw or "[]")
         except (TypeError, json.JSONDecodeError):
             parsed = []
-    return [row for row in parsed if isinstance(row, dict)]
+    return group_extra_sources(parsed)
 
 
 def _is_no_option(value: object) -> bool:
@@ -1400,11 +1421,13 @@ def _add_delivery_component(
     article: str,
     name: str,
     qty: float,
+    view_group: str = "",
     color: str = "",
     size: str = "",
     note: str = "",
     unit: str = "шт",
     image: str = "",
+    image_data: str = "",
     stage: str = "",
 ) -> None:
     if qty <= 0 or not (article or name):
@@ -1421,15 +1444,19 @@ def _add_delivery_component(
     normalized_note = note.strip()
     # Preserve existing place keys for rows that do not have a processing note.
     key = (*base_key, normalized_note) if normalized_note else base_key
+    if view_group:
+        key = (*key, view_group)
     row = grouped.setdefault(
         key,
         {
             "article": base_key[0],
+            "_view_group": view_group,
             "name": base_key[1],
             "color": base_key[2],
             "size": base_key[3],
             "unit": base_key[4],
             "image": base_key[5],
+            "image_data": image_data,
             "stage": base_key[6],
             "note": normalized_note,
             "qty": 0.0,
@@ -1603,6 +1630,16 @@ def _build_delivery_hardware_rows(
                         name=str(getattr(item, "name", "") or article).strip(),
                         qty=_safe_float(getattr(item, "value", 0)),
                     )
+        elif system == "ЦС":
+            cs = calculate_cs(section, system=getattr(section, "cs_system", None))
+            for profile in cs["profiles"] if extra_stage in (None, 1) else []:
+                for length in profile["cut_lengths_mm"]:
+                    _add_delivery_component(grouped, article=profile["article"], name=profile["name"], qty=section_qty,
+                                            color=cs["color_text"] if profile["role"] == "cover" else "",
+                                            size=f"{length:g} мм", unit="шт", image=profile["image"], stage="1")
+            if include_calculated_specials:
+                for hardware in cs["hardware"]:
+                    _add_delivery_component(grouped, article=hardware["article"], name=hardware["name"], qty=hardware["qty"], unit=hardware["unit"], stage="2")
         elif include_calculated_specials:
             _add_raw_special_hardware(grouped, section, section_qty)
 
@@ -1629,6 +1666,8 @@ def _build_delivery_hardware_rows(
             "places": _delivery_place(places, kit_key),
         }
     )
+    if sections and all(str(getattr(section, "system", "")) == "ЦС" for section in sections):
+        rows.clear()
     for component_key, component in sorted(
         grouped.items(), key=lambda item: (item[1]["name"], item[1]["article"])
     ):
@@ -1671,6 +1710,8 @@ def _build_delivery_project_extra_rows(
             continue
         _add_delivery_component(
             grouped,
+            view_group=extra.get("_view_group", ""),
+            image_data=str(extra.get("imageData") or extra.get("image_data") or ""),
             article=str(extra.get("sku") or extra.get("article") or ""),
             name=str(extra.get("name") or "Дополнительная комплектующая"),
             color=str(
@@ -1716,7 +1757,7 @@ def _build_delivery_project_extra_rows(
                     component["size"],
                 ),
                 "place_key": place_key,
-                "places": _delivery_place(places, place_key, legacy_place_key),
+                "places": _delivery_place(places, place_key, _delivery_key("project-extra", *component_key[:-1]), legacy_place_key),
             }
         )
     return rows
@@ -1756,6 +1797,7 @@ def _build_delivery_context(project: object, sections: Iterable[object]) -> dict
         places,
         extra_stage,
     )
+    project_extra_rows = group_display_rows(project_extra_rows)
     item1_rows = [
         *(
             {
@@ -2148,17 +2190,13 @@ def _build_hardware_order_page(
                 )
             )
             for item in calc.profiles:
-                _add_hardware_order_row(
-                    grouped,
-                    article=getattr(item, "article", ""),
-                    name=getattr(item, "name", ""),
-                    qty=_safe_float(getattr(item, "total_length_mm", 0), 0) / 1000,
-                    unit="м",
-                    image=getattr(item, "image", ""),
-                    stage="",
-                    size="Без припуска",
-                    color=calc.color_text if getattr(item, "role", "") == "cover" else "Без цвета",
-                )
+                for length in item.cut_lengths_mm:
+                    _add_hardware_order_row(
+                        grouped, article=item.article, name=item.name,
+                        qty=max(1, int(getattr(section, "quantity", 1) or 1)), unit="шт",
+                        image=item.image, stage="", size=f"{length:g} мм",
+                        color=calc.color_text if item.role == "cover" else "Без цвета",
+                    )
             for item in calc.hardware:
                 _add_hardware_order_row(
                     grouped, article=item.article, name=item.name, qty=item.qty,

@@ -45,6 +45,14 @@ class User(Base):
     projects = relationship("Project", back_populates="owner")
 
 
+class Customer(Base):
+    __tablename__ = "customers"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(250), nullable=False)
+    name_key = Column(String(250), unique=True, nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+
+
 class Project(Base):
     __tablename__ = "projects"
 

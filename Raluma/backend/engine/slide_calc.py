@@ -232,6 +232,8 @@ def _is_no_inter_glass_profile(value: str | None) -> bool:
 
 def _resolve_inter_glass_profile(value: str | None) -> str:
     """Map legacy empty values to the former default without masking explicit opt-out."""
+    if _inter_glass_article(value) == "RS3061":
+        return "Алюминиевый с зацепом RS3061"
     return value.strip() if value and value.strip() else DEFAULT_INTER_GLASS_PROFILE
 
 
@@ -529,7 +531,7 @@ def _apply_two_row_glass_total_correction(
 
 def _inter_glass_profile_name(article: str) -> str:
     if article == "RS3061":
-        return "Профиль с зацепом"
+        return "Алюминиевый с зацепом RS3061"
     if article == "RS1006":
         return "Прозрачный межстекольный"
     return "Межстекольный профиль (штапик)"
@@ -1314,7 +1316,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
                 article=ig_article,
                 name=_inter_glass_profile_name(ig_article),
                 length_mm=round(inter_glass_len, 1),
-                qty=inter_glass_count_each * Q,
+                qty=inter_glass_count_each * Q * (2 if ig_article == "RS3061" else 1),
                 painted=(painted and ig_article == "RS2061"),
                 image=_profile_image(ig_article),
                 field_key="inter_glass_length",
@@ -2140,7 +2142,7 @@ def _calculate_slide_1row(section) -> SlideCalcResult:
                 article=ig_article,
                 name=_inter_glass_profile_name(ig_article),
                 length_mm=round(inter_glass_len, 1),
-                qty=(P - 1) * Q,
+                qty=(P - 1) * Q * (2 if ig_article == "RS3061" else 1),
                 painted=(painted and ig_article == "RS2061"),
                 image=_profile_image(ig_article),
                 field_key="inter_glass_length",

@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ImagePlus, Loader2, PackagePlus, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Copy, ImagePlus, Loader2, PackagePlus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 
 import { listHardwareCatalogOptions } from '../../api/catalog';
 import type { HardwareCatalogOption } from '../../api/catalog';
@@ -93,6 +93,21 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [reloadToken, setReloadToken] = useState(0);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const pendingFocus = useRef<string | null>(null);
+  const previousCount = useRef(items.length);
+  useEffect(() => {
+    if (pendingFocus.current || items.length > previousCount.current) {
+      const cards = rootRef.current?.querySelectorAll<HTMLElement>('article');
+      const card = pendingFocus.current
+        ? Array.from<HTMLElement>(cards || []).find(node => node.dataset.rowId === pendingFocus.current)
+        : cards?.[cards.length - 1];
+      card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card?.querySelector<HTMLInputElement>('[data-length]')?.focus({ preventScroll: true });
+      pendingFocus.current = null;
+    }
+    previousCount.current = items.length;
+  }, [items]);
 
   useEffect(() => {
     let cancelled = false;
@@ -181,7 +196,7 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div ref={rootRef} className="space-y-4">
       <div className="rounded-2xl border border-tint/25 bg-surface/35 p-3">
         <label className={LBL}>Поиск по артикулу или названию</label>
         <div className="relative mt-1.5">
@@ -271,6 +286,7 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
             return (
           <article
             key={row.id}
+            data-row-id={row.id}
             className="rounded-2xl border border-tint/25 bg-surface/30 p-3 sm:p-4"
           >
             <div className="flex items-start gap-3">
@@ -315,6 +331,11 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
                 <div className="font-mono text-xs font-bold text-accent">{row.sku || (isManual ? 'Ручная позиция' : 'Без артикула')}</div>
                 <div className="mt-1 text-sm font-semibold text-fg/80">{row.name || (isManual ? 'Заполните название ниже' : 'Без названия')}</div>
               </div>
+              <button type="button" aria-label={`Копировать ${row.sku || row.name}`} className="rounded-xl border border-tint/30 p-2" onClick={() => {
+                const copy = normalizeItem({ ...row, id: makeId(), size: '', qty: '' });
+                pendingFocus.current = copy.id!;
+                commit([...rows, copy]);
+              }}><Copy className="h-4 w-4" /></button>
               <button
                 type="button"
                 onClick={() => commit(rows.filter(item => item.id !== row.id))}
@@ -390,7 +411,7 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
               )}
               <label className="space-y-1">
                 <span className={LBL}>Размер, мм</span>
-                <input value={row.size} onChange={event => updateRow(row.id!, { size: event.target.value })} className={INP} placeholder="Например, 3800" inputMode="decimal" />
+                <input data-length value={row.size} onChange={event => updateRow(row.id!, { size: event.target.value })} className={INP} placeholder="Например, 3800" inputMode="decimal" />
               </label>
               <label className="space-y-1">
                 <span className={LBL}>Количество</span>
@@ -427,6 +448,7 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
           Выберите позицию из каталога или добавьте её вручную
         </div>
       )}
+      <button type="button" onClick={() => { rootRef.current?.querySelector<HTMLInputElement>('[aria-label="Поиск комплектующих"]')?.focus(); setCatalogOpen(true); }} className="rounded-xl border border-accent/35 px-4 py-3 text-sm font-bold text-accent">Добавить комплектующий</button>
     </div>
   );
 };

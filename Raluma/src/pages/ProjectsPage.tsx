@@ -19,7 +19,9 @@ import {
   ProjectList
 } from '../api/projects';
 import { toast } from '../store/toastStore';
-import { buildCustomerOptions, filterCustomerOptions } from '../utils/customers';
+import { CustomerDirectory } from '../components/CustomerDirectory';
+import { useCustomerOptions } from '../hooks/useCustomerOptions';
+import { filterCustomerOptions } from '../utils/customers';
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 
@@ -128,9 +130,8 @@ export default function ProjectsPage() {
     ));
   }, [projects, searchQuery, viewTab]);
 
-  const customerOptions = useMemo(() => {
-    return buildCustomerOptions(projects, user?.customer);
-  }, [projects, user]);
+  const customerOptions = useCustomerOptions();
+  const [copyFromId, setCopyFromId] = useState<number | null>(null);
 
   const filteredCustomers = useMemo(() =>
     filterCustomerOptions(customerOptions, newCustomer),
@@ -138,6 +139,7 @@ export default function ProjectsPage() {
   );
 
   const openCreateModal = () => {
+    setCopyFromId(null);
     setNewCustomer('');
     setNewStages(1);
     setShowCustomerDrop(false);
@@ -148,7 +150,9 @@ export default function ProjectsPage() {
     if (isCreating) return;
     setIsCreating(true);
     try {
-      const project = await createProject({ customer: newCustomer, production_stages: newStages });
+      const project = copyFromId === null
+        ? await createProject({ customer: newCustomer, production_stages: newStages })
+        : await copyProject(copyFromId, newCustomer);
       setIsCreateModalOpen(false);
       navigate(`/projects/${project.id}`);
     } catch (e: any) {
@@ -195,6 +199,9 @@ export default function ProjectsPage() {
 
   const handleCopy = async (e: React.MouseEvent, id: number) => {
     e.stopPropagation();
+    if (token && !customerOptions.includes(projects.find(p => p.id === id)?.customer || '')) {
+      openCreateModal(); setCopyFromId(id); toast.info('Выберите активного заказчика для копии'); return;
+    }
     try {
       const copy = await copyProject(id);
       navigate(`/projects/${copy.id}`);
@@ -297,6 +304,7 @@ export default function ProjectsPage() {
       </nav>
 
       <main className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full z-10">
+        <CustomerDirectory />
         <div className="flex flex-col md:flex-row gap-4 mb-8 items-center">
           <div className="relative flex-1 group w-full">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-fg/20 group-focus-within:text-accent transition-colors" />
@@ -475,9 +483,9 @@ export default function ProjectsPage() {
               <button onClick={() => setIsCreateModalOpen(false)} className="absolute right-8 top-8 text-fg/20 hover:text-fg transition-colors">
                 <X className="w-6 h-6" />
               </button>
-              <h2 className="text-2xl sm:text-3xl font-bold mb-5 sm:mb-8">Новый проект</h2>
+              <h2 className="text-2xl sm:text-3xl font-bold mb-5 sm:mb-8">{copyFromId === null ? 'Новый проект' : 'Копирование проекта'}</h2>
               <div className="space-y-5 sm:space-y-8">
-                <div className="space-y-3">
+                {copyFromId === null && <div className="space-y-3">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-accent/40 ml-1">Производство</label>
                   <div className="flex gap-3">
                     {([1, 2] as const).map(n => (
@@ -487,7 +495,8 @@ export default function ProjectsPage() {
                       </button>
                     ))}
                   </div>
-                </div>
+                </div>}
+                {copyFromId !== null && <p className="text-sm text-fg/70">Прежний заказчик недоступен. Выберите активного заказчика для копии; исходный проект останется без изменений.</p>}
                 <div className="space-y-3">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-accent/40 ml-1">Заказчик</label>
                   <div>
@@ -497,7 +506,7 @@ export default function ProjectsPage() {
                       onFocus={() => setShowCustomerDrop(true)}
                       onBlur={() => setTimeout(() => setShowCustomerDrop(false), 150)}
                       className="w-full bg-hi/[0.08] border border-tint/35 rounded-2xl px-6 py-4 outline-none focus:border-accent/50 transition-all text-fg placeholder-fg/20"
-                      placeholder="Введите или выберите заказчика"
+                      placeholder="Выберите заказчика из справочника"
                     />
                     {showCustomerDrop && filteredCustomers.length > 0 && (
                       <div className="mt-2 w-full bg-[var(--theme-dropdown)] border border-tint/40 rounded-2xl overflow-y-auto shadow-2xl shadow-black/50" style={{ maxHeight: '172px' }}>
@@ -515,7 +524,7 @@ export default function ProjectsPage() {
               </div>
               <div className="flex gap-4 mt-6 sm:mt-10">
                 <button onClick={() => setIsCreateModalOpen(false)} className="flex-1 py-4 rounded-2xl bg-hi/5 hover:bg-hi/10 font-bold transition-all">Отмена</button>
-                <button onClick={handleCreate} disabled={isCreating}
+                <button onClick={handleCreate} disabled={isCreating || (!!token && !customerOptions.includes(newCustomer))}
                   className="flex-1 py-4 rounded-2xl bg-primary hover:bg-primary-h text-white font-bold transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {isCreating ? (

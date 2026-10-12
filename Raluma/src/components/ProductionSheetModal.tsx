@@ -31,6 +31,23 @@ export default function ProductionSheetModal({
   isOpen, onClose, projectId, sectionId, projectNumber, sectionOrder,
 }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const previewObserver = useRef<ResizeObserver | null>(null);
+  useEffect(() => () => previewObserver.current?.disconnect(), []);
+  const measurePreview = () => {
+    previewObserver.current?.disconnect();
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc?.body) return;
+    const measure = () => {
+      const bottom = Array.from<Element>(doc.body.children).reduce<number>((max, node) => {
+        if (['SCRIPT', 'STYLE'].includes(node.tagName)) return max;
+        return Math.max(max, node.getBoundingClientRect().bottom);
+      }, 0);
+      if (bottom > 0) setIframeHeight(Math.max(300, Math.ceil(bottom) + 8));
+    };
+    measure();
+    previewObserver.current = new ResizeObserver(measure);
+    Array.from<Element>(doc.body.children).forEach(node => previewObserver.current?.observe(node));
+  };
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [downloadingFormat, setDownloadingFormat] = useState<DocumentFileFormat | null>(null);
@@ -58,6 +75,7 @@ export default function ProductionSheetModal({
   // Слушаем сообщения из iframe (dirty state + height)
   useEffect(() => {
     const handler = (e: MessageEvent) => {
+      if (e.source !== iframeRef.current?.contentWindow) return;
       if (e.data?.type === 'dirty') setIsDirty(true);
       if (e.data?.type === 'height' && typeof e.data.height === 'number') {
         setIframeHeight(Math.ceil(e.data.height) + 16);
@@ -175,7 +193,7 @@ export default function ProductionSheetModal({
             </div>
 
             {/* iframe */}
-            <div className="overflow-y-auto bg-gray-100" style={{ maxHeight: 'calc(90vh - 130px)' }}>
+            <div className="min-h-0 overflow-y-auto bg-gray-100" style={{ maxHeight: 'calc(90vh - 130px)' }}>
               {isPreviewLoading ? (
                 <div className="h-[600px] flex items-center justify-center bg-gray-100">
                   <Loader2 className="w-8 h-8 text-gray-500 animate-spin" />
@@ -183,6 +201,7 @@ export default function ProductionSheetModal({
               ) : (
                 <iframe
                   ref={iframeRef}
+                  onLoad={measurePreview}
                   src={previewUrl}
                   srcDoc={isGuest ? previewSrcDoc : undefined}
                   className="w-full border-0 block"

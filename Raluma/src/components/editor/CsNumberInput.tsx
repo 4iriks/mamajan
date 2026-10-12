@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { INP, LBL } from './types';
 
 /** Keep a literal draft so zero, separators and partially typed numbers can be erased. */
-export function CsNumberInput({ label, value, min = 0, max, integer = false, live = false, readOnly = false, onChange }: {
+export function CsNumberInput({ label, value, min = 0, max, integer = false, live = false, readOnly = false, emptyValue, onChange }: {
   label: string; value: number; min?: number; max?: number; integer?: boolean;
-  live?: boolean; readOnly?: boolean; onChange: (value: number) => void;
+  live?: boolean; readOnly?: boolean; emptyValue?: number; onChange: (value: number) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const valid = (text: string) => text.trim() !== '' && Number.isFinite(Number(text))
@@ -12,6 +12,7 @@ export function CsNumberInput({ label, value, min = 0, max, integer = false, liv
     && (!integer || Number.isInteger(Number(text)));
   const commit = () => {
     if (draft !== null && valid(draft)) onChange(Number(draft));
+    else if (draft === '' && emptyValue !== undefined) onChange(emptyValue);
     setDraft(null);
   };
   return <label>

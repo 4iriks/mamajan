@@ -7,7 +7,7 @@ No commercial price is inferred from incomplete catalogue costs.
 from __future__ import annotations
 
 from collections import Counter
-from math import hypot, isfinite
+from math import ceil, hypot, isfinite
 from types import SimpleNamespace
 from typing import Any
 
@@ -330,6 +330,7 @@ def calculate_cs(section, *, system=None, outer_profile=None, joint_profile=None
                         "width_mm": px1 - px0,
                         "height_mm": py1 - py0,
                         "area_m2": pane.area / 1e6,
+                        "is_rectangle": abs(pane.area - (px1 - px0) * (py1 - py0)) < EPS,
                         "qty": quantity,
                         "polygon": _points(pane),
                         "centroid": (pane.centroid.x, pane.centroid.y),
@@ -405,7 +406,7 @@ def calculate_cs(section, *, system=None, outer_profile=None, joint_profile=None
         cover,
         "Т40К",
         "Крышка зажимного профиля Т40К",
-        [v for v in outer_lengths for _ in range(2)],
+        [3000.0] * ceil(sum(2 * (v + 50) for v in outer_lengths) / 3000),
         True,
         "T40K-section.jpg",
     )
@@ -433,7 +434,7 @@ def calculate_cs(section, *, system=None, outer_profile=None, joint_profile=None
             {
                 "article": "",
                 "name": "Двухсторонний скотч для соединения стёкол",
-                "qty": sum(cuts) * quantity / 1000,
+                "qty": sum(cuts) * 2 * quantity / 1000,
                 "unit": "м",
                 "image": "",
                 "role": "tape",
@@ -493,7 +494,7 @@ def calculate_cs(section, *, system=None, outer_profile=None, joint_profile=None
         "glass_area_m2": sum(pane["area_m2"] * pane["qty"] for pane in panes),
         "warnings": [
             "Геометрия ЦС рассчитана по ТЗ Т40Т/Т40К. Коммерческая цена пока не формируется.",
-            "Длины профилей без припусков на распил. Вес и цены новых деталей требуют заполнения.",
+            "Т40Т — длины без припуска. Т40К — целые палки 3000 мм, запас 50 мм на каждую крышку учтён. Вес и цены новых деталей требуют заполнения.",
         ],
         "status": "preliminary",
         "commercial_price_allowed": False,

@@ -8,10 +8,11 @@ const browser = [process.env.SMOKE_BROWSER_PATH, 'C:/Program Files/Google/Chrome
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/chromium', '/usr/bin/google-chrome'].find(value => value && fs.existsSync(value));
 if (!browser) throw new Error('Headless Chrome/Edge is required for this regression test');
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'raluma-cs-test-'));
-const screenshot = path.resolve('tmp/cs-editor-regression.png');
+const fixture = process.argv[2] === 'extra-components' ? 'extra-components' : 'cs-editor';
+const screenshot = path.resolve(`tmp/${fixture}-regression.png`);
 fs.mkdirSync(path.dirname(screenshot), { recursive: true });
 const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', '4191', '--strictPort'], { stdio: 'ignore' });
-const url = 'http://127.0.0.1:4191/scripts/browser-fixtures/cs-editor.html';
+const url = `http://127.0.0.1:4191/scripts/browser-fixtures/${fixture}.html`;
 try {
   let ready = false;
   for (let attempt = 0; attempt < 100; attempt++) {
@@ -23,7 +24,7 @@ try {
     '--no-default-browser-check', `--user-data-dir=${profile}`, '--window-size=1400,1700',
     '--virtual-time-budget=15000', '--dump-dom', `--screenshot=${screenshot}`, url], { timeout: 60000, maxBuffer: 4 * 1024 * 1024 });
   if (!stdout.includes('data-smoke="passed"')) throw new Error(stdout.match(/<pre id="result">([\s\S]*?)<\/pre>/)?.[1] || 'Browser fixture did not finish');
-  console.log('CS browser tests passed: empty drafts, coordinates, angles, sides, insertion/removal, light/dark price contrast.');
+  console.log(`${fixture} browser tests passed.`);
   console.log(`Screenshot: ${screenshot}`);
 } finally {
   if (process.platform === 'win32') {

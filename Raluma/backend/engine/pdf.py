@@ -406,7 +406,9 @@ def _img_b64(filename: str) -> str:
 
 
 def _get_env() -> Environment:
+    from engine.side_projection import side_projection
     env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=False)
+    env.globals["side_projection"] = side_projection
     env.filters["img_b64"] = _img_b64
     env.filters["enumerate"] = enumerate
     env.filters["glass_mm"] = glass_mm

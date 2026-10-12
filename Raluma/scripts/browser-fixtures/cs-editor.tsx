@@ -44,6 +44,7 @@ function select(label: string): HTMLSelectElement {
   return field;
 }
 async function set(field: HTMLInputElement | HTMLSelectElement, value: string, commit = false) {
+  document.querySelectorAll('details').forEach(detail => { detail.open = true; });
   field.focus();
   const prototype = field instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLSelectElement.prototype;
   Object.getOwnPropertyDescriptor(prototype, 'value')!.set!.call(field, value);
@@ -61,19 +62,21 @@ async function run() {
   assert(document.querySelector('svg[aria-label]')?.textContent?.includes('У4'), 'Vertex labels');
   assert(select('Выбранная сторона').options[3].text === 'С4: У4 → У1', 'Closing side mapping');
   for (const index of [0, 1]) {
-    await set(input('Количество стёкол', index), '');
-    assert(input('Количество стёкол', index).value === '', 'Count must remain erasable');
-    await set(input('Количество стёкол', index), '3', true);
-    assert(input('Количество стёкол', index).value === '3', 'Three panes');
-    assert(current.csConfig![index === 0 ? 'vertical' : 'horizontal'].count === 2, 'Three panes produce two cuts');
-    await set(input('Количество стёкол', index), '1.5', true);
-    assert(input('Количество стёкол', index).value === '3', 'Fractional counts must not apply');
+    await set(input('Количество', index), '');
+    assert(input('Количество', index).value === '', 'Count must remain erasable');
+    input('Количество', index).blur(); await pause();
+    assert(current.csConfig![index === 0 ? 'vertical' : 'horizontal'].count === 0, 'Empty commits zero');
+    await set(input('Количество', index), '2', true);
+    assert(input('Количество', index).value === '2', 'Two lines');
+    assert(current.csConfig![index === 0 ? 'vertical' : 'horizontal'].count === 2, 'Two lines produce three panes');
+    await set(input('Количество', index), '1.5', true);
+    assert(input('Количество', index).value === '2', 'Fractional counts must not apply');
   }
-  await set(input('X, мм'), '');
-  assert(input('X, мм').value === '', 'Empty coordinate draft');
-  await set(input('X, мм'), '500', true);
+  await set(input('Ш, мм'), '');
+  assert(input('Ш, мм').value === '', 'Empty coordinate draft');
+  await set(input('Ш, мм'), '500', true);
   assert(current.csConfig!.vertices[0].x === 500, 'Coordinate committed');
-  await set(input('X, мм'), '0', true);
+  await set(input('Ш, мм'), '0', true);
   await set(input('Внутренний угол, °'), '60', true);
   assert(Math.abs(current.csConfig!.vertices[1].y - 1500) < 0.001, 'Angle moves following vertex');
   await set(input('Внутренний угол, °'), '90', true);
@@ -100,19 +103,20 @@ async function run() {
   document.documentElement.classList.add('light');
   await click('Прямоугольник');
   assert(current.csConfig!.edgeTreatments!.every(kind => kind === 'clamp'), 'New contour has profiles on every side');
-  await set(select('Тип введённых размеров'), 'clear');
-  assert(current.width === 2920 && current.height === 2920, 'Switch to light opening subtracts 80 mm');
-  await set(select('Тип введённых размеров'), 'installation');
-  assert(current.width === 3000 && current.height === 3000, 'Switch back preserves physical geometry');
+  assert(!document.body.textContent?.includes('Тип введённых размеров'), 'Only outer dimensions');
+  assert(!document.body.textContent?.includes('Выбранный угол'), 'Rectangle hides corner settings');
   await set(document.querySelector<HTMLSelectElement>('[aria-label="Комплектация С4"]')!, 'bubble');
   assert(current.csConfig!.edgeTreatments![3] === 'bubble' && !current.csConfig!.profiledEdges.includes(3), 'Bubble excludes clamp on selected side');
-  await click('Многоугольник');
-  await set(input('Углов в новой заготовке'), '7', true);
-  assert(current.csConfig!.vertices.length === 7, 'Seven-sided preset');
-  await click('Прямоугольник');
+  await click('Пятиугольник с крышей');
+  assert(current.csConfig!.vertices.length === 5, 'House has five corners');
+  await click('Трапеция');
+  const leftHeight = current.csConfig!.vertices[3].y;
+  await click('Отразить зеркально');
+  assert(current.csConfig!.vertices[3].x === 3000 && current.csConfig!.vertices[3].y === leftHeight, 'Mirror preserves vertex identity');
+  await click('Пятиугольник с крышей');
   // Make the final screenshot representative of the requested six-corner contour.
   await set(select('Выбранная сторона'), '2'); await click('Добавить угол на С3');
-  await set(input('Y, мм'), '1950', true);
+  await set(input('В, мм'), '1950', true);
   await set(select('Выбранная сторона'), '4'); await click('Добавить угол на С5');
   document.getElementById('result')!.textContent = 'CS browser tests passed';
   document.body.dataset.smoke = 'passed';

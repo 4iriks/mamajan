@@ -40,10 +40,13 @@ def test_cs_t40_pdf_contains_geometry_and_bom(client, document):
     assert len(pdf.pages) > 0
     text = "\n".join(page.extract_text() for page in pdf.pages)
     assert "CS-T40-QA" in text
-    if document in {"section", "sketch", "hardware_order"}:
+    if document in {"section", "hardware_order"}:
         assert "CS-PVC-PAD" in "".join(text.split())
         assert "скотч" in text
         assert "12" in text
+    if document == "sketch":
+        assert "CS-PVC-PAD" not in "".join(text.split())
+        assert "склейка через скотч" in text
     if document == "paint":
         assert "Т40К" in text
         assert "CS-PVC-PAD" not in text

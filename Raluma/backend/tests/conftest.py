@@ -15,6 +15,18 @@ from main import app
 def client():
     """Single TestClient for the whole test session. Lifespan runs once (creates tables, seeds admin)."""
     with TestClient(app) as c:
+        # Business fixtures for legacy API tests now need explicit directory
+        # records, just as real callers do. This does not seed production data.
+        from database import SessionLocal
+        from models import Customer
+
+        with SessionLocal() as db:
+            for name in ("ПРОЗРАЧНЫЕ РЕШЕНИЯ", "КРОКНА ИНЖИНИРИНГ", "Тест", "Тестовый заказчик",
+                         "Заказчик", "Клиент", "Контроль", "Контрольный пример", "ООО ТЕСТ",
+                         "Админ", "Дилер", "Гость", "Секретный клиент", "Без внутреннего номера"):
+                if not db.query(Customer).filter_by(name_key=name.casefold()).first():
+                    db.add(Customer(name=name, name_key=name.casefold(), is_active=True))
+            db.commit()
         yield c
     # Dispose engine to release SQLite file lock (required on Windows)
     from database import engine

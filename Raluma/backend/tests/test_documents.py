@@ -4311,7 +4311,7 @@ class TestDeliveryNote:
         }
         assert any("КНИЖКА B25" in row["name"] for row in rows)
         assert any("ЛИФТ" in row["name"] for row in rows)
-        assert any("Raluma ЦС" in row["name"] for row in rows)
+        assert any("ЦЕЛЬНОСТЕКЛЯННАЯ КОНСТРУКЦИЯ" in row["name"] for row in rows)
 
     def test_anodized_construction_ignores_stale_ral_color(self):
         section = _delivery_section(
@@ -5315,7 +5315,7 @@ class TestDeliveryNote:
         assert response.status_code == 200
         assert "Raluma КНИЖКА B25" in response.text
         assert "Raluma ЛИФТ" in response.text
-        assert "Raluma ЦС" in response.text
+        assert "ЦЕЛЬНОСТЕКЛЯННАЯ КОНСТРУКЦИЯ" in response.text
         assert 'contenteditable="true"' in response.text
 
 

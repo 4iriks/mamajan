@@ -112,6 +112,7 @@ PUBLIC_SECTION_DETAIL_FIELDS = {
     "technical_left",
     "technical_right",
     "technical_common",
+    "side_projection_mm",
     "threshold",
     "rails",
     "slide_rows",
@@ -893,6 +894,7 @@ def _section_snapshot(section: object, calc: object) -> dict[str, Any]:
         getattr(calc, "glass_type", None) or getattr(section, "glass_type", None)
     )
     technical = _section_technical_components(section)
+    from engine.side_projection import side_projection
     return {
         "section_id": int(getattr(section, "id", 0) or 0),
         "name": str(getattr(section, "name", "") or "Секция"),
@@ -913,6 +915,7 @@ def _section_snapshot(section: object, calc: object) -> dict[str, Any]:
         "technical_left": technical["left"],
         "technical_right": technical["right"],
         "technical_common": technical["common"],
+        "side_projection_mm": side_projection(section, calc),
         "threshold": str(
             getattr(calc, "threshold_text", "")
             or getattr(section, "threshold", "")
