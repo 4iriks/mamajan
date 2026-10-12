@@ -53,9 +53,9 @@ from engine.pdf import (
 from engine.project_documents import DOC_TITLES, render_project_document_html
 from engine.quote_pricing import (
     QuoteExportBlocked,
-    draft_quote_for_word,
-    freeze_quote,
+    QuotePricingError,
     public_quote,
+    quote_revision_snapshot,
 )
 
 router = APIRouter(prefix="/api/projects", tags=["documents"])
@@ -464,6 +464,32 @@ def _quote_blocked(exc: QuoteExportBlocked) -> HTTPException:
     )
 
 
+def _document_quote(db, project, revision=None, *, require_fixed=False):
+    if revision is None:
+        payload = public_quote(db, project)
+    else:
+        try:
+            payload, _ = quote_revision_snapshot(db, project, revision)
+        except QuotePricingError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if require_fixed:
+        if not payload.get("export_allowed"):
+            raise _quote_blocked(QuoteExportBlocked(payload))
+        if payload.get("status") != "fixed":
+            raise HTTPException(status_code=409, detail={
+                "message": "Зафиксируйте КП перед экспортом. Скачивание не изменяет редакцию.",
+                "quote": payload,
+            })
+    return payload
+
+
+def _cost_context(db, project, revision=None):
+    try:
+        return build_cost_report_context(db, project, quote_revision=revision)
+    except QuotePricingError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.post("/local/sections/preview", response_class=HTMLResponse)
 def preview_local_section(payload: LocalDocumentPayload):
     project, section = _build_local_document_objects(payload)
@@ -618,6 +644,7 @@ def preview_project_document(
     project_id: int,
     doc_type: str,
     token: Optional[str] = Query(default=None),
+    quote_revision: int | None = Query(default=None, ge=1),
     db: Session = Depends(get_db),
 ):
     doc_type = _validate_project_doc_type(doc_type)
@@ -625,13 +652,13 @@ def preview_project_document(
     _ensure_internal_document_access(doc_type, current_user)
     project = _get_project_or_404(project_id, db, current_user)
     if doc_type == "cost_report":
-        context = build_cost_report_context(db, project)
+        context = _cost_context(db, project, quote_revision)
         db.commit()
         return HTMLResponse(render_cost_report_html(context))
     _ensure_book_project_documents_supported(doc_type, project.sections)
     quote = None
     if doc_type in COMMERCIAL_DOCUMENTS:
-        quote = public_quote(db, project)
+        quote = _document_quote(db, project, quote_revision)
         db.commit()
     html = _render_project_document_or_error(
         project, project.sections, doc_type, quote=quote
@@ -643,6 +670,7 @@ def preview_project_document(
 def download_project_document_pdf(
     project_id: int,
     doc_type: str,
+    quote_revision: int | None = Query(default=None, ge=1),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -650,12 +678,7 @@ def download_project_document_pdf(
     _ensure_internal_document_access(doc_type, current_user)
     project = _get_project_or_404(project_id, db, current_user)
     if doc_type == "cost_report":
-        context = build_cost_report_context(
-            db,
-            project,
-            freeze_for_export=True,
-            actor=current_user,
-        )
+        context = _cost_context(db, project, quote_revision)
         pdf_bytes = generate_pdf(render_cost_report_html(context, is_pdf=True))
         db.commit()
         filename = cost_report_filename(context, "pdf")
@@ -670,11 +693,7 @@ def download_project_document_pdf(
     _ensure_book_project_documents_supported(doc_type, project.sections)
     quote = None
     if doc_type in COMMERCIAL_DOCUMENTS:
-        try:
-            quote = freeze_quote(db, project, current_user)
-        except QuoteExportBlocked as exc:
-            db.rollback()
-            raise _quote_blocked(exc) from exc
+        quote = _document_quote(db, project, quote_revision, require_fixed=True)
     html = _render_project_document_or_error(
         project,
         project.sections,
@@ -706,6 +725,7 @@ def _download_project_office(
     file_format: str,
     db: Session,
     current_user: models.User,
+    quote_revision: int | None = None,
 ):
     if doc_type in COMMERCIAL_DOCUMENTS:
         if file_format != "docx":
@@ -719,12 +739,7 @@ def _download_project_office(
     _ensure_internal_document_access(doc_type, current_user)
     project = _get_project_or_404(project_id, db, current_user)
     if doc_type == "cost_report":
-        context = build_cost_report_context(
-            db,
-            project,
-            freeze_for_export=True,
-            actor=current_user,
-        )
+        context = _cost_context(db, project, quote_revision)
         content = build_cost_report_xlsx(context)
         db.commit()
         return _office_response(
@@ -735,12 +750,7 @@ def _download_project_office(
     _ensure_book_project_documents_supported(doc_type, project.sections)
     quote = None
     if doc_type in COMMERCIAL_DOCUMENTS:
-        try:
-            quote = draft_quote_for_word(db, project)
-            db.commit()
-        except QuoteExportBlocked as exc:
-            db.rollback()
-            raise _quote_blocked(exc) from exc
+        quote = _document_quote(db, project, quote_revision, require_fixed=True)
     content = _build_project_office(
         project,
         project.sections,
@@ -756,6 +766,7 @@ def _download_project_office(
 def download_project_document_docx(
     project_id: int,
     doc_type: str,
+    quote_revision: int | None = Query(default=None, ge=1),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -765,6 +776,7 @@ def download_project_document_docx(
         "docx",
         db,
         current_user,
+        quote_revision,
     )
 
 
@@ -772,6 +784,7 @@ def download_project_document_docx(
 def download_project_document_xlsx(
     project_id: int,
     doc_type: str,
+    quote_revision: int | None = Query(default=None, ge=1),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -781,6 +794,7 @@ def download_project_document_xlsx(
         "xlsx",
         db,
         current_user,
+        quote_revision,
     )
 
 

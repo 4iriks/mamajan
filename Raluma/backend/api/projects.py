@@ -1,7 +1,7 @@
 import base64
 import binascii
 from datetime import datetime
-from decimal import Decimal, DecimalException, InvalidOperation, ROUND_HALF_UP
+from decimal import Decimal, DecimalException, ROUND_HALF_UP
 import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
@@ -10,9 +10,10 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models
 import schemas
-from auth import get_current_user
+from auth import get_current_user, user_can_manage_prices
 from api.customers import active_customer
 from engine.legacy_values import normalize_center_handle_offset
+from engine.pricing_rules import resolve_effective_price
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -80,7 +81,56 @@ def _extra_image_data(row: dict) -> str:
     return value
 
 
-def _normalize_project_extras(raw: str | None, db: Session) -> str:
+def _extra_money(value: object, label: str) -> str | None:
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        number = Decimal(str(value).strip().replace(",", "."))
+        if not number.is_finite() or number < 0 or number >= Decimal("1000000000000"):
+            raise ValueError
+        return format(number.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), "f")
+    except (DecimalException, ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail=f"{label}: укажите сумму от нуля") from exc
+
+
+def _project_response(project: models.Project, actor: models.User, *, include_sections=True) -> dict:
+    schema = schemas.ProjectOut if include_sections else schemas.ProjectList
+    result = schema.model_validate(project).model_dump()
+    if not user_can_manage_prices(actor):
+        try:
+            rows = json.loads(result.get("extra_components") or "[]")
+        except (ValueError, TypeError):
+            rows = []
+        for row in rows if isinstance(rows, list) else []:
+            if isinstance(row, dict):
+                row.pop("actual_cost", None)
+                row.pop("actualCost", None)
+        result["extra_components"] = json.dumps(rows, ensure_ascii=False)
+    return result
+
+
+def _extra_quantity(row: dict, name: str) -> str:
+    raw = row.get("qty", row.get("quantity", "1"))
+    text = "" if raw is None else str(raw).strip()
+    # Blank is allowed while preparing a copied row, but will block its quote.
+    if not text:
+        return ""
+    try:
+        quantity = Decimal(text.replace(",", "."))
+        if not quantity.is_finite() or quantity <= 0 or quantity >= Decimal("1000000000000"):
+            raise ValueError
+        return format(quantity.normalize(), "f")
+    except (DecimalException, TypeError, ValueError, OverflowError) as exc:
+        raise HTTPException(status_code=400, detail=f"Количество для {name} должно быть больше нуля") from exc
+
+
+def _normalize_project_extras(
+    raw: str | None,
+    db: Session,
+    *,
+    actor: models.User | None = None,
+    previous: str | None = None,
+) -> str:
     """Validate catalog selections and refresh catalog-owned row fields."""
 
     try:
@@ -92,11 +142,36 @@ def _normalize_project_extras(raw: str | None, db: Session) -> str:
     if not isinstance(rows, list):
         raise HTTPException(status_code=400, detail="Некорректный список комплектующих")
 
+    try:
+        previous_rows = json.loads(previous or "[]")
+    except (ValueError, TypeError):
+        previous_rows = []
+    previous_by_id = {
+        str(row.get("id") or f"ec-{index}"): row
+        for index, row in enumerate(previous_rows if isinstance(previous_rows, list) else [])
+        if isinstance(row, dict)
+    }
+
     normalized: list[dict] = []
+    seen_ids: set[str] = set()
     for source in rows:
         if not isinstance(source, dict):
             continue
         row = dict(source)
+        row_id = str(row.get("id") or "").strip()
+        if row_id:
+            if row_id in seen_ids:
+                raise HTTPException(status_code=400, detail="Повторяющийся идентификатор комплектующего")
+            seen_ids.add(row_id)
+        private_cost: dict = {}
+        if "actual_cost" in row or "actualCost" in row:
+            if actor is None or not user_can_manage_prices(actor):
+                raise HTTPException(status_code=403, detail="Нет права изменять себестоимость")
+            private_cost["actual_cost"] = _extra_money(
+                row.get("actual_cost", row.get("actualCost")), "Себестоимость"
+            )
+        elif row_id and "actual_cost" in previous_by_id.get(row_id, {}):
+            private_cost["actual_cost"] = previous_by_id[row_id]["actual_cost"]
         item_id = _extra_int(row, "catalog_item_id", "catalogItemId")
         variant_id = _extra_int(row, "finish_variant_id", "finishVariantId")
         if item_id is None:
@@ -106,34 +181,7 @@ def _normalize_project_extras(raw: str | None, db: Session) -> str:
                 continue
             if not name:
                 name = sku
-            try:
-                quantity = Decimal(
-                    str(row.get("qty", row.get("quantity", "1")) or "1").replace(
-                        ",", "."
-                    )
-                )
-            except (TypeError, ValueError, InvalidOperation) as exc:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Некорректное количество для {name}",
-                ) from exc
-            if not quantity.is_finite():
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Некорректное количество для {name}",
-                )
-            if quantity <= 0:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Количество для {name} должно быть больше нуля",
-                )
-            try:
-                quantity_text = format(quantity.normalize(), "f")
-            except (DecimalException, OverflowError) as exc:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Некорректное количество для {name}",
-                ) from exc
+            quantity_text = _extra_quantity(row, name)
             color = str(row.get("color") or "").strip()
             category = str(row.get("category") or "component").strip().lower()
             if category not in {"profile", "component", "service"}:
@@ -170,6 +218,12 @@ def _normalize_project_extras(raw: str | None, db: Session) -> str:
                 ).strip(),
                 "delivery_stage": delivery_stage,
             }
+            if row_id:
+                manual_row["id"] = row_id
+            manual_row["unit_price"] = _extra_money(
+                row.get("unit_price", row.get("unitPrice")), "Цена продажи"
+            ) or ""
+            manual_row.update(private_cost)
             image_data = _extra_image_data(row)
             if image_data:
                 manual_row["image_data"] = image_data
@@ -199,45 +253,10 @@ def _normalize_project_extras(raw: str | None, db: Session) -> str:
         if variant is None and variants:
             variant = variants[0]
 
-        price_query = db.query(models.CatalogPriceVersion).filter(
-            models.CatalogPriceVersion.catalog_item_id == item.id,
-            models.CatalogPriceVersion.effective_from <= datetime.utcnow(),
-        )
-        if variant is not None:
-            price_query = price_query.filter(
-                models.CatalogPriceVersion.finish_variant_id == variant.id
-            )
-        active_price = price_query.order_by(
-            models.CatalogPriceVersion.effective_from.desc(),
-            models.CatalogPriceVersion.id.desc(),
-        ).first()
-        base_cost = Decimal(
-            str(
-                (variant.cost if variant.cost is not None else variant.price)
-                if variant is not None
-                else active_price.cost
-                if active_price is not None
-                else item.purchase_price or 0
-            )
-        )
-        markup = Decimal(
-            str(
-                active_price.profile_markup_percent
-                if active_price is not None
-                else variant.profile_markup_percent
-                if variant is not None
-                else item.markup_percent or 0
-            )
-        )
-        discount = Decimal(
-            str(
-                active_price.profile_discount_percent
-                if active_price is not None
-                else variant.profile_discount_percent
-                if variant is not None
-                else 0
-            )
-        )
+        active_price = resolve_effective_price(db, item, variant)
+        base_cost = Decimal(str(active_price.cost)) if active_price else Decimal("0")
+        markup = Decimal(str(active_price.profile_markup_percent)) if active_price else Decimal("0")
+        discount = Decimal(str(active_price.profile_discount_percent)) if active_price else Decimal("0")
         unit_price = (
             base_cost
             * (Decimal("1") + markup / Decimal("100"))
@@ -289,8 +308,8 @@ def _normalize_project_extras(raw: str | None, db: Session) -> str:
                 "color": color,
                 "requires_paint": requires_paint,
                 "size": str(row.get("size") or "").strip(),
-                "qty": str(row.get("qty", row.get("quantity", "1"))).strip(),
-                "unit": "шт" if category == "profile" else str(item.unit or "шт").strip(),
+                "qty": _extra_quantity(row, item.name),
+                "unit": "шт" if category == "profile" else str((active_price.unit if active_price else item.unit) or "шт").strip(),
                 "unit_price": (
                     f"{unit_price.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):.2f}"
                 ),
@@ -303,6 +322,8 @@ def _normalize_project_extras(raw: str | None, db: Session) -> str:
                 ),
             }
         )
+        if row_id:
+            normalized[-1]["id"] = row_id
     return json.dumps(normalized, ensure_ascii=False)
 
 
@@ -325,7 +346,8 @@ def list_projects(
     query = db.query(models.Project)
     if current_user.role == "dealer":
         query = query.filter(models.Project.created_by == current_user.id)
-    return query.order_by(models.Project.created_at.desc()).all()
+    return [_project_response(project, current_user, include_sections=False)
+            for project in query.order_by(models.Project.created_at.desc()).all()]
 
 
 @router.post("", response_model=schemas.ProjectOut, status_code=201)
@@ -342,7 +364,7 @@ def create_project(
     values["order_number"] = order_number or None
     values["number"] = order_number  # legacy compatibility alias
     values["extra_components"] = _normalize_project_extras(
-        values.get("extra_components"), db
+        values.get("extra_components"), db, actor=current_user
     )
     values["system"] = values.get("system") or ""  # legacy NOT NULL constraint
     project = models.Project(
@@ -353,7 +375,7 @@ def create_project(
     db.add(project)
     db.commit()
     db.refresh(project)
-    return project
+    return _project_response(project, current_user)
 
 
 @router.get("/{project_id}", response_model=schemas.ProjectOut)
@@ -362,7 +384,7 @@ def get_project(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    return _get_project_or_404(project_id, db, current_user)
+    return _project_response(_get_project_or_404(project_id, db, current_user), current_user)
 
 
 @router.put("/{project_id}", response_model=schemas.ProjectOut)
@@ -378,7 +400,8 @@ def update_project(
         values["customer"] = active_customer(db, values["customer"])
     if "extra_components" in values:
         values["extra_components"] = _normalize_project_extras(
-            values.get("extra_components"), db
+            values.get("extra_components"), db, actor=current_user,
+            previous=project.extra_components,
         )
     if "order_number" in values or "number" in values:
         raw_order_number = (
@@ -394,7 +417,7 @@ def update_project(
     project.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(project)
-    return project
+    return _project_response(project, current_user)
 
 
 @router.delete("/{project_id}", status_code=204)
@@ -549,4 +572,4 @@ def copy_project(
         db.add(new_section)
     db.commit()
     db.refresh(new_project)
-    return new_project
+    return _project_response(new_project, current_user)

@@ -10,19 +10,24 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
-from auth import get_current_user, require_price_manager
+from auth import get_current_user, require_price_manager, user_can_manage_prices
 from database import get_db
 from engine.quote_pricing import (
     MANUAL_SERVICE_UNITS,
     MarginOverrideNotRequired,
     QuoteExportBlocked,
+    QuotePricingError,
+    _canonical_discounts,
     approve_margin_override,
     decimal_value,
     decimal_text,
     get_or_create_quote_state,
+    freeze_quote,
     invalidate_margin_override,
     money_text,
     public_quote,
+    quote_revision_list,
+    quote_revision_snapshot,
     refresh_quote_revision,
 )
 
@@ -54,6 +59,52 @@ def get_public_quote(
     return payload
 
 
+@router.get("/{project_id}/quote/revisions")
+def get_quote_revisions(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    project = _project_or_404(project_id, db, current_user)
+    return quote_revision_list(db, project)
+
+
+@router.get("/{project_id}/quote/revisions/{revision}")
+def get_quote_revision(
+    project_id: int,
+    revision: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    project = _project_or_404(project_id, db, current_user)
+    try:
+        return quote_revision_snapshot(db, project, revision)[0]
+    except QuotePricingError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/{project_id}/quote/freeze")
+def fix_quote(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    project = _project_or_404(project_id, db, current_user)
+    try:
+        payload = freeze_quote(db, project, current_user)
+        db.commit()
+        return payload
+    except QuoteExportBlocked as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Исправьте ошибки расчёта перед фиксацией",
+                "quote": exc.public_payload,
+            },
+        ) from exc
+
+
 @router.put("/{project_id}/quote/config")
 def update_quote_config(
     project_id: int,
@@ -73,17 +124,44 @@ def update_quote_config(
             detail="Укажите название и поддерживаемую единицу для каждой услуги",
         )
     state = get_or_create_quote_state(db, project)
-    services_payload = json.dumps(
-        [
+    previous_services = {
+        row.get("id"): row
+        for row in json.loads(state.services_payload or "[]")
+        if isinstance(row, dict)
+    }
+    service_rows = []
+    for service in data.services:
+        previous_cost = previous_services.get(service.id, {}).get("actual_cost")
+        if not user_can_manage_prices(current_user):
+            if (
+                "actual_cost" in service.model_fields_set
+                and service.actual_cost is not None
+            ):
+                raise HTTPException(
+                    status_code=403, detail="Нет доступа к себестоимости услуги"
+                )
+            actual_cost = previous_cost
+        else:
+            actual_cost = (
+                previous_cost
+                if "actual_cost" not in service.model_fields_set
+                else decimal_text(service.actual_cost)
+                if service.actual_cost is not None
+                else None
+            )
+        service_rows.append(
             {
                 "id": service.id,
                 "name": service.name.strip(),
                 "quantity": decimal_text(service.quantity),
                 "unit": service.unit.strip(),
-                "base_cost": decimal_text(service.base_cost),
+                "base_cost": decimal_text(service.sale_price),
+                "sale_price": decimal_text(service.sale_price),
+                "actual_cost": actual_cost,
             }
-            for service in data.services
-        ],
+        )
+    services_payload = json.dumps(
+        service_rows,
         ensure_ascii=False,
     )
     discounts_payload = json.dumps(
@@ -99,6 +177,9 @@ def update_quote_config(
             if rule.value > 0
         ],
         ensure_ascii=False,
+    )
+    discounts_payload = json.dumps(
+        _canonical_discounts(discounts_payload), ensure_ascii=False
     )
     services_changed = state.services_payload != services_payload
     discounts_changed = state.discounts_payload != discounts_payload

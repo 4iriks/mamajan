@@ -54,12 +54,12 @@ export interface QuoteLine {
   line_total_before_discount: string;
   line_discount_amount: string;
   line_total: string;
-  document_line_total_before_discount: number;
-  document_line_discount_amount: number;
-  document_line_total: number;
-  document_unit_price_before_discount: number;
-  document_unit_discount_amount: number;
-  document_unit_final_price: number;
+  document_line_total_before_discount: number | string;
+  document_line_discount_amount: number | string;
+  document_line_total: number | string;
+  document_unit_price_before_discount: number | string;
+  document_unit_discount_amount: number | string;
+  document_unit_final_price: number | string;
   section_details?: QuoteSectionDetails;
   breakdown?: QuoteBreakdownLine[];
   component_details?: {
@@ -71,10 +71,14 @@ export interface QuoteLine {
     finish: string;
     unit: string;
     stage: string;
+    pricing_quantity?: string;
+    pricing_unit?: string;
+    pricing_unit_final_price?: string;
   };
 }
 
 export interface PublicQuote {
+  money_presentation_version?: number;
   project: { id: number; number: string; invoice_number?: string | null; order_number?: string | null; customer: string };
   revision: number;
   status: 'draft' | 'fixed';
@@ -86,9 +90,10 @@ export interface PublicQuote {
     discount: string;
     subtotal: string;
     grand_total: string;
-    document_before_discount: number;
-    document_discount: number;
-    document_grand_total: number;
+    document_before_discount: number | string;
+    document_discount: number | string;
+    document_grand_total: number | string;
+    rounding_adjustment?: string;
   };
   validity_days: number;
   valid_until: string;
@@ -99,6 +104,7 @@ export interface PublicQuote {
   warnings: string[];
   export_allowed: boolean;
   stale: boolean;
+  pricing_issues?: Array<{ code: string; section_id?: number; project_extra_index?: number; service_id?: string }>;
 }
 
 export interface QuoteManualService {
@@ -106,7 +112,9 @@ export interface QuoteManualService {
   name: string;
   quantity: string;
   unit: string;
-  base_cost: string;
+  base_cost?: string;
+  sale_price?: string;
+  actual_cost?: string | null;
 }
 
 export interface QuotePriceOverride {
@@ -181,3 +189,15 @@ export const updateQuoteOverrides = (
 export const refreshQuote = (projectId: number) =>
   client.post<PublicQuote>(`/api/projects/${projectId}/quote/refresh`)
     .then(response => response.data);
+
+export interface QuoteRevision {
+  revision: number;
+  fixed_at: string;
+  fixed_by: number | null;
+  status: 'fixed';
+  grand_total: string;
+  currency: string;
+}
+export const freezeQuote = (projectId: number) => client.post<PublicQuote>(`/api/projects/${projectId}/quote/freeze`).then(response => response.data);
+export const listQuoteRevisions = (projectId: number) => client.get<QuoteRevision[]>(`/api/projects/${projectId}/quote/revisions`).then(response => response.data);
+export const getQuoteRevision = (projectId: number, revision: number) => client.get<PublicQuote>(`/api/projects/${projectId}/quote/revisions/${revision}`).then(response => response.data);

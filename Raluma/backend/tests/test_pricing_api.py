@@ -13,7 +13,7 @@ from pypdf import PdfReader, PdfWriter
 
 import models
 from database import SessionLocal
-from engine.quote_pricing import _section_requirements, freeze_quote
+from engine.quote_pricing import _section_requirements, _finish_variant_cost, freeze_quote
 
 
 def _unique(prefix: str) -> str:
@@ -260,6 +260,17 @@ def test_standalone_sale_uses_only_item_terms_variants_and_buyer_discount(
                 reason="pytest standalone finish price",
             )
         )
+        # Effective finish versions are now authoritative, not the mutable
+        # compatibility fields (production migration creates these baselines).
+        for finish in colored.finish_variants:
+            db.add(models.CatalogPriceVersion(
+                catalog_item_id=colored.id, finish_variant_id=finish.id,
+                cost=finish.cost, profile_markup_percent=20, profile_discount_percent=10,
+                waste_markup_percent=90, construction_markup_percent=300,
+                construction_discount_percent=75, category="profile", unit="п.м.",
+                min_margin_percent=0, effective_from=datetime.utcnow() - timedelta(minutes=1),
+                created_by=actor_id, reason="pytest finish baseline",
+            ))
         db.commit()
         db.refresh(regular)
         db.refresh(colored)
@@ -1272,6 +1283,7 @@ def _seed_quote_prices(project_id: int, actor_id: int):
                 created_items.append(item.id)
             version = models.CatalogPriceVersion(
                 catalog_item_id=item.id,
+                finish_variant_id=_finish_variant_cost(item, required.get("finish", ""))[1],
                 cost=Decimal("10.00"),
                 profile_markup_percent=Decimal("0"),
                 profile_discount_percent=Decimal("0"),
@@ -1283,7 +1295,7 @@ def _seed_quote_prices(project_id: int, actor_id: int):
                 min_margin_percent=(
                     Decimal("1000") if sku == margin_sku else Decimal("0")
                 ),
-                effective_from=datetime.utcnow() - timedelta(minutes=1),
+                effective_from=datetime.utcnow(),
                 created_at=datetime.utcnow(),
                 created_by=actor_id,
                 reason="Интеграционный тест КП",
@@ -1292,6 +1304,24 @@ def _seed_quote_prices(project_id: int, actor_id: int):
             db.flush()
             created_versions.append(version.id)
             version_by_sku[sku] = version.id
+            # One SKU may be used in several finishes in the same assembly;
+            # seed each effective finish instead of relying on a generic cache.
+            for finish in item.finish_variants:
+                if not finish.is_active or finish.id == version.finish_variant_id:
+                    continue
+                finish_version = models.CatalogPriceVersion(
+                    catalog_item_id=item.id, finish_variant_id=finish.id,
+                    cost=version.cost, profile_markup_percent=version.profile_markup_percent,
+                    profile_discount_percent=version.profile_discount_percent,
+                    waste_markup_percent=version.waste_markup_percent,
+                    construction_markup_percent=version.construction_markup_percent,
+                    construction_discount_percent=version.construction_discount_percent,
+                    category=version.category, unit=version.unit, min_margin_percent=version.min_margin_percent,
+                    effective_from=datetime.utcnow(), created_by=actor_id, reason="Интеграционный тест КП: исполнение",
+                )
+                db.add(finish_version)
+                db.flush()
+                created_versions.append(finish_version.id)
         db.commit()
         return {
             "skipped_sku": skipped_sku,
@@ -1610,7 +1640,7 @@ def test_quote_missing_override_margin_snapshot_and_safe_exports(
         missing = client.get(
             f"/api/projects/{project['id']}/quote", headers=admin_headers
         ).json()
-        assert missing["missing_price_count"] == 1
+        assert missing["missing_price_count"] == 1, client.get(f"/api/pricing/projects/{project['id']}", headers=admin_headers).json()["missing_prices"]
         internal_missing = client.get(
             f"/api/pricing/projects/{project['id']}", headers=admin_headers
         ).json()
@@ -1654,10 +1684,7 @@ def test_quote_missing_override_margin_snapshot_and_safe_exports(
         assert overridden.status_code == 200, overridden.text
         assert overridden.json()["missing_price_count"] == 0
         assert overridden.json()["export_allowed"] is False
-        assert overridden.json()["warnings"] == ["Расчёт требует проверки менеджером."]
-        assert (
-            "минималь" not in json.dumps(overridden.json(), ensure_ascii=False).lower()
-        )
+        assert any("минималь" in warning.lower() for warning in overridden.json()["warnings"])
         internal_margin = client.get(
             f"/api/pricing/projects/{project['id']}", headers=admin_headers
         ).json()
@@ -1725,10 +1752,10 @@ def test_quote_missing_override_margin_snapshot_and_safe_exports(
         assert quote["export_allowed"] is True
         assert "vat" not in quote
         assert "vat" not in quote["totals"]
-        assert quote["totals"]["grand_total"] == quote["totals"]["subtotal"]
-        assert quote["totals"]["document_grand_total"] == sum(
-            row["document_line_total"] for row in quote["lines"]
-        )
+        assert Decimal(quote["totals"]["grand_total"]) == Decimal(quote["totals"]["subtotal"]) + Decimal(quote["totals"]["rounding_adjustment"])
+        assert Decimal(quote["totals"]["document_grand_total"]) == sum(
+            Decimal(row["document_line_total"]) for row in quote["lines"]
+        ) + Decimal(quote["totals"]["rounding_adjustment"])
         construction_line = next(
             row for row in quote["lines"] if row.get("section_details")
         )
@@ -1738,8 +1765,8 @@ def test_quote_missing_override_margin_snapshot_and_safe_exports(
         assert len(construction_line["section_details"]["panel_geometry"]) == 3
         assert construction_line["breakdown"][-1]["name"] == "Стекло"
         assert (
-            sum(row["line_total"] for row in construction_line["breakdown"])
-            == construction_line["document_line_total"]
+            sum(Decimal(row["line_total"]) for row in construction_line["breakdown"])
+            == Decimal(construction_line["document_line_total"])
         )
         _assert_no_internal_pricing(quote)
         assert "margin_approval" not in quote
@@ -1785,13 +1812,17 @@ def test_quote_missing_override_margin_snapshot_and_safe_exports(
             f"/api/projects/{project['id']}/documents/commercial/docx",
             headers=admin_headers,
         )
-        assert word_draft.status_code == 200, word_draft.text
+        assert word_draft.status_code == 409, word_draft.text
         assert (
             client.get(
                 f"/api/projects/{project['id']}/quote", headers=admin_headers
             ).json()["status"]
             == "draft"
         )
+        fixed_response = client.post(f"/api/projects/{project['id']}/quote/freeze", headers=admin_headers)
+        assert fixed_response.status_code == 200, fixed_response.text
+        word_draft = client.get(f"/api/projects/{project['id']}/documents/commercial/docx", headers=admin_headers)
+        assert word_draft.status_code == 200, word_draft.text
         with zipfile.ZipFile(io.BytesIO(word_draft.content)) as archive:
             word_xml = archive.read("word/document.xml").decode("utf-8")
             quote_images = [
@@ -1882,6 +1913,7 @@ def test_quote_missing_override_margin_snapshot_and_safe_exports(
             )
             replacement = models.CatalogPriceVersion(
                 catalog_item_id=changed.catalog_item_id,
+                finish_variant_id=changed.finish_variant_id,
                 cost=Decimal("999.00"),
                 profile_markup_percent=changed.profile_markup_percent,
                 profile_discount_percent=changed.profile_discount_percent,

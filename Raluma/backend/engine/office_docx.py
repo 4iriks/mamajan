@@ -5,7 +5,7 @@ from __future__ import annotations
 from engine.component_groups import display_groups
 
 import io
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 from typing import Any, Iterable
 
 from docx import Document
@@ -1669,12 +1669,11 @@ def _build_sketch_docx(context: dict) -> bytes:
 
 def _rubles(value: Any) -> str:
     try:
-        rounded = int(
-            Decimal(str(value)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
-        )
+        amount = Decimal(str(value))
+        places = 0 if isinstance(value, int) else 2
+        return f"{amount:,.{places}f}".replace(",", " ").replace(".", ",")
     except Exception:
-        rounded = 0
-    return f"{rounded:,}".replace(",", " ")
+        return "0"
 
 
 def _add_commercial_project_extras_page(document, lines: list[dict]) -> None:
@@ -1990,6 +1989,10 @@ def _build_commercial_docx(context: dict) -> bytes:
         for column, width in zip(table.columns, widths, strict=True):
             column.width = Mm(width)
 
+    if quote.get("money_presentation_version", 1) >= 2:
+        rounding_note = document.add_paragraph("Цена за единицу округлена до копеек. Сумма строки рассчитана до этого округления.")
+        for run in rounding_note.runs:
+            run.font.size = Pt(8)
     category_summary = context.get("commercial_summary") or []
     if category_summary and not minimal:
         category_table = document.add_table(rows=1, cols=4)
@@ -2028,7 +2031,9 @@ def _build_commercial_docx(context: dict) -> bytes:
     ]
     if minimal:
         totals_rows = []
-    totals_rows.append(("ИТОГО", f"{_rubles(totals['document_grand_total'])} ₽"))
+    if Decimal(str(totals.get("rounding_adjustment") or "0")):
+        totals_rows.append(("Округление до рубля", f"{_rubles(totals['rounding_adjustment'])} ₽"))
+    totals_rows.append(("ИТОГО", f"{_rubles(int(Decimal(str(totals['document_grand_total']))))} ₽"))
     for row_index, (label, value) in enumerate(totals_rows):
         row = totals_table.add_row()
         bold = row_index == len(totals_rows) - 1

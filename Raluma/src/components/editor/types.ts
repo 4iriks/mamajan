@@ -15,6 +15,7 @@ export interface ExtraComponent {
   finishName?: string;
   requiresPaint?: boolean;
   unitPrice?: string;
+  actualCost?: string;
   size: string;
   qty: string;
   unit?: string;

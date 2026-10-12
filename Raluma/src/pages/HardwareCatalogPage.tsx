@@ -38,6 +38,9 @@ import {
 } from '../api/pricing';
 import { useAuthStore } from '../store/authStore';
 import { toast } from '../store/toastStore';
+import { money, numericDraft, validMoney } from '../utils/money';
+import { PricingRules } from '../components/PricingRules';
+import { applyRuleBindings, previewRuleBindings } from '../api/pricingRules';
 
 type HardwareItem = HardwareCatalogItem;
 
@@ -717,11 +720,7 @@ function readItems(seed: HardwareItem[] = seedItems) {
 }
 
 function formatMoney(value: number) {
-  return new Intl.NumberFormat('ru-RU', {
-    style: 'currency',
-    currency: 'RUB',
-    maximumFractionDigits: value < 10 ? 1 : 0,
-  }).format(value);
+  return money(value);
 }
 
 function pricingCosts(item: HardwareItem) {
@@ -856,7 +855,7 @@ export default function HardwareCatalogPage() {
   const [group, setGroup] = useState<'Все' | HardwareGroup>('Все');
   const [systemGroup, setSystemGroup] = useState<'Все' | SystemGroupCode>('Все');
   const [status, setStatus] = useState<'all' | 'active' | 'inactive'>('active');
-  const [activeCatalogTab, setActiveCatalogTab] = useState<'items' | 'markups'>('items');
+  const [activeCatalogTab, setActiveCatalogTab] = useState<'items' | 'markups' | 'rules'>('items');
   const [draft, setDraft] = useState<HardwareItem | null>(null);
   const [originalDraft, setOriginalDraft] = useState('');
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
@@ -882,10 +881,12 @@ export default function HardwareCatalogPage() {
   const [costImportLoading, setCostImportLoading] = useState(false);
   const [costImportFilename, setCostImportFilename] = useState('');
   const [costImportReason, setCostImportReason] = useState('Сверка себестоимости из файла поставщика');
+  const [draftError, setDraftError] = useState('');
 
   const isDraftDirty = Boolean(draft && JSON.stringify(draft) !== originalDraft);
 
   const openDraft = (source: HardwareItem) => {
+    setDraftError('');
     const next = normalizeItem(JSON.parse(JSON.stringify(source)) as HardwareItem);
     setDraft(next);
     setOriginalDraft(JSON.stringify(next));
@@ -907,8 +908,8 @@ export default function HardwareCatalogPage() {
   }, [closeDraft, isDraftDirty]);
 
   useEffect(() => {
-    if (!isAdmin()) navigate('/');
-  }, [isAdmin, navigate]);
+    if (me && !isAdmin()) navigate('/');
+  }, [isAdmin, navigate, me]);
 
   useEffect(() => {
     if (!draft) return;
@@ -952,7 +953,7 @@ export default function HardwareCatalogPage() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin]);
+  }, [isAdmin, me]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -1004,6 +1005,13 @@ export default function HardwareCatalogPage() {
       toast.error('Выберите хотя бы одну группу системы');
       return;
     }
+    const priceFields = ['cost', 'profileMarkupPercent', 'profileDiscountPercent', 'wasteMarkupPercent', 'constructionMarkupPercent', 'constructionDiscountPercent'] as const;
+    for (const variant of draft.finishVariants || []) {
+      const invalid = priceFields.find(field => !validMoney(variant[field], field.includes('Discount') ? 100 : undefined));
+      if (invalid) { setDraftError(`${variant.name}: заполните все цены и проценты числами от 0. Скидки — не более 100%. Пустое поле не равно нулю.`); return; }
+      if (variant.minimumMarkupPercent !== undefined && !validMoney(variant.minimumMarkupPercent)) { setDraftError(`${variant.name}: минимальная наценка должна быть числом от 0.`); return; }
+    }
+    setDraftError('');
     const normalized = normalizeItem({
       ...draft,
       sku: draft.sku.trim(),
@@ -1013,12 +1021,12 @@ export default function HardwareCatalogPage() {
       colorVariants: (draft.finishVariants || []).map(variant => variant.name),
       finishVariants: (draft.finishVariants || []).map(variant => ({
         ...variant,
-        cost: Number(variant.cost) || 0,
-        profileMarkupPercent: Number(variant.profileMarkupPercent) || 0,
-        profileDiscountPercent: Number(variant.profileDiscountPercent) || 0,
-        wasteMarkupPercent: Number(variant.wasteMarkupPercent) || 0,
-        constructionMarkupPercent: Number(variant.constructionMarkupPercent) || 0,
-        constructionDiscountPercent: Number(variant.constructionDiscountPercent) || 0,
+        cost: numericDraft(variant.cost) ?? 0,
+        profileMarkupPercent: numericDraft(variant.profileMarkupPercent) ?? 0,
+        profileDiscountPercent: numericDraft(variant.profileDiscountPercent) ?? 0,
+        wasteMarkupPercent: numericDraft(variant.wasteMarkupPercent) ?? 0,
+        constructionMarkupPercent: numericDraft(variant.constructionMarkupPercent) ?? 0,
+        constructionDiscountPercent: numericDraft(variant.constructionDiscountPercent) ?? 0,
       })),
       updatedAt: new Date().toISOString().slice(0, 10),
     });
@@ -1033,17 +1041,40 @@ export default function HardwareCatalogPage() {
         : [normalizedSaved, ...prev]);
       closeDraft();
       toast.success('Позиция сохранена');
-    } catch {
-      toast.error('Не удалось сохранить позицию');
+    } catch (cause) {
+      const detail = (cause as { response?: { data?: { detail?: unknown } } }).response?.data?.detail;
+      const message = typeof detail === 'string' ? detail : 'Не удалось сохранить позицию. Проверьте значения полей; ввод сохранён.';
+      setDraftError(message); toast.error(message);
     }
+  };
+
+  const reloadCatalogPrices = async () => {
+    try { setItems((await listHardwareCatalog()).map(normalizeItem)); }
+    catch { toast.error('Не удалось обновить каталог после изменения правила'); }
+  };
+  const restoreVariantRule = async (variant: CatalogFinishVariant) => {
+    if (!variant.id || !draft) return;
+    if (isDraftDirty) { setDraftError('Сначала сохраните или отмените изменения карточки, затем верните правило.'); return; }
+    const request = { finish_variant_ids: [variant.id], mode: 'auto' as const, reason: 'Возврат исполнения к правилу из карточки каталога' };
+    try {
+      const preview = await previewRuleBindings(request);
+      const row = preview.rows[0];
+      if (!window.confirm(`Вернуть правило для «${variant.name}»?\n${row ? `Профиль: ${money(row.before.profile?.final)} → ${money(row.after.profile?.final)}\nКонструкция: ${money(row.before.construction?.final)} → ${money(row.after.construction?.final)}` : 'Проверьте наличие активного правила.'}\nЗафиксированные КП не изменятся.`)) return;
+      await applyRuleBindings(request);
+      const refreshed = (await listHardwareCatalog()).map(normalizeItem);
+      setItems(refreshed); const current = refreshed.find(item => item.id === draft.id); if (current) openDraft(current);
+      toast.success('Исполнение использует правило');
+    } catch { setDraftError('Не удалось вернуть правило. Проверьте, что для группы или каталога создано активное правило.'); }
   };
 
   const handleSystemMarkupSave = async (code: SystemGroupCode) => {
     const value = Number(systemMarkupDrafts[code]);
-    if (!Number.isFinite(value) || value < 0) {
+    if (!validMoney(systemMarkupDrafts[code])) {
       toast.error('Укажите корректную наценку');
       return;
     }
+    const affected = items.filter(item => item.isActive && item.systemGroups?.includes(code));
+    if (!window.confirm(`Установить наценку на конструкцию ${value}% для позиций системы (${affected.length} поз.)?\nОбщие детали изменятся также в других системах; индивидуальные проценты заменятся. Зафиксированные КП не изменятся.\nДля автоматического наследования используйте «Готовые правила».`)) return;
     setSavingSystemGroup(code);
     try {
       await updateSystemMarkup(code, value);
@@ -1319,9 +1350,12 @@ export default function HardwareCatalogPage() {
             }`}
           >
             <BadgePercent className="h-4 w-4" />
-            Наценки систем
+            Массовые изменения
           </button>
+          <button type="button" onClick={() => setActiveCatalogTab('rules')} className={`rounded-xl px-5 py-2.5 text-sm font-bold ${activeCatalogTab === 'rules' ? 'bg-primary text-white' : 'text-fg/55'}`}>Готовые правила</button>
         </div>
+
+        {activeCatalogTab === 'rules' && <PricingRules onApplied={() => void reloadCatalogPrices()} />}
 
         {activeCatalogTab === 'items' && <div className="flex flex-col xl:flex-row gap-3 mb-5">
           <div className="relative flex-1 group">
@@ -1393,8 +1427,8 @@ export default function HardwareCatalogPage() {
               <BadgePercent className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold">Наценка на конструкцию</h2>
-              <p className="mt-1 text-sm text-fg/45">Общее значение применяется ко всем позициям выбранной системы.</p>
+              <h2 className="text-lg font-bold">Массово установить наценку позиций системы</h2>
+              <p className="mt-1 text-sm text-fg/65">Это замена значений в позициях, не дополнительный множитель. Общие детали изменятся и в других системах. Для наследования используйте «Готовые правила».</p>
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -1771,6 +1805,8 @@ export default function HardwareCatalogPage() {
                   <div className="mb-3">
                     <h3 className="text-sm font-bold">Цены по исполнениям</h3>
                     <p className="mt-1 text-xs text-fg/40">Продажа профиля и готовая конструкция считаются независимо от одной себестоимости.</p>
+                    <p className="mt-1 text-xs font-semibold">Все суммы ниже за 1 {draft.unit}. Стоимость всей конструкции рассчитывается по её фактической комплектации.</p>
+                    {draftError && <p role="alert" className="mt-2 rounded-lg border border-red-500/30 p-3 text-sm text-red-600">{draftError}</p>}
                   </div>
                   <div className="space-y-3">
                     {(draft.finishVariants || []).map((variant, index) => {
@@ -1782,14 +1818,18 @@ export default function HardwareCatalogPage() {
                       const constructionFinal = constructionAfterMarkup * (1 - Number(variant.constructionDiscountPercent || 0) / 100);
                       const changeField = (field: keyof CatalogFinishVariant, value: string) => setDraft({
                         ...draft,
-                        finishVariants: (draft.finishVariants || []).map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row),
+                        finishVariants: (draft.finishVariants || []).map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value, ...(!['cost', 'minimumMarkupPercent'].includes(field) ? { pricingMode: 'individual' as const } : {}) } : row),
                       });
                       return (
                         <div key={variant.code} className="rounded-2xl border border-tint/25 bg-hi/[0.025] p-3.5">
                           <div className="grid gap-3 lg:grid-cols-[150px_minmax(0,1fr)]">
                             <div>
                               <div className="mb-2 text-sm font-bold">{FINISHES[variant.code].name}</div>
-                              <PriceField label="Себестоимость" value={variant.cost ?? 0} suffix="₽" onChange={value => changeField('cost', value)} />
+                              <p className="mb-2 text-xs text-fg/65">{variant.pricingMode === 'auto' ? variant.pricingSource?.label || variant.pricingSource?.name || 'По готовому правилу' : 'Индивидуальные значения'}</p>
+                              {variant.id && variant.pricingMode !== 'auto' && <button type="button" className="mb-2 text-xs text-accent underline" onClick={() => void restoreVariantRule(variant)}>Вернуть правило…</button>}
+                              <PriceField label={`Себестоимость, ₽/${draft.unit}`} value={variant.cost ?? ''} suffix="₽" onChange={value => changeField('cost', value)} />
+                              {variant.pricingMode === 'auto' && <p className="mt-2 text-[11px] text-fg/60">Изменение процента создаст индивидуальное исключение только для этого исполнения.</p>}
+                              <details className="mt-2 text-xs text-fg/65"><summary className="cursor-pointer">Минимальная наценка</summary><div className="mt-2"><PriceField label="Минимум от себестоимости" value={variant.minimumMarkupPercent ?? '0'} suffix="%" onChange={value => changeField('minimumMarkupPercent', value)} /></div><p className="mt-1">Это наценка на затраты, не доля прибыли в выручке. Ниже порога нужно разрешение администратора.</p></details>
                             </div>
                             <div className="min-w-0 space-y-3">
                               <div className="rounded-xl border border-sky-500/20 bg-sky-500/[0.035] p-3">

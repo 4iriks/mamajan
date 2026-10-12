@@ -41,6 +41,7 @@ export function parseExtraComponents(raw?: string): ExtraComponent[] {
         finishName: String(row?.finishName ?? row?.finish_name ?? row?.color ?? ''),
         requiresPaint: Boolean(row?.requiresPaint ?? row?.requires_paint),
         unitPrice: String(row?.unitPrice ?? row?.unit_price ?? ''),
+        actualCost: row?.actualCost === undefined && row?.actual_cost === undefined ? undefined : String(row?.actualCost ?? row?.actual_cost ?? ''),
         size: String(row?.size ?? ''),
         qty: String(row?.qty ?? row?.quantity ?? ''),
         unit: String(row?.unit ?? 'шт'),
@@ -58,22 +59,25 @@ export function parseExtraComponents(raw?: string): ExtraComponent[] {
   }
 }
 
-export function stringifyExtraComponents(rows?: ExtraComponent[]): string {
+export function stringifyExtraComponents(rows?: ExtraComponent[], includePrivateCost = true): string {
   const normalized = (rows ?? [])
     .map(row => {
       const isManual = !row.catalogItemId;
       const color = row.color.trim();
       return {
+        id: row.id,
         catalog_item_id: row.catalogItemId,
         finish_variant_id: row.finishVariantId,
         sku: row.sku.trim(),
         name: row.name.trim(),
         category: row.category || (isManual ? 'component' : undefined),
+        ...(isManual ? { unit_price: row.unitPrice?.trim().replace(',', '.') || undefined } : {}),
+        ...(isManual && includePrivateCost && row.actualCost !== undefined ? { actual_cost: row.actualCost.trim().replace(',', '.') || null } : {}),
         color,
         finish_name: (row.finishName || '').trim(),
         requires_paint: isManual ? Boolean(color) : Boolean(row.requiresPaint),
         size: row.size.trim(),
-        qty: row.qty.trim(),
+        qty: row.qty.trim().replace(',', '.'),
         unit: row.category === 'profile' ? 'шт' : (row.unit || 'шт').trim() || 'шт',
         image_file: (row.imageFile || '').trim(),
         image_data: (row.imageData || '').trim(),

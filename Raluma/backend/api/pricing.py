@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
+from api.pricing_rules import router as pricing_rules_router
 from api.catalog import (
     FINISH_DEFINITIONS,
     SYSTEM_GROUPS,
@@ -27,6 +28,10 @@ from api.catalog import (
 )
 from auth import get_current_user, require_admin, user_can_manage_prices
 from database import get_db
+from engine.pricing_rules import (
+    PERCENT_FIELDS, append_binding, latest_price_version, normalized_at,
+    price_preview, resolve_effective_price, sync_variant_cache,
+)
 from engine.quote_pricing import (
     MANUAL_SERVICE_UNITS,
     PRICE_CATEGORIES,
@@ -42,6 +47,11 @@ from engine.quote_pricing import (
 
 
 router = APIRouter(prefix="/api/pricing", tags=["pricing"])
+router.include_router(pricing_rules_router)
+
+
+class FinishPriceVersionCreate(schemas.CatalogPriceVersionCreate):
+    finish_variant_id: int | None = None
 
 
 def _price_group_dict(group: models.ConstructionPriceGroup) -> dict:
@@ -83,9 +93,10 @@ def _apply_group_markup_to_catalog(
         if not _item_belongs_to_price_group(item, group.code):
             continue
         for variant in item.finish_variants:
-            if not variant.is_active or decimal_value(
-                variant.construction_markup_percent
-            ) == decimal_value(group.markup_percent):
+            if not variant.is_active:
+                continue
+            resolved = resolve_effective_price(db, item, variant, now)
+            if resolved is None or resolved.construction_markup_percent == decimal_value(group.markup_percent):
                 continue
             current, _upcoming = _active_and_next_versions(
                 [
@@ -95,6 +106,9 @@ def _apply_group_markup_to_catalog(
                 ],
                 now,
             )
+            for field in PERCENT_FIELDS:
+                setattr(variant, field, getattr(resolved, field))
+            variant.cost = variant.price = resolved.cost
             variant.construction_markup_percent = group.markup_percent
             variant.updated_at = now
             item.price_versions.append(
@@ -117,6 +131,7 @@ def _apply_group_markup_to_catalog(
                     reason=f"Наценка ценовой группы {group.name}",
                 )
             )
+            append_binding(db, variant, "individual", actor.id, f"Массовая наценка системы {group.name}", now)
             changed += 1
     return changed
 
@@ -244,7 +259,12 @@ def _active_and_next_versions(
 
 def _catalog_item_dict(item: models.CatalogItem, at: datetime) -> dict:
     versions = list(item.price_versions)
-    active, upcoming = _active_and_next_versions(versions, at)
+    variants = [v for v in item.finish_variants if v.is_active]
+    representative_id = variants[0].id if variants else None
+    active, upcoming = _active_and_next_versions(
+        [v for v in versions if v.finish_variant_id == representative_id], at)
+    from sqlalchemy.orm import object_session
+    db = object_session(item)
     return {
         "id": item.id,
         "sku": item.sku,
@@ -257,6 +277,11 @@ def _catalog_item_dict(item: models.CatalogItem, at: datetime) -> dict:
         "active_price": _version_dict(active),
         "next_price": _version_dict(upcoming),
         "history_count": len(versions),
+        "finish_prices": [
+            {"finish_variant_id": v.id, "finish_name": v.name,
+             "resolved": price_preview(resolve_effective_price(db, item, v, at))}
+            for v in variants
+        ] if db else [],
     }
 
 
@@ -340,15 +365,27 @@ def price_history(
 @router.post("/catalog/{item_id}/versions", status_code=201)
 def create_price_version(
     item_id: int,
-    data: schemas.CatalogPriceVersionCreate,
+    data: FinishPriceVersionCreate,
     db: Session = Depends(get_db),
     actor: models.User = Depends(require_admin),
 ):
     item = db.query(models.CatalogItem).filter_by(id=item_id).first()
     if item is None:
         raise HTTPException(status_code=404, detail="Позиция не найдена")
-    version = _new_version(item, data, actor)
-    db.add(version)
+    variant_id = data.finish_variant_id
+    variants = [v for v in item.finish_variants if v.is_active]
+    if variant_id is None and len(variants) == 1:
+        variant_id = variants[0].id
+    variant = next((v for v in variants if v.id == variant_id), None)
+    if variants and variant is None:
+        raise HTTPException(400, "Выберите исполнение для новой версии цены")
+    if variant_id is not None and variant is None:
+        raise HTTPException(400, "Исполнение не относится к выбранному артикулу")
+    version = _new_version(item, data, actor, finish_variant_id=variant_id)
+    item.price_versions.append(version)
+    if variant is not None:
+        append_binding(db, variant, "individual", actor.id, data.reason.strip(), normalized_at(data.effective_from))
+        sync_variant_cache(item, variant)
     db.commit()
     db.refresh(version)
     return _version_dict(version)
@@ -370,6 +407,8 @@ def rollback_price_version(
     )
     if item is None or target is None:
         raise HTTPException(status_code=404, detail="Версия цены не найдена")
+    if target.finish_variant_id is None and any(v.is_active for v in item.finish_variants):
+        raise HTTPException(400, "Старая общая версия не определяет исполнение; выберите версию нужного исполнения")
     payload = schemas.CatalogPriceVersionCreate(
         cost=target.cost,
         profile_markup_percent=target.profile_markup_percent,
@@ -383,8 +422,12 @@ def rollback_price_version(
         effective_from=data.effective_from,
         reason=data.reason,
     )
-    version = _new_version(item, payload, actor, rollback_of_id=target.id)
-    db.add(version)
+    version = _new_version(item, payload, actor, finish_variant_id=target.finish_variant_id, rollback_of_id=target.id)
+    item.price_versions.append(version)
+    if target.finish_variant_id is not None:
+        variant = db.get(models.CatalogFinishVariant, target.finish_variant_id)
+        append_binding(db, variant, "individual", actor.id, data.reason.strip(), normalized_at(data.effective_from))
+        sync_variant_cache(item, variant)
     db.commit()
     db.refresh(version)
     return _version_dict(version)
@@ -402,19 +445,19 @@ def _bulk_preview(db: Session, data: schemas.CatalogPriceBulkRequest) -> list[di
             status_code=400,
             detail=f"Позиции каталога не найдены: {', '.join(map(str, missing))}",
         )
-    now = datetime.utcnow()
     factor = Decimal("1") + decimal_value(data.percent) / Decimal("100")
     rows = []
     for item_id in item_ids:
         item = by_id[item_id]
-        active, _future = _active_and_next_versions(list(item.price_versions), now)
-        if active is None:
-            raise HTTPException(
-                status_code=400,
-                detail=f"У позиции {item.sku} нет действующей версии цены",
-            )
-        rows.append(
-            {
+        variants = [v for v in item.finish_variants if v.is_active] or [None]
+        for variant in variants:
+            active = latest_price_version(item, variant, normalized_at(data.effective_from))
+            if active is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"У позиции {item.sku} нет действующей версии цены",
+                )
+            row = {
                 "item_id": item.id,
                 "sku": item.sku,
                 "name": item.name,
@@ -423,7 +466,9 @@ def _bulk_preview(db: Session, data: schemas.CatalogPriceBulkRequest) -> list[di
                 "source_version_id": active.id,
                 "source": active,
             }
-        )
+            if variant is not None:
+                row.update(finish_variant_id=variant.id, finish_name=variant.name)
+            rows.append(row)
     return rows
 
 
@@ -466,8 +511,11 @@ def apply_bulk_price_change(
                 effective_from=data.effective_from,
                 reason=data.reason,
             )
-            version = _new_version(item, payload, actor)
-            db.add(version)
+            version = _new_version(item, payload, actor, finish_variant_id=row.get("finish_variant_id"))
+            item.price_versions.append(version)
+            if row.get("finish_variant_id") is not None:
+                variant = db.get(models.CatalogFinishVariant, row["finish_variant_id"])
+                sync_variant_cache(item, variant)
             created.append(version)
         db.commit()
     except Exception:
@@ -497,6 +545,7 @@ _HEADER_ALIASES = {
     "единица измерения": "unit",
     "unit": "unit",
     "минимальная маржа": "min_margin_percent",
+    "минимальная наценка": "min_margin_percent",
     "дата начала": "effective_from",
     "дата начала действия": "effective_from",
     "effective from": "effective_from",
@@ -799,6 +848,7 @@ def _import_preview(db: Session, content: bytes) -> dict:
     errors = []
     seen_skus: set[str] = set()
     effective_from = _import_source_date(raw_rows)
+    import_effective_now = datetime.utcnow()
     for row in raw_rows[header_index + 1 :]:
         excel_row = int(row["row_number"])
         values = row["values"]
@@ -896,7 +946,11 @@ def _import_preview(db: Session, content: bytes) -> dict:
                 if finish_code == "ANOD_UNPAINTED"
                 else "Без цвета"
             ),
-            "effective_from": effective_from.isoformat(),
+            # A supplier document date is provenance, not an instruction to
+            # insert an obsolete historical price behind today's baseline.
+            # Future-dated supplier prices still stay scheduled.
+            "effective_from": max(effective_from, import_effective_now).isoformat(),
+            "source_date": effective_from.date().isoformat(),
             "action": action,
             "status": status,
             "pending": pending,
@@ -921,14 +975,14 @@ def _import_preview(db: Session, content: bytes) -> dict:
         if not source_layout:
             normalized.update(
                 {
-                    "profile_markup_percent": mapped.get("profile_markup_percent") or "0",
-                    "profile_discount_percent": mapped.get("profile_discount_percent") or "0",
-                    "waste_markup_percent": mapped.get("waste_markup_percent") or "0",
-                    "construction_markup_percent": mapped.get("construction_markup_percent") or "0",
-                    "construction_discount_percent": mapped.get("construction_discount_percent") or "0",
+                    "profile_markup_percent": mapped.get("profile_markup_percent") or "",
+                    "profile_discount_percent": mapped.get("profile_discount_percent") or "",
+                    "waste_markup_percent": mapped.get("waste_markup_percent") or "",
+                    "construction_markup_percent": mapped.get("construction_markup_percent") or "",
+                    "construction_discount_percent": mapped.get("construction_discount_percent") or "",
                     "category": mapped.get("category")
                     or (_infer_category(item) if item is not None else "component"),
-                    "min_margin_percent": mapped.get("min_margin_percent") or "0",
+                    "min_margin_percent": mapped.get("min_margin_percent") or "",
                     "effective_from": _excel_date(
                         mapped.get("effective_from") or ""
                     ).isoformat(),
@@ -1040,55 +1094,48 @@ def _import_version_payload(
         return fallback if value in (None, "") else value
 
     variant_id = variant.id if variant is not None else None
+    effective_from = normalized_at(_excel_date(str(row.get("effective_from") or "")))
     current = max(
         (
             version
             for version in item.price_versions
             if version.finish_variant_id == variant_id
+            and normalized_at(version.effective_from) <= effective_from
         ),
         key=lambda version: (version.effective_from, version.id or 0),
         default=None,
     )
+    fallback = current or variant
     return schemas.CatalogPriceVersionCreate(
         cost=cost,
         profile_markup_percent=selected(
             "profile_markup_percent",
-            variant.profile_markup_percent
-            if variant is not None
-            else current.profile_markup_percent
-            if current is not None
+            fallback.profile_markup_percent
+            if fallback is not None
             else item.markup_percent,
         ),
         profile_discount_percent=selected(
             "profile_discount_percent",
-            variant.profile_discount_percent
-            if variant is not None
-            else current.profile_discount_percent
-            if current is not None
+            fallback.profile_discount_percent
+            if fallback is not None
             else 0,
         ),
         waste_markup_percent=selected(
             "waste_markup_percent",
-            variant.waste_markup_percent
-            if variant is not None
-            else current.waste_markup_percent
-            if current is not None
+            fallback.waste_markup_percent
+            if fallback is not None
             else item.waste_percent,
         ),
         construction_markup_percent=selected(
             "construction_markup_percent",
-            variant.construction_markup_percent
-            if variant is not None
-            else current.construction_markup_percent
-            if current is not None
+            fallback.construction_markup_percent
+            if fallback is not None
             else 0,
         ),
         construction_discount_percent=selected(
             "construction_discount_percent",
-            variant.construction_discount_percent
-            if variant is not None
-            else current.construction_discount_percent
-            if current is not None
+            fallback.construction_discount_percent
+            if fallback is not None
             else 0,
         ),
         category=selected(
@@ -1100,7 +1147,7 @@ def _import_version_payload(
         min_margin_percent=selected(
             "min_margin_percent", current.min_margin_percent if current is not None else 0
         ),
-        effective_from=_excel_date(str(row.get("effective_from") or "")),
+        effective_from=effective_from,
         reason=reason,
     )
 
@@ -1238,21 +1285,6 @@ def apply_price_import(
                 ),
                 None,
             )
-            if variant is not None:
-                variant.cost = money(cost)
-                variant.price = money(cost)
-                variant.profile_markup_percent = payload.profile_markup_percent
-                variant.profile_discount_percent = payload.profile_discount_percent
-                variant.waste_markup_percent = payload.waste_markup_percent
-                variant.construction_markup_percent = (
-                    payload.construction_markup_percent
-                )
-                variant.construction_discount_percent = (
-                    payload.construction_discount_percent
-                )
-                variant.updated_at = datetime.utcnow()
-            item.purchase_price = float(cost)
-            item.updated_at = datetime.utcnow()
             if existing is not None:
                 unchanged.append(item.sku)
                 continue
@@ -1262,7 +1294,16 @@ def apply_price_import(
                 actor,
                 finish_variant_id=variant_id,
             )
-            db.add(version)
+            item.price_versions.append(version)
+            if variant is not None:
+                if any(row.get(field) not in (None, "") for field in PERCENT_FIELDS):
+                    append_binding(db, variant, "individual", actor.id, data.reason.strip(),
+                                   normalized_at(payload.effective_from))
+                sync_variant_cache(item, variant)
+                variant.updated_at = datetime.utcnow()
+            if normalized_at(payload.effective_from) <= datetime.utcnow():
+                item.purchase_price = float(cost)
+            item.updated_at = datetime.utcnow()
             created_versions.append(version)
         db.commit()
     except (ValidationError, ValueError) as exc:
@@ -1393,7 +1434,8 @@ def get_internal_project_quote(
                 "validity_days": config["validity_days"],
                 "manufacturing_term": config["manufacturing_term"],
                 "payment_terms": config["payment_terms"],
-                "services": config["services"],
+                "services": [{key: value for key, value in row.items() if key != "actual_cost"}
+                             for row in config["services"]],
                 "discounts": config["discounts"],
                 "overrides": [],
                 "margin_override_comment": "",

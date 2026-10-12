@@ -161,16 +161,17 @@ def _commercial_summary(lines: object) -> list[dict[str, object]]:
         ]
         if not rows:
             continue
+        precise = any(isinstance(row.get("document_line_total"), str) for row in rows)
         before = sum(
-            int(row.get("document_line_total_before_discount") or 0) for row in rows
+            Decimal(str(row.get("document_line_total_before_discount") or 0)) for row in rows
         )
-        total = sum(int(row.get("document_line_total") or 0) for row in rows)
+        total = sum(Decimal(str(row.get("document_line_total") or 0)) for row in rows)
         result.append(
             {
                 "label": label,
-                "before_discount": before,
-                "discount": max(0, before - total),
-                "total": total,
+                "before_discount": before if precise else int(before),
+                "discount": max(Decimal("0"), before - total) if precise else max(0, int(before - total)),
+                "total": total if precise else int(total),
             }
         )
     return result
@@ -190,6 +191,13 @@ class PhysicalGlassItem:
     note: str = ""
 
 
+def _document_money(value: object, whole: bool = False) -> str:
+    """Format precomputed money; never round a line again for presentation."""
+    number = Decimal(str(value or 0))
+    places = 0 if whole or isinstance(value, int) else 2
+    return f"{number:,.{places}f}".replace(",", " ").replace(".", ",")
+
+
 def _get_env() -> Environment:
     from engine.side_projection import snapshot_side_projection, snapshot_side_segments
     env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=False)
@@ -198,6 +206,7 @@ def _get_env() -> Environment:
     env.globals["display_groups"] = display_groups
     env.filters["img_b64"] = _img_b64
     env.filters["format_mm"] = _format_mm
+    env.filters["document_money"] = _document_money
     return env
 
 

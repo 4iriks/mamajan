@@ -10,7 +10,7 @@ import hashlib
 import json
 import re
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal, InvalidOperation, ROUND_FLOOR, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_FLOOR, ROUND_HALF_UP, localcontext
 from typing import Any, Iterable
 
 from sqlalchemy.orm import Session
@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 import models
 from engine.glass_types import normalize_slide_glass_type
 from engine.slide_calc import calculate_slide
+from engine.pricing_rules import resolve_effective_price
 
 
 MONEY = Decimal("0.01")
@@ -31,9 +32,11 @@ MANUAL_SERVICE_UNITS = (
     "шт.",
     "кв.м.",
 )
-QUOTE_SNAPSHOT_VERSION = 4
+QUOTE_SNAPSHOT_VERSION = 6
 
 PUBLIC_QUOTE_FIELDS = {
+    "money_presentation_version",
+    "pricing_issues",
     "document_layout_version",
     "project",
     "revision",
@@ -86,6 +89,7 @@ PUBLIC_PROJECT_FIELDS = {
     "customer",
 }
 PUBLIC_TOTAL_FIELDS = {
+    "rounding_adjustment",
     "before_discount",
     "discount",
     "subtotal",
@@ -133,6 +137,9 @@ PUBLIC_PANEL_GEOMETRY_FIELDS = {
     "deaf",
 }
 PUBLIC_COMPONENT_DETAIL_FIELDS = {
+    "pricing_quantity",
+    "pricing_unit",
+    "pricing_unit_final_price",
     "catalog_item_id",
     "finish_variant_id",
     "sku",
@@ -175,14 +182,15 @@ def safe_public_payload(payload: dict[str, Any]) -> dict[str, Any]:
     payload = json.loads(json.dumps(payload, ensure_ascii=False))
     payload.pop("vat", None)
     totals = payload.get("totals")
-    if isinstance(totals, dict):
+    legacy_money = payload.get("money_presentation_version", 1) < 2
+    if isinstance(totals, dict) and legacy_money:
         totals.pop("vat", None)
         totals["grand_total"] = totals.get(
             "subtotal", totals.get("grand_total", "0.00")
         )
     document_before_total = 0
     document_grand_total = 0
-    for line in payload.get("lines") or []:
+    for line in (payload.get("lines") or []) if legacy_money else []:
         if not isinstance(line, dict):
             continue
         quantity = max(decimal_value(line.get("quantity"), Decimal("1")), Decimal("1"))
@@ -212,7 +220,7 @@ def safe_public_payload(payload: dict[str, Any]) -> dict[str, Any]:
         )
         document_before_total += before
         document_grand_total += total
-    if isinstance(totals, dict):
+    if isinstance(totals, dict) and legacy_money:
         totals["document_before_discount"] = document_before_total
         totals["document_discount"] = document_before_total - document_grand_total
         totals["document_grand_total"] = document_grand_total
@@ -268,6 +276,15 @@ def safe_public_payload(payload: dict[str, Any]) -> dict[str, Any]:
         for row in payload.get("discounts") or []
         if isinstance(row, dict)
     ]
+    safe["pricing_issues"] = [
+        {
+            key: value
+            for key, value in row.items()
+            if key in {"code", "section_id", "project_extra_index", "service_id"}
+        }
+        for row in payload.get("pricing_issues") or []
+        if isinstance(row, dict)
+    ]
     for field, allowed in (
         ("project", PUBLIC_PROJECT_FIELDS),
         ("totals", PUBLIC_TOTAL_FIELDS),
@@ -286,7 +303,7 @@ def safe_public_payload(payload: dict[str, Any]) -> dict[str, Any]:
     safe["warnings"] = [
         str(warning)
         for warning in payload.get("warnings", [])
-        if "SLIDE:" in str(warning)
+        if "SLIDE:" in str(warning) or not legacy_money
     ]
     if not bool(payload.get("export_allowed")):
         safe["warnings"].insert(0, "Расчёт требует проверки менеджером.")
@@ -295,11 +312,12 @@ def safe_public_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 def decimal_value(value: Any, default: Decimal = ZERO) -> Decimal:
     if isinstance(value, Decimal):
-        return value
+        return value if value.is_finite() and value.copy_abs() < Decimal("1e100") else default
     if value in (None, ""):
         return default
     try:
-        return Decimal(str(value).strip().replace(",", "."))
+        parsed = Decimal(str(value).strip().replace(",", "."))
+        return parsed if parsed.is_finite() and parsed.copy_abs() < Decimal("1e100") else default
     except (InvalidOperation, ValueError, TypeError):
         return default
 
@@ -307,12 +325,14 @@ def decimal_value(value: Any, default: Decimal = ZERO) -> Decimal:
 def _optional_int(value: Any) -> int | None:
     try:
         return int(value) if value not in (None, "") else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
 def money(value: Decimal) -> Decimal:
-    return value.quantize(MONEY, rounding=ROUND_HALF_UP)
+    with localcontext() as context:
+        context.prec = max(context.prec, value.adjusted() + 3)
+        return value.quantize(MONEY, rounding=ROUND_HALF_UP)
 
 
 def money_text(value: Decimal) -> str:
@@ -471,27 +491,12 @@ def calculate_standalone_sale(
         if variant is None and active_variants:
             variant = active_variants[0]
 
-        cost = decimal_value(
-            (variant.cost if variant.cost is not None else variant.price)
-            if variant is not None
-            else version.cost
-            if version is not None
-            else item.purchase_price
-        )
-        markup = decimal_value(
-            variant.profile_markup_percent
-            if variant is not None
-            else version.profile_markup_percent
-            if version is not None
-            else item.markup_percent
-        )
-        item_discount = decimal_value(
-            variant.profile_discount_percent
-            if variant is not None
-            else version.profile_discount_percent
-            if version is not None
-            else ZERO
-        )
+        version = resolve_effective_price(db, item, variant, at=now)
+        if version is None:
+            raise QuotePricingError("Для выбранной позиции не задана действующая цена")
+        cost = decimal_value(version.cost)
+        markup = decimal_value(version.profile_markup_percent)
+        item_discount = decimal_value(version.profile_discount_percent)
         unit_before_buyer = money(
             cost * _markup_factor(markup) * _discount_factor(item_discount)
         )
@@ -707,6 +712,19 @@ def _parse_extra_components(raw: str | None) -> list[dict[str, Any]]:
     )
 
 
+def _extra_profile_length_metres(size: Any) -> Decimal | None:
+    """A profile blank's size is millimetres, not its billable quantity.
+
+    Accept the numeric editor input and older values such as ``1 200,5 мм``.
+    Do not guess a length from an arbitrary description or a multi-axis size.
+    """
+    text = re.sub(r"\s+", "", str(size or "")).lower()
+    if not re.fullmatch(r"\d+(?:[.,]\d+)?(?:мм|mm)?", text):
+        return None
+    length = decimal_value(re.sub(r"(?:мм|mm)$", "", text))
+    return length / Decimal("1000") if length > ZERO else None
+
+
 def _slide_panel_widths(
     calc: object, panels: int, fallback_width: Decimal
 ) -> list[Decimal]:
@@ -897,6 +915,7 @@ def _section_snapshot(section: object, calc: object) -> dict[str, Any]:
     )
     technical = _section_technical_components(section)
     from engine.side_projection import side_projection, side_segments
+
     return {
         "section_id": int(getattr(section, "id", 0) or 0),
         "name": str(getattr(section, "name", "") or "Секция"),
@@ -1076,6 +1095,8 @@ def _price_requirement(
     overrides: dict[str, dict[str, Any]],
     *,
     mode: str = "legacy",
+    db: Session | None = None,
+    at: datetime | None = None,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     sku = required["sku"]
     override = overrides.get(sku)
@@ -1104,17 +1125,12 @@ def _price_requirement(
         min_margin = ZERO
     else:
         item, version = item_and_version
-        if not _units_compatible(required["unit"], version.unit):
-            return None, {
-                "code": "unit_mismatch",
-                "sku": sku,
-                "name": required["name"],
-                "unit": required["unit"],
-                "priced_unit": version.unit,
-            }
         cost = decimal_value(version.cost)
         requested_finish = str(required.get("finish") or "").strip()
-        if requested_finish:
+        if requested_finish or (
+            len(item.finish_variants) == 1
+            and _normalized_finish(item.finish_variants[0].name) == "без цвета"
+        ):
             variant_cost, finish_variant_id, finish_name = _finish_variant_cost(
                 item,
                 requested_finish,
@@ -1128,8 +1144,6 @@ def _price_requirement(
                 }
             if variant_cost is not None:
                 cost = variant_cost
-        price_unit = version.unit
-        category = version.category
         finish_variant = next(
             (
                 row
@@ -1138,29 +1152,49 @@ def _price_requirement(
             ),
             None,
         )
+        if db is not None:
+            version = resolve_effective_price(db, item, finish_variant, at=at)
+            if version is None:
+                return None, {
+                    "code": "missing_price",
+                    "sku": sku,
+                    "name": required["name"],
+                    "unit": required["unit"],
+                }
+            cost = decimal_value(version.cost)
+        if not _units_compatible(required["unit"], version.unit):
+            return None, {
+                "code": "unit_mismatch",
+                "sku": sku,
+                "name": required["name"],
+                "unit": required["unit"],
+                "priced_unit": version.unit,
+            }
+        price_unit = version.unit
+        category = version.category
         profile_markup = decimal_value(
             finish_variant.profile_markup_percent
-            if finish_variant is not None
+            if finish_variant is not None and db is None
             else version.profile_markup_percent
         )
         profile_discount = decimal_value(
             finish_variant.profile_discount_percent
-            if finish_variant is not None
+            if finish_variant is not None and db is None
             else version.profile_discount_percent
         )
         waste_markup = decimal_value(
             finish_variant.waste_markup_percent
-            if finish_variant is not None
+            if finish_variant is not None and db is None
             else version.waste_markup_percent
         )
         construction_markup = decimal_value(
             finish_variant.construction_markup_percent
-            if finish_variant is not None
+            if finish_variant is not None and db is None
             else version.construction_markup_percent
         )
         construction_discount = decimal_value(
             finish_variant.construction_discount_percent
-            if finish_variant is not None
+            if finish_variant is not None and db is None
             else version.construction_discount_percent
         )
         min_margin = decimal_value(version.min_margin_percent)
@@ -1191,12 +1225,14 @@ def _price_requirement(
         "catalog_category": category,
         "price_unit": price_unit,
         "price_version_id": version.id if version is not None else None,
+        "price_source": getattr(version, "source", None),
         "finish_variant_id": finish_variant_id if override is None else None,
         "finish": finish_name
         if override is None
         else str(required.get("finish") or ""),
         "override_comment": str(override.get("comment") or "") if override else "",
         "cost": money_text(cost),
+        "cost_known": True,
         "base_cost_total": money_text(base_cost),
         "profile_markup_percent": decimal_text(profile_markup),
         "profile_discount_percent": decimal_text(profile_discount),
@@ -1349,6 +1385,89 @@ def _refresh_public_discount(public: dict[str, Any], exact: dict[str, Decimal]) 
             "line_total": money_text(total),
         }
     )
+    details = public.get("component_details")
+    if isinstance(details, dict) and decimal_value(details.get("pricing_quantity")) > 0:
+        details["pricing_unit_final_price"] = money_text(
+            total / decimal_value(details["pricing_quantity"])
+        )
+
+
+def _allocate_money(values: Iterable[Decimal], target: Decimal) -> list[Decimal]:
+    """Proportionally allocate a non-negative cent amount, without a residual loss.
+
+    When target <= sum(values), each share is bounded by that cent-valued row.
+    Stable largest remainders make the result deterministic even for tiny rows.
+    """
+    weights = [max(ZERO, money(decimal_value(value))) for value in values]
+    total = sum(weights, ZERO)
+    if not weights or total <= 0:
+        return [ZERO for _ in weights]
+    cents = int(max(ZERO, money(target)) / MONEY)
+    raw = [Decimal(cents) * weight / total for weight in weights]
+    shares = [int(value.to_integral_value(rounding=ROUND_FLOOR)) for value in raw]
+    order = sorted(
+        range(len(raw)),
+        key=lambda index: (raw[index] - shares[index], -index),
+        reverse=True,
+    )
+    for index in order[: cents - sum(shares)]:
+        shares[index] += 1
+    return [MONEY * value for value in shares]
+
+
+def _prepare_money_presentation(lines: list[dict[str, Any]]) -> dict[str, str]:
+    """New quotes retain cents per line; only the payable order total is rounded."""
+    before = ZERO
+    subtotal = ZERO
+    for line in lines:
+        quantity = decimal_value(line.get("quantity"), Decimal("1"))
+        divisor = quantity if quantity > 0 else Decimal("1")
+        line_before = money(decimal_value(line["line_total_before_discount"]))
+        line_total = money(decimal_value(line["line_total"]))
+        before += line_before
+        subtotal += line_total
+        line.update(
+            {
+                "document_line_total_before_discount": money_text(line_before),
+                "document_line_discount_amount": money_text(line_before - line_total),
+                "document_line_total": money_text(line_total),
+                "document_unit_price_before_discount": money_text(
+                    line_before / divisor
+                ),
+                "document_unit_discount_amount": money_text(
+                    (line_before - line_total) / divisor
+                ),
+                "document_unit_final_price": money_text(line_total / divisor),
+            }
+        )
+        breakdown = line.pop("_breakdown_exact", [])
+        allocated = _allocate_money(
+            (decimal_value(row["exact_total"]) for row in breakdown), line_total
+        )
+        line["breakdown"] = [
+            {
+                "sku": row["sku"],
+                "name": row["name"],
+                "quantity": row["quantity"],
+                "unit": row["unit"],
+                "unit_price": money_text(
+                    total / (decimal_value(row["quantity"]) or Decimal("1"))
+                ),
+                "line_total": money_text(total),
+            }
+            for row, total in zip(breakdown, allocated)
+        ]
+    grand_total = subtotal.quantize(WHOLE_RUBLE, rounding=ROUND_HALF_UP)
+    return {
+        "before_discount": money_text(before),
+        "discount": money_text(before - subtotal),
+        "subtotal": money_text(subtotal),
+        "grand_total": money_text(grand_total),
+        "rounding_adjustment": money_text(grand_total - subtotal),
+        "document_before_discount": money_text(before),
+        "document_discount": money_text(before - subtotal),
+        "document_grand_total": money_text(grand_total),
+    }
 
 
 def _apply_quote_discount_rules(
@@ -1356,7 +1475,7 @@ def _apply_quote_discount_rules(
     exact_lines: list[dict[str, Decimal]],
     raw_rules: object,
 ) -> None:
-    """Apply category/order discounts sequentially, including exact rubles."""
+    """Apply category rules, then order percent, then order rubles."""
 
     rules = _canonical_discounts(
         json.dumps(raw_rules, ensure_ascii=False)
@@ -1386,16 +1505,9 @@ def _apply_quote_discount_rules(
         fixed = min(money(value), money(available))
         if fixed <= 0 or available <= 0:
             continue
-        shares: list[Decimal] = []
-        allocated = ZERO
-        for offset, index in enumerate(indices):
-            if offset == len(indices) - 1:
-                share = fixed - allocated
-            else:
-                share = money(fixed * exact_lines[index]["total"] / available)
-                share = min(share, exact_lines[index]["total"])
-                allocated += share
-            shares.append(share)
+        shares = _allocate_money(
+            (exact_lines[index]["total"] for index in indices), fixed
+        )
         for index, share in zip(indices, shares):
             exact_lines[index]["total"] = money(
                 max(ZERO, exact_lines[index]["total"] - share)
@@ -1419,7 +1531,15 @@ def _canonical_services(raw: str | None) -> list[dict[str, Any]]:
             "name": str(row.get("name") or "").strip(),
             "quantity": decimal_text(decimal_value(row.get("quantity"))),
             "unit": str(row.get("unit") or "").strip(),
-            "base_cost": money_text(decimal_value(row.get("base_cost"))),
+            "base_cost": money_text(
+                decimal_value(row.get("sale_price", row.get("base_cost")))
+            ),
+            "sale_price": money_text(
+                decimal_value(row.get("sale_price", row.get("base_cost")))
+            ),
+            "actual_cost": money_text(decimal_value(row["actual_cost"]))
+            if row.get("actual_cost") not in (None, "")
+            else None,
         }
         for row in rows
         if isinstance(row, dict)
@@ -1449,7 +1569,15 @@ def _canonical_discounts(raw: str | None) -> list[dict[str, Any]]:
                 "value": decimal_text(value),
             }
         )
-    return result
+    # Quick fields may arrive in any editing order. Keep all additional rules
+    # and their relative order within each stage, but always deduct order
+    # rubles last. Frozen quotes are read from their saved payload, not here.
+    return sorted(
+        result,
+        key=lambda rule: (
+            0 if rule["scope"] != "order" else 1 if rule["mode"] == "percent" else 2
+        ),
+    )
 
 
 def _canonical_overrides(raw: str | None) -> list[dict[str, Any]]:
@@ -1551,6 +1679,26 @@ def _pricing_context_payload(
         )
     return {
         "engine_version": QUOTE_SNAPSHOT_VERSION,
+        "pricing_rules": [
+            {
+                column.name: _signature_value(getattr(row, column.name))
+                for column in row.__table__.columns
+            }
+            for row in db.query(models.CatalogPricingRuleVersion)
+            .filter(models.CatalogPricingRuleVersion.effective_from <= at)
+            .order_by(models.CatalogPricingRuleVersion.id)
+            .all()
+        ],
+        "pricing_bindings": [
+            {
+                column.name: _signature_value(getattr(row, column.name))
+                for column in row.__table__.columns
+            }
+            for row in db.query(models.CatalogPricingBindingVersion)
+            .filter(models.CatalogPricingBindingVersion.effective_from <= at)
+            .order_by(models.CatalogPricingBindingVersion.id)
+            .all()
+        ],
         "project": {
             "id": project.id,
             "number": project.number,
@@ -1820,6 +1968,8 @@ def calculate_quote(
                 active,
                 overrides,
                 mode="construction",
+                db=db,
+                at=now,
             )
             if issue is not None:
                 section_issues.append(issue)
@@ -1851,7 +2001,9 @@ def calculate_quote(
             internal_total=internal_total,
             terms=terms,
         )
-        sale_factor = _discount_factor(terms["construction_discount_percent"])
+        sale_factor = _markup_factor(terms["dealer_markup_percent"]) * _discount_factor(
+            terms["construction_discount_percent"]
+        )
         section_details = _section_snapshot(section, calc)
         section_area = (
             decimal_value(getattr(section, "width", 0))
@@ -1895,21 +2047,6 @@ def calculate_quote(
             sale_factor,
             exact["total"],
         )
-        if not section_issues:
-            for bom_line in priced_bom:
-                item_sale = money(
-                    decimal_value(bom_line["internal_total"]) * sale_factor
-                )
-                if item_sale >= decimal_value(bom_line["minimum_total"]):
-                    continue
-                margin_issue = {
-                    "code": "below_minimum_margin",
-                    "section_id": section.id,
-                    "sku": bom_line["sku"],
-                    "name": public_line["name"],
-                }
-                issues.append(margin_issue)
-                section_issues.append(margin_issue)
         public_lines.append(public_line)
         exact_lines.append(exact)
         line_minimums.append(
@@ -1963,8 +2100,17 @@ def calculate_quote(
         )
     }
     for index, extra in enumerate(project_extras, start=1):
-        quantity = decimal_value(extra.get("qty") or extra.get("quantity"))
+        quantity = decimal_value(
+            extra.get("qty") if "qty" in extra else extra.get("quantity")
+        )
         if quantity <= 0:
+            issues.append(
+                {
+                    "code": "invalid_extra_quantity",
+                    "project_extra_index": index,
+                    "name": str(extra.get("name") or "Доп. комплектующее"),
+                }
+            )
             continue
         catalog_item_id = _optional_int(
             extra.get("catalog_item_id") or extra.get("catalogItemId")
@@ -1974,14 +2120,30 @@ def calculate_quote(
         )
         sku = str(extra.get("sku") or extra.get("art") or "").strip()
         pair = active_by_id.get(catalog_item_id) if catalog_item_id else active.get(sku)
+        # An explicitly priced manual row must not silently turn into a catalog
+        # selection merely because its freely entered article happens to match.
+        if catalog_item_id is None and finish_variant_id is None and (
+            "unit_price" in extra or "unitPrice" in extra
+        ):
+            pair = None
         item = pair[0] if pair is not None else None
         version = pair[1] if pair is not None else None
         variant = finish_variants.get(finish_variant_id)
-        if variant is not None and catalog_item_id not in (
-            None,
-            variant.catalog_item_id,
+        if finish_variant_id is None and item is not None:
+            colorless = [
+                row
+                for row in item.finish_variants
+                if row.is_active and _normalized_finish(row.name) == "без цвета"
+            ]
+            if len(colorless) == 1:
+                variant = colorless[0]
+                finish_variant_id = variant.id
+        if variant is not None and (
+            not variant.is_active or item is None or variant.catalog_item_id != item.id
         ):
             variant = None
+        if item is not None:
+            version = resolve_effective_price(db, item, variant, at=now)
 
         snapshot_value = next(
             (
@@ -1994,10 +2156,31 @@ def calculate_quote(
         # A catalog position is always repriced from the active catalog data.
         # The legacy snapshot fallback is retained only for old manual rows
         # which have no catalog link.
-        if item is None and snapshot_value is not None:
-            unit_sale = decimal_value(snapshot_value)
-            selected_cost = ZERO
-            category = "component"
+        if (
+            item is None
+            and catalog_item_id is None
+            and finish_variant_id is None
+            and snapshot_value is not None
+        ):
+            unit_sale = decimal_value(snapshot_value, Decimal("-1"))
+            raw_actual_cost = extra.get("actual_cost", extra.get("actualCost"))
+            selected_cost = (
+                decimal_value(raw_actual_cost, Decimal("-1"))
+                if raw_actual_cost not in (None, "")
+                else ZERO
+            )
+            if unit_sale < 0 or selected_cost < 0:
+                issues.append(
+                    {
+                        "code": "invalid_extra_price",
+                        "project_extra_index": index,
+                        "name": str(extra.get("name") or "Доп. комплектующее"),
+                    }
+                )
+                continue
+            category = str(extra.get("category") or "component").strip().lower()
+            if category not in {"profile", "component", "service"}:
+                category = "component"
         elif finish_variant_id is not None and variant is None:
             issue = {
                 "code": "missing_finish_price",
@@ -2012,24 +2195,7 @@ def calculate_quote(
             }
             issues.append(issue)
             continue
-        elif variant is not None:
-            variant_cost = decimal_value(
-                variant.cost if variant.cost is not None else variant.price
-            )
-            selected_cost = variant_cost
-            unit_sale = money(
-                variant_cost
-                * _markup_factor(variant.profile_markup_percent)
-                * _discount_factor(variant.profile_discount_percent)
-            )
-            category = (
-                version.category
-                if version is not None
-                and version.category in {"profile", "component", "service"}
-                else "component"
-            )
-        elif pair is not None:
-            _, version = pair
+        elif item is not None and version is not None:
             selected_cost = decimal_value(version.cost)
             unit_sale = money(
                 selected_cost
@@ -2053,7 +2219,30 @@ def calculate_quote(
 
         name = str(getattr(item, "name", "") or extra.get("name") or sku).strip()
         line_unit = str(getattr(item, "unit", "") or extra.get("unit") or "шт")
-        internal_total = money(max(ZERO, unit_sale) * quantity)
+        pricing_unit = str(getattr(version, "unit", "") or line_unit)
+        length_factor = Decimal("1")
+        if (
+            item is not None
+            and category == "profile"
+            and _canonical_unit(pricing_unit) == "m"
+        ):
+            length_metres = _extra_profile_length_metres(extra.get("size"))
+            if length_metres is None:
+                issues.append(
+                    {
+                        "code": "invalid_extra_length",
+                        "project_extra_index": index,
+                        "sku": sku or item.sku,
+                        "name": name,
+                    }
+                )
+                continue
+            length_factor = length_metres
+            # Documents still show the original number of physical blanks.
+            # Only the pricing basis is converted to metres.
+            line_unit = "шт"
+        pricing_quantity = quantity * length_factor
+        internal_total = money(max(ZERO, unit_sale) * pricing_quantity)
         public_line, exact = _public_line(
             line_id=f"project-extra-{index}",
             name=name,
@@ -2082,11 +2271,18 @@ def calculate_quote(
             "stage": str(
                 extra.get("deliveryStage") or extra.get("delivery_stage") or "both"
             ),
+            "pricing_quantity": decimal_text(pricing_quantity),
+            "pricing_unit": pricing_unit,
+            "pricing_unit_final_price": money_text(exact["total"] / pricing_quantity),
         }
         minimum_total = (
-            money(selected_cost * quantity * _markup_factor(version.min_margin_percent))
+            money(
+                selected_cost
+                * pricing_quantity
+                * _markup_factor(version.min_margin_percent)
+            )
             if version is not None
-            else ZERO
+            else money(selected_cost * pricing_quantity)
         )
         if exact["total"] < minimum_total:
             issues.append(
@@ -2122,9 +2318,16 @@ def calculate_quote(
                 "quantity": decimal_text(quantity),
                 "unit": line_unit,
                 "finish": finish_name,
-                "cost": money_text(selected_cost),
-                "base_cost_total": money_text(selected_cost * quantity),
-                "unit_sale": money_text(unit_sale),
+                "cost": money_text(selected_cost * length_factor),
+                "base_cost_total": money_text(selected_cost * pricing_quantity),
+                "unit_sale": money_text(unit_sale * length_factor),
+                "pricing_quantity": decimal_text(pricing_quantity),
+                "pricing_unit": pricing_unit,
+                "catalog_unit_cost": money_text(selected_cost),
+                "price_version_id": version.id if version is not None else None,
+                "price_source": getattr(version, "source", None),
+                "cost_known": item is not None
+                or extra.get("actual_cost", extra.get("actualCost")) not in (None, ""),
                 "internal_total": money_text(internal_total),
                 "final_price": public_line["line_total"],
                 "minimum_total": money_text(minimum_total),
@@ -2137,10 +2340,32 @@ def calculate_quote(
         if not isinstance(service, dict):
             continue
         quantity = decimal_value(service.get("quantity"))
-        base_cost = decimal_value(service.get("base_cost"))
-        if quantity <= 0 or base_cost < 0:
+        sale_price = decimal_value(
+            service.get("sale_price", service.get("base_cost")), Decimal("-1")
+        )
+        actual_cost_raw = service.get("actual_cost")
+        actual_cost = (
+            decimal_value(actual_cost_raw, Decimal("-1"))
+            if actual_cost_raw not in (None, "")
+            else None
+        )
+        if (
+            quantity <= 0
+            or sale_price < 0
+            or (actual_cost is not None and actual_cost < 0)
+        ):
+            issues.append(
+                {
+                    "code": "invalid_service",
+                    "service_id": str(service.get("id") or index),
+                    "name": str(service.get("name") or "Услуга"),
+                }
+            )
             continue
-        internal_total = money(quantity * base_cost)
+        internal_total = money(quantity * sale_price)
+        service_minimum = (
+            money(quantity * actual_cost) if actual_cost is not None else ZERO
+        )
         public_line, exact = _public_line(
             line_id=str(service.get("id") or f"service-{index + 1}"),
             name=str(service.get("name") or "Услуга"),
@@ -2150,7 +2375,7 @@ def calculate_quote(
             internal_total=internal_total,
             terms=terms,
         )
-        if exact["total"] < internal_total:
+        if exact["total"] < service_minimum:
             margin_issue = {
                 "code": "below_minimum_margin",
                 "service_id": public_line["id"],
@@ -2161,7 +2386,7 @@ def calculate_quote(
         exact_lines.append(exact)
         line_minimums.append(
             (
-                money(internal_total),
+                service_minimum,
                 {
                     "code": "below_minimum_margin",
                     "service_id": public_line["id"],
@@ -2172,7 +2397,15 @@ def calculate_quote(
         internal_services.append(
             {
                 **service,
-                "base_cost": money_text(base_cost),
+                "base_cost": money_text(sale_price),
+                "sale_price": money_text(sale_price),
+                "actual_cost": money_text(actual_cost)
+                if actual_cost is not None
+                else None,
+                "cost_known": actual_cost is not None,
+                "base_cost_total": money_text(service_minimum)
+                if actual_cost is not None
+                else None,
                 "internal_total": money_text(internal_total),
                 "dealer_markup_percent": decimal_text(terms["dealer_markup_percent"]),
                 "dealer_discount_percent": public_line["discount_percent"],
@@ -2185,6 +2418,45 @@ def calculate_quote(
         exact_lines,
         _json_load(state.discounts_payload, []),
     )
+
+    # Keep the private trace in agreement with the price after every order rule.
+    final_lines = {line["id"]: line for line in public_lines}
+    for source in [*internal_project_extras, *internal_services]:
+        line = final_lines.get(source.get("line_id") or source.get("id"))
+        if line:
+            after_dealer = decimal_value(source["final_price"])
+            source["after_dealer_terms"] = money_text(after_dealer)
+            source["final_price"] = line["line_total"]
+            source["order_discount_amount"] = money_text(
+                max(ZERO, after_dealer - decimal_value(line["line_total"]))
+            )
+    for section_source in internal_sections:
+        line = final_lines[f"section-{section_source['section_id']}"]
+        section_source["after_dealer_terms"] = section_source["final_price"]
+        section_source["order_discount_amount"] = money_text(
+            max(
+                ZERO,
+                decimal_value(section_source["final_price"])
+                - decimal_value(line["line_total"]),
+            )
+        )
+        section_source["final_price"] = line["line_total"]
+        bom = section_source["bom"]
+        allocated = _allocate_money(
+            (decimal_value(row["internal_total"]) for row in bom),
+            decimal_value(line["line_total"]),
+        )
+        for row, total in zip(bom, allocated):
+            row["client_total"] = money_text(total)
+            if total < decimal_value(row["minimum_total"]):
+                issue = {
+                    "code": "below_minimum_margin",
+                    "section_id": section_source["section_id"],
+                    "sku": row["sku"],
+                    "name": line["name"],
+                }
+                issues.append(issue)
+                section_source["issues"].append(issue)
 
     # Explicit category/order discounts are applied after the base buyer
     # terms. Re-check every line afterwards so neither a percentage nor a
@@ -2219,68 +2491,17 @@ def calculate_quote(
             }
         )
 
-    subtotal_before_discount = money(
-        sum((row["before_discount"] for row in exact_lines), ZERO)
-    )
-    discount_total = money(sum((row["discount_amount"] for row in exact_lines), ZERO))
-    subtotal = money(sum((row["total"] for row in exact_lines), ZERO))
-    grand_total = subtotal
-    display_factor = Decimal("1")
-
-    display_before = [row["before_discount"] * display_factor for row in exact_lines]
-    display_final = [row["total"] * display_factor for row in exact_lines]
-    rounded_before = _allocate_whole_rubles(display_before)
-    rounded_final = _allocate_whole_rubles(display_final)
-    for index, public_line in enumerate(public_lines):
-        quantity = decimal_value(public_line["quantity"], Decimal("1"))
-        divisor = quantity if quantity > 0 else Decimal("1")
-        public_line["document_line_total_before_discount"] = rounded_before[index]
-        public_line["document_line_discount_amount"] = (
-            rounded_before[index] - rounded_final[index]
+    presented_totals = _prepare_money_presentation(public_lines)
+    if decimal_value(presented_totals["grand_total"]) < sum(
+        (floor for floor, _ in line_minimums), ZERO
+    ):
+        issues.append(
+            {
+                "code": "below_minimum_margin",
+                "scope": "order",
+                "name": "Итог с учётом округления",
+            }
         )
-        public_line["document_line_total"] = rounded_final[index]
-        public_line["document_unit_price_before_discount"] = int(
-            (Decimal(rounded_before[index]) / divisor).quantize(
-                WHOLE_RUBLE, rounding=ROUND_HALF_UP
-            )
-        )
-        public_line["document_unit_discount_amount"] = int(
-            (Decimal(rounded_before[index] - rounded_final[index]) / divisor).quantize(
-                WHOLE_RUBLE, rounding=ROUND_HALF_UP
-            )
-        )
-        public_line["document_unit_final_price"] = int(
-            (Decimal(rounded_final[index]) / divisor).quantize(
-                WHOLE_RUBLE, rounding=ROUND_HALF_UP
-            )
-        )
-        exact_breakdown = public_line.pop("_breakdown_exact", [])
-        if exact_breakdown:
-            breakdown_totals = _allocate_whole_rubles_to_target(
-                [row["exact_total"] * display_factor for row in exact_breakdown],
-                rounded_final[index],
-            )
-            public_line["breakdown"] = []
-            for row, line_total in zip(exact_breakdown, breakdown_totals):
-                quantity = decimal_value(row["quantity"], Decimal("1"))
-                divisor = quantity if quantity > 0 else Decimal("1")
-                public_line["breakdown"].append(
-                    {
-                        "sku": row["sku"],
-                        "name": row["name"],
-                        "quantity": row["quantity"],
-                        "unit": row["unit"],
-                        "unit_price": int(
-                            (Decimal(line_total) / divisor).quantize(
-                                WHOLE_RUBLE,
-                                rounding=ROUND_HALF_UP,
-                            )
-                        ),
-                        "line_total": line_total,
-                    }
-                )
-        else:
-            public_line["breakdown"] = []
 
     margin_approval = _margin_approval_details(
         db,
@@ -2298,6 +2519,10 @@ def calculate_quote(
             "missing_price",
             "missing_finish_price",
             "unit_mismatch",
+            "invalid_extra_length",
+            "invalid_extra_quantity",
+            "invalid_extra_price",
+            "invalid_service",
             "no_slide_sections",
             "unsupported_section_pricing",
         }
@@ -2323,6 +2548,22 @@ def calculate_quote(
     warnings = []
     if missing_by_sku:
         warnings.append("Для обязательных позиций не заданы действующие цены.")
+    for issue in issues:
+        if issue["code"] == "invalid_extra_quantity":
+            warnings.append(
+                f"Доп. комплектующее №{issue['project_extra_index']}: укажите положительное количество."
+            )
+        if issue["code"] == "invalid_extra_price":
+            warnings.append(
+                f"Доп. комплектующее №{issue['project_extra_index']}: проверьте числовые поля цены."
+            )
+        if issue["code"] == "invalid_service":
+            warnings.append("Проверьте количество и цену услуги.")
+        if issue["code"] == "invalid_extra_length":
+            warnings.append(
+                f"Доп. комплектующее №{issue['project_extra_index']} «{issue['name']}»: "
+                "укажите положительную длину детали в мм для расчёта цены за метр."
+            )
     if any(issue["code"] == "below_minimum_margin" for issue in issues):
         warnings.append(
             "Итоговая цена ниже минимально допустимой."
@@ -2339,8 +2580,6 @@ def calculate_quote(
 
     basis_date = state.fixed_at or now
     valid_until = basis_date.date() + timedelta(days=state.validity_days)
-    document_before_total = sum(rounded_before)
-    document_grand_total = sum(rounded_final)
     total_area = sum(
         (
             decimal_value(line.get("section_details", {}).get("area_m2"))
@@ -2352,6 +2591,7 @@ def calculate_quote(
     )
     public_payload = {
         "document_layout_version": 2,
+        "money_presentation_version": 2,
         "project": {
             "id": project.id,
             "number": project.number,
@@ -2371,15 +2611,7 @@ def calculate_quote(
         ),
         "currency": "RUB",
         "lines": public_lines,
-        "totals": {
-            "before_discount": money_text(subtotal_before_discount),
-            "discount": money_text(discount_total),
-            "subtotal": money_text(subtotal),
-            "grand_total": money_text(grand_total),
-            "document_before_discount": document_before_total,
-            "document_discount": document_before_total - document_grand_total,
-            "document_grand_total": document_grand_total,
-        },
+        "totals": presented_totals,
         "validity_days": state.validity_days,
         "valid_until": valid_until.isoformat(),
         "manufacturing_term": state.manufacturing_term,
@@ -2387,6 +2619,7 @@ def calculate_quote(
         "discounts": _canonical_discounts(state.discounts_payload),
         "missing_price_count": len(missing_by_sku),
         "warnings": warnings,
+        "pricing_issues": blocking_issues,
         "export_allowed": not blocking_issues,
         "stale": False,
     }
@@ -2401,6 +2634,15 @@ def calculate_quote(
         "dealer_terms": {key: decimal_text(value) for key, value in terms.items()},
         "margin_approval": margin_approval,
         "calculated_at": now.isoformat(),
+        "cost_warnings": [
+            {
+                "line_id": row.get("line_id") or row.get("id"),
+                "name": row.get("name"),
+                "code": "unknown_actual_cost",
+            }
+            for row in [*internal_project_extras, *internal_services]
+            if not row.get("cost_known")
+        ],
     }
     signature = _quote_signature(db, project, state, now)
     return public_payload, internal_payload, signature
@@ -2457,11 +2699,7 @@ def public_quote(
     at: datetime | None = None,
 ) -> dict[str, Any]:
     state = get_or_create_quote_state(db, project)
-    if (
-        state.status != "fixed"
-        or not state.public_payload
-        or state.public_payload == "{}"
-    ):
+    if state.status != "fixed":
         payload = refresh_draft_quote(db, project, state, at=at)
     else:
         payload = _json_load(state.public_payload, {})
@@ -2473,6 +2711,86 @@ def public_quote(
     return payload
 
 
+def _archive_quote(db: Session, state: models.ProjectQuoteState) -> None:
+    """Persist each fixed edition once; later revisions cannot replace it."""
+    if state.status != "fixed" or state.public_payload in (None, "", "{}"):
+        return
+    existing = (
+        db.query(models.ProjectQuoteRevision)
+        .filter_by(project_id=state.project_id, revision=state.revision)
+        .first()
+    )
+    if existing is None:
+        db.add(
+            models.ProjectQuoteRevision(
+                project_id=state.project_id,
+                revision=state.revision,
+                public_payload=state.public_payload,
+                internal_payload=state.internal_payload or "{}",
+                source_signature=state.source_signature,
+                fixed_at=state.fixed_at,
+                fixed_by=state.fixed_by,
+            )
+        )
+        db.flush()
+
+
+def quote_revision_snapshot(
+    db: Session,
+    project: models.Project,
+    revision: int,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Read-only access to public/private frozen data, with current legacy fallback."""
+    saved = (
+        db.query(models.ProjectQuoteRevision)
+        .filter_by(project_id=project.id, revision=revision)
+        .first()
+    )
+    if saved is None:
+        saved = (
+            db.query(models.ProjectQuoteState)
+            .filter_by(project_id=project.id, revision=revision, status="fixed")
+            .first()
+        )
+    if saved is None or saved.public_payload in (None, "", "{}"):
+        raise QuotePricingError("Сохранённая редакция КП не найдена")
+    public = safe_public_payload(_json_load(saved.public_payload, {}))
+    public.update({"revision": revision, "status": "fixed", "stale": False})
+    return public, _json_load(saved.internal_payload, {})
+
+
+def quote_revision_list(db: Session, project: models.Project) -> list[dict[str, Any]]:
+    saved_rows = (
+        db.query(models.ProjectQuoteRevision).filter_by(project_id=project.id).all()
+    )
+    current = (
+        db.query(models.ProjectQuoteState)
+        .filter_by(project_id=project.id, status="fixed")
+        .first()
+    )
+    if current is not None and current.revision not in {
+        row.revision for row in saved_rows
+    }:
+        saved_rows.append(current)
+    return [
+        {
+            "revision": row.revision,
+            "status": "fixed",
+            "fixed_at": row.fixed_at.isoformat() if row.fixed_at else None,
+            "fixed_by": row.fixed_by,
+            "currency": "RUB",
+            "grand_total": money_text(
+                decimal_value(
+                    safe_public_payload(_json_load(row.public_payload, {}))
+                    .get("totals", {})
+                    .get("document_grand_total", "0.00")
+                )
+            ),
+        }
+        for row in sorted(saved_rows, key=lambda row: row.revision, reverse=True)
+    ]
+
+
 def freeze_quote(
     db: Session,
     project: models.Project,
@@ -2482,6 +2800,7 @@ def freeze_quote(
 ) -> dict[str, Any]:
     state = get_or_create_quote_state(db, project)
     if state.status == "fixed" and state.public_payload not in (None, "", "{}"):
+        _archive_quote(db, state)
         payload = safe_public_payload(_json_load(state.public_payload, {}))
         payload["stale"] = quote_is_stale(db, project, state, at=at)
         return payload
@@ -2527,6 +2846,7 @@ def freeze_quote(
     state.public_payload = json.dumps(payload, ensure_ascii=False)
     state.internal_payload = json.dumps(internal, ensure_ascii=False)
     db.flush()
+    _archive_quote(db, state)
     return payload
 
 
@@ -2551,6 +2871,7 @@ def refresh_quote_revision(
         payload["stale"] = False
         return payload
 
+    _archive_quote(db, state)
     next_revision = max(1, int(state.revision or 1)) + 1
     public, internal, signature = calculate_quote(
         db,
@@ -2595,6 +2916,7 @@ def refresh_quote_revision(
     state.source_project_updated_at = project.updated_at
     state.updated_at = datetime.utcnow()
     db.flush()
+    _archive_quote(db, state)
     return payload
 
 
@@ -2623,7 +2945,7 @@ def internal_quote_state(
 ) -> dict[str, Any]:
     evaluation_at = _normalize_datetime(at or datetime.utcnow())
     state = get_or_create_quote_state(db, project)
-    if state.status != "fixed" or state.internal_payload in (None, "", "{}"):
+    if state.status != "fixed":
         refresh_draft_quote(db, project, state, at=evaluation_at)
     internal = _json_load(state.internal_payload, {})
     stale = quote_is_stale(db, project, state, at=evaluation_at)

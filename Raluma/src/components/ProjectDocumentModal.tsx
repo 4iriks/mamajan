@@ -31,6 +31,10 @@ import {
   getPublicQuote,
   PublicQuote,
   refreshQuote,
+  freezeQuote,
+  getQuoteRevision,
+  listQuoteRevisions,
+  type QuoteRevision,
 } from '../api/quotes';
 import { useAuthStore } from '../store/authStore';
 
@@ -161,6 +165,9 @@ export default function ProjectDocumentModal({
   const [deliveryData, setDeliveryData] = useState<DeliveryNoteData>(() => parseDeliveryData());
   const [isSavingDelivery, setIsSavingDelivery] = useState(false);
   const [quote, setQuote] = useState<PublicQuote | null>(null);
+  const [revisions, setRevisions] = useState<QuoteRevision[]>([]);
+  const [selectedRevision, setSelectedRevision] = useState<number>();
+  const quoteLoadVersion = useRef(0);
   const [fullScreen, setFullScreen] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [isQuoteLoading, setIsQuoteLoading] = useState(false);
@@ -177,8 +184,8 @@ export default function ProjectDocumentModal({
   const canEditCommercial = Boolean(user && user.role !== 'dealer');
   const hasDocumentEditor = isPaintDocument || isDeliveryDocument || isCommercialDocument;
   const previewUrl = useMemo(
-    () => isGuest ? undefined : `${getProjectDocumentPreviewUrl(projectId, docType)}?token=${encodeURIComponent(token)}&v=${previewVersion}`,
-    [docType, isGuest, projectId, token, previewVersion],
+    () => isGuest ? undefined : `${getProjectDocumentPreviewUrl(projectId, docType)}?token=${encodeURIComponent(token)}&v=${previewVersion}${isCommercialDocument && selectedRevision !== undefined ? `&quote_revision=${selectedRevision}` : ''}`,
+    [docType, isGuest, isCommercialDocument, projectId, token, previewVersion, selectedRevision],
   );
 
   useEffect(() => {
@@ -200,16 +207,20 @@ export default function ProjectDocumentModal({
   const loadCommercialQuote = useCallback(async () => {
     if (!isOpen || !isCommercialDocument || isGuest) return;
     setIsQuoteLoading(true);
+    const loadVersion = ++quoteLoadVersion.current;
     try {
-      const publicState = await getPublicQuote(projectId);
+      const [publicState, history] = await Promise.all([selectedRevision === undefined ? getPublicQuote(projectId) : getQuoteRevision(projectId, selectedRevision), listQuoteRevisions(projectId)]);
+      if (loadVersion !== quoteLoadVersion.current) return;
       setQuote(publicState);
-
+      setRevisions(history);
     } catch (error) {
+      if (loadVersion !== quoteLoadVersion.current) return;
+      setQuote(null);
       toast.error(requestError(error, 'Не удалось рассчитать коммерческое предложение'));
     } finally {
-      setIsQuoteLoading(false);
+      if (loadVersion === quoteLoadVersion.current) setIsQuoteLoading(false);
     }
-  }, [isCommercialDocument, isGuest, isOpen, projectId]);
+  }, [isCommercialDocument, isGuest, isOpen, projectId, selectedRevision]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -219,6 +230,8 @@ export default function ProjectDocumentModal({
       setPaintColors([]);
       setDeliveryData(parseDeliveryData());
       setQuote(null);
+      setSelectedRevision(undefined);
+      setRevisions([]);
       return;
     }
     loadGuestPreview();
@@ -412,6 +425,7 @@ export default function ProjectDocumentModal({
     setIsQuoteSaving(true);
     try {
       setQuote(await refreshQuote(projectId));
+      setRevisions(await listQuoteRevisions(projectId));
       setPreviewVersion(value => value + 1);
       setIsDirty(false);
       toast.success('Цены и редакция коммерческого предложения обновлены');
@@ -421,6 +435,18 @@ export default function ProjectDocumentModal({
     } finally {
       setIsQuoteSaving(false);
     }
+  };
+
+  const handleFreezeQuote = async () => {
+    if (!window.confirm('Зафиксировать текущую редакцию и её цены? Дальнейшие изменения будут оформляться новой редакцией; экспорт сам по себе цены не фиксирует.')) return;
+    setIsQuoteSaving(true);
+    try {
+      setQuote(await freezeQuote(projectId));
+      setRevisions(await listQuoteRevisions(projectId));
+      setPreviewVersion(value => value + 1);
+      toast.success('КП зафиксировано');
+    } catch (error) { toast.error(requestError(error, 'Не удалось зафиксировать КП')); }
+    finally { setIsQuoteSaving(false); }
   };
 
   const handleDownload = async (format: DocumentFileFormat) => {
@@ -445,6 +471,7 @@ export default function ProjectDocumentModal({
         format,
         `${title}_${projectNumber}.${format}`,
         changes,
+        isCommercialDocument ? selectedRevision : undefined,
       );
       setIsDirty(false);
       if (isCommercialDocument) {
@@ -489,7 +516,7 @@ export default function ProjectDocumentModal({
                   {isDirty && <span className="ml-2 text-yellow-400">● правки попадут в документ</span>}
                 </p>
               </div>
-              <button onClick={handleClose} className="text-fg/20 hover:text-fg transition-colors ml-4">
+              <button aria-label="Закрыть документ" onClick={handleClose} className="text-fg/20 hover:text-fg transition-colors ml-4">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -687,11 +714,17 @@ export default function ProjectDocumentModal({
                 {isQuoteLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {quote && <span>Редакция {quote.revision} · {quote.status === 'fixed' ? 'зафиксирована' : 'черновик'}</span>}
                 {quote?.stale && <span className="text-amber-600">Есть изменения после расчёта</span>}
-                {canEditCommercial && quote?.status === 'fixed' && quote.stale && (
+                {canEditCommercial && selectedRevision === undefined && quote?.status === 'draft' && (
+                  <button type="button" disabled={isQuoteSaving || isQuoteLoading || !quote.export_allowed} onClick={() => void handleFreezeQuote()} className="rounded-lg border border-accent/35 px-2 py-1 text-accent disabled:opacity-40">Зафиксировать КП</button>
+                )}
+                {canEditCommercial && selectedRevision === undefined && quote?.status === 'fixed' && quote.stale && (
                   <button type="button" disabled={isQuoteSaving} onClick={handleRefreshQuote} className="flex gap-1 items-center text-accent">
                     <RefreshCw className="h-3 w-3" /> Новая редакция
                   </button>
                 )}
+                <label className="flex items-center gap-1">Редакция<select aria-label="Редакция КП" className="rounded border border-tint/30 bg-page px-1 py-1" disabled={isQuoteSaving || isQuoteLoading} value={selectedRevision ?? ''} onChange={event => { setQuote(null); setSelectedRevision(event.target.value ? Number(event.target.value) : undefined); setPreviewVersion(value => value + 1); }}><option value="">Текущая</option>{revisions.map(revision => <option key={revision.revision} value={revision.revision}>№{revision.revision} · {new Date(revision.fixed_at).toLocaleDateString('ru-RU')} · {revision.grand_total} ₽</option>)}</select></label>
+                {selectedRevision !== undefined && <span className="text-fg/65">Архивная редакция · только просмотр и экспорт</span>}
+                {quote?.status === 'draft' && <span className="text-fg/65">Черновик: экспорт не фиксирует цену</span>}
                 <span className="text-fg/50">Стоимость и скидки — на экране заказа</span>
                 <label className="ml-auto flex items-center gap-1">Масштаб
                   <select aria-label="Масштаб документа" value={zoom} onChange={event => setZoom(Number(event.target.value))} className="rounded border border-tint/30 bg-page px-1 py-1">
@@ -703,6 +736,7 @@ export default function ProjectDocumentModal({
                 </button>
               </div>
             )}
+            {isCommercialDocument && quote && !quote.export_allowed && <div role="alert" className="border-b border-amber-500/30 bg-amber-500/5 px-4 py-2 text-xs text-amber-700"><b>Расчёт неполный. Экспорт недоступен.</b> {quote.warnings.join(' ')} Вернитесь в «Стоимость заказа», чтобы устранить причины.</div>}
 
             <div className="overflow-y-auto bg-gray-100" style={{ height: isCommercialDocument ? (fullScreen ? 'calc(100dvh - 170px)' : 'calc(96dvh - 175px)') : hasDocumentEditor ? 'calc(90vh - 295px)' : 'calc(90vh - 130px)' }}>
               {isPreviewLoading ? (

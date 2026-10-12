@@ -3,6 +3,7 @@ import json
 import io
 import zipfile
 from decimal import Decimal
+from datetime import datetime
 
 from database import SessionLocal
 import models
@@ -428,7 +429,11 @@ def test_finish_variants_have_public_prices_and_project_snapshots(
         component_line = next(
             row for row in quote.json()["lines"] if row["category"] == "profile"
         )
-        assert component_line["line_total"] == "698.50"
+        # Two 1.2 m blanks: catalogue price is per metre, not per blank.
+        assert component_line["line_total"] == "838.20"
+        assert component_line["quantity"] == "2"
+        assert component_line["unit"] == "шт"
+        assert component_line["unit_final_price"] == "419.10"
         assert component_line["component_details"]["finish"] == "RAL стандарт"
         assert component_line["component_details"]["color"] == "RAL 9016"
         token = admin_headers["Authorization"].replace("Bearer ", "")
@@ -441,12 +446,14 @@ def test_finish_variants_have_public_prices_and_project_snapshots(
         assert "Профиль с исполнениями" in commercial.text
         assert "RAL стандарт" in commercial.text
         assert "RAL 9016" in commercial.text
-        assert "699" in commercial.text
+        assert "838" in commercial.text
         assert "До скидки" not in commercial.text
         assert 'class="quote-brand-name"' in commercial.text
         assert "Счет №" in commercial.text
         assert project_response.json()["invoice_number"] in commercial.text
 
+        fixed = client.post(f"/api/projects/{project_id}/quote/freeze", headers=admin_headers)
+        assert fixed.status_code == 200, fixed.text
         commercial_docx = client.get(
             f"/api/projects/{project_id}/documents/commercial/docx",
             headers=admin_headers,
@@ -663,7 +670,7 @@ def test_catalog_bulk_pricing_preview_and_apply_keep_chains_independent(
         "waste_markup_percent": 4,
         "construction_markup_percent": 50,
         "construction_discount_percent": 5,
-        "effective_from": "2026-09-22T12:00:00",
+        "effective_from": datetime.utcnow().isoformat(),
         "reason": "Контроль независимых цепочек",
     }
     try:

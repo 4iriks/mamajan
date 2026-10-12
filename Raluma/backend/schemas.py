@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal, Optional, List
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from engine.glass_types import (
     NON_SLIDE_DEFAULT_GLASS_TYPE,
@@ -116,7 +116,27 @@ class ResetPasswordResponse(BaseModel):
 # ── Catalog ───────────────────────────────────────────────────────────────────
 
 
-class CatalogFinishVariantInput(BaseModel):
+class PricingNumbers(BaseModel):
+    """Reject values outside the numeric storage range before calculations."""
+
+    @field_validator("*", check_fields=False)
+    @classmethod
+    def representable_number(cls, value, info):
+        if value is None or not isinstance(value, (Decimal, float)):
+            return value
+        name = info.field_name.lower()
+        numeric = Decimal(str(value))
+        is_percent = "percent" in name
+        is_money = name in {"price", "cost", "purchaseprice", "base_cost", "sale_price", "actual_cost", "value", "buyer_discount_value", "quantity"}
+        if is_percent or is_money:
+            # Catalog amounts use NUMERIC(14,2), percentages NUMERIC(8,4).
+            limit = Decimal("10000") if is_percent else Decimal("1000000000000")
+            if not numeric.is_finite() or numeric.copy_abs() >= limit:
+                raise ValueError("Число выходит за поддерживаемый диапазон расчёта")
+        return value
+
+
+class CatalogFinishVariantInput(PricingNumbers):
     id: Optional[int] = None
     code: str = Field(default="BASE", min_length=1, max_length=40)
     name: str = Field(min_length=1, max_length=160)
@@ -127,6 +147,7 @@ class CatalogFinishVariantInput(BaseModel):
     wasteMarkupPercent: Decimal = Field(default=Decimal("0"), ge=0)
     constructionMarkupPercent: Decimal = Field(default=Decimal("0"), ge=0)
     constructionDiscountPercent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
+    minimumMarkupPercent: Optional[Decimal] = Field(default=None, ge=0)
     requiresPaint: bool = False
     isActive: bool = True
 
@@ -135,7 +156,7 @@ class CatalogFinishVariantOut(CatalogFinishVariantInput):
     id: int
 
 
-class CatalogItemBase(BaseModel):
+class CatalogItemBase(PricingNumbers):
     sku: str
     name: str
     group: str = "Профили"
@@ -171,7 +192,7 @@ class CatalogItemUpdate(CatalogItemBase):
     pass
 
 
-class CatalogPricingBulkRequest(BaseModel):
+class CatalogPricingBulkRequest(PricingNumbers):
     item_ids: list[int] = Field(min_length=1)
     finish_codes: list[str] = Field(default_factory=list)
     profile_markup_percent: Optional[Decimal] = Field(default=None, ge=0)
@@ -232,7 +253,7 @@ DiscountMode = Literal["percent", "fixed"]
 DiscountScope = Literal["profile", "construction", "component", "service", "order"]
 
 
-class CatalogPriceVersionBase(BaseModel):
+class CatalogPriceVersionBase(PricingNumbers):
     cost: Decimal = Field(ge=0)
     profile_markup_percent: Decimal = Field(default=Decimal("0"), ge=0)
     profile_discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
@@ -260,7 +281,7 @@ class CatalogPriceVersionOut(CatalogPriceVersionBase):
     model_config = {"from_attributes": True}
 
 
-class CatalogPriceBulkRequest(BaseModel):
+class CatalogPriceBulkRequest(PricingNumbers):
     item_ids: list[int] = Field(min_length=1)
     percent: Decimal = Field(gt=-100)
     effective_from: datetime
@@ -277,7 +298,7 @@ class CatalogPriceImportApply(BaseModel):
     reason: str = Field(min_length=1, max_length=1000)
 
 
-class DealerPricingTermsUpdate(BaseModel):
+class DealerPricingTermsUpdate(PricingNumbers):
     dealer_markup_percent: Decimal = Field(default=Decimal("0"), ge=0)
     profile_discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     construction_discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
@@ -293,7 +314,7 @@ class DealerPricingTermsOut(DealerPricingTermsUpdate):
     model_config = {"from_attributes": True}
 
 
-class ConstructionPriceGroupBase(BaseModel):
+class ConstructionPriceGroupBase(PricingNumbers):
     code: str = Field(min_length=1, max_length=80)
     name: str = Field(min_length=1, max_length=160)
     markup_percent: Decimal = Field(default=Decimal("0"), ge=0)
@@ -306,36 +327,56 @@ class ConstructionPriceGroupOut(ConstructionPriceGroupBase):
     model_config = {"from_attributes": True}
 
 
-class SystemConstructionMarkupUpdate(BaseModel):
+class SystemConstructionMarkupUpdate(PricingNumbers):
     constructionMarkupPercent: Decimal = Field(ge=0)
 
 
-class StandaloneSaleItem(BaseModel):
+class StandaloneSaleItem(PricingNumbers):
     catalog_item_id: int
     finish_variant_id: Optional[int] = None
-    quantity: Decimal = Field(gt=0)
+    quantity: Decimal = Field(gt=0, allow_inf_nan=False)
 
 
-class StandaloneSaleRequest(BaseModel):
+class StandaloneSaleRequest(PricingNumbers):
     items: list[StandaloneSaleItem] = Field(min_length=1)
     buyer_discount_mode: Optional[DiscountMode] = None
-    buyer_discount_value: Decimal = Field(default=Decimal("0"), ge=0)
+    buyer_discount_value: Decimal = Field(default=Decimal("0"), ge=0, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def validate_discount(self):
+        if self.buyer_discount_mode == "percent" and self.buyer_discount_value > 100:
+            raise ValueError("Процентная скидка не может быть больше 100")
+        return self
 
 
-class QuoteManualService(BaseModel):
-    id: str
+class QuoteManualService(PricingNumbers):
+    id: str = Field(min_length=1, max_length=120)
     name: str = Field(min_length=1, max_length=300)
-    quantity: Decimal = Field(gt=0)
+    quantity: Decimal = Field(gt=0, allow_inf_nan=False)
     unit: str = Field(min_length=1, max_length=40)
-    base_cost: Decimal = Field(ge=0)
+    base_cost: Optional[Decimal] = Field(default=None, ge=0, allow_inf_nan=False)
+    sale_price: Optional[Decimal] = Field(default=None, ge=0, allow_inf_nan=False)
+    actual_cost: Optional[Decimal] = Field(default=None, ge=0, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def normalize_sale_price(self):
+        self.id = self.id.strip()
+        if not self.id:
+            raise ValueError("Укажите идентификатор услуги")
+        if self.sale_price is None:
+            self.sale_price = self.base_cost
+        if self.sale_price is None:
+            raise ValueError("Укажите цену продажи услуги")
+        self.base_cost = self.sale_price
+        return self
 
 
-class QuoteDiscountRule(BaseModel):
+class QuoteDiscountRule(PricingNumbers):
     id: str = Field(default="", max_length=120)
     name: str = Field(default="Скидка", max_length=300)
     scope: DiscountScope
     mode: DiscountMode
-    value: Decimal = Field(ge=0)
+    value: Decimal = Field(ge=0, allow_inf_nan=False)
 
     @model_validator(mode="after")
     def validate_percent(self):
@@ -344,9 +385,9 @@ class QuoteDiscountRule(BaseModel):
         return self
 
 
-class QuotePriceOverride(BaseModel):
+class QuotePriceOverride(PricingNumbers):
     sku: str = Field(min_length=1, max_length=120)
-    cost: Decimal = Field(ge=0)
+    cost: Decimal = Field(ge=0, allow_inf_nan=False)
     comment: str = Field(min_length=1, max_length=1000)
 
 
@@ -356,6 +397,12 @@ class QuoteConfigUpdate(BaseModel):
     payment_terms: str = Field(default="", max_length=1000)
     services: list[QuoteManualService] = Field(default_factory=list)
     discounts: list[QuoteDiscountRule] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_service_ids(self):
+        if len({service.id for service in self.services}) != len(self.services):
+            raise ValueError("Идентификаторы услуг должны быть уникальными")
+        return self
 
 
 class QuoteOverridesUpdate(BaseModel):

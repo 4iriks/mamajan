@@ -15,11 +15,11 @@ from sqlalchemy.orm import Session
 import models
 from engine.pdf import TEMPLATES_DIR
 from engine.quote_pricing import (
-    QuoteExportBlocked,
+    _allocate_money,
     decimal_value,
-    freeze_quote,
     get_or_create_quote_state,
     quote_is_stale,
+    quote_revision_snapshot,
     refresh_draft_quote,
 )
 
@@ -31,6 +31,11 @@ BLOCKING_COST_CODES = {
     "unit_mismatch",
     "unsupported_section_pricing",
     "no_slide_sections",
+    "missing_internal_snapshot",
+    "invalid_extra_quantity",
+    "invalid_extra_length",
+    "invalid_extra_price",
+    "invalid_service",
 }
 
 
@@ -61,8 +66,12 @@ def _display_percent(value: Decimal | None) -> str:
     return f"{text.replace('.', ',')} %"
 
 
+def _excel_percent(value: Decimal | None) -> float | str:
+    return float(value / Decimal("100")) if value is not None else ""
+
+
 def _metrics(cost: Decimal, sale: Decimal, *, complete: bool) -> dict[str, Any]:
-    if not complete or cost <= 0 or sale <= 0:
+    if not complete:
         return {
             "profit": None,
             "markup_percent": None,
@@ -71,8 +80,8 @@ def _metrics(cost: Decimal, sale: Decimal, *, complete: bool) -> dict[str, Any]:
     profit = _money(sale - cost)
     return {
         "profit": profit,
-        "markup_percent": (profit / cost * Decimal("100")),
-        "margin_percent": (profit / sale * Decimal("100")),
+        "markup_percent": (profit / cost * Decimal("100")) if cost > 0 else None,
+        "margin_percent": (profit / sale * Decimal("100")) if sale > 0 else None,
     }
 
 
@@ -81,7 +90,7 @@ def _decorate_metrics(row: dict[str, Any]) -> dict[str, Any]:
     row.update(metrics)
     row.update(
         {
-            "cost_text": _display_money(row["cost_total"]),
+            "cost_text": _display_money(row["cost_total"]) if row.get("cost_known", True) else "—",
             "internal_text": _display_money(row["internal_total"]),
             "client_text": _display_money(row["client_total"]),
             "profit_text": _display_money(metrics["profit"]) if metrics["profit"] is not None else "—",
@@ -94,21 +103,7 @@ def _decorate_metrics(row: dict[str, Any]) -> dict[str, Any]:
 
 def _allocate(total: Decimal, weights: Iterable[Decimal]) -> list[Decimal]:
     normalized = [max(Decimal("0"), value) for value in weights]
-    weight_total = sum(normalized, Decimal("0"))
-    if not normalized:
-        return []
-    if weight_total <= 0:
-        return [Decimal("0") for _ in normalized]
-    allocated = [
-        _money(total * weight / weight_total) for weight in normalized
-    ]
-    difference = _money(total - sum(allocated, Decimal("0")))
-    target = next(
-        (index for index in range(len(normalized) - 1, -1, -1) if normalized[index] > 0),
-        len(normalized) - 1,
-    )
-    allocated[target] = _money(allocated[target] + difference)
-    return allocated
+    return _allocate_money(normalized, total)
 
 
 def _issue_text(issue: dict[str, Any]) -> str:
@@ -122,7 +117,12 @@ def _issue_text(issue: dict[str, Any]) -> str:
         "unit_mismatch": "Не совпадает единица измерения",
         "unsupported_section_pricing": "Система пока не поддержана расчётом",
         "no_slide_sections": "Нет рассчитываемых позиций",
-        "below_minimum_margin": "Цена ниже минимальной маржи",
+        "below_minimum_margin": "Цена ниже минимальной наценки на себестоимость",
+        "missing_internal_snapshot": "В этой редакции не сохранена себестоимость",
+        "invalid_extra_quantity": "Не заполнено количество комплектующего",
+        "invalid_extra_length": "Не заполнена длина комплектующего",
+        "invalid_extra_price": "Не заполнена цена продажи комплектующего",
+        "invalid_service": "Проверьте количество и цену услуги",
     }
     detail = " — ".join(value for value in (sku, name, finish) if value)
     label = labels.get(code, code or "Предупреждение расчёта")
@@ -135,19 +135,24 @@ def _snapshot(
     *,
     freeze_for_export: bool,
     actor: models.User | None,
+    quote_revision: int | None = None,
 ) -> tuple[models.ProjectQuoteState, dict[str, Any], bool]:
     state = get_or_create_quote_state(db, project)
-    if state.status != "fixed" or state.internal_payload in (None, "", "{}"):
+    if quote_revision is not None:
+        public, internal = quote_revision_snapshot(db, project, quote_revision)
+        internal = {**internal, "public": public}
+        if not any(internal.get(key) for key in ("sections", "project_extras", "services")):
+            internal["issues"] = [*internal.get("issues", []), {"code": "missing_internal_snapshot"}]
+        return state, internal, False
+    if state.status != "fixed":
         refresh_draft_quote(db, project, state)
-        draft = _json_object(state.internal_payload)
-        draft_public = draft.get("public") if isinstance(draft.get("public"), dict) else {}
-        if freeze_for_export and actor is not None and draft_public.get("export_allowed"):
-            try:
-                freeze_quote(db, project, actor)
-            except QuoteExportBlocked:
-                # An incomplete report remains exportable with an explicit warning.
-                pass
     internal = _json_object(state.internal_payload)
+    if not internal:
+        # Missing historical cost data must never reprice or unfreeze a saved KP.
+        internal = {
+            "public": _json_object(state.public_payload),
+            "issues": [{"code": "missing_internal_snapshot"}],
+        }
     stale = state.status == "fixed" and quote_is_stale(db, project, state)
     return state, internal, stale
 
@@ -158,6 +163,7 @@ def build_cost_report_context(
     *,
     freeze_for_export: bool = False,
     actor: models.User | None = None,
+    quote_revision: int | None = None,
 ) -> dict[str, Any]:
     """Build a report from the persisted quote snapshot, never from public data alone."""
 
@@ -166,6 +172,7 @@ def build_cost_report_context(
         project,
         freeze_for_export=freeze_for_export,
         actor=actor,
+        quote_revision=quote_revision,
     )
     public = internal.get("public") if isinstance(internal.get("public"), dict) else {}
     public_lines = {
@@ -198,7 +205,7 @@ def build_cost_report_context(
             sku = str(source.get("sku") or "").strip()
             cost = _money(source.get("base_cost_total"))
             unit_cost = _money(source.get("cost"))
-            complete = cost > 0 and sku.upper() not in issue_skus
+            complete = bool(source.get("cost_known", cost > 0)) and sku.upper() not in issue_skus
             if not complete:
                 missing.append(
                     {
@@ -222,6 +229,7 @@ def build_cost_report_context(
                     "internal_total": _money(source.get("internal_total")),
                     "client_total": allocated[index] if index < len(allocated) else Decimal("0"),
                     "complete": complete,
+                    "cost_known": bool(source.get("cost_known", cost > 0)),
                 }
             )
             rows.append(row)
@@ -253,7 +261,7 @@ def build_cost_report_context(
         line = public_lines.get(line_id, {})
         sku = str(source.get("sku") or "").strip()
         cost_total = _money(source.get("base_cost_total"))
-        complete = cost_total > 0 and sku.upper() not in issue_skus
+        complete = bool(source.get("cost_known", cost_total > 0)) and sku.upper() not in issue_skus
         if not complete:
             missing.append(
                 {
@@ -277,6 +285,7 @@ def build_cost_report_context(
                 "internal_total": _money(source.get("internal_total")),
                 "client_total": _money(line.get("line_total") or source.get("final_price")),
                 "complete": complete,
+                "cost_known": bool(source.get("cost_known", cost_total > 0)),
             }
         )
         extras.append(row)
@@ -289,9 +298,10 @@ def build_cost_report_context(
         line_id = str(source.get("id") or f"service-{index}")
         line = public_lines.get(line_id, {})
         quantity = decimal_value(source.get("quantity"))
-        unit_cost = _money(source.get("base_cost"))
+        is_explicit_cost = "actual_cost" in source or "cost_known" in source
+        unit_cost = _money(source.get("actual_cost") if is_explicit_cost else source.get("base_cost"))
         cost_total = _money(unit_cost * quantity)
-        complete = cost_total > 0
+        complete = bool(source.get("cost_known", source.get("actual_cost") is not None)) if is_explicit_cost else cost_total > 0
         if not complete:
             missing.append(
                 {
@@ -316,6 +326,7 @@ def build_cost_report_context(
                     "internal_total": _money(source.get("internal_total")),
                     "client_total": _money(line.get("line_total") or source.get("final_price")),
                     "complete": complete,
+                    "cost_known": complete,
                 }
             )
         )
@@ -352,6 +363,9 @@ def build_cost_report_context(
     )
     project_snapshot = public.get("project") if isinstance(public.get("project"), dict) else {}
     warnings = [_issue_text(issue) for issue in issues]
+    rounding = _money((public.get("totals") or {}).get("rounding_adjustment"))
+    if rounding:
+        warnings.append(f"Округление итога до рубля: {_display_money(rounding)}. Учтено в цене клиенту и прибыли.")
     if stale:
         warnings.insert(
             0,
@@ -502,8 +516,12 @@ def _write_detail_sheet(
         sheet.write(row_index, 3, source["finish"], style)
         sheet.write_number(row_index, 4, float(source["quantity"]), formats["number"])
         sheet.write(row_index, 5, source["unit"], formats["center"])
-        sheet.write_number(row_index, 6, float(source["unit_cost"]), formats["money"])
-        sheet.write_number(row_index, 7, float(source["cost_total"]), formats["money"])
+        if source.get("cost_known", True):
+            sheet.write_number(row_index, 6, float(source["unit_cost"]), formats["money"])
+            sheet.write_number(row_index, 7, float(source["cost_total"]), formats["money"])
+        else:
+            sheet.write_blank(row_index, 6, None, formats["missing"])
+            sheet.write_blank(row_index, 7, None, formats["missing"])
         sheet.write_number(row_index, 8, float(source["internal_total"]), formats["money"])
         sheet.write_number(row_index, 9, float(source["client_total"]), formats["money"])
         excel_row = row_index + 1
@@ -520,14 +538,14 @@ def _write_detail_sheet(
                 11,
                 f'=IFERROR(K{excel_row}/H{excel_row},"")',
                 formats["percent"],
-                float(source["markup_percent"] / Decimal("100")),
+                _excel_percent(source["markup_percent"]),
             )
             sheet.write_formula(
                 row_index,
                 12,
                 f'=IFERROR(K{excel_row}/J{excel_row},"")',
                 formats["percent"],
-                float(source["margin_percent"] / Decimal("100")),
+                _excel_percent(source["margin_percent"]),
             )
         else:
             for column in (10, 11, 12):
@@ -559,8 +577,8 @@ def _write_detail_sheet(
             metrics = _metrics(cost, sale, complete=True)
             excel_total = total_row + 1
             sheet.write_formula(total_row, 10, f"=J{excel_total}-H{excel_total}", formats["total_money"], float(metrics["profit"]))
-            sheet.write_formula(total_row, 11, f'=IFERROR(K{excel_total}/H{excel_total},"")', formats["total_percent"], float(metrics["markup_percent"] / Decimal("100")))
-            sheet.write_formula(total_row, 12, f'=IFERROR(K{excel_total}/J{excel_total},"")', formats["total_percent"], float(metrics["margin_percent"] / Decimal("100")))
+            sheet.write_formula(total_row, 11, f'=IFERROR(K{excel_total}/H{excel_total},"")', formats["total_percent"], _excel_percent(metrics["markup_percent"]))
+            sheet.write_formula(total_row, 12, f'=IFERROR(K{excel_total}/J{excel_total},"")', formats["total_percent"], _excel_percent(metrics["margin_percent"]))
         else:
             for column in (10, 11, 12):
                 sheet.write_blank(total_row, column, None, formats["total_label"])

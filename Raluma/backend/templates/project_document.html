@@ -575,23 +575,26 @@
         <thead><tr><th style="width:7mm;">№</th><th>Изделие / аксессуар / услуга</th><th style="width:25mm;">Цена, ₽</th><th style="width:19mm;">Кол-во</th>{% if not minimal_commercial %}<th style="width:24mm;">До скидки, ₽</th><th style="width:22mm;">Скидка, ₽</th>{% endif %}<th style="width:26mm;">Итого, ₽</th></tr></thead>
         <tbody>
         {% for row in commercial_rows %}
-          <tr><td class="center">{{ loop.index }}</td><td><b>{{ row.name|e }}</b></td><td class="right">{{ "{:,}".format(row.document_unit_final_price)|replace(",", " ") }}</td><td class="center">{{ row.quantity }} {{ row.unit|e }}</td>{% if not minimal_commercial %}<td class="right">{{ "{:,}".format(row.document_line_total_before_discount)|replace(",", " ") }}</td><td class="right">{{ "{:,}".format(row.document_line_discount_amount)|replace(",", " ") }}</td>{% endif %}<td class="right"><b>{{ "{:,}".format(row.document_line_total)|replace(",", " ") }}</b></td></tr>
+          <tr><td class="center">{{ loop.index }}</td><td><b>{{ row.name|e }}</b></td><td class="right">{{ row.document_unit_final_price|document_money }}</td><td class="center">{{ row.quantity }} {{ row.unit|e }}</td>{% if not minimal_commercial %}<td class="right">{{ row.document_line_total_before_discount|document_money }}</td><td class="right">{{ row.document_line_discount_amount|document_money }}</td>{% endif %}<td class="right"><b>{{ row.document_line_total|document_money }}</b></td></tr>
         {% endfor %}
         </tbody>
       </table>
+      {% if commercial_quote.money_presentation_version|default(1) >= 2 %}<p style="font-size:8pt;margin:4px 0;">Цена за единицу округлена до копеек. Сумма строки рассчитана до этого округления.</p>{% endif %}
       {% if not minimal_commercial %}<table class="quote-category-summary">
         <thead><tr><th>Раздел</th><th>До скидки</th><th>Скидка</th><th>Итого</th></tr></thead>
         <tbody>
         {% for group in commercial_summary %}
-          <tr><td><b>{{ group.label }}</b></td><td class="right">{{ "{:,}".format(group.before_discount)|replace(",", " ") }} ₽</td><td class="right">{{ "{:,}".format(group.discount)|replace(",", " ") }} ₽</td><td class="right"><b>{{ "{:,}".format(group.total)|replace(",", " ") }} ₽</b></td></tr>
+          <tr><td><b>{{ group.label }}</b></td><td class="right">{{ group.before_discount|document_money }} ₽</td><td class="right">{{ group.discount|document_money }} ₽</td><td class="right"><b>{{ group.total|document_money }} ₽</b></td></tr>
         {% endfor %}
         </tbody>
       </table>
       {% endif %}<table class="commercial-total">
         {% if not minimal_commercial %}
-        <tr><td><b>До скидки</b></td><td class="right">{{ "{:,}".format(commercial_quote.totals.document_before_discount)|replace(",", " ") }} ₽</td></tr>
-        <tr><td><b>Скидка</b></td><td class="right">−{{ "{:,}".format(commercial_quote.totals.document_discount)|replace(",", " ") }} ₽</td></tr>
-        {% endif %}<tr><td><b>ИТОГО</b></td><td class="right"><b>{{ "{:,}".format(commercial_quote.totals.document_grand_total)|replace(",", " ") }} ₽</b></td></tr>
+        <tr><td><b>До скидки</b></td><td class="right">{{ commercial_quote.totals.document_before_discount|document_money }} ₽</td></tr>
+        <tr><td><b>Скидка</b></td><td class="right">−{{ commercial_quote.totals.document_discount|document_money }} ₽</td></tr>
+        {% endif %}
+        {% if commercial_quote.totals.rounding_adjustment|default('0')|float != 0 %}<tr><td>Округление до рубля</td><td class="right">{{ commercial_quote.totals.rounding_adjustment|document_money }} ₽</td></tr>{% endif %}
+        <tr><td><b>ИТОГО</b></td><td class="right"><b>{{ commercial_quote.totals.document_grand_total|document_money(true) }} ₽</b></td></tr>
       </table>
       <div class="quote-words">Итого прописью: {{ amount_in_words|e }}</div>
       <div class="commercial-terms">
@@ -622,8 +625,8 @@
             </td>
             <td class="center">{{ details.size|e or '—' }}</td>
             <td class="center">{{ row.quantity }} {{ row.unit|e }}</td>
-            <td class="right">{{ "{:,}".format(row.document_unit_final_price)|replace(",", " ") }}</td>
-            <td class="right"><b>{{ "{:,}".format(row.document_line_total)|replace(",", " ") }}</b></td>
+            <td class="right">{{ row.document_unit_final_price|document_money }}</td>
+            <td class="right"><b>{{ row.document_line_total|document_money }}</b></td>
           </tr>
         {% endfor %}
         </tbody>

@@ -210,6 +210,7 @@ _CREATE_TABLES = [
 # ── Новые колонки ──────────────────────────────────────────────────────────────
 
 _ADD_COLUMNS = [
+    "ALTER TABLE catalog_finish_variants ADD COLUMN pricing_mode VARCHAR NOT NULL DEFAULT 'individual'",
     "ALTER TABLE catalog_items ADD COLUMN photo_file VARCHAR",
     "ALTER TABLE cs_systems ADD COLUMN cover_profile_item_id INTEGER REFERENCES catalog_items(id)",
     "ALTER TABLE cs_systems ADD COLUMN bubble_seal_item_id INTEGER REFERENCES catalog_items(id)",
@@ -1259,6 +1260,56 @@ def _migrate_cs_t40_once(conn):
     conn.execute(text('INSERT INTO migration_markers (name) VALUES (:name)'), {'name': marker})
 
 
+def _preserve_effective_pricing_baseline_once(conn):
+    """Capture the prices used by the old engine before changing their source.
+
+    Existing version history is retained, including scheduled entries. The
+    baseline only makes the formerly mutable current values explicit; no quote
+    payload or existing catalogue coefficient is modified.
+    """
+    from datetime import datetime
+
+    marker = "effective_pricing_baseline_v1"
+    if conn.execute(text("SELECT 1 FROM migration_markers WHERE name=:name"), {"name": marker}).first():
+        return
+    actor = conn.execute(text("SELECT id FROM users WHERE role IN ('admin','superadmin') ORDER BY id LIMIT 1")).scalar()
+    if actor is None:
+        if not conn.execute(text("SELECT 1 FROM catalog_price_versions LIMIT 1")).first():
+            # Fresh installation, before seed_superadmin(): there are no old
+            # effective prices to preserve. Do not postpone this baseline to a
+            # later restart and overwrite already scheduled new-engine prices.
+            conn.execute(text("INSERT INTO migration_markers (name) VALUES (:name)"), {"name": marker})
+        return
+    now = datetime.utcnow()
+    rows = conn.execute(text('''SELECT v.*, i.unit AS item_unit, i."group" AS item_group
+        FROM catalog_finish_variants v JOIN catalog_items i ON i.id=v.catalog_item_id''')).mappings().all()
+    for row in rows:
+        current = conn.execute(text('''SELECT * FROM catalog_price_versions
+            WHERE catalog_item_id=:item_id AND effective_from<=:now
+            ORDER BY CASE WHEN finish_variant_id IS NULL THEN 0 ELSE 1 END,
+                     effective_from DESC, id DESC LIMIT 1'''),
+            {"item_id": row["catalog_item_id"], "now": now}).mappings().first()
+        group = str(row["item_group"] or "").casefold()
+        category = current["category"] if current else (
+            "service" if "услуг" in group or "работ" in group else
+            "profile" if "проф" in group or "уплотн" in group else "component")
+        conn.execute(text('''INSERT INTO catalog_price_versions
+            (catalog_item_id,finish_variant_id,cost,profile_markup_percent,profile_discount_percent,
+             waste_markup_percent,construction_markup_percent,construction_discount_percent,
+             category,unit,min_margin_percent,effective_from,created_at,created_by,reason)
+            VALUES (:item_id,:variant_id,:cost,:pm,:pd,:w,:cm,:cd,:category,:unit,:minimum,:now,:now,:actor,:reason)'''),
+            {"item_id": row["catalog_item_id"], "variant_id": row["id"],
+             "cost": row["cost"] if row["cost"] is not None else row["price"],
+             "pm": row["profile_markup_percent"], "pd": row["profile_discount_percent"],
+             "w": row["waste_markup_percent"], "cm": row["construction_markup_percent"],
+             "cd": row["construction_discount_percent"], "category": category,
+             "unit": current["unit"] if current else row["item_unit"],
+             "minimum": current["min_margin_percent"] if current else 0,
+             "now": now, "actor": actor,
+             "reason": "Сохранение действующей цены при переходе на единый источник; индивидуальные условия"})
+    conn.execute(text("INSERT INTO migration_markers (name) VALUES (:name)"), {"name": marker})
+
+
 def run_migrations():
     """Выполнить все миграции. Безопасно вызывать при каждом старте."""
     # Прежние пользовательские шаблоны заменены фиксированным каталогом СЛАЙД.
@@ -1328,3 +1379,16 @@ def run_migrations():
                 conn.commit()
             except Exception:
                 conn.rollback()
+        # Pricing compatibility is mandatory: do not start with silently changed
+        # effective prices if its baseline could not be saved.
+        import models
+
+        for table in (
+            models.CatalogPricingRule.__table__,
+            models.CatalogPricingRuleVersion.__table__,
+            models.CatalogPricingBindingVersion.__table__,
+            models.ProjectQuoteRevision.__table__,
+        ):
+            table.create(conn, checkfirst=True)
+        _preserve_effective_pricing_baseline_once(conn)
+        conn.commit()

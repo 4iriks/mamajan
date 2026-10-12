@@ -494,6 +494,7 @@ export const downloadProjectDocument = async (
   format: DocumentFileFormat,
   filename: string,
   overrides?: ProjectDocumentOverrides,
+  quoteRevision?: number,
 ) => {
   const hasOverrides = Boolean(overrides && Object.keys(overrides).length > 0);
   let resp;
@@ -513,7 +514,7 @@ export const downloadProjectDocument = async (
     resp = hasAuthToken()
       ? await client.get(
         `/api/projects/${projectId}/documents/${docType}/${format}`,
-        { responseType: 'blob' },
+        { responseType: 'blob', params: quoteRevision === undefined ? undefined : { quote_revision: quoteRevision } },
       )
       : await client.post(
         `/api/projects/local/documents/${docType}/${format}`,

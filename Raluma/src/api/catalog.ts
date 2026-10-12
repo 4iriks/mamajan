@@ -7,6 +7,9 @@ export type SystemGroupCode = 'SLIDE_1' | 'SLIDE_2' | 'CS';
 export type FinishCode = 'COLORLESS' | 'ANOD_UNPAINTED' | 'RAL_STANDARD' | 'RAL_MOIRE' | 'SUBLIMATION';
 
 export interface CatalogFinishVariant {
+  pricingMode?: 'individual' | 'auto';
+  pricingSource?: { label?: string; name?: string; rule_id?: number; scope?: string; mode?: string };
+  minimumMarkupPercent?: string | number;
   id?: number;
   code: FinishCode;
   name: string;

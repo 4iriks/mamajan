@@ -6,6 +6,8 @@ import type { HardwareCatalogOption } from '../../api/catalog';
 import { toast } from '../../store/toastStore';
 import { filterCatalogOptions } from './extraComponentsCatalog';
 import { ExtraComponent, INP, LBL, SEL } from './types';
+import { useAuthStore } from '../../store/authStore';
+import { money, numericDraft, profilePricingMetres } from '../../utils/money';
 
 interface ExtraComponentsEditorProps {
   items?: ExtraComponent[];
@@ -26,6 +28,7 @@ function normalizeItem(item?: Partial<ExtraComponent>): ExtraComponent {
     finishName: item?.finishName ?? item?.color ?? '',
     requiresPaint: item?.requiresPaint ?? false,
     unitPrice: item?.unitPrice ?? '',
+    actualCost: item?.actualCost,
     size: item?.size ?? '',
     qty: item?.qty ?? '1',
     unit: item?.unit ?? 'шт',
@@ -87,6 +90,7 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
   items = [],
   onChange,
 }) => {
+  const { canManagePrices } = useAuthStore();
   const [catalog, setCatalog] = useState<HardwareCatalogOption[]>([]);
   const [query, setQuery] = useState('');
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -279,6 +283,7 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
         {rows.map(row => {
             const catalogItem = catalog.find(item => item.id === row.catalogItemId);
             const isManual = !row.catalogItemId;
+            const metres = !isManual && row.category === 'profile' && /м|m/i.test(catalogItem?.unit || '') && !/²|2/.test(catalogItem?.unit || '') ? profilePricingMetres(row.size, row.qty) : null;
             const imageSrc = row.imageData || assetUrl(row.imageFile);
             const finishVariants = (catalogItem?.finishVariants || []).filter(
               variant => variant.isActive,
@@ -410,18 +415,16 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
                 </label>
               )}
               <label className="space-y-1">
-                <span className={LBL}>Размер, мм</span>
+                <span className={LBL}>{row.category === 'profile' ? 'Длина одной детали, мм' : 'Размер, мм (для документа)'}</span>
                 <input data-length value={row.size} onChange={event => updateRow(row.id!, { size: event.target.value })} className={INP} placeholder="Например, 3800" inputMode="decimal" />
               </label>
               <label className="space-y-1">
-                <span className={LBL}>Количество</span>
+                <span className={LBL}>Количество, {row.unit || 'шт'}</span>
                 <input type="number" min="0" step="any" value={row.qty} onChange={event => updateRow(row.id!, { qty: event.target.value })} className={INP} />
               </label>
               <label className="space-y-1">
                 <span className={LBL}>Единица</span>
-                <div className={`${INP} flex min-h-[42px] items-center text-fg/60`}>
-                  {row.unit || 'шт'}
-                </div>
+                {isManual ? <select className={SEL} value={row.unit || 'шт'} onChange={event => updateRow(row.id!, { unit: event.target.value })}>{['шт', 'м.п.', 'м²', 'компл.', 'кг'].map(unit => <option key={unit}>{unit}</option>)}</select> : <div className={`${INP} flex min-h-[42px] items-center text-fg/60`}>{row.unit || 'шт'}</div>}
               </label>
               <label className="space-y-1">
                 <span className={LBL}>Этап</span>
@@ -437,7 +440,13 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
                   <option value="2">Этап 2</option>
                 </select>
               </label>
+              {isManual && <label className="space-y-1"><span className={LBL}>Цена продажи, ₽/{row.unit || 'шт'}</span><input aria-label="Цена ручной позиции" className={INP} inputMode="decimal" placeholder="Нужна для расчёта КП" value={row.unitPrice ?? ''} onChange={event => updateRow(row.id!, { unitPrice: event.target.value })} /></label>}
+              {isManual && canManagePrices() && <label className="space-y-1"><span className={LBL}>Себестоимость, ₽/{row.unit || 'шт'}</span><input aria-label="Себестоимость ручной позиции" className={INP} inputMode="decimal" placeholder="Не задана · необязательно" value={row.actualCost ?? ''} onChange={event => updateRow(row.id!, { actualCost: event.target.value })} /></label>}
             </div>
+            <p className="mt-3 text-xs text-fg/65">{isManual
+              ? numericDraft(row.unitPrice) === null ? 'Цена не задана: позиция сохранится в комплектации, но расчёт КП будет неполным.' : `До дилерских условий и скидок заказа: ${row.qty || '0'} ${row.unit || 'шт'} × ${money(numericDraft(row.unitPrice))} = ${money((numericDraft(row.qty) ?? 0) * (numericDraft(row.unitPrice) ?? 0))}.`
+              : row.category === 'profile' ? metres === null ? 'Для цены за метр укажите длину одной детали и количество. Цена берётся из каталога автоматически.' : `${row.qty} шт × ${row.size} мм = ${metres.toLocaleString('ru-RU', { maximumFractionDigits: 6 })} м для расчёта цены. В документах сохраняются длина и количество деталей.`
+              : `Цена за ${catalogItem?.unit || row.unit || 'единицу'} берётся из каталога; размер — для документов, не дополнительный множитель.`}</p>
           </article>
             );
           })}

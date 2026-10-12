@@ -240,6 +240,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         return next;
       });
       setActiveSectionId(local.id);
+      void economics.reload();
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } } };
       toast.error(err.response?.data?.detail || 'Не удалось создать секцию');
@@ -269,6 +270,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       });
       setActiveSectionId(local.id);
       toast.success('Секция скопирована');
+      void economics.reload();
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } } };
       toast.error(err.response?.data?.detail || 'Не удалось скопировать секцию');
@@ -367,6 +369,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         return next;
       });
       if (activeSectionId === sectionToDelete.id) setActiveSectionId(null);
+      void economics.reload();
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } } };
       toast.error(err.response?.data?.detail || 'Не удалось удалить секцию');
@@ -406,7 +409,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     if (!project) return;
     try {
       await updateProject(project.id, {
-        extra_components: stringifyExtraComponents(projectExtraComponents),
+        extra_components: stringifyExtraComponents(projectExtraComponents, canManagePrices()),
         hardware_installation: hardwareInstallation,
         comments: projectComments,
         production_stages: productionStages,
@@ -430,11 +433,12 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     const savedComponents = cloneExtraComponents(projectExtraComponentsDraft);
     try {
       await updateProject(project.id, {
-        extra_components: stringifyExtraComponents(savedComponents),
+        extra_components: stringifyExtraComponents(savedComponents, canManagePrices()),
       });
       setProjectExtraComponents(savedComponents);
       setProjectExtrasOpen(false);
       toast.success('Комплектующие проекта сохранены');
+      void economics.reload();
     } catch {
       toast.error('Не удалось сохранить комплектующие проекта');
     }
