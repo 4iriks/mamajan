@@ -108,15 +108,15 @@ const schemeMarkup = renderToStaticMarkup(<SlideSchemeSVG section={section} calc
 for (const slideRows of [1, 2] as const) {
   const asymmetric = renderToStaticMarkup(<SlideRoomViewSVG section={{
     ...section, slideRows, profileRightWall: false, profileRightPBar: false,
-    profileRightLockBar: false, profileRightHandleBar: false,
+    profileRightLockBar: false, profileRightHandleBar: false, profileRightBubble: false,
   }} calc={calc} />);
-  assert.match(asymmetric, /data-side="left" data-profile-width-mm="73"/);
+  assert.match(asymmetric, /data-side="left" data-segment="wall" data-profile-width-mm="93"/);
   assert.doesNotMatch(asymmetric, /data-side="right"/, 'an absent side profile must not be drawn');
   const resizedProfiles = { ...calc, profiles: calc.profiles.map(profile => profile.article === 'RS2081'
     ? { ...profile, section_width_mm: 63 } : profile) };
   const resized = renderToStaticMarkup(<SlideRoomViewSVG section={{ ...section, slideRows }} calc={resizedProfiles} />);
-  assert.match(resized, /data-side="left" data-profile-width-mm="79"/);
-  assert.match(resized, /data-side="right" data-profile-width-mm="41"/);
+  assert.match(resized, /data-side="left" data-segment="wall" data-profile-width-mm="93"/);
+  assert.match(resized, /data-side="right" data-segment="wall" data-profile-width-mm="41"/);
 }
 
 assert.equal(glassFillColor('10ММ БРОНЗА В МАССЕ'), GLASS_FILL_COLORS.bronze);

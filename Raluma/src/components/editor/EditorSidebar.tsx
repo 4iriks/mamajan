@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { CS_SHAPES, csShapeLabel } from './csPresets';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Copy, Plus, Trash2, ChevronRight, PackagePlus } from 'lucide-react';
 import { Section, SystemType, SYSTEM_COLORS, SYSTEM_ACCENT_BG, SYSTEM_PICKER_COLORS } from './types';
@@ -155,13 +156,13 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
                   </button>
                   {csSubVisible && (
                     <div className="grid grid-cols-2 border-t border-[#2a4a7a]/25">
-                      {['Треугольник', 'Прямоугольник', 'Трапеция', 'Сложная форма'].map((shape, i) => (
+                      {CS_SHAPES.map((shape, i) => (
                         <button key={shape} onClick={() => handleAdd('ЦС', { csShape: shape })}
                           className={`py-2 font-bold text-[11px] transition-all
                             ${i % 2 === 0 ? 'border-r border-[#2a4a7a]/25' : ''}
                             ${i < 2 ? 'border-b border-[#2a4a7a]/25' : ''}
                             ${SYSTEM_PICKER_COLORS['ЦС']}`}>
-                          {shape}
+                          {csShapeLabel(shape)}
                         </button>
                       ))}
                     </div>

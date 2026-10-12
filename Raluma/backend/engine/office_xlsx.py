@@ -2189,8 +2189,8 @@ def _build_delivery_xlsx(context: dict) -> bytes:
                 None,
                 (
                     f"Цвет: {item.get('color')}" if item.get("color") else "",
-                    f"Размер: {item.get('size')}" if item.get("size") else "",
-                    f"Единица: {item.get('unit')}" if item.get("unit") and item.get("unit") not in {"шт", "шт."} else "",
+                    f"Размер: {item.get('size_display') or item.get('size')}" if item.get("size") else "",
+                    f"Единица: {item.get('display_unit', item.get('unit'))}" if item.get("display_unit", item.get("unit")) not in {None, "", "шт", "шт."} else "",
                 ),
             )
         )

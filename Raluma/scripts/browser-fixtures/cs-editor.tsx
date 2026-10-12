@@ -109,7 +109,7 @@ async function run() {
   assert(current.csConfig!.edgeTreatments![3] === 'bubble' && !current.csConfig!.profiledEdges.includes(3), 'Bubble excludes clamp on selected side');
   await click('Пятиугольник с крышей');
   assert(current.csConfig!.vertices.length === 5, 'House has five corners');
-  await click('Трапеция');
+  await click('Трапеция с наклонным верхом');
   const leftHeight = current.csConfig!.vertices[3].y;
   await click('Отразить зеркально');
   assert(current.csConfig!.vertices[3].x === 3000 && current.csConfig!.vertices[3].y === leftHeight, 'Mirror preserves vertex identity');

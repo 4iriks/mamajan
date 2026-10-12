@@ -3196,15 +3196,15 @@ class TestOfficeDownloads:
             expected_pages.append((page["color"], rows))
 
         docx_tables = [
-            table
-            for table in self._docx_table_rows(responses["docx"].content)
-            if table and table[0][0] == "Артикул"
+            table for table in self._docx_table_rows(responses["docx"].content)
+            if table and len(table[0]) == 6 and table[0][2] == "Кол-во"
         ]
-        docx_pages = [
-            [tuple(row[:6]) for row in table[1:] if row[0] and row[0] != "Итого"]
-            for table in docx_tables
-        ]
-        assert docx_pages == [rows for _, rows in expected_pages]
+        docx_rows = []
+        for table in docx_tables:
+            descriptor = self._normalized_cell(" ".join(filter(None, (table[0][1], table[1][1]))))
+            for row in table[1:]:
+                docx_rows.append((table[0][0], descriptor, *row[2:6]))
+        assert docx_rows == [row for _, rows in expected_pages for row in rows]
 
         xlsx_sheets = self._xlsx_sheet_rows(responses["xlsx"].content)
         xlsx_pages = []
@@ -3239,7 +3239,7 @@ class TestOfficeDownloads:
 
         pdf = PdfReader(io.BytesIO(responses["pdf"].content))
         assert len(pdf.pages) == len(expected_pages)
-        assert len(docx_tables) == len(expected_pages)
+        assert len(docx_tables) == sum(len(page["groups"]) for page in context["paint_pages"])
         assert self._xlsx_worksheet_count(responses["xlsx"].content) == len(
             expected_pages
         )
@@ -4529,7 +4529,8 @@ class TestDeliveryNote:
         assert re.search(r'<td class="quantity">\s*2 шт\.\s*</td>', html)
         assert "2 м.п." not in html
         assert "Размер: 2600" in xlsx_text
-        assert "Единица: м.п." in xlsx_text
+        assert "Единица: м.п." not in xlsx_text
+        assert "Размер: 2600 мм" in xlsx_text
 
     def test_project_4169_bubble_seal_counts_three_meter_blanks(self):
         sections = [

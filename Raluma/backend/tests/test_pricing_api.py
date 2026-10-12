@@ -1772,7 +1772,10 @@ def test_quote_missing_override_margin_snapshot_and_safe_exports(
         assert "Разовая согласованная цена" not in preview.text
         assert "Разрешено руководителем для тендера" not in preview.text
         assert "margin_approval" not in preview.text
-        assert "70% аванс" in preview.text
+        assert "70% аванс" not in preview.text
+        appendix = client.get(f"/api/projects/{project['id']}/documents/contract_appendix/preview", params={"token": token})
+        assert appendix.status_code == 200
+        assert "70% аванс" in appendix.text
         assert "Общие и центральные" in preview.text
         assert "Вид на изделие со стороны помещения" in preview.text
         assert "Вид сверху" not in preview.text

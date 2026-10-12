@@ -1,3 +1,6 @@
+import { useProjectEconomics } from '../hooks/useProjectEconomics';
+import { ProjectEconomics } from './editor/ProjectEconomics';
+import { csPreset } from './editor/csPresets';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -60,7 +63,7 @@ export type { Section };
 
 export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack }) => {
   const navigate = useNavigate();
-  const { token, canManagePrices } = useAuthStore();
+  const { token, user, canManagePrices } = useAuthStore();
   const [project, setProject] = useState<{
     id: number;
     number: string;
@@ -71,6 +74,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const [sections, setSections] = useState<Section[]>([]);
   const savedSectionsRef = useRef<Section[]>([]);
   const [loadingProject, setLoadingProject] = useState(true);
+  const economics = useProjectEconomics(projectId, Boolean(token) && !loadingProject, Boolean(user && user.role !== 'dealer'));
   const [projectCustomerDraft, setProjectCustomerDraft] = useState('');
   const [showProjectCustomerDrop, setShowProjectCustomerDrop] = useState(false);
 
@@ -223,6 +227,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       ...defaultsForSystem(system, opts),
       ...extra,
     };
+    if (system === 'ЦС') newSection.csConfig = csPreset(newSection);
     if (isLiftRemoteSection(newSection)) {
       Object.assign(newSection, sharedLiftRemoteCounts(sections));
     }
@@ -282,8 +287,8 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   }, [activeSectionId]);
 
   const handleSaveSection = async () => {
-    if (!activeSection || !project || isSaving) return;
-    if (!isDirty) return;
+    if (isSaving) return false;
+    if (!activeSection || !project || !isDirty) return true;
     const sectionId = parseInt(activeSection.id);
     if (isNaN(sectionId)) return;
     setIsSaving(true);
@@ -316,9 +321,12 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       });
       setIsDirty(false);
       toast.success('Секция сохранена');
+      void economics.reload();
+      return true;
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } } };
       toast.error(err.response?.data?.detail || 'Не удалось сохранить секцию');
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -334,7 +342,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   };
 
   const confirmUnsavedSave = async () => {
-    await handleSaveSection();
+    if (!await handleSaveSection()) return;
     setUnsavedModalOpen(false);
     setActiveSectionId(pendingNavTarget);
     setPendingNavTarget(null);
@@ -377,15 +385,21 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           await updateSection(project.id, sectionId, localToApi(activeSection, idx));
           setIsDirty(false);
           toast.success('Секция сохранена');
-        } catch { /* ignore — preview still opens */ }
+        } catch { toast.error('Не удалось сохранить секцию. Предпросмотр не открыт, ввод сохранён.'); return; }
       }
     }
     setPreviewDocName(name);
     setIsPreviewModalOpen(true);
   };
 
-  const openProjectDocument = (type: ProjectDocumentType, title: string) => {
+  const openProjectDocument = async (type: ProjectDocumentType, title: string) => {
+    if (!await economics.save()) return;
     setProjectDoc({ type, title });
+  };
+
+  const leaveProject = async () => {
+    if (!await economics.save() || !await handleSaveSection()) return;
+    onBack();
   };
 
   const handleSaveProjectNotes = async () => {
@@ -528,7 +542,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       {/* Header */}
       <div className="bg-surface/40 border-b border-tint/30 px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between z-20 flex-shrink-0 gap-3">
         <div className="flex items-center gap-3 min-w-0 flex-shrink-0">
-          <button onClick={onBack} className="flex items-center gap-2 text-fg/40 hover:text-accent transition-colors group flex-shrink-0">
+          <button onClick={() => void leaveProject()} className="flex items-center gap-2 text-fg/40 hover:text-accent transition-colors group flex-shrink-0">
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
             <span className="hidden sm:inline text-sm font-bold uppercase tracking-wider">Проекты</span>
           </button>
@@ -570,7 +584,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           >
             <ClipboardList className="w-4 h-4" />
           </button>
-          <button onClick={async () => { await handleSaveSection(); onBack(); }}
+          <button onClick={() => void leaveProject()}
             className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 text-white font-bold rounded-xl transition-all shadow-lg ${
               isDirty
                 ? 'bg-amber-500 hover:bg-amber-400 shadow-amber-500/20'
@@ -581,14 +595,14 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             ) : (
               <Save className="w-4 h-4" />
             )}
-            <span className="hidden sm:inline">{isDirty ? 'Сохранить и выйти' : 'Выйти'}</span>
+            <span className="hidden sm:inline">{isDirty || economics.dirty ? 'Сохранить и выйти' : 'Выйти'}</span>
           </button>
         </div>
       </div>
 
       {/* Document buttons sub-bar — only visible at project level (no active section) */}
       {!activeSectionId && (
-        <div className="hidden sm:flex items-center gap-1 px-4 sm:px-8 py-2 border-b border-tint/20 bg-surface/20 flex-shrink-0">
+        <div className="hidden sm:flex flex-wrap items-center gap-1 px-4 sm:px-8 py-2 border-b border-tint/20 bg-surface/20 flex-shrink-0">
           {[
             { name: 'Эскизный проект', icon: FileText, projectDoc: 'sketch' as const },
             { name: 'Коммерческое предложение', icon: FileText, projectDoc: 'commercial' as const },
@@ -641,7 +655,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           <AnimatePresence mode="wait">
             {!activeSection ? (
               <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="p-4 sm:p-8 max-w-3xl mx-auto w-full">
+                className="project-overview p-3 sm:p-4 max-w-6xl mx-auto w-full">
 
                 {productionStages === 2 && (
                   <div className="flex items-center gap-3 mb-6">
@@ -679,6 +693,9 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                     />
                   </div>
                 </div>
+
+                {project.customer && <p className="text-sm mb-3">Заказчик: <b>{project.customer}</b></p>}
+                {token && <ProjectEconomics state={economics} />}
 
                 {/* Customer */}
                 {!project.customer.trim() && (
@@ -1007,7 +1024,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       {projectDoc && (
         <ProjectDocumentModal
           isOpen={Boolean(projectDoc)}
-          onClose={() => setProjectDoc(null)}
+          onClose={() => { setProjectDoc(null); void economics.reload(); }}
           projectId={projectId}
           projectNumber={projectDocumentNumber(project, projectDoc.type)}
           docType={projectDoc.type}

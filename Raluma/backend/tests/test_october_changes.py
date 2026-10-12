@@ -54,7 +54,7 @@ def test_asymmetric_profile_projection_uses_dimensions_without_changing_glass():
     calc = calculate_slide(section)
     original = deepcopy(calc.glass)
     projection = side_projection(section, SimpleNamespace(profiles=[SimpleNamespace(article="RS2081", section_width_mm=63)]))
-    assert projection == {"left": 79, "right": 0}
+    assert projection == {"left": 66, "right": 0}
     assert calc.glass == original
     assert snapshot_side_projection({"side_projection_mm": projection}) == projection
     assert snapshot_side_projection({"technical_left": [{"article": "RS2333"}, {"article": "RS2081"}]}) == {"left": 73, "right": 0}

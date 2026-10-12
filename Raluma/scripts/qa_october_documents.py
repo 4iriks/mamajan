@@ -58,7 +58,7 @@ for kind in (() if "--quotes-only" in sys.argv else ("sketch", "glass", "paint",
     if kind != "sketch":
         (directory / f"{kind}.xlsx").write_bytes(build_project_xlsx(project, sections, kind))
 
-quote = {"lines": [], "quote_date": "09.10.2026", "manager": "Проверка", "total_area_m2": "22.5",
+quote = {"document_layout_version": 2, "payment_terms": "Предоплата 70%, остаток 30%", "lines": [], "quote_date": "09.10.2026", "manager": "Проверка", "total_area_m2": "22.5",
          "revision": 1, "status": "fixed", "vat": {"mode": "none", "rate": "0", "amount": "0"},
          "totals": {"document_grand_total": 246912, "document_before_discount": 246912, "document_discount": 0}}
 for item in (one, two):

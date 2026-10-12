@@ -442,7 +442,7 @@ def test_finish_variants_have_public_prices_and_project_snapshots(
         assert "RAL стандарт" in commercial.text
         assert "RAL 9016" in commercial.text
         assert "699" in commercial.text
-        assert "Профили" in commercial.text
+        assert "До скидки" not in commercial.text
         assert 'class="quote-brand-name"' in commercial.text
         assert "Счет №" in commercial.text
         assert project_response.json()["invoice_number"] in commercial.text

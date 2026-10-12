@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { csAngleEnd, csBounds, csChangeDimensionMode, csContourFrames, csContourError, csDimensionUpdates, csSide, csSideEnd, csSplitPositions, csVertexAngle, parseCsPositions } from '../src/components/editor/csGeometry';
 import type { CsConfig, CsSplitConfig, Section } from '../src/components/editor/types';
 import { apiToLocal, localToApi } from '../src/components/editor/converters';
+import { CS_SHAPES, csPreset } from '../src/components/editor/csPresets';
 
 const config: CsConfig = {
   version: 1,
@@ -95,6 +96,21 @@ assert.deepEqual(parseCsPositions('1400, 2200', 600, 3000), { positions: [1400, 
 
 // Cross-check frontend geometry against the actual Python engine, not a second test formula.
 const sections = [original, wide, tall, small, typed, shifted, resizedTrapezoid, resizedManual, stepped];
+for (const shape of CS_SHAPES) {
+  const preset = csPreset(original, shape);
+  sections.push({ ...original, csShape: shape, csConfig: preset });
+  sections.push({ ...original, csShape: shape, csConfig: { ...preset, vertices: preset.vertices.map(p => ({ ...p, x: original.width - p.x })) } });
+}
+const legacyShapes = [...CS_SHAPES, 'Сложная форма'];
+const legacyEngine = spawnSync(process.env.CS_PYTHON || 'python', ['-c', `
+import json, sys
+from types import SimpleNamespace
+from engine.cs_calc import calculate_cs
+print(json.dumps([calculate_cs(SimpleNamespace(width=3000, height=3000, quantity=1, cs_shape=shape))['normalized_config']['vertices'] for shape in json.load(sys.stdin)]))
+`], { cwd: fileURLToPath(new URL('../backend', import.meta.url)), env: { ...process.env, PYTHONIOENCODING: 'utf-8' }, input: JSON.stringify(legacyShapes), encoding: 'utf8' });
+assert.equal(legacyEngine.status, 0, legacyEngine.error?.message || legacyEngine.stderr);
+const legacyVertices = JSON.parse(legacyEngine.stdout);
+legacyShapes.forEach((shape, index) => assert.deepEqual(csPreset(original, shape, true).vertices, legacyVertices[index], `Legacy ${shape} matches saved calculation`));
 const modes: CsSplitConfig[] = [
   { count: 2, mode: 'equal' }, { count: 2, mode: 'from-left', step: 700 },
   { count: 2, mode: 'from-right', step: 700 }, { count: 20, mode: 'from-left', step: 800 },
@@ -108,7 +124,7 @@ import json, sys
 from types import SimpleNamespace
 from engine.cs_calc import calculate_cs
 print(json.dumps([calculate_cs(SimpleNamespace(**row)) for row in json.load(sys.stdin)]))
-`], { cwd: fileURLToPath(new URL('../backend', import.meta.url)), input: JSON.stringify(payload), encoding: 'utf8' });
+`], { cwd: fileURLToPath(new URL('../backend', import.meta.url)), env: { ...process.env, PYTHONIOENCODING: 'utf-8' }, input: JSON.stringify(payload), encoding: 'utf8' });
 assert.equal(engine.status, 0, engine.error?.message || engine.stderr);
 const results = JSON.parse(engine.stdout);
 sections.forEach((section, index) => {

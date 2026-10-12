@@ -15,7 +15,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from engine.book_calc import calculate_book
 from engine.cs_calc import calculate_cs, cs_result_namespace
-from engine.component_groups import group_extra_sources, group_display_rows
+from engine.component_groups import display_groups, group_extra_sources, group_display_rows
 from engine.document_numbers import (
     production_project_number,
     resolve_section_numbers,
@@ -191,9 +191,11 @@ class PhysicalGlassItem:
 
 
 def _get_env() -> Environment:
-    from engine.side_projection import snapshot_side_projection
+    from engine.side_projection import snapshot_side_projection, snapshot_side_segments
     env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=False)
     env.globals["snapshot_side_projection"] = snapshot_side_projection
+    env.globals["snapshot_side_segments"] = snapshot_side_segments
+    env.globals["display_groups"] = display_groups
     env.filters["img_b64"] = _img_b64
     env.filters["format_mm"] = _format_mm
     return env
@@ -1108,15 +1110,18 @@ def _delivery_extra_size_display(value: object) -> str:
     return text
 
 
-def _delivery_extra_pdf_quantity(qty_text: str, unit: object, size: object) -> str:
-    """Sized linear extras are physical blanks, so the PDF counts pieces."""
-
+def _delivery_extra_unit(unit: object, size: object) -> str:
+    """Sized linear extras are blanks in every delivery format, not metres."""
     unit_text = " ".join(str(unit or "").split())
     compact_unit = unit_text.casefold().replace(" ", "").rstrip(".")
     linear_units = {"м", "м.п", "м/п", "п.м", "пог.м", "пог.м.п"}
     if str(size or "").strip() and compact_unit in linear_units:
-        return f"{qty_text} шт."
-    return f"{qty_text} {unit_text}".strip()
+        return "шт."
+    return unit_text
+
+
+def _delivery_extra_pdf_quantity(qty_text: str, unit: object, size: object) -> str:
+    return f"{qty_text} {_delivery_extra_unit(unit, size)}".strip()
 
 
 def _section_color(section: object, calc: object | None = None) -> str:
@@ -1542,7 +1547,7 @@ def _build_delivery_hardware_rows(
 ) -> list[dict]:
     grouped: dict[tuple, dict] = {}
     lift_remote_controls: dict[str, dict] = {}
-    special_articles = {"RS3014", "RS3017", "RS30201", "RS205"}
+    special_articles = {"RS3014", "RS3017", "RS30201", "RS205", "RS206"}
     excluded_locks = {"RS3018", "RS3020"}
 
     for section in sections:
@@ -1751,6 +1756,7 @@ def _build_delivery_project_extra_rows(
                 "qty_text": qty_text,
                 "qty_display": f"{qty_text} {component['unit']}",
                 "size_display": _delivery_extra_size_display(component["size"]),
+                "display_unit": _delivery_extra_unit(component["unit"], component["size"]),
                 "pdf_qty_display": _delivery_extra_pdf_quantity(
                     qty_text,
                     component["unit"],
@@ -1798,6 +1804,7 @@ def _build_delivery_context(project: object, sections: Iterable[object]) -> dict
         extra_stage,
     )
     project_extra_rows = group_display_rows(project_extra_rows)
+    extra_groups = display_groups(project_extra_rows)
     item1_rows = [
         *(
             {
@@ -1829,6 +1836,7 @@ def _build_delivery_context(project: object, sections: Iterable[object]) -> dict
         "delivery_item1_rows": item1_rows,
         "delivery_item2_rows": hardware_rows,
         "delivery_project_extra_rows": project_extra_rows,
+        "delivery_extra_groups": extra_groups,
         "delivery_names_count": 2 + int(bool(project_extra_rows)),
         "document_warnings": _slide_document_warnings(sorted_sections),
     }

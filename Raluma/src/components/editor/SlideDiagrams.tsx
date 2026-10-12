@@ -1,3 +1,4 @@
+import { slideSideSegments } from './slideSideProjection';
 import React from 'react';
 import { SlideCalcPreview } from '../../api/projects';
 import { diagramGlassFillColor, isMatteGlass } from '../../constants/glass';
@@ -610,18 +611,14 @@ export function SlideRoomViewSVG({
     ? ['RS2325', 'RS23251']
     : ['RS2323', 'RS23231'];
   const bottomProfileMm = findProfileDimension(calc, thresholdArticles, 'section_height_mm', 23);
-  const sideWidth = (wall: boolean, lock: boolean, p: boolean, handle: boolean) =>
-    (wall ? findProfileDimension(calc, rails === 5 ? ['RS2335'] : ['RS2333'], 'section_height_mm', 16) : 0)
-    + Math.max(lock ? findProfileDimension(calc, ['RS2081'], 'section_width_mm', 57) : 0,
-      p ? findProfileDimension(calc, ['RS1082'], 'section_width_mm', 25) : 0,
-      handle ? findProfileDimension(calc, ['RS112'], 'section_height_mm', 40) : 0);
-  const leftMm = sideWidth(section.profileLeftWall, section.profileLeftLockBar, section.profileLeftPBar, section.profileLeftHandleBar);
-  const rightMm = sideWidth(section.profileRightWall, section.profileRightLockBar, section.profileRightPBar, section.profileRightHandleBar);
+  const leftSegments = slideSideSegments(section, 'left'), rightSegments = slideSideSegments(section, 'right');
+  const leftMm = leftSegments.reduce((sum, row) => sum + row.width_mm, 0);
+  const rightMm = rightSegments.reduce((sum, row) => sum + row.width_mm, 0);
   const minProfilePx = 4;
   const topPx = Math.max(minProfilePx, topProfileMm * drawingScale);
   const bottomPx = Math.max(minProfilePx, bottomProfileMm * drawingScale);
-  const leftPx = leftMm ? Math.max(1, leftMm * drawingScale) : 0;
-  const rightPx = rightMm ? Math.max(1, rightMm * drawingScale) : 0;
+  const leftPx = leftMm * drawingScale;
+  const rightPx = rightMm * drawingScale;
 
   const iX = fX + leftPx, iY = fY + topPx;
   const iW = Math.max(1, fW - leftPx - rightPx);
@@ -694,9 +691,9 @@ export function SlideRoomViewSVG({
 
       <rect x={fX} y={fY} width={fW} height={topPx} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.6" strokeOpacity="0.4" />
       <rect x={fX} y={fY + fH - bottomPx} width={fW} height={bottomPx} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.6" strokeOpacity="0.4" />
-      {leftPx > 0 && <rect data-side="left" data-profile-width-mm={leftMm} x={fX} y={fY} width={leftPx} height={fH} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.6" strokeOpacity="0.4" />}
-      {rightPx > 0 && <rect data-side="right" data-profile-width-mm={rightMm} x={fX + fW - rightPx} y={fY} width={rightPx} height={fH} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.6" strokeOpacity="0.4" />}
-      <rect data-room-frame x={fX} y={fY} width={fW} height={fH} fill="none" stroke="var(--theme-accent)" strokeWidth="1.5" strokeOpacity="0.5" />
+      {leftSegments.map(part => <rect key={part.role} data-side="left" data-segment={part.role} data-profile-width-mm={leftMm} data-segment-width-mm={part.width_mm} x={fX + part.offset_mm * drawingScale} y={fY} width={part.width_mm * drawingScale} height={fH} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.4" />)}
+      {rightSegments.map(part => <rect key={part.role} data-side="right" data-segment={part.role} data-profile-width-mm={rightMm} data-segment-width-mm={part.width_mm} x={fX + fW - (part.offset_mm + part.width_mm) * drawingScale} y={fY} width={part.width_mm * drawingScale} height={fH} fill="var(--theme-surface)" stroke="var(--theme-accent)" strokeWidth="0.4" />)}
+      <rect data-room-frame x={fX} y={fY} width={fW} height={fH} fill="none" stroke="var(--theme-accent)" strokeWidth="0.4" strokeOpacity="0.5" />
       {Array.from({ length: panels }).map((_, i) => {
         const layout = panelLayout[i];
         const px = layout.x;

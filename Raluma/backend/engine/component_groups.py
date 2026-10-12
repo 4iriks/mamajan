@@ -51,3 +51,13 @@ def group_display_rows(rows):
             row.update(group_start=index == 0, group_span=len(group))
             result.append(row)
     return result
+
+
+def display_groups(rows):
+    """Keep document groups separate so their headings can repeat on page breaks."""
+    result = []
+    for row in group_display_rows(rows):
+        if row["group_start"]:
+            result.append([])
+        result[-1].append(row)
+    return result

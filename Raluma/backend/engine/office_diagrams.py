@@ -16,7 +16,7 @@ import cairosvg
 from PIL import Image, ImageChops, ImageDraw
 
 from engine.office_common import load_font
-from engine.side_projection import side_projection
+from engine.side_projection import side_projection, side_segments
 from engine.pdf import (
     expand_glass_widths,
     glass_fill,
@@ -476,10 +476,7 @@ def render_slide_room(
     dimension_line_color = "#000000" if print_dimensions else GRID
     small_font = load_font(small_font_size, bold=print_dimensions)
 
-    draw.rectangle((left, top, right, bottom), outline=INK, width=7)
-    draw.rectangle(
-        (left + 10, top + 10, right - 10, bottom - 10), outline=GRID, width=2
-    )
+    draw.rectangle((left, top, right, bottom), outline=INK, width=1)
 
     panels = max(int(getattr(section, "panels", 0) or 0), 1)
     widths = [
@@ -517,12 +514,13 @@ def render_slide_room(
 
     sides = side_projection(section, calc)
     scale = drawing_width / section_width
-    left_px = max(2, sides["left"] * scale) if sides["left"] else 0
-    right_px = max(2, sides["right"] * scale) if sides["right"] else 0
-    if left_px:
-        draw.rectangle((left, top, left + left_px, bottom), fill="#D9E3E5", outline=INK)
-    if right_px:
-        draw.rectangle((right - right_px, top, right, bottom), fill="#D9E3E5", outline=INK)
+    segments = side_segments(section)
+    left_px, right_px = sides["left"] * scale, sides["right"] * scale
+    for side_name, rows in segments.items():
+        for row in rows:
+            offset, part_width = row["offset_mm"] * scale, row["width_mm"] * scale
+            x0 = left + offset if side_name == "left" else right - offset - part_width
+            draw.rectangle((x0, top, x0 + part_width, bottom), fill="#D9E3E5", outline=INK)
     x = left + left_px
     inner_width = max(1, drawing_width - left_px - right_px)
     panel_boxes: list[tuple[int, int]] = []

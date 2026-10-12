@@ -25,7 +25,7 @@ import { CsEditor } from './CsEditor';
 export interface SectionFormWrapperProps {
   section: Section;
   onUpdate: (updates: Partial<Section>) => void;
-  onSave: () => Promise<void>;
+  onSave: () => Promise<unknown>;
   onBack: () => void;
   isSaving: boolean;
   isDirty: boolean;
@@ -35,6 +35,7 @@ export interface SectionFormWrapperProps {
 export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
   section, onUpdate, onSave, onBack, isSaving, isDirty, onOpenDoc,
 }) => {
+  const [diagramContainer, setDiagramContainer] = useState<HTMLDivElement | null>(null);
   const [sectionCalc, setSectionCalc] = useState<SectionCalcPreview | null>(null);
   const [calcError, setCalcError] = useState<string | null>(null);
   const bookCalc = isBookCalcPreview(sectionCalc) ? sectionCalc : null;
@@ -118,7 +119,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
   })();
 
   return (
-    <>
+    <div className="section-editor">
       {/* Хлебные крошки + заголовок */}
       <div className={section.system === 'СЛАЙД'
         ? 'mb-4 flex flex-col gap-3 xl:flex-row xl:items-start xl:gap-4'
@@ -142,9 +143,12 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
       </div>
 
       {/* Flex-контейнер: форма слева, схема справа (на xl) */}
-      <div className={['СЛАЙД', 'ЛИФТ', 'КНИЖКА', 'ЦС'].includes(section.system) ? 'xl:flex xl:gap-5 xl:items-start' : ''}>
+      <div className="section-editor-layout">
+        <div className="section-editor-diagram" ref={section.system === 'ЦС' ? setDiagramContainer : undefined}>
+          {section.system !== 'ЦС' && <EditorVisualizer section={section} variant="desktop" calc={sectionCalc} />}
+        </div>
 
-        <div className={['СЛАЙД', 'ЛИФТ', 'КНИЖКА', 'ЦС'].includes(section.system) ? 'xl:flex-1 xl:min-w-0' : ''}>
+        <div className="section-editor-fields">
           {/* Карточка формы */}
           <div
             className="bg-surface/40 border border-tint/35 rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 mb-4"
@@ -223,7 +227,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
                 <div>
                   <SectionDivider label="Контур · Деления · Профили" />
                   <div className="mt-3">
-                    <CsEditor section={section} update={onUpdate} calc={csCalc} error={calcError} />
+                    <CsEditor section={section} update={onUpdate} calc={csCalc} error={calcError} diagramContainer={diagramContainer} />
                   </div>
                 </div>
               )}
@@ -258,7 +262,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
           </div>
 
           {/* Мобильный визуализатор */}
-          {section.system !== 'ЦС' && <EditorVisualizer section={section} variant="mobile" calc={sectionCalc} />}
+
 
           {/* Нижняя панель: сохранить + кнопки документов */}
           <div className="flex flex-wrap gap-2 sm:gap-3 items-stretch">
@@ -289,9 +293,8 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
         </div>
 
         {/* Десктопный визуализатор (sticky) */}
-        {section.system !== 'ЦС' && <EditorVisualizer section={section} variant="desktop" calc={sectionCalc} />}
 
       </div>
-    </>
+    </div>
   );
 };

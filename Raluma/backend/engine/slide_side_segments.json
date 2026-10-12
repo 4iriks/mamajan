@@ -1,0 +1,8 @@
+[
+  {"role": "wall", "flag": "wall", "width_mm": 16},
+  {"role": "lock", "flag": "lock_bar", "width_mm": 50},
+  {"role": "p", "flag": "p_bar", "unless": ["lock_bar"], "width_mm": 25, "with_handle_mm": 18},
+  {"role": "handle", "flag": "handle_bar", "width_mm": 14},
+  {"role": "handle_return", "flag": "handle_bar", "width_mm": 13},
+  {"role": "bubble", "flag": "bubble", "unless": ["lock_bar", "p_bar", "handle_bar"], "width_mm": 10}
+]

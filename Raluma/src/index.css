@@ -1,4 +1,6 @@
-@import "tailwindcss";
+@import "tailwindcss" source(".");
+/* Keep generated documents and task-local runtimes out of class discovery. */
+@source "../scripts/browser-fixtures";
 
 /* ── Theme tokens ─────────────────────────────────────────────────────────────
    Dark theme = default (:root).  Light theme = html.light override.
@@ -116,3 +118,38 @@ select option {
 html.light .card-shadow {
   box-shadow: var(--theme-card-shadow);
 }
+
+/* Compact editor workspace: the drawing never scrolls away with its fields. */
+.section-editor { min-width: 0; }
+.section-editor-layout { display: grid; gap: 12px; }
+.section-editor-fields { min-width: 0; }
+.section-editor-diagram > div { display: flex; flex-direction: column; width: 100%; max-height: none; position: static; gap: 8px; }
+.section-editor-diagram > div > div { padding: 10px; }
+.section-editor-diagram svg { max-width: 100%; }
+.section-editor input:not([type=checkbox]):not([type=radio]), .section-editor select { min-height: 30px; padding: 5px 8px; font-size: 12px; }
+.section-editor label { font-size: 10px; letter-spacing: .04em; }
+.section-editor [class*="space-y-"] > :not([hidden]) ~ :not([hidden]) { margin-top: 8px; }
+.section-editor [class*="gap-"] { gap: 8px; }
+.section-editor-fields > div:first-child { padding: 12px; border-radius: 14px; }
+.section-editor [data-slide-presets] svg { height: 42px !important; max-height: 42px !important; }
+.section-editor [data-slide-presets] .grid { display: flex; flex-wrap: nowrap; }
+.section-editor [data-slide-presets] .grid > * { flex: 1; min-width: 0; }
+.section-editor [data-slide-presets] { max-height: 120px; overflow: auto; }
+.cs-dimension-editor input { color: #123e48; background: #edf5f6; border-color: #afc5cb; }
+.cs-dimension-editor label, .cs-dimension-editor span { color: #345961; }
+@media (min-width: 1024px) {
+  .section-editor-layout { grid-template-columns: minmax(280px, .9fr) minmax(360px, 1.1fr); height: calc(100dvh - 220px); min-height: 420px; }
+  .section-editor-fields { overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
+  .section-editor-diagram { min-width: 0; overflow-y: auto; }
+  .section-editor-diagram svg { max-height: 27vh !important; }
+  .section-editor-diagram .cs-canvas svg { max-height: calc(100dvh - 410px) !important; min-height: 230px; }
+  .section-editor > div:first-child { margin-bottom: 8px; display: flex; flex-direction: row; align-items: center; }
+  .section-editor > div:first-child > div:first-child { width: 160px; flex-shrink: 0; }
+  .section-editor h2 { font-size: 17px; margin-bottom: 4px; }
+}
+.project-overview > .rounded-2xl { padding: 12px; margin-bottom: 12px; }
+.project-overview input, .project-overview select { min-height: 32px; padding: 6px 8px; font-size: 12px; }
+.project-overview label { font-size: 10px; }
+.project-overview .mb-4 { margin-bottom: 10px; }
+.project-overview .mb-6 { margin-bottom: 10px; }
+.section-editor-diagram > .cs-canvas, .cs-canvas { position: relative; }

@@ -9,7 +9,7 @@ from typing import Any
 from PIL import Image, ImageDraw
 
 from engine.office_common import load_font
-from engine.side_projection import snapshot_side_projection
+from engine.side_projection import snapshot_side_projection, snapshot_side_segments
 
 
 INK = "#123F47"
@@ -152,8 +152,10 @@ def render_quote_room_png(details: dict[str, Any]) -> bytes:
     top = 85 + max(0, (470 - drawing_height) // 2)
     right = left + drawing_width
     bottom = top + drawing_height
-    draw.rectangle((left, top, right, bottom), outline=INK, width=7)
-    draw.rectangle((left + 10, top + 10, right - 10, bottom - 10), outline=GRID, width=2)
+    legacy = "side_projection_segments" not in details
+    draw.rectangle((left, top, right, bottom), outline=INK, width=7 if legacy else 1)
+    if legacy:
+        draw.rectangle((left + 10, top + 10, right - 10, bottom - 10), outline=GRID, width=2)
 
     rows = _geometry(details)
     widths = [max(_number(row.get("width_mm"), 1), 1) for row in rows]
@@ -161,12 +163,16 @@ def render_quote_room_png(details: dict[str, Any]) -> bytes:
     fill = _glass_fill(details.get("glass_type"))
     matte = "МАТ" in str(details.get("glass_type") or "").upper()
     sides = snapshot_side_projection(details)
-    left_px = max(2, sides["left"] * scale) if sides["left"] else 0
-    right_px = max(2, sides["right"] * scale) if sides["right"] else 0
-    if left_px:
-        draw.rectangle((left, top, left + left_px, bottom), fill="#D9E3E5", outline=INK)
-    if right_px:
-        draw.rectangle((right - right_px, top, right, bottom), fill="#D9E3E5", outline=INK)
+    segments = snapshot_side_segments(details)
+    left_px, right_px = sides["left"] * scale, sides["right"] * scale
+    if legacy:
+        left_px = max(2, left_px) if sides["left"] else 0
+        right_px = max(2, right_px) if sides["right"] else 0
+    for side_name, parts in segments.items():
+        for row in parts:
+            offset, part_width = row["offset_mm"] * scale, row["width_mm"] * scale
+            x0 = left + offset if side_name == "left" else right - offset - part_width
+            draw.rectangle((x0, top, x0 + part_width, bottom), fill="#D9E3E5", outline=INK)
     x = left + left_px
     inner_width = max(1, drawing_width - left_px - right_px)
     for row, width_mm in zip(rows, widths):

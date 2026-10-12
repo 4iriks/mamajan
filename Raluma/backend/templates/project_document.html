@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <title>{{ title }} {{ (project.invoice_number or project.order_number or project.number) if doc_type in ['commercial', 'contract_appendix'] else project_number }}</title>
   <style>
-    {% if doc_type in ['commercial', 'contract_appendix'] %}
+    {% set minimal_commercial = doc_type == 'commercial' and commercial_quote and commercial_quote.get('document_layout_version', 1) >= 2 %}
+{% if doc_type in ['commercial', 'contract_appendix'] %}
     @page { size: A4 landscape; margin: 9mm; }
     {% else %}
     @page { size: A4 portrait; margin: 10mm; }
@@ -32,6 +33,12 @@
       page-break-after: always;
     }
     .page:last-child { page-break-after: auto; }
+    {% if minimal_commercial %}
+    .page.quote-last-product { min-height: 0; margin-bottom: 0; page-break-after: auto; }
+    .page[data-commercial-summary] { min-height: 0; padding-top: 3mm; break-inside: avoid; }
+    {% endif %}
+    @media print { body { background: #fff; } }
+    [data-commercial-product] > .commercial-section-title { break-after: avoid; }
     .topline {
       display: block;
       overflow: hidden;
@@ -373,8 +380,9 @@
   {% set frame_right = frame_x + frame_width %}
   {% set frame_bottom = frame_y + frame_height %}
   {% set side_mm = snapshot_side_projection(details) %}
-  {% set left_px = [1, side_mm.left * drawing_scale] | max if side_mm.left else 0 %}
-  {% set right_px = [1, side_mm.right * drawing_scale] | max if side_mm.right else 0 %}
+  {% set segments = snapshot_side_segments(details) %}
+  {% set left_px = side_mm.left * drawing_scale if details.side_projection_segments is defined else ([1, side_mm.left * drawing_scale] | max if side_mm.left else 0) %}
+  {% set right_px = side_mm.right * drawing_scale if details.side_projection_segments is defined else ([1, side_mm.right * drawing_scale] | max if side_mm.right else 0) %}
   {% set frame_center_x = frame_x + frame_width / 2 %}
   {% set frame_center_y = frame_y + frame_height / 2 %}
   {% set panel_dimension_y = frame_bottom + 8 %}
@@ -390,9 +398,9 @@
     </defs>
     <text x="{{ frame_center_x }}" y="{{ frame_y - 8 }}" text-anchor="middle" font-size="8" font-family="Arial" fill="#667b80">УЛИЦА</text>
     <rect data-quote-room-frame="{{ key }}" data-section-width-mm="{{ details.width_mm }}" data-section-height-mm="{{ details.height_mm }}"
-          x="{{ frame_x }}" y="{{ frame_y }}" width="{{ frame_width }}" height="{{ frame_height }}" fill="none" stroke="#123f47" stroke-width="2"/>
-    {% if left_px %}<rect data-side="left" data-profile-width-mm="{{ side_mm.left }}" x="{{ frame_x }}" y="{{ frame_y }}" width="{{ left_px }}" height="{{ frame_height }}" fill="#d9e3e5" stroke="#123f47"/>{% endif %}
-    {% if right_px %}<rect data-side="right" data-profile-width-mm="{{ side_mm.right }}" x="{{ frame_right - right_px }}" y="{{ frame_y }}" width="{{ right_px }}" height="{{ frame_height }}" fill="#d9e3e5" stroke="#123f47"/>{% endif %}
+          x="{{ frame_x }}" y="{{ frame_y }}" width="{{ frame_width }}" height="{{ frame_height }}" fill="none" stroke="#123f47" stroke-width="{{ 0.3 if details.side_projection_segments is defined else 2 }}"/>
+    {% for part in segments.left %}<rect data-side="left" data-segment="{{ part.role }}" data-profile-width-mm="{{ side_mm.left }}" x="{{ frame_x + part.offset_mm * (drawing_scale) }}" y="{{ frame_y }}" width="{{ part.width_mm * (drawing_scale) }}" height="{{ frame_height }}" fill="#d9e3e5" stroke="#123f47" stroke-width="0.3"/>{% endfor %}
+    {% for part in segments.right %}<rect data-side="right" data-segment="{{ part.role }}" data-profile-width-mm="{{ side_mm.right }}" x="{{ frame_right - (part.offset_mm + part.width_mm) * (drawing_scale) }}" y="{{ frame_y }}" width="{{ part.width_mm * (drawing_scale) }}" height="{{ frame_height }}" fill="#d9e3e5" stroke="#123f47" stroke-width="0.3"/>{% endfor %}
     {% set room = namespace(x=frame_x + left_px) %}
     {% for panel in details.panel_geometry %}
       {% set panel_width = (frame_width - left_px - right_px) * (panel.width_mm|float) / total %}
@@ -468,7 +476,7 @@
     {% set construction_rows = commercial_rows | selectattr('section_details', 'defined') | list %}
     {% for row in construction_rows %}
       {% set details = row.section_details %}
-      <div class="page{% if doc_type == 'contract_appendix' %} contract-product-page{% endif %}" data-commercial-product="{{ loop.index }}">
+      <div class="page{% if minimal_commercial and loop.last %} quote-last-product{% endif %}{% if doc_type == 'contract_appendix' %} contract-product-page{% endif %}" data-commercial-product="{{ loop.index }}">
         {% if loop.first %}
         <div class="quote-brand">
           <div>
@@ -564,14 +572,14 @@
       {% endif %}
       <div class="quote-summary-title">Итоговая спецификация</div>
       <table class="commercial-table">
-        <thead><tr><th style="width:7mm;">№</th><th>Изделие / аксессуар / услуга</th><th style="width:25mm;">Цена, ₽</th><th style="width:19mm;">Кол-во</th><th style="width:24mm;">До скидки, ₽</th><th style="width:22mm;">Скидка, ₽</th><th style="width:26mm;">Итого, ₽</th></tr></thead>
+        <thead><tr><th style="width:7mm;">№</th><th>Изделие / аксессуар / услуга</th><th style="width:25mm;">Цена, ₽</th><th style="width:19mm;">Кол-во</th>{% if not minimal_commercial %}<th style="width:24mm;">До скидки, ₽</th><th style="width:22mm;">Скидка, ₽</th>{% endif %}<th style="width:26mm;">Итого, ₽</th></tr></thead>
         <tbody>
         {% for row in commercial_rows %}
-          <tr><td class="center">{{ loop.index }}</td><td><b>{{ row.name|e }}</b></td><td class="right">{{ "{:,}".format(row.document_unit_final_price)|replace(",", " ") }}</td><td class="center">{{ row.quantity }} {{ row.unit|e }}</td><td class="right">{{ "{:,}".format(row.document_line_total_before_discount)|replace(",", " ") }}</td><td class="right">{{ "{:,}".format(row.document_line_discount_amount)|replace(",", " ") }}</td><td class="right"><b>{{ "{:,}".format(row.document_line_total)|replace(",", " ") }}</b></td></tr>
+          <tr><td class="center">{{ loop.index }}</td><td><b>{{ row.name|e }}</b></td><td class="right">{{ "{:,}".format(row.document_unit_final_price)|replace(",", " ") }}</td><td class="center">{{ row.quantity }} {{ row.unit|e }}</td>{% if not minimal_commercial %}<td class="right">{{ "{:,}".format(row.document_line_total_before_discount)|replace(",", " ") }}</td><td class="right">{{ "{:,}".format(row.document_line_discount_amount)|replace(",", " ") }}</td>{% endif %}<td class="right"><b>{{ "{:,}".format(row.document_line_total)|replace(",", " ") }}</b></td></tr>
         {% endfor %}
         </tbody>
       </table>
-      <table class="quote-category-summary">
+      {% if not minimal_commercial %}<table class="quote-category-summary">
         <thead><tr><th>Раздел</th><th>До скидки</th><th>Скидка</th><th>Итого</th></tr></thead>
         <tbody>
         {% for group in commercial_summary %}
@@ -579,15 +587,16 @@
         {% endfor %}
         </tbody>
       </table>
-      <table class="commercial-total">
+      {% endif %}<table class="commercial-total">
+        {% if not minimal_commercial %}
         <tr><td><b>До скидки</b></td><td class="right">{{ "{:,}".format(commercial_quote.totals.document_before_discount)|replace(",", " ") }} ₽</td></tr>
         <tr><td><b>Скидка</b></td><td class="right">−{{ "{:,}".format(commercial_quote.totals.document_discount)|replace(",", " ") }} ₽</td></tr>
-        <tr><td><b>ИТОГО</b></td><td class="right"><b>{{ "{:,}".format(commercial_quote.totals.document_grand_total)|replace(",", " ") }} ₽</b></td></tr>
+        {% endif %}<tr><td><b>ИТОГО</b></td><td class="right"><b>{{ "{:,}".format(commercial_quote.totals.document_grand_total)|replace(",", " ") }} ₽</b></td></tr>
       </table>
       <div class="quote-words">Итого прописью: {{ amount_in_words|e }}</div>
       <div class="commercial-terms">
         <div><b>Предложение действительно до:</b> {{ commercial_quote.valid_until }}</div>
-        <div><b>Условия оплаты:</b> {{ commercial_quote.payment_terms or 'по согласованию' }}</div>
+        {% if not minimal_commercial %}<div><b>Условия оплаты:</b> {{ commercial_quote.payment_terms or 'по согласованию' }}</div>{% endif %}
       </div>
       {% if doc_type == 'contract_appendix' %}
       <div class="quote-notice"><b>Обращаем ваше внимание:</b> состав, цвет, размеры и комплектация изделий должны быть проверены заказчиком до подписания приложения.</div>
@@ -649,57 +658,18 @@
       <div class="accent-red center" style="margin-bottom:4mm;">
         В счете указать номер заявки и цвет профиля
       </div>
-      <table class="paint-table">
-        <thead>
-          <tr>
-            <th style="width:24mm;">Артикул</th>
-            <th>Сечение</th>
-            <th style="width:21mm;">Кол-во</th>
-            <th style="width:26mm;">Чистовые размеры</th>
-            <th style="width:30mm;">{{ page.allowance_label or 'С припуском 50мм' }}</th>
-            <th style="width:23mm;">Общее, м.п.</th>
-          </tr>
-        </thead>
-        <tbody>
-        {% for group in page.groups %}
-          {% set span = group.rows|length %}
-          {% for row in group.rows %}
-          <tr>
-            {% if loop.first %}
-            <td class="center" rowspan="{{ span }}">{{ group.article }}</td>
-            <td rowspan="{{ span }}">
-              {% if group.note %}<div class="paint-note">{{ group.note }}</div>{% endif %}
-              {% if group.image_data %}
-                <span class="profile-img-wrap">
-                  <img src="{{ group.image_data }}" class="profile-img" alt="{{ group.article }}">
-                </span>
-              {% elif group.image %}
-                {% set src = group.image | img_b64 %}
-                {% if src %}
-                <span class="profile-img-wrap{% if group.paint_marker %} paint-bosses-marker {{ group.paint_marker_class }}{% endif %}">
-                  <img src="{{ src }}" class="profile-img" alt="{{ group.article }}">
-                </span>
-                {% endif %}
-              {% endif %}
-              <div class="center small">{{ group.name }}</div>
-            </td>
-            {% endif %}
-            <td class="center">{{ row.qty }}</td>
-            <td class="center">{{ row.clean|int if row.clean == row.clean|int else row.clean }}</td>
-            <td class="center">{{ row.allowance|int if row.allowance == row.allowance|int else row.allowance }}</td>
-            <td class="center">{{ "%.1f"|format(row.total_m) }}</td>
-          </tr>
-          {% endfor %}
-        {% endfor %}
-          <tr>
-            <td colspan="2" class="right"><b>Итого</b></td>
-            <td class="center"><b>{{ page.total_qty }}</b></td>
-            <td></td>
-            <td></td>
-            <td class="center"><b>{{ "%.1f"|format(page.total_m) }}</b></td>
-          </tr>
-        </tbody>
-      </table>
+      {% for group in page.groups %}
+      <table class="paint-table" style="{{ 'break-inside:avoid;' if group.rows|length <= 6 else '' }} margin-bottom:2mm">
+        <thead><tr><th style="width:24mm">{{ group.article }}</th><th>{{ group.name }}{% if group.note %}<div class="paint-note">{{ group.note }}</div>{% endif %}</th><th style="width:21mm">Кол-во</th><th style="width:26mm">Чистовые размеры</th><th style="width:30mm">{{ page.allowance_label or 'С припуском 50мм' }}</th><th style="width:23mm">Общее, м.п.</th></tr></thead>
+        <tbody>{% for row in group.rows %}<tr>
+          <td></td><td>{% if loop.first %}
+            {% if group.image_data %}<span class="profile-img-wrap"><img src="{{ group.image_data }}" class="profile-img" alt="{{ group.article }}"></span>
+            {% elif group.image %}{% set src = group.image | img_b64 %}{% if src %}<span class="profile-img-wrap{% if group.paint_marker %} paint-bosses-marker {{ group.paint_marker_class }}{% endif %}"><img src="{{ src }}" class="profile-img" alt="{{ group.article }}"></span>{% endif %}{% endif %}
+          {% endif %}</td>
+          <td class="center">{{ row.qty }}</td><td class="center">{{ row.clean|int if row.clean == row.clean|int else row.clean }}</td><td class="center">{{ row.allowance|int if row.allowance == row.allowance|int else row.allowance }}</td><td class="center">{{ "%.1f"|format(row.total_m) }}</td>
+        </tr>{% endfor %}</tbody>
+      </table>{% endfor %}
+      <table class="paint-table"><tr><td><b>Итого: {{ page.total_qty }} шт.</b></td><td class="right"><b>{{ "%.1f"|format(page.total_m) }} м.п.</b></td></tr></table>
     </div>
     {% endfor %}
   {% else %}

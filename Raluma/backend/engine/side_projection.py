@@ -1,36 +1,42 @@
-"""Front elevation of selected SLIDE side assemblies, in millimetres.
+"""Visible SLIDE assembly faces (Oct 12 drawing); never glass deductions."""
+import json
+from pathlib import Path
 
-Wall backing and the largest overlapping face of the side assembly are shown;
-overlapping lock/P/handle faces must not be added twice. No glass deduction is
-derived from this visual description.
-"""
+_RULES = json.loads(Path(__file__).with_name("slide_side_segments.json").read_text(encoding="utf-8"))
 
 
-def side_projection(section, calc=None):
-    def dimension(article, axis, fallback):
-        for profile in getattr(calc, "profiles", []) or []:
-            if getattr(profile, "article", "") == article:
-                value = getattr(profile, axis, None)
-                if value and float(value) > 0:
-                    return float(value)
-        return fallback
-
-    wall_article = "RS2335" if getattr(section, "rails", 3) == 5 else "RS2333"
+def side_segments(section):
     result = {}
     for side in ("left", "right"):
         def selected(role):
             return bool(getattr(section, f"profile_{side}_{role}", False))
-        wall = dimension(wall_article, "section_height_mm", 16) if selected("wall") else 0
-        face = max(
-            dimension("RS2081", "section_width_mm", 57) if selected("lock_bar") else 0,
-            dimension("RS1082", "section_width_mm", 25) if selected("p_bar") else 0,
-            dimension("RS112", "section_height_mm", 40) if selected("handle_bar") else 0,
-        )
-        result[side] = wall + face
+        offset = 0
+        rows = []
+        for rule in _RULES:
+            if not selected(rule["flag"]) or any(selected(flag) for flag in rule.get("unless", [])):
+                continue
+            width = rule.get("with_handle_mm", rule["width_mm"]) if selected("handle_bar") else rule["width_mm"]
+            rows.append({"role": rule["role"], "width_mm": width, "offset_mm": offset})
+            offset += width
+        result[side] = rows
     return result
 
 
+def side_projection(section, calc=None):
+    return {side: sum(row["width_mm"] for row in rows) for side, rows in side_segments(section).items()}
+
+
+def snapshot_side_segments(details):
+    saved = details.get("side_projection_segments")
+    if isinstance(saved, dict):
+        return saved
+    return {side: [{"role": "legacy", "offset_mm": 0, "width_mm": width}] if width else []
+            for side, width in snapshot_side_projection(details).items()}
+
+
 def snapshot_side_projection(details):
+    if isinstance(details.get("side_projection_segments"), dict):
+        return {side: sum(row["width_mm"] for row in details["side_projection_segments"].get(side, [])) for side in ("left", "right")}
     saved = details.get("side_projection_mm")
     if isinstance(saved, dict):
         return {side: max(0, float(saved.get(side, 0))) for side in ("left", "right")}

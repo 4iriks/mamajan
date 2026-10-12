@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download,
-  AlertTriangle,
+  Maximize2,
+  Minimize2,
   FileSpreadsheet,
   FileText,
   Loader2,
@@ -27,13 +28,9 @@ import {
 import type { DocumentFileFormat, SectionOut } from '../api/projects';
 import { toast } from '../store/toastStore';
 import {
-  getInternalQuote,
   getPublicQuote,
-  InternalQuoteState,
   PublicQuote,
-  QuoteDiscountRule,
   refreshQuote,
-  updateQuoteConfig,
 } from '../api/quotes';
 import { useAuthStore } from '../store/authStore';
 
@@ -72,22 +69,6 @@ interface DeliveryNoteData {
 }
 
 const makePaintRowId = () => `paint-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-const makeDiscountId = () => `discount-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-
-function emptyDiscount(): QuoteDiscountRule {
-  return {
-    id: makeDiscountId(),
-    name: 'Скидка',
-    scope: 'order',
-    mode: 'percent',
-    value: '0',
-  };
-}
-
-function formatQuoteMoney(value?: string | number) {
-  return `${Number(value || 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽`;
-}
-
 function requestError(error: unknown, fallback: string) {
   const detail = (error as { response?: { data?: { detail?: unknown } } }).response?.data?.detail;
   if (typeof detail === 'string') return detail;
@@ -180,7 +161,8 @@ export default function ProjectDocumentModal({
   const [deliveryData, setDeliveryData] = useState<DeliveryNoteData>(() => parseDeliveryData());
   const [isSavingDelivery, setIsSavingDelivery] = useState(false);
   const [quote, setQuote] = useState<PublicQuote | null>(null);
-  const [internalQuote, setInternalQuote] = useState<InternalQuoteState | null>(null);
+  const [fullScreen, setFullScreen] = useState(false);
+  const [zoom, setZoom] = useState(100);
   const [isQuoteLoading, setIsQuoteLoading] = useState(false);
   const [isQuoteSaving, setIsQuoteSaving] = useState(false);
   const { user } = useAuthStore();
@@ -199,6 +181,9 @@ export default function ProjectDocumentModal({
     [docType, isGuest, projectId, token, previewVersion],
   );
 
+  useEffect(() => {
+    if (isCommercialDocument && iframeRef.current?.contentDocument?.body) iframeRef.current.contentDocument.body.style.zoom = String(zoom / 100);
+  }, [isCommercialDocument, zoom]);
   const loadGuestPreview = useCallback(async () => {
     if (!isGuest || !isOpen) return;
     setIsPreviewLoading(true);
@@ -218,17 +203,13 @@ export default function ProjectDocumentModal({
     try {
       const publicState = await getPublicQuote(projectId);
       setQuote(publicState);
-      if (canEditCommercial) {
-        setInternalQuote(await getInternalQuote(projectId));
-      } else {
-        setInternalQuote(null);
-      }
+
     } catch (error) {
       toast.error(requestError(error, 'Не удалось рассчитать коммерческое предложение'));
     } finally {
       setIsQuoteLoading(false);
     }
-  }, [canEditCommercial, isCommercialDocument, isGuest, isOpen, projectId]);
+  }, [isCommercialDocument, isGuest, isOpen, projectId]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -238,7 +219,6 @@ export default function ProjectDocumentModal({
       setPaintColors([]);
       setDeliveryData(parseDeliveryData());
       setQuote(null);
-      setInternalQuote(null);
       return;
     }
     loadGuestPreview();
@@ -427,71 +407,11 @@ export default function ProjectDocumentModal({
     }
   };
 
-  const patchCommercialConfig = (
-    updates: Partial<InternalQuoteState['config']>,
-  ) => {
-    setInternalQuote(current => current ? {
-      ...current,
-      config: { ...current.config, ...updates },
-    } : current);
-    setIsDirty(true);
-  };
-
-  const updateDiscount = (id: string, updates: Partial<QuoteDiscountRule>) => {
-    if (!internalQuote) return;
-    patchCommercialConfig({
-      discounts: (internalQuote.config.discounts || []).map(discount => (
-        discount.id === id ? { ...discount, ...updates } : discount
-      )),
-    });
-  };
-
-  const addDiscount = () => {
-    if (!internalQuote) return;
-    patchCommercialConfig({
-      discounts: [...(internalQuote.config.discounts || []), emptyDiscount()],
-    });
-  };
-
-  const removeDiscount = (id: string) => {
-    if (!internalQuote) return;
-    patchCommercialConfig({
-      discounts: (internalQuote.config.discounts || []).filter(discount => discount.id !== id),
-    });
-  };
-
-  const saveCommercialConfig = async (): Promise<boolean> => {
-    if (!internalQuote) return false;
-    setIsQuoteSaving(true);
-    try {
-      const config = internalQuote.config;
-      await updateQuoteConfig(projectId, {
-        validity_days: config.validity_days,
-        manufacturing_term: config.manufacturing_term,
-        payment_terms: config.payment_terms,
-        services: config.services,
-        discounts: config.discounts || [],
-      });
-      await loadCommercialQuote();
-      setPreviewVersion(value => value + 1);
-      setIsDirty(false);
-      toast.success('Условия коммерческого предложения сохранены');
-      return true;
-    } catch (error) {
-      toast.error(requestError(error, 'Не удалось сохранить условия предложения'));
-      return false;
-    } finally {
-      setIsQuoteSaving(false);
-    }
-  };
-
   const handleRefreshQuote = async () => {
+    if (!window.confirm('Создать новую редакцию КП с текущими ценами и скидками? Предыдущая редакция останется сохранённой.')) return;
     setIsQuoteSaving(true);
     try {
       setQuote(await refreshQuote(projectId));
-      if (canEditCommercial) {
-        setInternalQuote(await getInternalQuote(projectId));
-      }
       setPreviewVersion(value => value + 1);
       setIsDirty(false);
       toast.success('Цены и редакция коммерческого предложения обновлены');
@@ -548,7 +468,7 @@ export default function ProjectDocumentModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className={`fixed inset-0 z-50 flex items-center justify-center ${fullScreen ? "" : "p-3"}`}>
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={handleClose}
@@ -558,8 +478,8 @@ export default function ProjectDocumentModal({
             initial={{ scale: 0.95, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 20 }}
-            className="relative w-full max-w-6xl bg-modal border border-tint/25 rounded-2xl sm:rounded-[2rem] shadow-2xl shadow-black/20 overflow-hidden flex flex-col z-10"
-            style={{ maxHeight: '95vh' }}
+            className={`relative w-full ${fullScreen ? "h-screen" : "max-w-7xl"} bg-modal border border-tint/25 rounded-2xl sm:rounded-[2rem] shadow-2xl shadow-black/20 overflow-hidden flex flex-col z-10`}
+            style={{ maxHeight: fullScreen ? '100dvh' : '96dvh' }}
           >
             <div className="px-5 py-4 sm:px-8 sm:py-5 border-b border-tint/20 flex items-center justify-between flex-shrink-0">
               <div>
@@ -763,154 +683,28 @@ export default function ProjectDocumentModal({
             )}
 
             {isCommercialDocument && (
-              <div className="px-5 py-4 sm:px-8 bg-page border-b border-tint/20 flex-shrink-0 max-h-[42vh] overflow-y-auto">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="text-xs font-bold uppercase tracking-widest text-fg/45">Расчёт стоимости</div>
-                      {quote && (
-                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                          quote.status === 'fixed'
-                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-                            : 'border-yellow-500/30 bg-yellow-500/10 text-yellow-300'
-                        }`}>
-                          Редакция {quote.revision} · {quote.status === 'fixed' ? 'зафиксирована' : 'черновик'}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[11px] text-fg/35 mt-1">
-                      PDF фиксирует первую редакцию; Word до первого PDF использует текущий черновик.
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {canEditCommercial && internalQuote && (
-                      <button
-                        type="button"
-                        onClick={saveCommercialConfig}
-                        disabled={isQuoteSaving}
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-accent/30 bg-accent/15 text-accent text-xs font-bold uppercase tracking-wider hover:bg-accent/25 disabled:opacity-50"
-                      >
-                        {isQuoteSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                        Сохранить
-                      </button>
-                    )}
-                    {canEditCommercial && quote?.status === 'fixed' && quote.stale && (
-                      <button
-                        type="button"
-                        onClick={handleRefreshQuote}
-                        disabled={isQuoteSaving || !quote?.export_allowed}
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-tint/30 bg-tint/10 text-fg/70 text-xs font-bold uppercase tracking-wider hover:bg-tint/20 disabled:opacity-40"
-                        title="Проверить актуальный расчёт и зафиксировать следующую редакцию"
-                      >
-                        <RefreshCw className={`w-4 h-4 ${isQuoteSaving ? 'animate-spin' : ''}`} />
-                        Обновить цены
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {isQuoteLoading && !quote ? (
-                  <div className="h-24 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-accent" /></div>
-                ) : quote ? (
-                  <div className="mt-4 space-y-4">
-                    {quote.stale && (
-                      <div className="flex items-start gap-2 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-200">
-                        <AlertTriangle className="w-4 h-4 mt-0.5 flex-none" />
-                        Проект, каталог или условия изменились после расчёта. Для новой редакции нажмите «Обновить цены».
-                      </div>
-                    )}
-
-                    {canEditCommercial && internalQuote ? (
-                      <div className="space-y-3">
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[120px_minmax(180px,1fr)_repeat(3,minmax(105px,135px))] xl:items-end">
-                          <label className="space-y-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Срок действия, дней</span>
-                            <input
-                              type="number" min="1" max="365"
-                              value={internalQuote.config.validity_days}
-                              onChange={event => patchCommercialConfig({ validity_days: Number(event.target.value) })}
-                              className="h-10 w-full rounded-lg border border-tint/20 bg-black/15 px-2 text-xs outline-none focus:border-accent/50"
-                            />
-                          </label>
-                          <label className="space-y-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Условия оплаты</span>
-                            <input
-                              value={internalQuote.config.payment_terms}
-                              onChange={event => patchCommercialConfig({ payment_terms: event.target.value })}
-                              placeholder="Например: 70/30"
-                              className="h-10 w-full rounded-lg border border-tint/20 bg-black/15 px-2 text-xs outline-none focus:border-accent/50"
-                            />
-                          </label>
-                          <div className="flex h-[46px] flex-col justify-center rounded-lg border border-tint/20 bg-black/10 px-3">
-                            <div className="text-[9px] uppercase tracking-wider text-fg/35">До скидки</div>
-                            <div className="mt-0.5 truncate text-xs font-bold">{formatQuoteMoney(quote.totals.before_discount)}</div>
-                          </div>
-                          <div className="flex h-[46px] flex-col justify-center rounded-lg border border-tint/20 bg-black/10 px-3">
-                            <div className="text-[9px] uppercase tracking-wider text-fg/35">Скидка</div>
-                            <div className="mt-0.5 truncate text-xs font-bold text-accent">{formatQuoteMoney(quote.totals.discount)}</div>
-                          </div>
-                          <div className="flex h-[46px] flex-col justify-center rounded-lg border border-accent/30 bg-accent/10 px-3">
-                            <div className="text-[9px] uppercase tracking-wider text-accent/70">Итого</div>
-                            <div className="mt-0.5 truncate text-xs font-bold text-accent">{formatQuoteMoney(quote.totals.grand_total)}</div>
-                          </div>
-                        </div>
-
-                        <div className="border-t border-tint/15 pt-3">
-                          <div className="mb-2 flex items-center justify-between gap-3">
-                            <div>
-                              <div className="text-[10px] font-bold uppercase tracking-wider text-fg/40">Скидки</div>
-                              <div className="mt-0.5 text-[10px] text-fg/30">На весь заказ или выбранную категорию, в процентах либо рублях.</div>
-                            </div>
-                            <button type="button" onClick={addDiscount} className="inline-flex items-center gap-1.5 rounded-lg border border-tint/25 px-2.5 py-1.5 text-xs text-accent hover:bg-tint/10">
-                              <Plus className="h-3.5 w-3.5" /> Скидка
-                            </button>
-                          </div>
-                          {(internalQuote.config.discounts || []).length > 0 && (
-                            <div className="space-y-2">
-                              {(internalQuote.config.discounts || []).map(discount => (
-                                <div key={discount.id} className="grid grid-cols-[minmax(130px,1fr)_150px_105px_34px] gap-2">
-                                  <input value={discount.name} onChange={event => updateDiscount(discount.id, { name: event.target.value })} placeholder="Название" className="h-9 rounded-lg border border-tint/20 bg-black/15 px-2 text-xs outline-none focus:border-accent/50" />
-                                  <select value={discount.scope} onChange={event => updateDiscount(discount.id, { scope: event.target.value as QuoteDiscountRule['scope'] })} className="h-9 rounded-lg border border-tint/20 bg-black/15 px-2 text-xs outline-none focus:border-accent/50">
-                                    <option value="order">Весь заказ</option>
-                                    <option value="construction">Конструкции</option>
-                                    <option value="profile">Профили</option>
-                                    <option value="component">Комплектующие</option>
-                                    <option value="service">Услуги</option>
-                                  </select>
-                                  <div className="flex overflow-hidden rounded-lg border border-tint/20 bg-black/15">
-                                    <input type="number" min="0" step="0.01" value={discount.value} onChange={event => updateDiscount(discount.id, { value: event.target.value })} className="min-w-0 flex-1 bg-transparent px-2 text-xs outline-none" />
-                                    <button type="button" onClick={() => updateDiscount(discount.id, { mode: discount.mode === 'percent' ? 'fixed' : 'percent' })} className="border-l border-tint/20 px-2 text-xs font-bold text-accent">{discount.mode === 'percent' ? '%' : '₽'}</button>
-                                  </div>
-                                  <button type="button" onClick={() => removeDiscount(discount.id)} aria-label="Удалить скидку" className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-500/25 text-red-400/75 hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                      </div>
-                    ) : (
-                      <div className="ml-auto grid w-full max-w-lg grid-cols-3 gap-2">
-                        <div className="rounded-lg border border-tint/20 bg-black/10 px-3 py-2">
-                          <div className="text-[9px] uppercase tracking-wider text-fg/35">До скидки</div>
-                          <div className="mt-0.5 truncate text-xs font-bold">{formatQuoteMoney(quote.totals.before_discount)}</div>
-                        </div>
-                        <div className="rounded-lg border border-tint/20 bg-black/10 px-3 py-2">
-                          <div className="text-[9px] uppercase tracking-wider text-fg/35">Скидка</div>
-                          <div className="mt-0.5 truncate text-xs font-bold text-accent">{formatQuoteMoney(quote.totals.discount)}</div>
-                        </div>
-                        <div className="rounded-lg border border-accent/30 bg-accent/10 px-3 py-2">
-                          <div className="text-[9px] uppercase tracking-wider text-accent/70">Итого</div>
-                          <div className="mt-0.5 truncate text-xs font-bold text-accent">{formatQuoteMoney(quote.totals.grand_total)}</div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ) : null}
+              <div className="px-4 py-2 border-b border-tint/20 flex flex-wrap items-center gap-3 text-xs">
+                {isQuoteLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                {quote && <span>Редакция {quote.revision} · {quote.status === 'fixed' ? 'зафиксирована' : 'черновик'}</span>}
+                {quote?.stale && <span className="text-amber-600">Есть изменения после расчёта</span>}
+                {canEditCommercial && quote?.status === 'fixed' && quote.stale && (
+                  <button type="button" disabled={isQuoteSaving} onClick={handleRefreshQuote} className="flex gap-1 items-center text-accent">
+                    <RefreshCw className="h-3 w-3" /> Новая редакция
+                  </button>
+                )}
+                <span className="text-fg/50">Стоимость и скидки — на экране заказа</span>
+                <label className="ml-auto flex items-center gap-1">Масштаб
+                  <select aria-label="Масштаб документа" value={zoom} onChange={event => setZoom(Number(event.target.value))} className="rounded border border-tint/30 bg-page px-1 py-1">
+                    {[50, 65, 80, 100, 125, 150].map(value => <option key={value} value={value}>{value}%</option>)}
+                  </select>
+                </label>
+                <button type="button" onClick={() => setFullScreen(value => !value)} aria-label={fullScreen ? 'Выйти из полноэкранного просмотра' : 'Полноэкранный просмотр'}>
+                  {fullScreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                </button>
               </div>
             )}
 
-            <div className="overflow-y-auto bg-gray-100" style={{ height: isCommercialDocument ? 'min(40vh, 520px)' : hasDocumentEditor ? 'calc(90vh - 295px)' : 'calc(90vh - 130px)' }}>
+            <div className="overflow-y-auto bg-gray-100" style={{ height: isCommercialDocument ? (fullScreen ? 'calc(100dvh - 170px)' : 'calc(96dvh - 175px)') : hasDocumentEditor ? 'calc(90vh - 295px)' : 'calc(90vh - 130px)' }}>
               {isPreviewLoading ? (
                 <div className="h-full flex items-center justify-center bg-gray-100">
                   <Loader2 className="w-8 h-8 text-gray-500 animate-spin" />
@@ -922,6 +716,9 @@ export default function ProjectDocumentModal({
                   srcDoc={isGuest ? previewSrcDoc : undefined}
                   className="w-full h-full border-0 block"
                   title={title}
+                  onLoad={() => {
+                    if (isCommercialDocument && iframeRef.current?.contentDocument?.body) iframeRef.current.contentDocument.body.style.zoom = String(zoom / 100);
+                  }}
                 />
               )}
             </div>
