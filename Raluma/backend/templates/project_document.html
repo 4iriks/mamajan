@@ -661,18 +661,57 @@
       <div class="accent-red center" style="margin-bottom:4mm;">
         В счете указать номер заявки и цвет профиля
       </div>
-      {% for group in page.groups %}
-      <table class="paint-table" style="{{ 'break-inside:avoid;' if group.rows|length <= 6 else '' }} margin-bottom:2mm">
-        <thead><tr><th style="width:24mm">{{ group.article }}</th><th>{{ group.name }}{% if group.note %}<div class="paint-note">{{ group.note }}</div>{% endif %}</th><th style="width:21mm">Кол-во</th><th style="width:26mm">Чистовые размеры</th><th style="width:30mm">{{ page.allowance_label or 'С припуском 50мм' }}</th><th style="width:23mm">Общее, м.п.</th></tr></thead>
-        <tbody>{% for row in group.rows %}<tr>
-          <td></td><td>{% if loop.first %}
-            {% if group.image_data %}<span class="profile-img-wrap"><img src="{{ group.image_data }}" class="profile-img" alt="{{ group.article }}"></span>
-            {% elif group.image %}{% set src = group.image | img_b64 %}{% if src %}<span class="profile-img-wrap{% if group.paint_marker %} paint-bosses-marker {{ group.paint_marker_class }}{% endif %}"><img src="{{ src }}" class="profile-img" alt="{{ group.article }}"></span>{% endif %}{% endif %}
-          {% endif %}</td>
-          <td class="center">{{ row.qty }}</td><td class="center">{{ row.clean|int if row.clean == row.clean|int else row.clean }}</td><td class="center">{{ row.allowance|int if row.allowance == row.allowance|int else row.allowance }}</td><td class="center">{{ "%.1f"|format(row.total_m) }}</td>
-        </tr>{% endfor %}</tbody>
-      </table>{% endfor %}
-      <table class="paint-table"><tr><td><b>Итого: {{ page.total_qty }} шт.</b></td><td class="right"><b>{{ "%.1f"|format(page.total_m) }} м.п.</b></td></tr></table>
+      <table class="paint-table">
+        <thead>
+          <tr>
+            <th style="width:24mm;">Артикул</th>
+            <th>Сечение</th>
+            <th style="width:21mm;">Кол-во</th>
+            <th style="width:26mm;">Чистовые размеры</th>
+            <th style="width:30mm;">{{ page.allowance_label or 'С припуском 50мм' }}</th>
+            <th style="width:23mm;">Общее, м.п.</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for group in page.groups %}
+          {% set span = group.rows|length %}
+          {% for row in group.rows %}
+          <tr>
+            {% if loop.first %}
+            <td class="center" rowspan="{{ span }}">{{ group.article }}</td>
+            <td rowspan="{{ span }}">
+              {% if group.note %}<div class="paint-note">{{ group.note }}</div>{% endif %}
+              {% if group.image_data %}
+                <span class="profile-img-wrap">
+                  <img src="{{ group.image_data }}" class="profile-img" alt="{{ group.article }}">
+                </span>
+              {% elif group.image %}
+                {% set src = group.image | img_b64 %}
+                {% if src %}
+                <span class="profile-img-wrap{% if group.paint_marker %} paint-bosses-marker {{ group.paint_marker_class }}{% endif %}">
+                  <img src="{{ src }}" class="profile-img" alt="{{ group.article }}">
+                </span>
+                {% endif %}
+              {% endif %}
+              <div class="center small">{{ group.name }}</div>
+            </td>
+            {% endif %}
+            <td class="center">{{ row.qty }}</td>
+            <td class="center">{{ row.clean|int if row.clean == row.clean|int else row.clean }}</td>
+            <td class="center">{{ row.allowance|int if row.allowance == row.allowance|int else row.allowance }}</td>
+            <td class="center">{{ "%.1f"|format(row.total_m) }}</td>
+          </tr>
+          {% endfor %}
+        {% endfor %}
+          <tr>
+            <td colspan="2" class="right"><b>Итого</b></td>
+            <td class="center"><b>{{ page.total_qty }}</b></td>
+            <td></td>
+            <td></td>
+            <td class="center"><b>{{ "%.1f"|format(page.total_m) }}</b></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
     {% endfor %}
   {% else %}

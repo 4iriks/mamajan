@@ -100,7 +100,29 @@ def test_discount_details_only_contract_new_quotes_and_old_snapshot_preserved(ki
     assert safe_public_payload(quote)["document_layout_version"] == version
 
 
-def test_delivery_units_and_long_group_headings_repeat_without_mutating_sources():
+def test_sketch_extras_use_original_shared_table():
+    project = SimpleNamespace(number="QA", extra_components=[
+        dict(sku=sku, name=name, unit="шт.", qty=2, size=str(length))
+        for sku, name, length in [
+            ("EXTRA-A", "Профиль А", 1000),
+            ("EXTRA-A", "Профиль А", 2000),
+            ("EXTRA-B", "Профиль Б", 1500),
+        ]
+    ])
+    html = render_project_document_html(project, [], "sketch", is_pdf=True)
+    assert html.count('<table class="component-table">') == 1
+    assert '<th>Артикул</th><th>Наименование</th>' in html
+    document = Document(io.BytesIO(build_project_docx(project, [], "sketch")))
+    tables = [table for table in document.tables
+              if table.cell(0, 0).text == "Артикул"]
+    assert len(tables) == 1
+    assert len(tables[0].rows) == 4
+    assert tables[0].cell(1, 0).text == "EXTRA-A"
+    assert tables[0].cell(2, 0).text == "EXTRA-A"
+    assert tables[0].cell(3, 0).text == "EXTRA-B"
+
+
+def test_delivery_uses_original_shared_table_without_mutating_sources():
     extra = dict(sku="QA-LONG", name="Длинная группа", color="9005", finishName="RAL стандарт", unit="м", deliveryStage="both", qty=2)
     rows = [{**extra, "size": str(1000 + i * 10)} for i in range(90)]
     project = SimpleNamespace(number="QA", extra_components=rows)
@@ -108,10 +130,14 @@ def test_delivery_units_and_long_group_headings_repeat_without_mutating_sources(
     context = build_project_document_context(project, [], "delivery")
     assert len(context["delivery_extra_groups"]) == 1
     assert all(row["display_unit"] == "шт." and row["pdf_qty_display"] == "2 шт." for row in context["delivery_project_extra_rows"])
-    pdf = PdfReader(io.BytesIO(generate_pdf(render_project_document_html(project, [], "delivery", is_pdf=True))))
+    html = render_project_document_html(project, [], "delivery", is_pdf=True)
+    assert html.count('<table class="main-table">') == 1
+    assert '<table class="main-table extra-group' not in html
+    assert html.count('QA-LONG') == 1
+    pdf = PdfReader(io.BytesIO(generate_pdf(html)))
     pages = [page.extract_text() for page in pdf.pages]
     assert len(pages) >= 3
-    assert all("QA-LONG" in page for page in pages if "мм" in page)
+    assert "QA-LONG" in pages[0]
     workbook = load_workbook(io.BytesIO(build_project_xlsx(project, [], "delivery")))
     text = "\n".join(str(cell.value) for sheet in workbook for row in sheet for cell in row if cell.value is not None)
     assert "мм · м" not in text and "шт шт" not in text

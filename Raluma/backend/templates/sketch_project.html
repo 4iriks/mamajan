@@ -278,17 +278,27 @@
   <section class="project-components" data-project-components>
     <h2 class="section-heading">Дополнительные комплектующие проекта</h2>
     {% if project_components %}
-    {% for group in display_groups(project_components) %}
-    {% set first = group[0] %}
-    <table class="component-table" style="{{ 'break-inside:avoid;' if group|length <= 6 else '' }} margin-bottom:2mm">
-      <colgroup><col style="width:17%"><col style="width:41%"><col style="width:17%"><col style="width:10%"><col style="width:15%"></colgroup>
-      <thead><tr><th>{{ first.article|e or '—' }}</th><th>{{ first.name|e }}{% if first.color %}<div class="component-meta">Цвет: {{ first.color|e }}</div>{% endif %}</th><th>Размер</th><th>Кол-во</th><th>Примечание</th></tr></thead>
-      <tbody>{% for item in group %}<tr>
-        <td></td><td>{% if loop.first and (first.image_data or first.image) %}<img src="{{ first.image_data or (first.image|img_b64) }}" alt="" style="max-width:24mm;max-height:16mm">{% endif %}</td>
-        <td class="center">{{ item.size|e }}</td><td class="center">{{ item.qty|e }} {{ item.unit|e }}</td><td>{{ item.note|e or '—' }}</td>
-      </tr>{% endfor %}</tbody>
+    <table class="component-table">
+      <colgroup><col style="width: 17%"><col style="width: 41%"><col style="width: 17%"><col style="width: 10%"><col style="width: 15%"></colgroup>
+      <thead><tr><th>Артикул</th><th>Наименование</th><th>Размер</th><th>Кол-во</th><th>Примечание</th></tr></thead>
+      <tbody>
+      {% for item in project_components %}
+        <tr>
+          {% if item.group_start %}
+          <td class="center" rowspan="{{ item.group_span }}">{{ item.article|e or '—' }}</td>
+          <td rowspan="{{ item.group_span }}">
+            {{ item.name|e }}
+            {% if item.color %}<div class="component-meta">Цвет: {{ item.color|e }}</div>{% endif %}
+            {% if item.image_data or item.image %}<img src="{{ item.image_data or (item.image|img_b64) }}" alt="" style="max-width:24mm;max-height:16mm">{% endif %}
+          </td>
+          {% endif %}
+          <td class="center">{{ item.size|e }}</td>
+          <td class="center">{{ item.qty|e }} {{ item.unit|e }}</td>
+          <td>{{ item.note|e or '—' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
     </table>
-    {% endfor %}
     {% endif %}
   </section>
   {% endif %}

@@ -79,8 +79,6 @@
     .center { text-align: center; }
     .nowrap { white-space: nowrap; }
     .group-row + .group-row td:not(.item-number) { border-top-color: #777; }
-    .extra-group { margin-top: 1mm; }
-    .small-group { break-inside: avoid; page-break-inside: avoid; }
     .names-total { margin-top: 2.5mm; font-weight: 700; }
     .acceptance { margin-top: 4mm; line-height: 1.4; }
     .acceptance-line {
@@ -235,28 +233,26 @@
         </tr>
         {% endfor %}
 
-      </tbody>
-    </table>
-    {% for group in delivery_extra_groups %}
-    {% set first = group[0] %}
-    <table class="main-table extra-group{% if group|length <= 6 %} small-group{% endif %}">
-      <thead>
-        <tr><th class="item-number">3</th><th style="text-align:left">
-          {% if first.article %}{{ first.article|e }} — {% endif %}{{ first.name|e }}
-          {% if first.color %}<div class="row-meta">Цвет: {{ first.color|e }}</div>{% endif %}
-        </th><th class="quantity">Кол-во</th><th class="places">Кол-во мест</th></tr>
-      </thead><tbody>
-        {% for row in group %}
+        {% for row in delivery_project_extra_rows %}
         <tr class="group-row">
-          <td class="item-number"></td>
-          <td>{% if loop.first and (first.image_data or first.image) %}<img class="component-thumb" src="{{ first.image_data or (first.image|img_b64) }}" alt="">{% endif %}{% if row.size_display %}<div class="row-meta">Размер: {{ row.size_display|e }}</div>{% endif %}</td>
+          {% if loop.first %}<td class="item-number" rowspan="{{ delivery_project_extra_rows|length }}">3</td>{% endif %}
+          <td>
+            {% if row.group_start %}
+            <div class="row-title">
+              {% if row.article %}<span class="nowrap">{{ row.article|e }}</span> — {% endif %}{{ row.name|e }}
+            </div>
+            {% if row.color %}<div class="row-meta">Цвет: {{ row.color|e }}</div>{% endif %}
+            {% if row.image_data or row.image %}<img src="{{ row.image_data or (row.image|img_b64) }}" alt="" style="max-width:22mm;max-height:14mm">{% endif %}
+            {% endif %}
+            {% if row.size_display %}<div class="row-meta">Размер: {{ row.size_display|e }}</div>{% endif %}
+          </td>
           <td class="quantity">{{ row.pdf_qty_display }}</td>
           <td class="places" {% if not is_pdf %}contenteditable="true" data-delivery-place-key="{{ row.place_key }}" data-original="{{ row.places|e }}"{% endif %}>{{ row.places|e }}</td>
         </tr>
         {% endfor %}
+
       </tbody>
     </table>
-    {% endfor %}
 
     <div class="names-total">Всего наименований: {{ delivery_names_count }}.</div>
     <div class="acceptance">

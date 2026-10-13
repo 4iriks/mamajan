@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from engine.component_groups import display_groups
-
 import io
 from decimal import Decimal
 from typing import Any, Iterable
@@ -204,15 +202,6 @@ def _style_table(table, header_rows: int = 1) -> None:
                 _set_cell_shading(cell, HEADER_GRAY)
                 for run in cell.paragraphs[0].runs:
                     run.bold = True
-
-
-def _keep_small_group(table, size):
-    # Repeated table headings identify continuations; only short groups stick together.
-    if size <= 6:
-        for row in table.rows[:-1]:
-            for cell in row.cells:
-                for paragraph in cell.paragraphs:
-                    paragraph.paragraph_format.keep_with_next = True
 
 
 def _set_table_geometry_mm(table, widths_mm: tuple[float, ...]) -> None:
@@ -1644,23 +1633,69 @@ def _build_sketch_docx(context: dict) -> bytes:
             "ДОПОЛНИТЕЛЬНЫЕ КОМПЛЕКТУЮЩИЕ ПРОЕКТА",
             size=10.5,
         )
-        for group in display_groups(project_components):
-            first = group[0]
+        if project_components:
             project_table = document.add_table(rows=1, cols=5)
-            headers = (first["article"] or "—", first["name"] + ("\nЦвет: " + first["color"] if first.get("color") else ""), "Размер", "Кол-во", "Примечание")
+            headers = (
+                "Артикул",
+                "Наименование",
+                "Размер",
+                "Кол-во",
+                "Примечание",
+            )
             for column, header in enumerate(headers):
-                _set_cell_text(project_table.cell(0, column), header, bold=True, size=7)
-            for index, component in enumerate(group):
+                _set_cell_text(
+                    project_table.cell(0, column),
+                    header,
+                    bold=True,
+                    size=6.5,
+                    align=WD_ALIGN_PARAGRAPH.CENTER,
+                )
+            for component in project_components:
                 row = project_table.add_row()
-                values = ("", "", component["size"], f"{component['qty']} {component['unit']}", component["note"] or "—")
+                component_meta = "\n".join(
+                    filter(
+                        None,
+                        (
+                            component["name"],
+                            f"Цвет: {component['color']}"
+                            if component.get("color")
+                            else "",
+                        ),
+                    )
+                )
+                values = (
+                    component["article"] or "—",
+                    component_meta,
+                    component["size"],
+                    f"{component['qty']} {component['unit']}",
+                    component["note"] or "—",
+                )
                 for column, value in enumerate(values):
-                    _set_cell_text(row.cells[column], value, size=7, align=WD_ALIGN_PARAGRAPH.CENTER if column != 4 else None)
-                if index == 0:
-                    _add_picture_fitted(row.cells[1], image_stream(first.get("image"), first.get("image_data")), max_width_mm=24, max_height_mm=16)
+                    _set_cell_text(
+                        row.cells[column],
+                        value,
+                        size=6.3,
+                        align=(
+                            WD_ALIGN_PARAGRAPH.CENTER
+                            if column in {0, 2, 3}
+                            else WD_ALIGN_PARAGRAPH.LEFT
+                        ),
+                    )
+            for index, component in enumerate(project_components, start=1):
+                if not component.get("group_start", True):
+                    continue
+                end = index + component.get("group_span", 1) - 1
+                article_cell, name_cell = project_table.cell(index, 0), project_table.cell(index, 1)
+                if end > index:
+                    article_cell = article_cell.merge(project_table.cell(end, 0))
+                    name_cell = name_cell.merge(project_table.cell(end, 1))
+                _set_cell_text(article_cell, component["article"] or "—", size=7.5)
+                _set_cell_text(name_cell, component["name"] + ("\nЦвет: " + component["color"] if component.get("color") else ""), size=7.5)
+                _add_picture_fitted(name_cell, image_stream(component.get("image"), component.get("image_data")), max_width_mm=24, max_height_mm=16)
             _style_table(project_table)
             _set_table_geometry_mm(project_table, (28, 70, 28, 22, 34))
-            _keep_small_group(project_table, len(group))
-            document.add_paragraph().paragraph_format.space_after = Pt(1)
+            for row in project_table.rows:
+                _prevent_row_split(row)
 
     output = io.BytesIO()
     document.save(output)
@@ -2210,29 +2245,109 @@ def _build_paint_docx(context: dict) -> bytes:
         warning_run.font.size = Pt(9)
         warning_run.font.color.rgb = RGBColor.from_string(RED)
 
+        table = document.add_table(rows=1, cols=6)
+        headers = (
+            "Артикул",
+            "Сечение",
+            "Кол-во",
+            "Чистовые размеры",
+            page.get("allowance_label", "С припуском 50 мм"),
+            "Общее, м.п.",
+        )
+        for index, header in enumerate(headers):
+            _set_cell_text(
+                table.cell(0, index),
+                header,
+                bold=True,
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+            )
         for group in page["groups"]:
-            table = document.add_table(rows=1, cols=6)
-            headers = (group["article"], group["name"], "Кол-во", "Чистовые размеры", page.get("allowance_label", "С припуском 50 мм"), "Общее, м.п.")
-            for index, header in enumerate(headers):
-                _set_cell_text(table.cell(0, index), header, bold=True, size=7, align=WD_ALIGN_PARAGRAPH.CENTER)
-            for index, row_data in enumerate(group["rows"]):
+            start = len(table.rows)
+            for row_data in group["rows"]:
                 row = table.add_row()
-                values = ("", "", row_data["qty"],
+                _set_cell_text(
+                    row.cells[0],
+                    group["article"],
+                    bold=True,
+                    align=WD_ALIGN_PARAGRAPH.CENTER,
+                )
+                _set_cell_text(row.cells[1], group["name"], size=7.5)
+                _set_cell_text(
+                    row.cells[2], row_data["qty"], align=WD_ALIGN_PARAGRAPH.CENTER
+                )
+                _set_cell_text(
+                    row.cells[3],
                     (format_number if row_data.get("note", "").startswith("ЦС:") else format_dimension)(row_data["clean"]),
+                    align=WD_ALIGN_PARAGRAPH.CENTER,
+                )
+                _set_cell_text(
+                    row.cells[4],
                     (format_number if row_data.get("note", "").startswith("ЦС:") else format_dimension)(row_data["allowance"]),
-                    f"{row_data['total_m']:.1f}".replace(".", ","))
-                for column, value in enumerate(values):
-                    _set_cell_text(row.cells[column], value, size=7.5, align=WD_ALIGN_PARAGRAPH.CENTER)
-                if index == 0:
-                    if group.get("note"):
-                        _set_cell_text(row.cells[1], group["note"], size=7, color=RED)
-                    _add_picture(row.cells[1], image_stream(group.get("image"), group.get("image_data"), max_size=(700, 450)), 22)
-            _style_table(table)
-            _set_table_geometry_mm(table, (23, 50, 21, 26, 30, 23))
-            _keep_small_group(table, len(group["rows"]))
-            document.add_paragraph().paragraph_format.space_after = Pt(1)
-        total = document.add_paragraph(f"Итого: {page['total_qty']} шт.    {page['total_m']:.1f} м.п.")
-        total.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                    align=WD_ALIGN_PARAGRAPH.CENTER,
+                )
+                _set_cell_text(
+                    row.cells[5],
+                    f"{row_data['total_m']:.1f}".replace(".", ","),
+                    align=WD_ALIGN_PARAGRAPH.CENTER,
+                )
+                row.height = Mm(11)
+                row.height_rule = WD_ROW_HEIGHT_RULE.AT_LEAST
+            end = len(table.rows) - 1
+            article_cell = table.cell(start, 0)
+            image_cell = table.cell(start, 1)
+            if end > start:
+                article_cell = article_cell.merge(table.cell(end, 0))
+                image_cell = image_cell.merge(table.cell(end, 1))
+            _set_cell_text(
+                article_cell,
+                group["article"],
+                bold=True,
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+            )
+            _set_cell_text(
+                image_cell, group["name"], size=7.5, align=WD_ALIGN_PARAGRAPH.CENTER
+            )
+            if group.get("note"):
+                note = image_cell.add_paragraph(str(group["note"]))
+                note.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for run in note.runs:
+                    run.bold = True
+                    run.font.color.rgb = RGBColor.from_string(RED)
+                    run.font.size = Pt(8)
+            source = image_stream(
+                group.get("image"),
+                group.get("image_data"),
+                max_size=(700, 450),
+            )
+            _add_picture(image_cell, source, 22)
+
+            # Preserve the original shared table, but keep short profile groups
+            # together so the article and its section image cannot be separated.
+            # Use physical cells: row.cells repeats merged cells from earlier rows.
+            if len(group["rows"]) <= 6:
+                for grouped_row in table.rows[start:end]:
+                    for cell in grouped_row._tr.tc_lst:
+                        for paragraph in cell.iter(qn("w:p")):
+                            paragraph.get_or_add_pPr().get_or_add_keepNext().val = True
+
+        total = table.add_row()
+        total.cells[0].merge(total.cells[1])
+        _set_cell_text(
+            total.cells[0], "Итого", bold=True, align=WD_ALIGN_PARAGRAPH.RIGHT
+        )
+        _set_cell_text(
+            total.cells[2],
+            page["total_qty"],
+            bold=True,
+            align=WD_ALIGN_PARAGRAPH.CENTER,
+        )
+        _set_cell_text(
+            total.cells[5],
+            f"{page['total_m']:.1f}".replace(".", ","),
+            bold=True,
+            align=WD_ALIGN_PARAGRAPH.CENTER,
+        )
+        _style_table(table)
 
     output = io.BytesIO()
     document.save(output)
