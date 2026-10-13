@@ -176,7 +176,7 @@ function sideAssemblyVariant(
   return null;
 }
 
-export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: SlideCalcPreview | null }) {
+export function SlideSchemeSVG({ section, calc, fit = false }: { section: Section; calc?: SlideCalcPreview | null; fit?: boolean }) {
   const sideAssemblyFilterPrefix = React.useId().replace(/:/g, '');
   const glassSupplied = section.glassSupplied !== false;
   const glassFill = glassSupplied ? diagramGlassFillColor(section.glassType) : '#FFFFFF';
@@ -400,7 +400,9 @@ export function SlideSchemeSVG({ section, calc }: { section: Section; calc?: Sli
   };
 
   return (
-    <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} className="block w-full drop-shadow-[0_0_15px_rgba(79,209,197,0.08)]" style={{ maxWidth: svgW, margin: '0 auto' }}>
+    <svg width={svgW} height={svgH} viewBox={fit
+      ? `${diagramOuterLeft + diagramOffsetX - 12} 0 ${diagramOuterRight - diagramOuterLeft + 24} ${svgH}`
+      : `0 0 ${svgW} ${svgH}`} className="block w-full drop-shadow-[0_0_15px_rgba(79,209,197,0.08)]" style={{ maxWidth: svgW, margin: '0 auto' }}>
       <defs>
         <pattern id={mattePatternId} data-glass-pattern="matte" width="5" height="5" patternUnits="userSpaceOnUse">
           <rect width="5" height="5" fill={glassFill} />
@@ -553,10 +555,12 @@ export function SlideRoomViewSVG({
   section,
   calc,
   compact = false,
+  fit = false,
 }: {
   section: Section;
   calc?: SlideCalcPreview | null;
   compact?: boolean;
+  fit?: boolean;
 }) {
   const diagramId = React.useId().replace(/:/g, '');
   const panels  = section.panels;
@@ -604,7 +608,9 @@ export function SlideRoomViewSVG({
   const compactPadding = 10;
   const roomViewBox = compact
     ? `${fX - compactPadding} ${fY - compactPadding} ${fW + compactPadding * 2} ${fH + compactPadding * 2}`
-    : `0 0 ${vbW} ${vbH}`;
+    : fit
+      ? `${fX - 12} ${fY - 12} ${fW + 62} ${fH + 76}`
+      : `0 0 ${vbW} ${vbH}`;
 
   const topProfileMm = findProfileDimension(calc, rails === 5 ? ['RS1315'] : ['RS1313'], 'section_height_mm', 53);
   const thresholdArticles = rails === 5

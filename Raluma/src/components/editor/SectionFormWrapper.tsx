@@ -119,7 +119,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
   })();
 
   return (
-    <div className="section-editor">
+    <div className={`section-editor${section.system === 'ЦС' ? '' : ' section-editor--compact'}`} data-editor-system={section.system}>
       {/* Хлебные крошки + заголовок */}
       <div className={section.system === 'СЛАЙД'
         ? 'mb-4 flex flex-col gap-3 xl:flex-row xl:items-start xl:gap-4'

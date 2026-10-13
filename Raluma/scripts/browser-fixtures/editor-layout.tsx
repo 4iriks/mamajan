@@ -20,12 +20,12 @@ initial.csConfig = csPreset(initial);
 let current = initial;
 function App() {
   const [section, setSection] = useState(initial); current = section;
-  return <div className="h-screen flex flex-col overflow-hidden">
+  return <div className="h-screen flex flex-col overflow-hidden bg-page text-fg">
     <header className="h-16 flex-none border-b p-4">Контроль размеров редактора <button id="slide" onClick={() => setSection(s => ({ ...s, system: 'СЛАЙД', slideRows: 1, panels: 3 }))}>SLIDE</button> · <button id="slide-two" onClick={() => setSection(s => ({ ...s, system: 'СЛАЙД', slideRows: 2, panels: 6 }))}>SLIDE 2</button> · <button id="cs" onClick={() => setSection(s => ({ ...s, system: 'ЦС' }))}>ЦС</button>
       {(['ЛИФТ', 'КНИЖКА', 'КОМПЛЕКТАЦИЯ'] as Section['system'][]).map(system => <button key={system} id={system} onClick={() => setSection(s => ({ ...s, system }))}> · {system}</button>)}
     </header>
-    <div className="flex min-h-0 flex-1"><aside className="w-[240px] flex-none bg-surface/20 p-4">Секции</aside>
-      <main className="min-w-0 flex-1 p-4 overflow-y-auto"><SectionFormWrapper section={section} onUpdate={updates => setSection(s => ({ ...s, ...csDimensionUpdates(s, updates) }))} onSave={async () => {}} onBack={() => {}} isSaving={false} isDirty={false} /></main>
+    <div className="flex min-h-0 flex-1"><aside className="w-[260px] flex-none bg-surface/20 p-4">Секции</aside>
+      <main className="min-w-0 flex-1 overflow-y-auto"><div className={section.system === 'ЦС' ? 'p-4' : 'section-editor-shell p-2'}><SectionFormWrapper section={section} onUpdate={updates => setSection(s => ({ ...s, ...csDimensionUpdates(s, updates) }))} onSave={async () => {}} onBack={() => {}} isSaving={false} isDirty={false} /></div></main>
     </div>
   </div>;
 }
@@ -51,12 +51,26 @@ async function run() {
   fields.scrollTop = fields.scrollHeight; await pause();
   assert(Math.abs(canvas.getBoundingClientRect().top - top) < 1, 'Parameters scroll independently');
   document.getElementById('slide')!.click(); await pause(600);
-  assert(left.getBoundingClientRect().right <= fields.getBoundingClientRect().left + 1, 'SLIDE drawings left, settings right unchanged');
+  assert(fields.getBoundingClientRect().right <= left.getBoundingClientRect().left + 1, 'SLIDE settings left, drawings right');
+  assert(fields.getBoundingClientRect().left - document.querySelector('aside')!.getBoundingClientRect().right <= 8, 'Minimal left gutter');
   const svgs = [...left.querySelectorAll('svg')].filter(svg => svg.getAttribute('viewBox'));
   assert(svgs.length === 2, 'Both SLIDE views present');
   assert(svgs.every(svg => svg.getBoundingClientRect().height > 50 && svg.getBoundingClientRect().bottom <= innerHeight), 'Both SLIDE views visible together');
+  const room = svgs.find(svg => svg.dataset.roomViewMode === 'full')!;
+  assert(room.getBoundingClientRect().height >= 240, 'Room drawing uses available height');
+  const finishes = document.querySelector<HTMLElement>('[data-editor-finishes]')!;
+  assert(finishes.getBoundingClientRect().height <= 90, 'Compact two-row finishes');
+  const labels = [...fields.querySelectorAll('label')];
+  const widthLabel = labels.find(label => label.textContent === 'Ширина, мм')!;
+  const numberLabel = labels.find(label => label.textContent === 'Секция №')!;
+  assert(widthLabel.getBoundingClientRect().top - numberLabel.getBoundingClientRect().top <= 58, 'No doubled vertical margins between inputs');
+  for (const button of fields.querySelectorAll<HTMLElement>('button.ml-4')) {
+    assert(button.getBoundingClientRect().right <= button.parentElement!.getBoundingClientRect().right + 1, 'Indented profiles stay inside their column');
+  }
+  const drawingTop = room.getBoundingClientRect().top;
   fields.scrollTop = fields.scrollHeight; await pause();
   assert(svgs.every(svg => svg.getBoundingClientRect().top > 0), 'SLIDE views stay visible when settings scroll');
+  assert(room.getBoundingClientRect().top === drawingTop, 'Drawing does not move with fields');
   fields.scrollTop = 0;
   for (const button of ['slide', 'slide-two']) {
     document.getElementById(button)!.click(); await pause(400);
@@ -80,9 +94,9 @@ async function run() {
   }
   for (const system of ['ЛИФТ', 'КНИЖКА', 'КОМПЛЕКТАЦИЯ']) {
     document.getElementById(system)!.click(); await pause(250);
-    assert(left.getBoundingClientRect().right <= fields.getBoundingClientRect().left + 1, `${system}: drawings left, settings right unchanged`);
+    assert(fields.getBoundingClientRect().right <= left.getBoundingClientRect().left + 1, `${system}: settings left, drawings right`);
   }
   document.getElementById('slide')!.click(); await pause(300);
-  document.getElementById('result')!.textContent = 'Original editor sides, readable non-scrolling presets and stable CS vertices passed'; document.body.dataset.smoke = 'passed';
+  document.getElementById('result')!.textContent = 'Compact controls, enlarged right-hand diagrams, readable presets and unchanged CS passed'; document.body.dataset.smoke = 'passed';
 }
 run().catch(error => { document.getElementById('result')!.textContent = String(error.stack || error); document.body.dataset.smoke = 'failed'; });

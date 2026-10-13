@@ -2196,21 +2196,12 @@ def _build_delivery_xlsx(context: dict) -> bytes:
         )
         write_item(
             "Доп. комплектующие проекта",
-            str(item.get("article") or "") if item.get("group_start", True) else "",
-            str(item.get("name") or "") if item.get("group_start", True) else "",
+            str(item.get("article") or ""),
+            str(item.get("name") or ""),
             details_text,
             item.get("qty"),
             item.get("places"),
         )
-        if item.get("group_start", True):
-            source = image_stream(item.get("image"), item.get("image_data"), max_size=(400, 220))
-            if source is not None:
-                worksheet.set_row(row - 1, 78)
-                article_top = workbook.add_format({"font_name": "Arial", "font_size": 9,
-                    "bold": True, "align": "center", "valign": "top", **border})
-                worksheet.write(row - 1, 2, item.get("article") or "", article_top)
-                _insert_image(worksheet, row - 1, 2, source, max_width_px=88,
-                              max_height_px=65, y_offset=25, allow_enlarge=False)
 
     if row == data_start_row:
         worksheet.merge_range(row, 0, row, 3, "Позиции для отгрузки не найдены", detail)

@@ -655,7 +655,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         />
 
         {/* Right: editor */}
-        <main className={`flex-1 overflow-y-auto bg-page/50 ${mobileSidebarOpen ? 'hidden sm:block' : 'block'}`}>
+        <main className={`min-w-0 flex-1 overflow-y-auto bg-page/50 ${mobileSidebarOpen ? 'hidden sm:block' : 'block'}`}>
           <AnimatePresence mode="wait">
             {!activeSection ? (
               <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -893,7 +893,9 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
               </motion.div>
             ) : (
               <motion.div key={activeSection.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
-                className="p-4 sm:p-6 w-full max-w-4xl xl:max-w-[1380px] mx-auto">
+                className={activeSection.system === 'ЦС'
+                  ? 'p-4 sm:p-6 w-full max-w-4xl xl:max-w-[1380px] mx-auto'
+                  : 'section-editor-shell w-full p-2'}>
                 <SectionFormWrapper
                   section={activeSection}
                   onUpdate={updateActiveSection}

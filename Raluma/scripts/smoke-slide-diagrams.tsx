@@ -406,4 +406,17 @@ assert.deepEqual(
   'retired customer must not return through saved projects or legacy aliases',
 );
 
+// Fitting the interactive editor must only remove empty viewBox margins:
+// print/default geometry, dimensions and profile assemblies stay identical.
+for (const sample of [section, sectionTwoRows, { ...section, width: 1000, height: 3000 }]) {
+  for (const Diagram of [SlideRoomViewSVG, SlideSchemeSVG]) {
+    const original = renderToStaticMarkup(<Diagram section={sample} />);
+    const fitted = renderToStaticMarkup(<Diagram section={sample} fit />);
+    assert.equal(fitted.replace(/viewBox="[^"]*"/, ''), original.replace(/viewBox="[^"]*"/, ''),
+      'Editor fitting must not alter glass or profile geometry');
+    const [, , width, height] = fitted.match(/viewBox="([^"]*)"/)![1].split(' ').map(Number);
+    assert.ok(width > 0 && height > 0, 'Fitted drawing has a valid viewport');
+  }
+}
+
 console.log('slide diagram smoke passed');

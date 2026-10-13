@@ -152,3 +152,33 @@ html.light .card-shadow {
 .project-overview .mb-4 { margin-bottom: 10px; }
 .project-overview .mb-6 { margin-bottom: 10px; }
 .section-editor-diagram > .cs-canvas, .cs-canvas { position: relative; }
+
+/* October 13: denser controls, with diagrams on the right; CS stays unchanged. */
+.section-editor--compact .section-editor-fields [class*="space-y-"] > * { margin-block: 0; }
+.section-editor--compact .section-editor-fields label:not(.flex) { display: block; line-height: 14px; }
+.section-editor--compact .section-editor-fields [class*="space-y-"] > :not([hidden]) ~ :not([hidden]) { margin-top: 6px; }
+.section-editor--compact .section-editor-fields [class*="space-y-1"] > :not([hidden]) ~ :not([hidden]),
+.section-editor--compact .section-editor-fields [class*="space-y-0"] > :not([hidden]) ~ :not([hidden]) { margin-top: 3px; }
+.section-editor--compact .section-editor-fields .mt-3 { margin-top: 6px; }
+.section-editor--compact .section-editor-fields > div:first-child { padding: 10px; margin-bottom: 8px; }
+.section-editor--compact .section-editor-fields button.ml-4 { width: calc(100% - 1rem); }
+.section-editor--compact [data-editor-finishes] { gap: 4px; }
+.section-editor--compact [data-editor-finishes] > button { padding: 5px 6px; gap: 5px; min-height: 32px; }
+@media (min-width: 1024px) {
+  .section-editor-shell { height: 100%; }
+  .section-editor--compact { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+  .section-editor--compact > div:first-child { flex-shrink: 0; }
+  .section-editor--compact .section-editor-layout { flex: 1; height: auto; min-height: 0; grid-template-columns: minmax(400px, 1fr) minmax(320px, 1fr); gap: 8px; }
+  .section-editor--compact .section-editor-fields { order: 1; min-height: 0; }
+  .section-editor--compact .section-editor-diagram { order: 2; min-height: 0; }
+  .section-editor--compact [data-slide-visualizer] svg,
+  .section-editor--compact [data-book-visualizer] svg { max-height: none !important; }
+  .section-editor--compact [data-slide-visualizer],
+  .section-editor--compact [data-book-visualizer] { height: 100%; display: grid; grid-template-rows: minmax(0, 3fr) minmax(0, 2fr); padding-right: 0; }
+  .section-editor--compact [data-slide-visualizer] > div,
+  .section-editor--compact [data-book-visualizer] > div { display: flex; flex-direction: column; min-height: 0; padding: 8px; }
+  .section-editor--compact [data-slide-visualizer] > div > div:first-child,
+  .section-editor--compact [data-book-visualizer] > div > div:first-child { flex-shrink: 0; margin-bottom: 4px; gap: 4px; }
+  .section-editor--compact [data-slide-visualizer] > div > svg,
+  .section-editor--compact [data-book-visualizer] > div > svg { flex: 1; min-height: 0; width: 100%; height: 100%; max-width: none !important; }
+}

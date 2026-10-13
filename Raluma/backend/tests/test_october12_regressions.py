@@ -133,11 +133,11 @@ def test_delivery_uses_original_shared_table_without_mutating_sources():
     html = render_project_document_html(project, [], "delivery", is_pdf=True)
     assert html.count('<table class="main-table">') == 1
     assert '<table class="main-table extra-group' not in html
-    assert html.count('QA-LONG') == 1
+    assert html.count('QA-LONG') == 90
     pdf = PdfReader(io.BytesIO(generate_pdf(html)))
     pages = [page.extract_text() for page in pdf.pages]
     assert len(pages) >= 3
-    assert "QA-LONG" in pages[0]
+    assert all("QA-LONG" in page for page in pages if "Размер:" in page)
     workbook = load_workbook(io.BytesIO(build_project_xlsx(project, [], "delivery")))
     text = "\n".join(str(cell.value) for sheet in workbook for row in sheet for cell in row if cell.value is not None)
     assert "мм · м" not in text and "шт шт" not in text

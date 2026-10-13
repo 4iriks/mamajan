@@ -183,14 +183,14 @@ export const EditorVisualizer: React.FC<EditorVisualizerProps> = ({ section, var
           <span className="text-[10px] font-bold uppercase tracking-widest text-accent/40">Вид из помещения</span>
           <span className="text-[10px] text-fg/20 font-bold uppercase tracking-widest">{section.panels} пан. · {section.width}×{section.height}</span>
         </div>
-        <SlideRoomViewSVG section={section} calc={slideCalc} />
+        <SlideRoomViewSVG section={section} calc={slideCalc} fit />
       </div>
       <div className="bg-surface/25 border border-tint/30 rounded-2xl p-4">
         <div className="flex items-center justify-between mb-3">
           <span className="text-[10px] font-bold uppercase tracking-widest text-accent/40">Схема · Вид сверху</span>
           <span className="text-[10px] text-fg/20 font-bold uppercase tracking-widest">{section.rails ?? 3}-рельс · {section.panels} пан.</span>
         </div>
-        <SlideSchemeSVG section={section} calc={slideCalc} />
+        <SlideSchemeSVG section={section} calc={slideCalc} fit />
       </div>
     </div>
   );

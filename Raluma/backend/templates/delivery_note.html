@@ -237,13 +237,10 @@
         <tr class="group-row">
           {% if loop.first %}<td class="item-number" rowspan="{{ delivery_project_extra_rows|length }}">3</td>{% endif %}
           <td>
-            {% if row.group_start %}
             <div class="row-title">
               {% if row.article %}<span class="nowrap">{{ row.article|e }}</span> — {% endif %}{{ row.name|e }}
             </div>
             {% if row.color %}<div class="row-meta">Цвет: {{ row.color|e }}</div>{% endif %}
-            {% if row.image_data or row.image %}<img src="{{ row.image_data or (row.image|img_b64) }}" alt="" style="max-width:22mm;max-height:14mm">{% endif %}
-            {% endif %}
             {% if row.size_display %}<div class="row-meta">Размер: {{ row.size_display|e }}</div>{% endif %}
           </td>
           <td class="quantity">{{ row.pdf_qty_display }}</td>

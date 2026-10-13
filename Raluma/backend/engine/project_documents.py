@@ -1651,9 +1651,13 @@ def _build_delivery_hardware_rows(
                     _add_delivery_component(grouped, article=profile["article"], name=profile["name"], qty=section_qty,
                                             color=cs["color_text"] if profile["role"] == "cover" else "",
                                             size=f"{length:g} мм", unit="шт", image=profile["image"], stage="1")
-            if include_calculated_specials:
-                for hardware in cs["hardware"]:
-                    _add_delivery_component(grouped, article=hardware["article"], name=hardware["name"], qty=hardware["qty"], unit=hardware["unit"], stage="2")
+            for hardware in cs["hardware"]:
+                # Pads are needed to install the clamp, before the glass delivery.
+                # Use the BOM role: a system can select a different catalogue SKU.
+                is_pad = hardware["role"] == "pad"
+                ships_now = extra_stage in (None, 1) if is_pad else include_calculated_specials
+                if ships_now:
+                    _add_delivery_component(grouped, article=hardware["article"], name=hardware["name"], qty=hardware["qty"], unit=hardware["unit"], stage="1" if is_pad else "2")
         elif include_calculated_specials:
             _add_raw_special_hardware(grouped, section, section_qty)
 

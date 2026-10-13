@@ -127,7 +127,7 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
       <div className="space-y-4">
         <div className="space-y-1.5">
           <label className={LBL}>Окрашивание</label>
-          <div className={s.system === 'ЦС' ? 'grid grid-cols-2 gap-2' : 'space-y-1.5'}>
+          <div className="grid grid-cols-2 gap-2" data-editor-finishes>
             {(['Анод/неокрас', 'RAL стандарт', 'RAL муар', 'Сублимация'] as const).map(type => (
               <button key={type} onClick={() => setPaintingType(type)}
                 className={`flex items-center gap-3 w-full px-3 py-2 rounded-xl border transition-all text-left ${
