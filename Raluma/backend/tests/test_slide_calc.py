@@ -1195,14 +1195,17 @@ class TestInterGlass:
         )
         assert _find_profile(r, "RS3061")
 
-    def test_rs3061_uses_115_overlap(self):
+    def test_rs3061_uses_11_overlap(self):
         r = calculate_slide(
             _make_section(inter_glass_profile="Профиль с зацепом RS3061")
         )
         edge = _find_glass(r, "Крайние")[0]
         mid = _find_glass(r, "Промежуточные")[0]
-        assert edge.width_mm == 664
+        # (2000 - 16 - 16 + 11 * 2) / 3 = 663.333...;
+        # existing whole-mm production rounding leaves a 1 mm tolerance.
+        assert edge.width_mm == 663
         assert mid.width_mm == 663
+        assert abs(sum(panel.width_mm for panel in r.panel_glass) - 1990) <= 1
 
     def test_legacy_rs1004_maps_to_rs3061(self):
         r = calculate_slide(_make_section(inter_glass_profile="h-профиль RS1004"))
@@ -2785,7 +2788,8 @@ class TestSlideTwoRows:
         )
         left = _find_glass(r, "Левое")[0]
         center = _find_glass(r, "Центральные")[0]
-        expected = round((2000 - 3 - 16 - 16 + 11 * 2) / 4, 1)
+        # Production sizes are rounded to whole millimetres, as before.
+        expected = round((2000 - 3 - 16 - 16 + 11 * 2) / 4)
         assert left.width_mm == expected
         assert center.width_mm == expected
         assert _find_profile(r, "RS3061")
