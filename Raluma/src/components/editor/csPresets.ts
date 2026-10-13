@@ -1,9 +1,10 @@
 import type { CsConfig, CsPoint, Section } from './types';
+import { normalizeCsConfig } from './csGeometry';
 
 export const CS_SHAPES = ['Прямоугольник', 'Трапеция', 'Треугольник', 'Многоугольник'];
 
 export const csShapeLabel = (shape: string) => ({
-  'Трапеция': 'Трапеция с наклонным верхом', 'Треугольник': 'Прямоугольный треугольник',
+  'Трапеция': 'Трапеция с наклонным верхом', 'Треугольник': 'Треугольник прямоугольный',
   'Многоугольник': 'Пятиугольник с крышей',
 }[shape] || shape);
 
@@ -19,8 +20,20 @@ export function csPreset(section: Pick<Section, 'width' | 'height' | 'csShape' |
   else if (shape === 'Многоугольник' && !legacy) vertices = [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h * 0.7 }, { x: w / 2, y: h }, { x: 0, y: h * 0.7 }];
   else if (shape === 'Сложная форма') vertices = [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h * 0.65 }, { x: w * 0.62, y: h }, { x: 0, y: h }];
   else vertices = [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }];
-  return { version: 2, dimensionMode: 'installation', bubbleDeductionMm: section.csConfig?.bubbleDeductionMm ?? 6,
+  return { version: 2, dimensionMode: section.csConfig?.dimensionMode ?? 'installation', bubbleDeductionMm: section.csConfig?.bubbleDeductionMm ?? 6,
     vertices, referenceWidth: w, referenceHeight: h, edgeTreatments: vertices.map(() => 'clamp'),
     profiledEdges: vertices.map((_, i) => i), vertical: { count: 0, mode: 'equal', positions: [] },
     horizontal: { count: 0, mode: 'equal', positions: [] }, doors: [] };
+}
+
+/** Read old sections without replacing their historical contour with a new template. */
+export function activeCsConfig(section: Section): CsConfig {
+  const fallback = csPreset(section, section.csShape, true);
+  if (!section.csConfig) return fallback;
+  return normalizeCsConfig({
+    ...fallback, ...section.csConfig,
+    // Legacy profiledEdges is authoritative when the newer field is absent.
+    edgeTreatments: section.csConfig.edgeTreatments,
+    vertices: section.csConfig.vertices?.length ? section.csConfig.vertices : fallback.vertices,
+  });
 }

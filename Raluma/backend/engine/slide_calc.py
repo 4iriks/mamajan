@@ -252,7 +252,8 @@ def _inter_glass_article(value: str | None) -> str:
 
 def _inter_glass_overlap_mm(article: str) -> float:
     if article == "RS3061":
-        return 11.5
+        # Agreed on 2026-10-13; refine after checking additional real projects.
+        return 11.0
     if article in ("RS2061", "RS1006"):
         return 9.5
     return 0

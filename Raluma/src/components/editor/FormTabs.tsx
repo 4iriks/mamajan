@@ -8,6 +8,7 @@ import {
   SEL,
 } from './types';
 import { Checkbox, ToggleGroup, RadioList, ProfileCheckbox, SectionDivider } from './FormInputs';
+import { CsDimensionModeField } from './CsDimensionModeField';
 import {
   defaultGlassType,
   glassTypeOptions,
@@ -42,10 +43,11 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
     });
   };
 
-  return (
+  return (<>
+    {s.system === 'ЦС' && <CsDimensionModeField section={s} update={update} />}
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
       <div className="space-y-4">
-        {s.system === 'ЦС' && <h3 className="text-sm font-bold">Размеры конструкции</h3>}
+        {s.system === 'ЦС' && <h3 className="text-sm font-bold">{s.csConfig?.dimensionMode === 'clear' ? 'Размеры светового проёма' : 'Наружные размеры конструкции'}</h3>}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <label className={LBL}>Секция №</label>
@@ -151,7 +153,7 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
           )}
         </div>
       </div>
-    </div>
+    </div></>
   );
 }
 

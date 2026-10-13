@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useId, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { csPreset, CS_SHAPES, csShapeLabel } from './csPresets';
+import { activeCsConfig, csPreset, CS_SHAPES, csShapeLabel } from './csPresets';
 import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
 import { listCsSystems, type CsSystem } from '../../api/catalog';
 import type { CsCalcPreview } from '../../api/projects';
@@ -9,17 +9,6 @@ import { csAngleEnd, csDimensionUpdates, csBounds, csContourError, csContourFram
 import { CsNumberInput } from './CsNumberInput';
 
 const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value));
-
-function activeConfig(section: Section): CsConfig {
-  const fallback = csPreset(section, section.csShape, true);
-  if (!section.csConfig) return fallback;
-  return normalizeCsConfig({
-    ...fallback, ...section.csConfig,
-    // Legacy profiledEdges is authoritative when the newer field is absent.
-    edgeTreatments: section.csConfig.edgeTreatments,
-    vertices: section.csConfig.vertices?.length ? section.csConfig.vertices : fallback.vertices,
-  });
-}
 
 function SplitControls({
   title, value, minimum, maximum, onChange,
@@ -89,7 +78,7 @@ export function CsEditor({
   const canvasRef = useRef<HTMLDivElement>(null);
   const clipId = useId();
   const [pixelScale, setPixelScale] = useState(0.1);
-  const config = useMemo(() => activeConfig(section), [section]);
+  const config = useMemo(() => activeCsConfig(section), [section]);
   const frames = useMemo(() => {
     try { return { ...csContourFrames(config), error: '' }; }
     catch (error) { return { installation: config.vertices, clear: config.vertices, glass: config.vertices, error: String((error as Error).message) }; }
@@ -105,6 +94,12 @@ export function CsEditor({
   const horizontal = csSplitPositions(config.horizontal, bounds.minY, bounds.maxY);
   const diagramUnit = Math.max(width, height);
   const padding = diagramUnit * 0.24;
+  const outerBounds = csBounds(frames.installation);
+  const viewMinX = Math.min(0, outerBounds.minX) - padding;
+  const viewMinY = Math.min(0, height - outerBounds.maxY) - padding;
+  const viewMaxX = Math.max(width, outerBounds.maxX) + padding;
+  const viewMaxY = Math.max(height, height - outerBounds.minY) + padding;
+  const dimensionLabel = config.dimensionMode === 'clear' ? 'Световой проём' : 'Наружные размеры';
   const diagramFont = Math.max(diagramUnit / 38, 11 / pixelScale);
   useLayoutEffect(() => {
     const svg = svgRef.current;
@@ -216,8 +211,8 @@ export function CsEditor({
   };
 
   const canvas = (<div ref={canvasRef} className="cs-canvas rounded-xl border border-tint/30 bg-white p-3">
-        <p className="mb-2 text-xs text-[#174d57]">У — угол, С — сторона, З — заполнение.</p>
-        <svg ref={svgRef} viewBox={`${-padding} ${-padding} ${width + padding * 2} ${height + padding * 2}`} className="h-auto max-h-[500px] w-full touch-none select-none"
+        <p className="mb-2 text-xs text-[#174d57]">{dimensionLabel}. У — угол, С — сторона, З — заполнение.</p>
+        <svg ref={svgRef} viewBox={`${viewMinX} ${viewMinY} ${viewMaxX - viewMinX} ${viewMaxY - viewMinY}`} className="h-auto max-h-[500px] w-full touch-none select-none"
           aria-label="Контур ЦС с обозначениями углов и сторон"
           onPointerMove={event => {
             if (draggingVertex.current === null) return;
@@ -268,7 +263,7 @@ export function CsEditor({
         </svg>
         <p className="mt-2 text-xs text-[#174d57]">Ш — вправо, В — вверх; отсчёт от левого нижнего угла габаритов. Зелёные стороны — с профилем, оранжевая — выбранная.</p>
         <div className="min-h-[98px]"><div style={pointEditorStyle()} className="cs-dimension-editor min-h-[98px] border-t border-slate-200 pt-2 text-[#123e48]" aria-label="Размеры на эскизе">
-          {editing ? <><div className="flex items-center justify-between text-xs font-bold"><span>{editing === 'vertex' ? `У${selectedVertex + 1} — координаты` : editing === 'side' ? `С${selectedSide + 1} — начало неподвижно` : 'Габариты конструкции'}</span><button type="button" aria-label="Закрыть ввод размеров" onClick={() => setEditing(null)}>×</button></div>
+          {editing ? <><div className="flex items-center justify-between text-xs font-bold"><span>{editing === 'vertex' ? `У${selectedVertex + 1} — координаты` : editing === 'side' ? `С${selectedSide + 1} — начало неподвижно` : dimensionLabel}</span><button type="button" aria-label="Закрыть ввод размеров" onClick={() => setEditing(null)}>×</button></div>
             <div className="mt-1 grid grid-cols-2 gap-2">
               {editing === 'vertex' && <><CsNumberInput label="Ш, мм" value={config.vertices[selectedVertex].x} max={width} onChange={x => updateVertex(selectedVertex, { ...config.vertices[selectedVertex], x })} /><CsNumberInput label="В, мм" value={config.vertices[selectedVertex].y} max={height} onChange={y => updateVertex(selectedVertex, { ...config.vertices[selectedVertex], y })} /></>}
               {editing === 'side' && <CsNumberInput label="Длина стороны, мм" value={side.length} min={1} onChange={length => updateVertex((selectedSide + 1) % config.vertices.length, csSideEnd(config.vertices, selectedSide, length, side.angle))} />}
@@ -295,7 +290,7 @@ export function CsEditor({
     <div className="grid gap-4 sm:grid-cols-2">
       <details className="rounded-xl border border-tint/25 p-3 text-xs"><summary className="cursor-pointer font-bold">Дополнительные настройки</summary><div className="mt-3"><CsNumberInput label="Вычет RS1002, мм" value={config.bubbleDeductionMm!} max={50} onChange={bubbleDeductionMm => commitConfig({ ...config, bubbleDeductionMm })} /></div></details>
     </div>
-    <p className="text-xs text-fg/65">Вводятся наружные размеры конструкции. Стекло только 10 мм, зазор в стыке 3 мм.</p>
+    <p className="text-xs text-fg/65">{config.dimensionMode === 'clear' ? 'Вводятся размеры светового проёма.' : 'Вводятся наружные размеры конструкции.'} Стекло только 10 мм, зазор в стыке 3 мм.</p>
     {(error || frames.error) && <div role="alert" className="rounded-xl border border-red-500/40 p-3 text-sm">{error || frames.error}</div>}
     <div>
       <label className={LBL}>Типовая схема</label>

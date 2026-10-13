@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { csAngleEnd, csBounds, csChangeDimensionMode, csContourFrames, csContourError, csDimensionUpdates, csSide, csSideEnd, csSplitPositions, csVertexAngle, parseCsPositions } from '../src/components/editor/csGeometry';
 import type { CsConfig, CsSplitConfig, Section } from '../src/components/editor/types';
 import { apiToLocal, localToApi } from '../src/components/editor/converters';
-import { CS_SHAPES, csPreset } from '../src/components/editor/csPresets';
+import { activeCsConfig, CS_SHAPES, csPreset, csShapeLabel } from '../src/components/editor/csPresets';
 
 const config: CsConfig = {
   version: 1,
@@ -23,6 +23,10 @@ const original = {
   csConfig: config,
 } satisfies Section;
 const near = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.000001, `${actual} ≠ ${expected}`);
+assert.equal(csShapeLabel('Треугольник'), 'Треугольник прямоугольный');
+assert.equal(csShapeLabel('Прямоугольник'), 'Прямоугольник');
+assert.deepEqual(activeCsConfig({ ...original, csShape: 'Треугольник', csConfig: undefined }).vertices,
+  [{ x: 0, y: 0 }, { x: 3000, y: 0 }, { x: 1500, y: 3000 }], 'Legacy triangle is not replaced by the new template');
 for (const vertices of [config.vertices, [...config.vertices].reverse()]) {
   vertices.forEach((_, index) => near(csVertexAngle(vertices, index), 90));
   const moved = [...vertices];
@@ -118,6 +122,13 @@ const modes: CsSplitConfig[] = [
   { count: 3, mode: 'manual', positions: [1400, 1400, 2200] },
 ];
 for (const split of modes) sections.push({ ...shifted, csConfig: { ...shifted.csConfig, vertical: split, horizontal: split } });
+for (const treatments of [['clamp', 'none', 'clamp', 'bubble'], ['none', 'none', 'none', 'none'], ['bubble', 'clamp', 'none', 'clamp']] as const) {
+  sections.push({ ...original, csConfig: { ...config, edgeTreatments: [...treatments], bubbleDeductionMm: 7,
+    vertical: { count: 2, mode: 'manual', positions: [900, 1800] }, horizontal: { count: 1, mode: 'manual', positions: [1600] } } });
+}
+sections.push({ ...original, csConfig: { ...config, vertices: concave, profiledEdges: [0, 1, 2, 3, 4] } });
+const outsideCount = sections.length;
+sections.push(...sections.map(section => ({ ...section, ...csChangeDimensionMode(section.csConfig!, 'clear') })));
 const payload = sections.map(section => ({ width: section.width, height: section.height, quantity: 1, cs_config: section.csConfig }));
 const engine = spawnSync(process.env.CS_PYTHON || 'python', ['-c', `
 import json, sys
@@ -143,7 +154,10 @@ sections.forEach((section, index) => {
   const savedClear = JSON.parse(JSON.stringify({ ...localToApi({ ...section, ...light }, 0), id: 1, project_id: 1 }));
   const beforeOpen = JSON.stringify(savedClear);
   const opened = apiToLocal(savedClear);
-  assert.deepEqual(opened.csConfig, restored.csConfig, 'opening a legacy clear-size section preserves the outer geometry');
+  assert.deepEqual(opened.csConfig, savedClear.cs_config, 'opening a clear-size section retains its selected mode and coordinates');
+  assert.equal(opened.width, light.width);
+  assert.equal(opened.height, light.height);
+  assert.equal(csPreset(opened, 'Треугольник').dimensionMode, 'clear', 'Changing a template keeps the input mode');
   assert.equal(JSON.stringify(savedClear), beforeOpen, 'opening must not mutate the saved payload');
   const originalBounds = csBounds(frames.installation);
   restored.csConfig!.vertices.forEach((p, i) => {
@@ -151,6 +165,23 @@ sections.forEach((section, index) => {
     near(p.y, frames.installation[i].y - originalBounds.minY);
   });
 });
+for (let index = 0; index < outsideCount; index++) {
+  const outside = results[index], clear = results[index + outsideCount];
+  for (const key of ['installation_width_mm', 'installation_height_mm', 'clear_width_mm', 'clear_height_mm', 'glass_area_m2']) near(clear[key], outside[key]);
+  assert.equal(clear.panes.length, outside.panes.length);
+  outside.panes.forEach((pane, i) => {
+    for (const key of ['width_mm', 'height_mm', 'area_m2', 'qty']) near(clear.panes[i][key], pane[key]);
+    assert.equal(clear.panes[i].is_rectangle, pane.is_rectangle);
+  });
+  assert.equal(clear.profiles.length, outside.profiles.length);
+  outside.profiles.forEach((profile, i) => {
+    assert.equal(clear.profiles[i].role, profile.role);
+    for (const key of ['total_length_mm', 'pieces']) near(clear.profiles[i][key], profile[key]);
+    profile.cut_lengths_mm.forEach((length, j) => near(clear.profiles[i].cut_lengths_mm[j], length));
+  });
+  assert.equal(clear.hardware.length, outside.hardware.length);
+  outside.hardware.forEach((item, i) => { assert.equal(clear.hardware[i].role, item.role); near(clear.hardware[i].qty, item.qty); });
+}
 near(results[1].glass_area_m2, (4000 - 52 - 6) * (3000 - 26) / 1e6);
 near(results[2].glass_area_m2, (4000 - 52 - 6) * (4500 - 26) / 1e6);
 near(results[3].glass_area_m2, (1500 - 52 - 6) * (1500 - 26) / 1e6);

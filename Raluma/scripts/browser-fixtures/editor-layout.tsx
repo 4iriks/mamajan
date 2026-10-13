@@ -3,7 +3,8 @@ import { createRoot } from 'react-dom/client';
 import client from '../../src/api/client';
 import { SectionFormWrapper } from '../../src/components/editor/SectionFormWrapper';
 import { csPreset } from '../../src/components/editor/csPresets';
-import { csDimensionUpdates } from '../../src/components/editor/csGeometry';
+import { csContourFrames, csDimensionUpdates } from '../../src/components/editor/csGeometry';
+import { apiToLocal, localToApi } from '../../src/components/editor/converters';
 import type { Section } from '../../src/components/editor/types';
 import '../../src/index.css';
 
@@ -50,6 +51,23 @@ async function run() {
   assert(canvas.getAttribute('viewBox') === viewBox, 'Stable scale during edits');
   fields.scrollTop = fields.scrollHeight; await pause();
   assert(Math.abs(canvas.getBoundingClientRect().top - top) < 1, 'Parameters scroll independently');
+  const beforeMode = structuredClone(current);
+  const modeButton = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[data-cs-dimension-mode] button')].find(button => button.textContent === label)!;
+  modeButton('Световой проём').click(); await pause();
+  assert(current.csConfig!.dimensionMode === 'clear', 'Clear opening mode can be selected');
+  assert(modeButton('Световой проём').getAttribute('aria-pressed') === 'true', 'Selected mode is visible');
+  assert(fields.querySelector('h3')!.textContent === 'Размеры светового проёма', 'Input dimensions identify the active frame');
+  assert(document.querySelector('.cs-canvas > p')!.textContent!.startsWith('Световой проём'), 'Canvas dimensions identify the active frame');
+  const savedClear = localToApi(current, 0);
+  assert(apiToLocal({ ...savedClear, id: 1, project_id: 1 }).csConfig!.dimensionMode === 'clear', 'Save/reopen keeps the selected frame');
+  const view = canvas.viewBox.baseVal;
+  for (const point of csContourFrames(current.csConfig!).installation) {
+    assert(point.x > view.x && point.x < view.x + view.width && current.height - point.y > view.y && current.height - point.y < view.y + view.height, 'Outer profile is visible in clear mode');
+  }
+  modeButton('Наружные размеры').click(); await pause();
+  assert(Math.abs(current.width - beforeMode.width) < 0.000001 && Math.abs(current.height - beforeMode.height) < 0.000001, 'Switch back preserves dimensions');
+  current.csConfig!.vertices.forEach((point, i) => assert(Math.hypot(point.x - beforeMode.csConfig!.vertices[i].x, point.y - beforeMode.csConfig!.vertices[i].y) < 0.000001, 'Switch back preserves contour'));
+  assert([...fields.querySelectorAll('button')].some(button => button.textContent === 'Треугольник прямоугольный'), 'Triangle label starts with triangle');
   document.getElementById('slide')!.click(); await pause(600);
   assert(fields.getBoundingClientRect().right <= left.getBoundingClientRect().left + 1, 'SLIDE settings left, drawings right');
   assert(fields.getBoundingClientRect().left - document.querySelector('aside')!.getBoundingClientRect().right <= 8, 'Minimal left gutter');

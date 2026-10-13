@@ -36,14 +36,14 @@ def test_t40k_rounding_per_section(edges, bars, quantity):
 
 
 @pytest.mark.parametrize("rows,panels,joints", [(1, 3, 2), (2, 6, 4)])
-@pytest.mark.parametrize("name", ["Алюминиевый с зацепом RS3061", "Алюминиевый RS3061", "RS3061"])
-def test_rs3061_two_parts_and_unchanged_overlap(rows, panels, joints, name):
+@pytest.mark.parametrize("name", ["Алюминиевый с зацепом RS3061", "Алюминиевый RS3061", "RS3061", "h-профиль RS1004", "Профиль с зацепом RS3061"])
+def test_rs3061_two_parts_and_11mm_overlap(rows, panels, joints, name):
     section = _make_section(slide_rows=rows, panels=panels, quantity=2, inter_glass_profile=name)
     result = calculate_slide(section)
     items = [item for item in result.profiles if item.article == "RS3061"]
     assert sum(item.qty for item in items) == joints * 2 * 2
     assert all(item.name == "Алюминиевый с зацепом RS3061" for item in items)
-    assert _inter_glass_overlap_mm("RS3061") == 11.5
+    assert _inter_glass_overlap_mm("RS3061") == 11.0
     other = calculate_slide(_make_section(slide_rows=rows, panels=panels, quantity=2, inter_glass_profile="RS2061"))
     # Felt/seals depend on the chosen inter-glass profile; rollers do not.
     assert [(x.article, x.value) for x in result.hardware if x.article in {"RU003", "RU005"}] == [(x.article, x.value) for x in other.hardware if x.article in {"RU003", "RU005"}]

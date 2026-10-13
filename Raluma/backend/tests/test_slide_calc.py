@@ -539,7 +539,7 @@ class TestGlassTotalCorrection:
             ("— Без межстекольного профиля —", 0.0),
             ("Прозрачный RS1006", 9.5),
             ("Алюминиевый RS2061", 9.5),
-            ("Профиль с зацепом RS3061", 11.5),
+            ("Профиль с зацепом RS3061", 11.0),
         ],
     )
     def test_selected_profile_controls_overlap(self, profile, expected_overlap):
@@ -560,7 +560,7 @@ class TestGlassTotalCorrection:
         [
             ("— Без межстекольного профиля —", 0.0),
             ("Алюминиевый RS2061", 9.5),
-            ("Профиль с зацепом RS3061", 11.5),
+            ("Профиль с зацепом RS3061", 11.0),
         ],
     )
     def test_control_formula_uses_overlap_for_both_rows(
@@ -2772,7 +2772,7 @@ class TestSlideTwoRows:
                 == 50
             )
 
-    def test_two_rows_rs3061_uses_115_overlap(self):
+    def test_two_rows_rs3061_uses_11_overlap(self):
         r = calculate_slide(
             _make_section(
                 slide_rows=2,
@@ -2785,7 +2785,7 @@ class TestSlideTwoRows:
         )
         left = _find_glass(r, "Левое")[0]
         center = _find_glass(r, "Центральные")[0]
-        expected = round((2000 - 3 - 16 - 16 + 11.5 * 2) / 4, 1)
+        expected = round((2000 - 3 - 16 - 16 + 11 * 2) / 4, 1)
         assert left.width_mm == expected
         assert center.width_mm == expected
         assert _find_profile(r, "RS3061")
