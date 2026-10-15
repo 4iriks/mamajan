@@ -5,6 +5,7 @@ import { csAngleEnd, csBounds, csChangeDimensionMode, csContourFrames, csContour
 import type { CsConfig, CsSplitConfig, Section } from '../src/components/editor/types';
 import { apiToLocal, localToApi } from '../src/components/editor/converters';
 import { activeCsConfig, CS_SHAPES, csPreset, csShapeLabel } from '../src/components/editor/csPresets';
+import { csGlassOutline, csTriangleRounding } from '../src/components/editor/csRounding';
 
 const config: CsConfig = {
   version: 1,
@@ -138,6 +139,32 @@ print(json.dumps([calculate_cs(SimpleNamespace(**row)) for row in json.load(sys.
 `], { cwd: fileURLToPath(new URL('../backend', import.meta.url)), env: { ...process.env, PYTHONIOENCODING: 'utf-8' }, input: JSON.stringify(payload), encoding: 'utf8' });
 assert.equal(engine.status, 0, engine.error?.message || engine.stderr);
 const results = JSON.parse(engine.stdout);
+assert.equal(csPreset(original, 'Треугольник').triangleCornerRadiusMm, 10);
+assert.equal(activeCsConfig({ ...original, csShape: 'Треугольник', csConfig: undefined }).triangleCornerRadiusMm, 0, 'Old triangles remain unrounded');
+assert.equal(csTriangleRounding(config.vertices, 10), undefined, 'No rounding on rectangles');
+assert.throws(() => csTriangleRounding([{ x: 0, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 10 }], 10), /не помещается/);
+const roundingCases = [8, 10].flatMap(radius => [false, true].flatMap(mirror => [false, true].map(reverse => {
+  let points = [{ x: 0, y: 0 }, { x: 2390, y: 0 }, { x: 2390, y: 745 }].map(p => ({ ...p, x: mirror ? 2390 - p.x : p.x }));
+  if (reverse) points = points.reverse();
+  return { points, radius };
+})));
+const roundingEngine = spawnSync(process.env.CS_PYTHON || 'python', ['-c', `
+import json, sys
+from engine.cs_rounding import triangle_rounding
+print(json.dumps([triangle_rounding(row['points'], row['radius']) for row in json.load(sys.stdin)]))
+`], { cwd: fileURLToPath(new URL('../backend', import.meta.url)), input: JSON.stringify(roundingCases), encoding: 'utf8' });
+assert.equal(roundingEngine.status, 0, roundingEngine.stderr);
+JSON.parse(roundingEngine.stdout).forEach((expected: ReturnType<typeof csTriangleRounding>, index: number) => {
+  const { points, radius } = roundingCases[index];
+  const saved = JSON.stringify(points), actual = csGlassOutline(points, radius);
+  assert.ok(actual.path.includes(`A ${radius} ${radius}`), 'An exact arc, not a chamfer');
+  assert.equal(actual.corner!.vertex_index, expected!.vertex_index);
+  assert.equal(actual.corner!.sweep, expected!.sweep);
+  for (const key of ['start', 'end', 'center', 'arc_midpoint'] as const) {
+    near(actual.corner![key].x, expected![key].x); near(actual.corner![key].y, expected![key].y);
+  }
+  assert.equal(JSON.stringify(points), saved, 'Drawing does not mutate calculation vertices');
+});
 sections.forEach((section, index) => {
   const config = section.csConfig!;
   const frames = csContourFrames(config);

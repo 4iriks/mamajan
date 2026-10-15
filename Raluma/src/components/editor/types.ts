@@ -154,6 +154,8 @@ export interface CsConfig {
   dimensionMode?: 'installation' | 'clear';
   edgeTreatments?: Array<'clamp' | 'bubble' | 'none'>;
   bubbleDeductionMm?: number;
+  /** Edge treatment only; omitted in historical sections. */
+  triangleCornerRadiusMm?: 0 | 8 | 10;
   referenceWidth?: number;
   referenceHeight?: number;
   vertices: CsPoint[];

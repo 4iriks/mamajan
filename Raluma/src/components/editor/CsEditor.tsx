@@ -7,6 +7,7 @@ import type { CsCalcPreview } from '../../api/projects';
 import { INP, LBL, SEL, type CsConfig, type CsPoint, type Section } from './types';
 import { csAngleEnd, csDimensionUpdates, csBounds, csContourError, csContourFrames, csSide, csSideEnd, csSplitPositions, csVertexAngle, normalizeCsConfig, parseCsPositions } from './csGeometry';
 import { CsNumberInput } from './CsNumberInput';
+import { csGlassOutline } from './csRounding';
 
 const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value));
 
@@ -92,6 +93,15 @@ export function CsEditor({
   const bounds = csBounds(frames.clear);
   const vertical = csSplitPositions(config.vertical, bounds.minX, bounds.maxX);
   const horizontal = csSplitPositions(config.horizontal, bounds.minY, bounds.maxY);
+  const roundingRadius = config.triangleCornerRadiusMm ?? 0;
+  const glassOutlines = useMemo(() => {
+    const panes = calc?.panes ?? (vertical.length || horizontal.length ? [] : [{ number: 1, polygon: frames.glass }]);
+    return panes.map(pane => {
+      try { return { number: pane.number, ...csGlassOutline(pane.polygon, roundingRadius), error: '' }; }
+      catch (failure) { return { number: pane.number, ...csGlassOutline(pane.polygon), error: (failure as Error).message }; }
+    });
+  }, [calc, frames.glass, roundingRadius, vertical.length, horizontal.length]);
+  const roundingError = glassOutlines.find(outline => outline.error)?.error;
   const diagramUnit = Math.max(width, height);
   const padding = diagramUnit * 0.24;
   const outerBounds = csBounds(frames.installation);
@@ -222,8 +232,10 @@ export function CsEditor({
           <defs><clipPath id={clipId}><polygon points={config.vertices.map(point => `${point.x},${height - point.y}`).join(' ')} /></clipPath></defs>
           <polygon points={frames.installation.map(point => `${point.x},${height - point.y}`).join(' ')} fill="#e5e7eb" stroke="#174d57" strokeWidth={diagramUnit / 400} />
           <polygon points={frames.clear.map(point => `${point.x},${height - point.y}`).join(' ')} fill="#dff3f7" stroke="#008573" strokeWidth={diagramUnit / 600} />
-          <polygon points={frames.glass.map(point => `${point.x},${height - point.y}`).join(' ')} fill="none" stroke="#2563eb" strokeDasharray="14 10" strokeWidth={diagramUnit / 500} />
-          {(calc?.panes || []).map(pane => <polygon key={`glass-${pane.number}`} points={pane.polygon.map(point => `${point.x},${height - point.y}`).join(' ')} fill="none" stroke="#2563eb" strokeWidth={diagramUnit / 600} />)}
+          {!glassOutlines.some(outline => outline.corner) && <polygon points={frames.glass.map(point => `${point.x},${height - point.y}`).join(' ')} fill="none" stroke="#2563eb" strokeDasharray="14 10" strokeWidth={diagramUnit / 500} />}
+          <g transform={`translate(0 ${height}) scale(1 -1)`}>
+            {glassOutlines.map(outline => <path key={`glass-${outline.number}`} data-cs-glass-outline={outline.number} d={outline.path} fill="none" stroke="#2563eb" strokeWidth={diagramUnit / 600} />)}
+          </g>
           <g clipPath={`url(#${clipId})`}>
           {vertical.map(position => <line key={`v-${position}`} x1={position} x2={position} y1={0} y2={height} stroke="#758e96" strokeDasharray="18 12" strokeWidth={Math.max(width, height) / 500} />)}
           {horizontal.map(position => <line key={`h-${position}`} x1={0} x2={width} y1={height - position} y2={height - position} stroke="#758e96" strokeDasharray="18 12" strokeWidth={Math.max(width, height) / 500} />)}
@@ -254,6 +266,16 @@ export function CsEditor({
             <circle cx={point.x} cy={height - point.y} r={diagramUnit / 50} fill={selectedVertex === index ? '#ff9f1c' : '#ffffff'} stroke="#174d57" strokeWidth={diagramUnit / 280} />
             <text x={point.x + (point.x < width / 2 ? -1 : 1) * diagramUnit / 24} y={height - point.y + (point.y < height / 2 ? 1 : -1) * diagramUnit / 24} textAnchor="middle" fill="#123e48" stroke="white" strokeWidth={diagramUnit / 220} paintOrder="stroke" fontSize={diagramFont} fontWeight="700">У{index + 1}</text>
           </g>)}
+          {glassOutlines.map(({ number, corner }) => {
+            if (!corner) return null;
+            const x = corner.arc_midpoint.x, y = height - corner.arc_midpoint.y;
+            const labelX = x + (x < width / 2 ? 1 : -1) * diagramFont * 4;
+            const labelY = y + (y > height / 2 ? -1 : 1) * diagramFont * 2;
+            return <g key={`radius-${number}`} pointerEvents="none" data-cs-radius={corner.radius_mm}>
+              <line x1={x} y1={y} x2={labelX} y2={labelY} stroke="#1d4ed8" strokeWidth={diagramUnit / 900} />
+              <text x={labelX} y={labelY - diagramFont * 0.3} textAnchor="middle" fontSize={diagramFont} fill="#1d4ed8" stroke="white" strokeWidth={diagramUnit / 250} paintOrder="stroke">З{number} · R{corner.radius_mm}</text>
+            </g>;
+          })}
           <g stroke="#174d57" fill="#174d57" strokeWidth={diagramUnit / 900} fontSize={diagramFont}>
             {dimensionXs.slice(1).map((x, i) => <g key={`dx-${x}`}><line x1={dimensionXs[i]} x2={x} y1={height + padding * 0.65} y2={height + padding * 0.65} /><text stroke="none" textAnchor="middle" x={(dimensionXs[i] + x) / 2} y={height + padding * 0.6}>{Number((x - dimensionXs[i]).toFixed(1))}</text><line x1={x} x2={x} y1={height + padding * 0.5} y2={height + padding * 0.75} /></g>)}
             {dimensionYs.slice(1).map((y, i) => <g key={`dy-${y}`}><line x1={width + padding * 0.6} x2={width + padding * 0.6} y1={height - dimensionYs[i]} y2={height - y} /><text stroke="none" textAnchor="middle" transform={`translate(${width + padding * 0.55},${height - (dimensionYs[i] + y) / 2}) rotate(-90)`}>{Number((y - dimensionYs[i]).toFixed(1))}</text><line x1={width + padding * 0.45} x2={width + padding * 0.75} y1={height - y} y2={height - y} /></g>)}
@@ -291,7 +313,7 @@ export function CsEditor({
       <details className="rounded-xl border border-tint/25 p-3 text-xs"><summary className="cursor-pointer font-bold">Дополнительные настройки</summary><div className="mt-3"><CsNumberInput label="Вычет RS1002, мм" value={config.bubbleDeductionMm!} max={50} onChange={bubbleDeductionMm => commitConfig({ ...config, bubbleDeductionMm })} /></div></details>
     </div>
     <p className="text-xs text-fg/65">{config.dimensionMode === 'clear' ? 'Вводятся размеры светового проёма.' : 'Вводятся наружные размеры конструкции.'} Стекло только 10 мм, зазор в стыке 3 мм.</p>
-    {(error || frames.error) && <div role="alert" className="rounded-xl border border-red-500/40 p-3 text-sm">{error || frames.error}</div>}
+    {(error || frames.error || roundingError) && <div role="alert" className="rounded-xl border border-red-500/40 p-3 text-sm">{error || frames.error || roundingError}</div>}
     <div>
       <label className={LBL}>Типовая схема</label>
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -300,6 +322,14 @@ export function CsEditor({
       </div>
       {!isRectangle && <button type="button" className="mt-2 rounded-lg border border-tint/30 px-3 py-2 text-xs" onClick={() => commitConfig({ ...config, vertices: config.vertices.map(point => ({ x: width - point.x, y: point.y })), vertical: { ...config.vertical, positions: config.vertical.positions?.map(x => width - x).sort((a, b) => a - b), mode: config.vertical.mode === 'from-left' ? 'from-right' : config.vertical.mode === 'from-right' ? 'from-left' : config.vertical.mode } })}>Отразить зеркально</button>}
     </div>
+
+    {!isRectangle && <label className="block rounded-xl border border-tint/25 p-3">
+      <span className={LBL}>Скругление треугольного стекла</span>
+      <select className={SEL} value={roundingRadius} onChange={event => commitConfig({ ...config, triangleCornerRadiusMm: Number(event.target.value) as 0 | 8 | 10 })}>
+        <option value={0}>Без скругления</option><option value={8}>R8 — 8 мм</option><option value={10}>R10 — 10 мм</option>
+      </select>
+      <span className="mt-2 block text-xs text-fg/65">Самый острый угол каждого треугольного стекла. Расчётные размеры, площадь и комплектующие не меняются. Скругление показано синим контуром и пометкой R.</span>
+    </label>}
 
     <div key={section.id} className="grid gap-3 sm:grid-cols-2">
       <SplitControls title="Вертикальное деление" value={config.vertical} minimum={bounds.minX} maximum={bounds.maxX} onChange={value => commitConfig({ ...config, vertical: value })} />
@@ -345,7 +375,7 @@ export function CsEditor({
       <summary className="cursor-pointer text-xs font-bold">Предварительная ведомость ЦС</summary><p className="mb-3 text-xs">Конструкция: {calc.installation_width_mm?.toFixed(1)} × {calc.installation_height_mm?.toFixed(1)} мм · Световой: {calc.clear_width_mm?.toFixed(1)} × {calc.clear_height_mm?.toFixed(1)} мм</p>
       <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-bold">Предварительная ведомость ЦС</h4><span className="text-xs text-fg/45">Стекло: {calc.glass_area_m2.toFixed(2)} м² · полотен: {calc.panes.length}</span></div>
       <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[560px] text-left text-xs"><thead><tr className="text-fg/40"><th className="py-2">Артикул</th><th>Наименование</th><th>Длина</th><th>Кол-во</th></tr></thead><tbody className="divide-y divide-tint/15">{calc.profiles.map(row => <tr key={row.role}><td className="py-2 font-mono font-bold">{row.article}</td><td>{row.name}</td><td>{row.cutting_text || `${row.total_length_mm.toFixed(1)} мм`}</td><td>{row.pieces} шт</td></tr>)}{calc.hardware?.map(row => <tr key={row.role}><td className="py-2 font-mono">{row.article || '—'}</td><td>{row.name}</td><td>—</td><td>{Number(row.qty.toFixed(3))} {row.unit}</td></tr>)}</tbody></table></div>
-      <div className="mt-3 text-xs">{calc.panes.map(pane => <div key={pane.number}>З{pane.number}: {pane.width_mm.toFixed(1)} × {pane.height_mm.toFixed(1)} мм · {pane.area_m2.toFixed(3)} м² · {pane.qty} шт.</div>)}</div>
+      <div className="mt-3 text-xs">{calc.panes.map(pane => <div key={pane.number}>З{pane.number}: {pane.width_mm.toFixed(1)} × {pane.height_mm.toFixed(1)} мм · {pane.area_m2.toFixed(3)} м² · {pane.qty} шт.{pane.treatment_note && ` · ${pane.treatment_note}`}</div>)}</div>
       {calc.warnings.map(warning => <div key={warning} className="mt-2 flex gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200"><AlertTriangle className="h-4 w-4 flex-shrink-0" />{warning}</div>)}
     </details>}
     <div className="rounded-xl border border-tint/20 bg-hi/[0.02] px-4 py-3 text-xs text-fg/45">Входные группы и дверная фурнитура зарезервированы для этапа 2.</div>

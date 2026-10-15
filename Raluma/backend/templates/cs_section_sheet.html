@@ -79,7 +79,7 @@
       <td class="center">{{ pane.height_mm|cs_mm }}</td>
       <td class="center">{{ '%.3f'|format(pane.area_m2) }}</td>
       <td class="center">{{ pane.qty }}</td>
-      <td>Контур по схеме; размеры габаритные</td>
+      <td>{{ pane.treatment_note or 'Контур по схеме; размеры габаритные' }}</td>
     </tr>
   {% endfor %}
   </tbody>

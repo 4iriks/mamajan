@@ -1251,13 +1251,15 @@ def render_cs_front(section: object, calc: object) -> bytes:
     note_font = load_font(22, bold=True)
     for pane in getattr(calc, "panes", None) or []:
         polygon = list(getattr(pane, "polygon", None) or [])
-        points = [project(point) for point in polygon]
+        corner = getattr(pane, "rounded_corner", None)
+        points = [project(point) for point in (getattr(corner, "outline", None) or polygon)]
         if len(points) < 3:
             continue
         draw.polygon(points, fill=pane_fill, outline=GRID)
         draw.line([*points, points[0]], fill=GRID, width=3, joint="curve")
-        center_x = sum(point[0] for point in points) / len(points)
-        center_y = sum(point[1] for point in points) / len(points)
+        original_points = [project(point) for point in polygon]
+        center_x = sum(point[0] for point in original_points) / len(original_points)
+        center_y = sum(point[1] for point in original_points) / len(original_points)
         _center_text(
             draw,
             (center_x, center_y),
@@ -1281,6 +1283,17 @@ def render_cs_front(section: object, calc: object) -> bytes:
             fill=INK,
         )
         draw.text((point[0] + 8, point[1] - 24), f"У{index + 1}", font=note_font, fill=INK)
+
+    for pane in getattr(calc, "panes", None) or []:
+        corner = getattr(pane, "rounded_corner", None)
+        if corner is None:
+            continue
+        x, y = project(corner.arc_midpoint)
+        label_x = x + (100 if x < offset_x + used_width / 2 else -100)
+        label_y = y + (-55 if y > offset_y + used_height / 2 else 55)
+        draw.line((x, y, label_x, label_y), fill="#1D4ED8", width=2)
+        _center_text(draw, (label_x, label_y - 20),
+                     f"З{pane.number} · R{corner.radius_mm:g}", note_font, "#1D4ED8")
 
     dimension_y = offset_y + used_height + 70
     draw.line((offset_x, dimension_y, offset_x + used_width, dimension_y), fill=INK, width=3)

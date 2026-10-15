@@ -309,6 +309,7 @@ export interface BookCalcPreview {
 }
 
 export interface CsCalcPane {
+  treatment_note?: string;
   number: number;
   column: number;
   row: number;

@@ -21,6 +21,7 @@ export function csPreset(section: Pick<Section, 'width' | 'height' | 'csShape' |
   else if (shape === 'Сложная форма') vertices = [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h * 0.65 }, { x: w * 0.62, y: h }, { x: 0, y: h }];
   else vertices = [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }];
   return { version: 2, dimensionMode: section.csConfig?.dimensionMode ?? 'installation', bubbleDeductionMm: section.csConfig?.bubbleDeductionMm ?? 6,
+    triangleCornerRadiusMm: !legacy && shape === 'Треугольник' ? 10 : 0,
     vertices, referenceWidth: w, referenceHeight: h, edgeTreatments: vertices.map(() => 'clamp'),
     profiledEdges: vertices.map((_, i) => i), vertical: { count: 0, mode: 'equal', positions: [] },
     horizontal: { count: 0, mode: 'equal', positions: [] }, doors: [] };

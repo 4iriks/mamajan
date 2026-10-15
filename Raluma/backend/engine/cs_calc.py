@@ -13,6 +13,7 @@ from typing import Any
 
 from shapely.geometry import LineString, Polygon, box
 from engine.glass_types import normalize_slide_glass_type
+from engine.cs_rounding import triangle_rounding
 
 EPS = 1e-7
 GAP = 3.0
@@ -255,6 +256,9 @@ def calculate_cs(section, *, system=None, outer_profile=None, joint_profile=None
         raise CsCalculationError("Ширина и высота ЦС должны быть больше нуля")
     raw = getattr(section, "cs_config", None)
     config = raw if isinstance(raw, dict) else {}
+    radius = _number(config.get("triangleCornerRadiusMm", 0), -1)
+    if radius not in (0, 8, 10):
+        raise CsCalculationError("Скругление треугольника: выберите без скругления, R8 или R10")
     raw_vertices = config.get("vertices", [])
     if not isinstance(raw_vertices, list) or any(
         not isinstance(p, dict) for p in raw_vertices
@@ -349,6 +353,13 @@ def calculate_cs(section, *, system=None, outer_profile=None, joint_profile=None
     for index, pane in enumerate(panes, 1):
         pane["number"] = index
         del pane["centroid"]
+        try:
+            rounding = triangle_rounding(pane["polygon"], radius)
+        except ValueError as error:
+            raise CsCalculationError(f"Стекло З{index}: {error}") from error
+        if rounding:
+            pane["rounded_corner"] = rounding
+            pane["treatment_note"] = f"Скругление R{radius:g}; расчётные размеры до скругления"
     cuts = [_joint_length(glass_polygon, x, ys, 0) for x in xs]
     cuts += [_joint_length(glass_polygon, y, xs, 1) for y in ys]
     profiled = [i for i, t in enumerate(treatments) if t == "clamp"]

@@ -602,7 +602,7 @@ def _write_cs_glass_and_profiles(
                 format_number(getattr(pane, "height_mm", 0)),
                 format_number(getattr(pane, "area_m2", 0), 3),
                 getattr(pane, "qty", 1),
-                "Контур по схеме; размеры габаритные",
+                getattr(pane, "treatment_note", "Контур по схеме; размеры габаритные"),
             ),
             glass_spans,
             center={0, 1, 2, 3, 4},

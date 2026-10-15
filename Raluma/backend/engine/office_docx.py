@@ -1142,7 +1142,7 @@ def _add_cs_glass(document: Document, calc: object) -> None:
             format_number(getattr(pane, "height_mm", 0)),
             format_number(getattr(pane, "area_m2", 0), 3),
             getattr(pane, "qty", 1),
-            "Контур по схеме; размеры габаритные",
+            getattr(pane, "treatment_note", "Контур по схеме; размеры габаритные"),
         )
         for column, value in enumerate(values):
             _set_cell_text(

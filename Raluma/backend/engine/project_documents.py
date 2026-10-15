@@ -892,6 +892,10 @@ def _physical_glass_pieces(
                 )
                 for point in polygon
             )
+            # Identical blanks with different edge treatment are not the same glass.
+            rounded_corner = getattr(pane, "rounded_corner", None)
+            if rounded_corner:
+                shape_key += (("R", rounded_corner.radius_mm, rounded_corner.vertex_index),)
             for _ in range(pane_qty):
                 glass_index += 1
                 pieces.append(

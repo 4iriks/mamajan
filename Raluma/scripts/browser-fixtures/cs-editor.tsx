@@ -113,11 +113,30 @@ async function run() {
   const leftHeight = current.csConfig!.vertices[3].y;
   await click('Отразить зеркально');
   assert(current.csConfig!.vertices[3].x === 3000 && current.csConfig!.vertices[3].y === leftHeight, 'Mirror preserves vertex identity');
+  await click('Треугольник прямоугольный');
+  assert(current.csConfig!.triangleCornerRadiusMm === 10, 'New triangle defaults to R10');
+  assert(document.querySelector('[data-cs-radius="10"]'), 'Radius is labelled on the drawing');
+  const triangleGeometry = JSON.stringify(current.csConfig!.vertices);
+  await set(select('Скругление треугольного стекла'), '8');
+  assert(current.csConfig!.triangleCornerRadiusMm === 8, 'R8 is saved');
+  assert(document.querySelector('[data-cs-glass-outline]')?.getAttribute('d')?.includes('A 8 8'), 'Real R8 arc rendered');
+  assert(JSON.stringify(current.csConfig!.vertices) === triangleGeometry, 'Rounding does not resize glass');
+  await click('Отразить зеркально');
+  assert(document.querySelector('[data-cs-radius="8"]'), 'Mirror retains rounding');
+  await set(select('Скругление треугольного стекла'), '0');
+  assert(!document.querySelector('[data-cs-radius]'), 'Rounding can be disabled');
   await click('Пятиугольник с крышей');
   // Make the final screenshot representative of the requested six-corner contour.
   await set(select('Выбранная сторона'), '2'); await click('Добавить угол на С3');
   await set(input('В, мм'), '1950', true);
   await set(select('Выбранная сторона'), '4'); await click('Добавить угол на С5');
+  if (new URLSearchParams(location.search).has('rounding')) {
+    await click('Треугольник прямоугольный');
+    await set(select('Скругление треугольного стекла'), '8');
+    await set(select('Выбранный угол'), '2');
+    await set(input('В, мм'), '900', true);
+    document.querySelectorAll('details').forEach(detail => { detail.open = false; });
+  }
   document.getElementById('result')!.textContent = 'CS browser tests passed';
   document.body.dataset.smoke = 'passed';
 }
