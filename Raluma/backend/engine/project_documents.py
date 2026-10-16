@@ -573,6 +573,27 @@ def _paint_color_key(value: object) -> str:
     return normalized
 
 
+def _paint_allowance_mm(article: object) -> int:
+    """Painting request only; production cuts and commercial lengths are unchanged."""
+    return 80 if str(article or "").strip().upper() in {"RS1313", "RS1315"} else 50
+
+
+def _paint_allowance_label(rows: list[dict]) -> str:
+    if any(row.get("stock_length") for row in rows):
+        return "Размер в заявку, мм"
+    allowances = {
+        round(row["allowance"] - row["clean"], 6)
+        for row in rows if row["clean"] > 0
+    }
+    if allowances == {80}:
+        return "С припуском 80 мм"
+    if allowances == {50, 80}:
+        return "С припуском 50/80 мм"
+    if allowances and allowances != {50}:
+        return "С припуском, мм"
+    return "С припуском 50 мм"
+
+
 def _manual_paint_row(raw: dict) -> tuple[str, dict] | None:
     article = str(raw.get("article") or raw.get("sku") or "").strip()
     name = str(raw.get("name") or "").strip()
@@ -583,7 +604,7 @@ def _manual_paint_row(raw: dict) -> tuple[str, dict] | None:
     clean = _safe_float(raw.get("clean") or raw.get("cleanSize"), 0)
     allowance = _safe_float(raw.get("allowance") or raw.get("allowanceSize"), 0)
     if allowance <= 0 and clean > 0:
-        allowance = clean + 50
+        allowance = clean + _paint_allowance_mm(article)
     total_m = _safe_float(raw.get("totalM") or raw.get("total_m"), 0)
     if total_m <= 0 and qty > 0 and allowance > 0:
         total_m = round(qty * allowance / 1000, 1)
@@ -641,7 +662,7 @@ def _project_extra_paint_rows(project: object) -> list[dict]:
                 "color": color,
                 "qty": qty,
                 "clean": clean,
-                "allowance": clean + 50 if clean > 0 else 0,
+                "allowance": clean + _paint_allowance_mm(extra.get("sku") or extra.get("article")) if clean > 0 else 0,
                 "imageFile": extra.get("imageFile") or extra.get("image_file") or "",
                 "imageData": extra.get("imageData") or extra.get("image_data") or "",
                 "note": "",
@@ -683,7 +704,7 @@ def _build_paint_pages(
             if not profile.painted or profile.length_mm <= 0:
                 continue
             clean = _ceil_to_step(profile.length_mm, 50)
-            allowance = clean + 50
+            allowance = clean + _paint_allowance_mm(profile.article)
             note = profile.paint_note
             paint_image = _paint_request_image(profile.article, profile.image)
             has_baked_marker = paint_image != profile.image
@@ -771,7 +792,7 @@ def _build_paint_pages(
                 "groups": groups,
                 "total_qty": total_qty,
                 "total_m": total_m,
-                "allowance_label": "Размер в заявку, мм" if any(row.get("stock_length") for row in rows) else "С припуском 50 мм",
+                "allowance_label": _paint_allowance_label(rows),
             }
         )
     return sorted(pages, key=lambda page: page["color"])

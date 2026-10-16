@@ -458,7 +458,7 @@ def _cs_sheet_context(section: object, calc: object) -> dict:
         return {}
     from engine.office_diagrams import section_diagrams
 
-    diagrams = section_diagrams(section, calc)
+    diagrams = section_diagrams(section, calc, cs_print_dimensions=True)
     return {
         "cs_diagram": (
             f"data:image/png;base64,{base64.b64encode(diagrams[0][1]).decode('ascii')}"

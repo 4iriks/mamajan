@@ -1206,7 +1206,10 @@ def _cs_point_value(point: object, axis: str) -> float:
         return 0.0
 
 
-def render_cs_front(section: object, calc: object) -> bytes:
+def render_cs_front(
+    section: object, calc: object, *, print_dimensions: bool = False,
+    print_size_mm: tuple[float, float] = (188, 49),
+) -> bytes:
     """Render the preliminary all-glass contour and every calculated pane."""
 
     canvas = Image.new("RGB", (1600, 900), BACKGROUND)
@@ -1247,7 +1250,21 @@ def render_cs_front(section: object, calc: object) -> bytes:
 
     pane_fill = "#DCEFF3"
     pane_font = load_font(30, bold=True)
-    dim_font = load_font(28, bold=True)
+    # PDF fits this image into a 49 mm high box; Word uses a fixed width.
+    # Use the actual cropped image, not the mostly empty source canvas, so
+    # portrait and landscape sections have the same readable print size.
+    dimension_font_size = 28
+    if print_dimensions:
+        with Image.open(io.BytesIO(render_cs_front(section, calc))) as reference:
+            dimension_font_size = _print_font_pixels(
+                9.5, reference.width, reference.height + 30,
+                max_width_mm=print_size_mm[0], max_height_mm=print_size_mm[1],
+            )
+    dim_font = load_font(
+        dimension_font_size,
+        bold=True,
+    )
+    dimension_color = "#000000" if print_dimensions else INK
     note_font = load_font(22, bold=True)
     for pane in getattr(calc, "panes", None) or []:
         polygon = list(getattr(pane, "polygon", None) or [])
@@ -1308,7 +1325,7 @@ def render_cs_front(section: object, calc: object) -> bytes:
         (offset_x + used_width / 2, dimension_y + 35),
         f"{round(span_x):g} мм",
         dim_font,
-        INK,
+        dimension_color,
     )
     dimension_x = offset_x + used_width + 70
     draw.line((dimension_x, offset_y, dimension_x, offset_y + used_height), fill=INK, width=3)
@@ -1323,11 +1340,11 @@ def render_cs_front(section: object, calc: object) -> bytes:
         (dimension_x + 38, offset_y + used_height / 2),
         f"{round(span_y):g} мм",
         dim_font,
-        INK,
+        dimension_color,
     )
     _center_text(
         draw,
-        (800, 845),
+        (800, 875 if print_dimensions else 845),
         "ПРЕДВАРИТЕЛЬНАЯ ГЕОМЕТРИЯ · ЦЕНА НЕ ФОРМИРУЕТСЯ",
         note_font,
         RED,
@@ -1338,6 +1355,9 @@ def render_cs_front(section: object, calc: object) -> bytes:
 def section_diagrams(
     section: object,
     calc: object,
+    *,
+    cs_print_dimensions: bool = False,
+    cs_print_size_mm: tuple[float, float] = (188, 49),
 ) -> list[tuple[str, bytes]]:
     system = str(getattr(section, "system", "") or "").strip().upper()
     if system == "КНИЖКА":
@@ -1346,7 +1366,9 @@ def section_diagrams(
             ("Схема · вид сверху", render_book_top(section, calc)),
         ]
     if system == "ЦС":
-        return [("Вид из помещения · геометрия ЦС", render_cs_front(section, calc))]
+        return [("Вид из помещения · геометрия ЦС", render_cs_front(
+            section, calc, print_dimensions=cs_print_dimensions, print_size_mm=cs_print_size_mm,
+        ))]
     reference = _reference_diagrams(section, calc)
     if system == "ЛИФТ":
         if len(reference) >= 2:

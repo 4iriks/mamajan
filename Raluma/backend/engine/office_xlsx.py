@@ -407,7 +407,7 @@ def _write_diagrams(
     section: object,
     calc: object,
 ) -> int:
-    diagrams = section_diagrams(section, calc)
+    diagrams = section_diagrams(section, calc, cs_print_dimensions=True)
     system = str(getattr(section, "system", "") or "").strip().upper()
 
     if system == "СЛАЙД":

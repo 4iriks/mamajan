@@ -441,7 +441,8 @@ def ceil_div(value: int, divisor: int) -> int:
 
 
 def _add_diagrams(document: Document, section: object, calc: object) -> None:
-    diagrams = section_diagrams(section, calc)
+    # CS is inserted below at 90 mm width without a height limit.
+    diagrams = section_diagrams(section, calc, cs_print_dimensions=True, cs_print_size_mm=(90, float("inf")))
     first = diagrams[:2]
     is_lift = str(getattr(section, "system", "") or "").strip().upper() == "ЛИФТ"
     table = document.add_table(rows=1, cols=len(first))

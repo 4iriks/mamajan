@@ -629,7 +629,8 @@ export default function ProjectDocumentModal({
                           value={row.allowance}
                           onChange={event => updatePaintRow(row.id, { allowance: event.target.value })}
                           className="h-9 rounded-lg bg-black/15 border border-tint/20 px-2 text-xs outline-none focus:border-accent/50"
-                          placeholder="+50"
+                          placeholder="С припуском"
+                          title="Полная длина с припуском: RS1313 и RS1315 +80 мм, остальные +50 мм. Пусто — рассчитать автоматически."
                         />
                         <input
                           value={row.totalM}
