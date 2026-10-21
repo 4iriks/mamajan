@@ -77,7 +77,35 @@ export interface QuoteLine {
   };
 }
 
+export interface CsCoverCut {
+  edge: number;
+  face: number;
+  part: number;
+  clean_mm: number;
+  blank_mm: number;
+  section_index: number;
+  copy_index: number;
+}
+
+export interface CsCoverCutting {
+  version: number;
+  sections: Array<{ index: number; id?: number | null; name: string; quantity: number }>;
+  groups: Array<{
+    article: string;
+    name: string;
+    color: string;
+    finish_key: string;
+    requires_paint: boolean;
+    stock_length_mm: number;
+    stock_count: number;
+    total_length_mm: number;
+    stocks: CsCoverCut[][];
+    allocations_m: Record<string, string>;
+  }>;
+}
+
 export interface PublicQuote {
+  cs_cover_cutting?: CsCoverCutting;
   money_presentation_version?: number;
   project: { id: number; number: string; invoice_number?: string | null; order_number?: string | null; customer: string };
   revision: number;

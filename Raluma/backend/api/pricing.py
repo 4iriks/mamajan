@@ -17,19 +17,15 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
-from api.pricing_rules import router as pricing_rules_router
 from api.catalog import (
     FINISH_DEFINITIONS,
-    SYSTEM_GROUPS,
-    _decode_system_groups,
     _ensure_catalog_seed,
     _finish_code,
-    _price_category,
 )
 from auth import get_current_user, require_admin, user_can_manage_prices
 from database import get_db
 from engine.pricing_rules import (
-    PERCENT_FIELDS, append_binding, latest_price_version, normalized_at,
+    PERCENT_FIELDS, latest_price_version, normalized_at,
     price_preview, resolve_effective_price, sync_variant_cache,
 )
 from engine.quote_pricing import (
@@ -49,93 +45,10 @@ from engine.quote_pricing import (
 
 
 router = APIRouter(prefix="/api/pricing", tags=["pricing"])
-router.include_router(pricing_rules_router)
 
 
 class FinishPriceVersionCreate(schemas.CatalogPriceVersionCreate):
     finish_variant_id: int | None = None
-
-
-def _price_group_dict(group: models.ConstructionPriceGroup) -> dict:
-    return {
-        "id": group.id,
-        "code": group.code,
-        "name": group.name,
-        "markup_percent": decimal_text(decimal_value(group.markup_percent)),
-        "is_active": bool(group.is_active),
-    }
-
-
-def _item_belongs_to_price_group(
-    item: models.CatalogItem,
-    group_code: str,
-) -> bool:
-    return group_code.strip().upper() in _decode_system_groups(
-        item.system_groups,
-        item.system,
-    )
-
-
-def _apply_group_markup_to_catalog(
-    db: Session,
-    group: models.ConstructionPriceGroup,
-    actor: models.User,
-) -> int:
-    """Apply a system markup through immutable item price versions.
-
-    A construction price group is a bulk editor for the existing
-    ``construction_markup_percent`` field. It must not become a second hidden
-    multiplier on top of the item pricing chain.
-    """
-
-    now = datetime.utcnow()
-    changed = 0
-    items = db.query(models.CatalogItem).filter_by(is_active=True).all()
-    for item in items:
-        if not _item_belongs_to_price_group(item, group.code):
-            continue
-        for variant in item.finish_variants:
-            if not variant.is_active:
-                continue
-            resolved = resolve_effective_price(db, item, variant, now)
-            if resolved is None or resolved.construction_markup_percent == decimal_value(group.markup_percent):
-                continue
-            current, _upcoming = _active_and_next_versions(
-                [
-                    version
-                    for version in item.price_versions
-                    if version.finish_variant_id == variant.id
-                ],
-                now,
-            )
-            for field in PERCENT_FIELDS:
-                setattr(variant, field, getattr(resolved, field))
-            variant.cost = variant.price = resolved.cost
-            variant.construction_markup_percent = group.markup_percent
-            variant.updated_at = now
-            item.price_versions.append(
-                models.CatalogPriceVersion(
-                    finish_variant_id=variant.id,
-                    cost=variant.cost,
-                    profile_markup_percent=variant.profile_markup_percent,
-                    profile_discount_percent=variant.profile_discount_percent,
-                    waste_markup_percent=variant.waste_markup_percent,
-                    construction_markup_percent=group.markup_percent,
-                    construction_discount_percent=variant.construction_discount_percent,
-                    category=current.category
-                    if current
-                    else _price_category(item.group),
-                    unit=item.unit,
-                    min_margin_percent=current.min_margin_percent if current else 0,
-                    effective_from=now,
-                    created_at=now,
-                    created_by=actor.id,
-                    reason=f"Наценка ценовой группы {group.name}",
-                )
-            )
-            append_binding(db, variant, "individual", actor.id, f"Массовая наценка системы {group.name}", now)
-            changed += 1
-    return changed
 
 
 @router.post("/sale/quote")
@@ -153,56 +66,6 @@ def standalone_sale_quote(
         )
     except QuotePricingError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.get("/price-groups")
-def list_price_groups(
-    db: Session = Depends(get_db),
-    _: models.User = Depends(require_admin),
-):
-    rows = (
-        db.query(models.ConstructionPriceGroup)
-        .filter(models.ConstructionPriceGroup.code.in_(tuple(SYSTEM_GROUPS)))
-        .order_by(models.ConstructionPriceGroup.name, models.ConstructionPriceGroup.id)
-        .all()
-    )
-    return [_price_group_dict(row) for row in rows]
-
-
-@router.post("/price-groups", status_code=201)
-def create_price_group(
-    data: schemas.ConstructionPriceGroupBase,
-    db: Session = Depends(get_db),
-    actor: models.User = Depends(require_admin),
-):
-    raise HTTPException(
-        status_code=409,
-        detail="Системные группы фиксированы и редактируются в каталоге",
-    )
-
-
-@router.put("/price-groups/{group_id}")
-def update_price_group(
-    group_id: int,
-    data: schemas.ConstructionPriceGroupBase,
-    db: Session = Depends(get_db),
-    actor: models.User = Depends(require_admin),
-):
-    group = db.query(models.ConstructionPriceGroup).filter_by(id=group_id).first()
-    if group is None:
-        raise HTTPException(status_code=404, detail="Ценовая группа не найдена")
-    code = data.code.strip().upper()
-    if group.code not in SYSTEM_GROUPS or code != group.code:
-        raise HTTPException(status_code=409, detail="Код системной группы фиксирован")
-    group.name = SYSTEM_GROUPS[group.code]
-    group.markup_percent = data.markup_percent
-    group.is_active = True
-    group.updated_by = actor.id
-    group.updated_at = datetime.utcnow()
-    _apply_group_markup_to_catalog(db, group, actor)
-    db.commit()
-    db.refresh(group)
-    return _price_group_dict(group)
 
 
 def _normalize_datetime(value: datetime) -> datetime:
@@ -305,15 +168,19 @@ def _new_version(
     rollback_of_id: int | None = None,
 ) -> models.CatalogPriceVersion:
     _validate_price_payload(data)
+    current = max((v for v in item.price_versions if v.finish_variant_id == finish_variant_id
+                   and normalized_at(v.effective_from) <= normalized_at(data.effective_from)),
+                  key=lambda v: (v.effective_from, v.id or 0), default=None)
     return models.CatalogPriceVersion(
         catalog_item_id=item.id,
         finish_variant_id=finish_variant_id,
         cost=money(decimal_value(data.cost)),
+        cost_is_set=True,
         profile_markup_percent=data.profile_markup_percent,
         profile_discount_percent=data.profile_discount_percent,
-        waste_markup_percent=data.waste_markup_percent,
-        construction_markup_percent=data.construction_markup_percent,
-        construction_discount_percent=data.construction_discount_percent,
+        waste_markup_percent=current.waste_markup_percent if current else 0,
+        construction_markup_percent=current.construction_markup_percent if current else 0,
+        construction_discount_percent=current.construction_discount_percent if current else 0,
         category=data.category,
         unit=data.unit.strip(),
         min_margin_percent=data.min_margin_percent,
@@ -386,7 +253,6 @@ def create_price_version(
     version = _new_version(item, data, actor, finish_variant_id=variant_id)
     item.price_versions.append(version)
     if variant is not None:
-        append_binding(db, variant, "individual", actor.id, data.reason.strip(), normalized_at(data.effective_from))
         sync_variant_cache(item, variant)
     db.commit()
     db.refresh(version)
@@ -428,104 +294,10 @@ def rollback_price_version(
     item.price_versions.append(version)
     if target.finish_variant_id is not None:
         variant = db.get(models.CatalogFinishVariant, target.finish_variant_id)
-        append_binding(db, variant, "individual", actor.id, data.reason.strip(), normalized_at(data.effective_from))
         sync_variant_cache(item, variant)
     db.commit()
     db.refresh(version)
     return _version_dict(version)
-
-
-def _bulk_preview(db: Session, data: schemas.CatalogPriceBulkRequest) -> list[dict]:
-    item_ids = list(dict.fromkeys(data.item_ids))
-    items = (
-        db.query(models.CatalogItem).filter(models.CatalogItem.id.in_(item_ids)).all()
-    )
-    by_id = {item.id: item for item in items}
-    if len(by_id) != len(item_ids):
-        missing = sorted(set(item_ids) - set(by_id))
-        raise HTTPException(
-            status_code=400,
-            detail=f"Позиции каталога не найдены: {', '.join(map(str, missing))}",
-        )
-    factor = Decimal("1") + decimal_value(data.percent) / Decimal("100")
-    rows = []
-    for item_id in item_ids:
-        item = by_id[item_id]
-        variants = [v for v in item.finish_variants if v.is_active] or [None]
-        for variant in variants:
-            active = latest_price_version(item, variant, normalized_at(data.effective_from))
-            if active is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"У позиции {item.sku} нет действующей версии цены",
-                )
-            row = {
-                "item_id": item.id,
-                "sku": item.sku,
-                "name": item.name,
-                "old_cost": money_text(decimal_value(active.cost)),
-                "new_cost": money_text(decimal_value(active.cost) * factor),
-                "source_version_id": active.id,
-                "source": active,
-            }
-            if variant is not None:
-                row.update(finish_variant_id=variant.id, finish_name=variant.name)
-            rows.append(row)
-    return rows
-
-
-@router.post("/catalog/bulk/preview")
-def preview_bulk_price_change(
-    data: schemas.CatalogPriceBulkRequest,
-    db: Session = Depends(get_db),
-    _: models.User = Depends(require_admin),
-):
-    return {
-        "rows": [
-            {key: value for key, value in row.items() if key != "source"}
-            for row in _bulk_preview(db, data)
-        ]
-    }
-
-
-@router.post("/catalog/bulk/apply", status_code=201)
-def apply_bulk_price_change(
-    data: schemas.CatalogPriceBulkRequest,
-    db: Session = Depends(get_db),
-    actor: models.User = Depends(require_admin),
-):
-    preview = _bulk_preview(db, data)
-    created = []
-    try:
-        for row in preview:
-            source = row["source"]
-            item = source.catalog_item
-            payload = schemas.CatalogPriceVersionCreate(
-                cost=Decimal(row["new_cost"]),
-                profile_markup_percent=source.profile_markup_percent,
-                profile_discount_percent=source.profile_discount_percent,
-                waste_markup_percent=source.waste_markup_percent,
-                construction_markup_percent=source.construction_markup_percent,
-                construction_discount_percent=source.construction_discount_percent,
-                category=source.category,
-                unit=source.unit,
-                min_margin_percent=source.min_margin_percent,
-                effective_from=data.effective_from,
-                reason=data.reason,
-            )
-            version = _new_version(item, payload, actor, finish_variant_id=row.get("finish_variant_id"))
-            item.price_versions.append(version)
-            if row.get("finish_variant_id") is not None:
-                variant = db.get(models.CatalogFinishVariant, row["finish_variant_id"])
-                sync_variant_cache(item, variant)
-            created.append(version)
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    for version in created:
-        db.refresh(version)
-    return {"versions": [_version_dict(version) for version in created]}
 
 
 _HEADER_ALIASES = {
@@ -1298,9 +1070,6 @@ def apply_price_import(
             )
             item.price_versions.append(version)
             if variant is not None:
-                if any(row.get(field) not in (None, "") for field in PERCENT_FIELDS):
-                    append_binding(db, variant, "individual", actor.id, data.reason.strip(),
-                                   normalized_at(payload.effective_from))
                 sync_variant_cache(item, variant)
                 variant.updated_at = datetime.utcnow()
             if normalized_at(payload.effective_from) <= datetime.utcnow():

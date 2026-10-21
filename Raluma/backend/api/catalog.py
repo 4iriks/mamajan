@@ -2,7 +2,6 @@ import json
 import re
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
-from dataclasses import replace
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
@@ -12,8 +11,7 @@ from auth import require_admin
 from database import get_db
 from engine.pdf import get_profile_asset_path
 from engine.profile_catalog import PROFILE_CATALOG
-from engine.pricing_rules import (PERCENT_FIELDS, append_binding, binding_mode,
-    latest_price_version, normalized_at, resolve_effective_price, sync_variant_cache)
+from engine.pricing_rules import resolve_effective_price
 import models
 import schemas
 
@@ -113,6 +111,7 @@ def _variant_to_dict(
         result.update(
             {
                 "cost": f"{cost:.2f}",
+                "costIsSet": getattr(actual, "cost_is_set", True) is not False,
                 "profileMarkupPercent": float(actual.profile_markup_percent or 0),
                 "profileDiscountPercent": float(actual.profile_discount_percent or 0),
                 "wasteMarkupPercent": float(actual.waste_markup_percent or 0),
@@ -125,7 +124,7 @@ def _variant_to_dict(
                 "pricingMode": resolved.source["mode"] if resolved else "individual",
                 "pricingSource": resolved.source if resolved else None,
                 "minimumMarkupPercent": float(resolved.min_margin_percent) if resolved else 0,
-                "priceAvailable": resolved is not None,
+                "priceAvailable": resolved is not None and resolved.cost_is_set,
             }
         )
     return result
@@ -371,7 +370,6 @@ def _apply_payload(item: models.CatalogItem, data: schemas.CatalogItemBase) -> N
     item.weight = data.weight
     # Keep the legacy item-level field synchronized for old clients during the
     # rolling deployment; it is no longer a source of truth.
-    item.waste_percent = data.wastePercent
     item.section_width_mm = data.sectionWidthMm
     item.section_height_mm = data.sectionHeightMm
     item.image_file = (data.imageFile or "").strip() or None
@@ -407,25 +405,18 @@ def _apply_payload(item: models.CatalogItem, data: schemas.CatalogItemBase) -> N
         variant.name = fixed_name
         variant.cost = cost
         variant.price = cost
+        variant.cost_is_set = payload.costIsSet if payload and payload.costIsSet is not None else True
         variant.profile_markup_percent = (
             payload.profileMarkupPercent if payload else data.markupPercent
         )
         variant.profile_discount_percent = (
             payload.profileDiscountPercent if payload else data.profileDiscountPercent
         )
-        variant.waste_markup_percent = (
-            payload.wasteMarkupPercent if payload else data.wastePercent
-        )
-        variant.construction_markup_percent = (
-            payload.constructionMarkupPercent
-            if payload
-            else data.constructionMarkupPercent
-        )
-        variant.construction_discount_percent = (
-            payload.constructionDiscountPercent
-            if payload
-            else data.constructionDiscountPercent
-        )
+        # Historical construction caches are retained for archive compatibility;
+        # catalogue writes cannot change independent system prices.
+        for field in ("waste_markup_percent", "construction_markup_percent", "construction_discount_percent"):
+            if getattr(variant, field, None) is None:
+                setattr(variant, field, 0)
         variant.requires_paint = requires_paint
         variant.is_active = True
         variant.updated_at = datetime.utcnow()
@@ -515,6 +506,7 @@ def _sync_price_versions(
             _price_category(data.group),
             data.unit.strip() or "шт",
             Decimal(str(minimum)),
+            bool(variant.cost_is_set) if variant is not None else True,
         )
         existing = (
             (
@@ -527,6 +519,7 @@ def _sync_price_versions(
                 current.category,
                 current.unit,
                 Decimal(str(current.min_margin_percent)),
+                current.cost_is_set,
             )
             if current
             else None
@@ -537,6 +530,7 @@ def _sync_price_versions(
             models.CatalogPriceVersion(
                 finish_variant_id=variant_id,
                 cost=desired[0],
+                cost_is_set=desired[9],
                 profile_markup_percent=desired[1],
                 profile_discount_percent=desired[2],
                 waste_markup_percent=desired[3],
@@ -637,296 +631,6 @@ def list_hardware_options(db: Session = Depends(get_db)):
     )
     items.sort(key=_natural_sku_key)
     return [_item_to_option(item) for item in items]
-
-
-@router.get("/construction-price-groups")
-def list_construction_price_group_options(db: Session = Depends(get_db)):
-    rows = (
-        db.query(models.ConstructionPriceGroup)
-        .filter(
-            models.ConstructionPriceGroup.is_active == True,  # noqa: E712
-            models.ConstructionPriceGroup.code.in_(tuple(SYSTEM_GROUPS)),
-        )
-        .order_by(models.ConstructionPriceGroup.name)
-        .all()
-    )
-    # Markup is an internal coefficient and intentionally omitted.
-    return [{"id": row.id, "code": row.code, "name": row.name} for row in rows]
-
-
-def _items_in_system_group(db: Session, code: str) -> list[models.CatalogItem]:
-    return [
-        item
-        for item in db.query(models.CatalogItem)
-        .filter(models.CatalogItem.is_active == True)  # noqa: E712
-        .all()
-        if code in _decode_system_groups(item.system_groups, item.system)
-    ]
-
-
-def _bulk_targets(
-    db: Session, data: schemas.CatalogPricingBulkRequest
-) -> list[tuple[models.CatalogItem, models.CatalogFinishVariant]]:
-    items = (
-        db.query(models.CatalogItem)
-        .filter(models.CatalogItem.id.in_(set(data.item_ids)))
-        .all()
-    )
-    by_id = {item.id: item for item in items}
-    missing = sorted(set(data.item_ids) - set(by_id))
-    if missing:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Позиции каталога не найдены: {', '.join(map(str, missing))}",
-        )
-    selected_codes = {
-        _finish_code(code, code) for code in data.finish_codes if str(code).strip()
-    }
-    targets = [
-        (item, variant)
-        for item_id in dict.fromkeys(data.item_ids)
-        for item in [by_id[item_id]]
-        for variant in item.finish_variants
-        if variant.is_active
-        and (not selected_codes or _finish_code(variant.name, variant.code) in selected_codes)
-    ]
-    if not targets:
-        raise HTTPException(status_code=400, detail="Нет подходящих исполнений")
-    return targets
-
-
-def _bulk_patch(data: schemas.CatalogPricingBulkRequest) -> dict[str, Decimal]:
-    return {
-        field: value
-        for field in (
-            "profile_markup_percent",
-            "profile_discount_percent",
-            "waste_markup_percent",
-            "construction_markup_percent",
-            "construction_discount_percent",
-        )
-        if (value := getattr(data, field)) is not None
-    }
-
-
-def _finish_price_preview(variant: models.CatalogFinishVariant) -> dict:
-    cost = Decimal(str(variant.cost or 0))
-    profile_markup = Decimal(str(variant.profile_markup_percent or 0))
-    profile_discount = Decimal(str(variant.profile_discount_percent or 0))
-    waste = Decimal(str(variant.waste_markup_percent or 0))
-    construction_markup = Decimal(str(variant.construction_markup_percent or 0))
-    construction_discount = Decimal(str(variant.construction_discount_percent or 0))
-
-    def markup(value: Decimal, percent: Decimal) -> Decimal:
-        return value * (Decimal("1") + percent / Decimal("100"))
-
-    def discount(value: Decimal, percent: Decimal) -> Decimal:
-        return value * (Decimal("1") - percent / Decimal("100"))
-
-    profile_after_markup = markup(cost, profile_markup)
-    profile_final = discount(profile_after_markup, profile_discount)
-    construction_after_waste = markup(cost, waste)
-    construction_after_markup = markup(construction_after_waste, construction_markup)
-    construction_final = discount(
-        construction_after_markup, construction_discount
-    )
-    def money(value: Decimal) -> str:
-        return f"{value.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):.2f}"
-
-    return {
-        "profile": {
-            "base": money(cost),
-            "afterMarkup": money(profile_after_markup),
-            "final": money(profile_final),
-        },
-        "construction": {
-            "base": money(cost),
-            "afterWaste": money(construction_after_waste),
-            "afterMarkup": money(construction_after_markup),
-            "final": money(construction_final),
-        },
-    }
-
-
-def _bulk_preview_rows(
-    targets: list[tuple[models.CatalogItem, models.CatalogFinishVariant]],
-    patch: dict[str, Decimal],
-    at: datetime | None = None,
-) -> list[dict]:
-    rows = []
-    for item, variant in targets:
-        db = object_session(item)
-        effective = resolve_effective_price(db, item, variant, at) if db else None
-        if effective is None:
-            raise HTTPException(400, f"У {item.sku} нет действующей цены")
-        before = _finish_price_preview(effective)
-        after = _finish_price_preview(replace(effective, **patch))
-        rows.append(
-            {
-                "itemId": item.id,
-                "sku": item.sku,
-                "name": item.name,
-                "finishCode": _finish_code(variant.name, variant.code),
-                "finishName": variant.name,
-                "sourceBefore": effective.source,
-                "sourceAfter": {"mode": "individual", "label": "Индивидуальные значения"},
-                "before": before,
-                "after": after,
-            }
-        )
-    return rows
-
-
-@router.post("/pricing/bulk/preview")
-def preview_catalog_pricing_bulk(
-    data: schemas.CatalogPricingBulkRequest,
-    db: Session = Depends(get_db),
-    _: models.User = Depends(require_admin),
-):
-    targets = _bulk_targets(db, data)
-    rows = _bulk_preview_rows(targets, _bulk_patch(data), data.effective_from)
-    return {"count": len(rows), "rows": rows}
-
-
-@router.post("/pricing/bulk/apply")
-def apply_catalog_pricing_bulk(
-    data: schemas.CatalogPricingBulkRequest,
-    db: Session = Depends(get_db),
-    actor: models.User = Depends(require_admin),
-):
-    targets = _bulk_targets(db, data)
-    patch = _bulk_patch(data)
-    preview = _bulk_preview_rows(targets, patch, data.effective_from)
-    effective_from = normalized_at(data.effective_from)
-    now = datetime.utcnow()
-    for item, variant in targets:
-        current = resolve_effective_price(db, item, variant, effective_from)
-        values = {field: patch.get(field, getattr(current, field)) for field in PERCENT_FIELDS}
-        item.price_versions.append(
-            models.CatalogPriceVersion(
-                finish_variant_id=variant.id,
-                cost=current.cost,
-                **values,
-                category=_price_category(item.group),
-                unit=item.unit,
-                min_margin_percent=current.min_margin_percent if current else 0,
-                effective_from=effective_from,
-                created_at=now,
-                created_by=actor.id,
-                reason=data.reason.strip(),
-            )
-        )
-        append_binding(db, variant, "individual", actor.id, data.reason.strip(), effective_from)
-        if effective_from <= now:
-            sync_variant_cache(item, variant, now)
-            variant.updated_at = now
-        item.waste_percent = float(variant.waste_markup_percent or 0)
-        item.updated_at = now
-    db.commit()
-    return {"count": len(preview), "rows": preview}
-
-
-@router.get("/system-markups")
-def list_system_markups(
-    db: Session = Depends(get_db),
-    _: models.User = Depends(require_admin),
-):
-    result = []
-    for code, name in SYSTEM_GROUPS.items():
-        values = {
-            resolved.construction_markup_percent
-            for item in _items_in_system_group(db, code)
-            for variant in item.finish_variants
-            if variant.is_active
-            if (resolved := resolve_effective_price(db, item, variant)) is not None
-        }
-        result.append(
-            {
-                "code": code,
-                "name": name,
-                "constructionMarkupPercent": (
-                    float(next(iter(values))) if len(values) == 1 else None
-                ),
-                "mixed": len(values) > 1,
-                "operation": "bulk_individual_override",
-                "description": "Массовое изменение индивидуальных условий общих позиций каталога; не дополнительный множитель",
-            }
-        )
-    return result
-
-
-@router.put("/system-markups/{code}")
-def update_system_markup(
-    code: str,
-    data: schemas.SystemConstructionMarkupUpdate,
-    db: Session = Depends(get_db),
-    actor: models.User = Depends(require_admin),
-):
-    code = code.strip().upper()
-    if code not in SYSTEM_GROUPS:
-        raise HTTPException(status_code=404, detail="Ценовая группа не найдена")
-    now = datetime.utcnow()
-    changed = 0
-    for item in _items_in_system_group(db, code):
-        for variant in item.finish_variants:
-            if not variant.is_active:
-                continue
-            resolved = resolve_effective_price(db, item, variant, now)
-            if resolved is None or resolved.construction_markup_percent == Decimal(str(data.constructionMarkupPercent)):
-                continue
-            for field in PERCENT_FIELDS:
-                setattr(variant, field, getattr(resolved, field))
-            variant.cost = variant.price = resolved.cost
-            variant.construction_markup_percent = data.constructionMarkupPercent
-            variant.updated_at = now
-            current = max(
-                (
-                    row
-                    for row in item.price_versions
-                    if row.finish_variant_id == variant.id and row.effective_from <= now
-                ),
-                key=lambda row: (row.effective_from, row.id or 0),
-                default=None,
-            )
-            append_binding(db, variant, "individual", actor.id, f"Массовая наценка системы {SYSTEM_GROUPS[code]}", now)
-            item.price_versions.append(
-                models.CatalogPriceVersion(
-                    finish_variant_id=variant.id,
-                    cost=variant.cost,
-                    profile_markup_percent=variant.profile_markup_percent,
-                    profile_discount_percent=variant.profile_discount_percent,
-                    waste_markup_percent=variant.waste_markup_percent,
-                    construction_markup_percent=data.constructionMarkupPercent,
-                    construction_discount_percent=variant.construction_discount_percent,
-                    category=_price_category(item.group),
-                    unit=item.unit,
-                    min_margin_percent=(current.min_margin_percent if current else 0),
-                    effective_from=now,
-                    created_at=now,
-                    created_by=actor.id,
-                    reason=f"Наценка группы {SYSTEM_GROUPS[code]}",
-                )
-            )
-            changed += 1
-    group = db.query(models.ConstructionPriceGroup).filter_by(code=code).first()
-    if group is None:
-        group = models.ConstructionPriceGroup(
-            code=code,
-            name=SYSTEM_GROUPS[code],
-            created_at=now,
-        )
-        db.add(group)
-    group.name = SYSTEM_GROUPS[code]
-    group.markup_percent = data.constructionMarkupPercent
-    group.is_active = True
-    group.updated_by = actor.id
-    group.updated_at = now
-    db.commit()
-    return {
-        "code": code,
-        "changed": changed,
-        "constructionMarkupPercent": float(data.constructionMarkupPercent),
-    }
 
 
 def _cs_profile_summary(item: models.CatalogItem | None) -> dict | None:
@@ -1089,29 +793,7 @@ def update_hardware_item(
     if not item:
         raise HTTPException(status_code=404, detail="Позиция не найдена")
     _validate_payload(db, data, item_id=item.id)
-    now = datetime.utcnow()
-    inherited = {
-        variant.id: resolve_effective_price(db, item, variant, now)
-        for variant in item.finish_variants
-        if binding_mode(db, variant, now) == "auto"
-    }
     _apply_payload(item, data)
-    for variant in item.finish_variants:
-        previous = inherited.get(variant.id)
-        if previous is None:
-            continue
-        changed = any(Decimal(str(getattr(variant, field))) != getattr(previous, field)
-                      for field in PERCENT_FIELDS)
-        if changed:
-            append_binding(db, variant, "individual", actor.id,
-                           "Индивидуальные условия изменены в карточке каталога", now)
-        else:
-            # An unchanged inherited chain is not a manual override. Keep the
-            # own version's fallback percentages while allowing cost edits.
-            own = latest_price_version(item, variant, now)
-            if own is not None:
-                for field in PERCENT_FIELDS:
-                    setattr(variant, field, getattr(own, field))
     db.flush()
     _sync_price_versions(item, data, actor)
     db.commit()

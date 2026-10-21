@@ -12,10 +12,13 @@ from sqlalchemy.pool import StaticPool
 import models
 from database import Base, get_db
 from auth import require_price_manager
-from api.pricing_rules import router
 from engine.pricing_rules import (
-    append_binding, capture_individual_price, resolve_effective_price, price_preview,
+    append_binding, capture_individual_price, resolve_effective_price as current_price, price_preview,
 )
+
+
+def resolve_effective_price(*args, **kwargs):
+    return current_price(*args, use_legacy_rules=True, **kwargs)
 
 
 @pytest.fixture
@@ -122,51 +125,8 @@ def test_finish_prices_are_not_taken_from_other_finish_or_mutable_cache(rule_db)
     assert (second_price.cost, second_price.min_margin_percent) == (250, 70)
 
 
-def test_rule_api_preview_has_no_writes_and_bindings_explicit(rule_db):
-    db, actor = rule_db
-    item, variant = item_with_price(db, actor)
-    app = FastAPI()
-    app.include_router(router, prefix="/api/pricing")
-    app.dependency_overrides[get_db] = lambda: db
-    app.dependency_overrides[require_price_manager] = lambda: actor
-    payload = {"name": "Default", "scope": "default", "profile_markup_percent": "50",
-               "effective_from": (datetime.utcnow()-timedelta(seconds=1)).isoformat(), "reason": "Test"}
-    with TestClient(app) as client:
-        preview = client.post("/api/pricing/rules/preview", json=payload)
-        assert preview.status_code == 200, preview.text
-        assert preview.json()["count"] == 0  # all existing finishes remain individual
-        assert db.query(models.CatalogPricingRule).count() == 0
-        created = client.post("/api/pricing/rules", json=payload)
-        assert created.status_code == 201, created.text
-        assert created.json()["active_version"]["profile_markup_percent"] == "50"
-        binding = {"finish_variant_ids": [variant.id], "mode": "auto", "reason": "Use rule"}
-        preview = client.post("/api/pricing/rule-bindings/preview", json=binding)
-        assert preview.status_code == 200, preview.text
-        row = preview.json()["rows"][0]
-        assert row["before"]["profile"]["final"] == "120.00"
-        assert row["after"]["profile"]["final"] == "150.00"
-        assert resolve_effective_price(db, item, variant).profile_markup_percent == 20
-        applied = client.post("/api/pricing/rule-bindings/apply", json=binding)
-        assert applied.status_code == 200, applied.text
-        assert resolve_effective_price(db, item, variant).profile_markup_percent == 50
-        payload.update(rule_id=created.json()["id"], profile_markup_percent="75")
-        changed = client.post("/api/pricing/rules/preview", json=payload)
-        assert changed.json()["count"] == 1
-        assert changed.json()["rows"][0]["after"]["profile"]["final"] == "175.00"
 
 
-def test_future_bulk_does_not_mutate_current_cache(rule_db):
-    from api.catalog import apply_catalog_pricing_bulk
-    from schemas import CatalogPricingBulkRequest
-    db, actor = rule_db
-    item, variant = item_with_price(db, actor)
-    future = datetime.utcnow()+timedelta(days=1)
-    result = apply_catalog_pricing_bulk(CatalogPricingBulkRequest(
-        item_ids=[item.id], profile_markup_percent=Decimal(80), effective_from=future, reason="Scheduled"), db, actor)
-    assert result["count"] == 1
-    assert variant.profile_markup_percent == 20
-    assert resolve_effective_price(db, item, variant).profile_markup_percent == 20
-    assert resolve_effective_price(db, item, variant, future+timedelta(seconds=1)).profile_markup_percent == 80
 
 
 def test_baseline_preserves_current_values_and_is_idempotent(rule_db):
@@ -207,7 +167,7 @@ def test_timezone_normalization_and_fractional_percent(rule_db):
     assert price_preview(price)["profile"]["final"] == "112.35"
 
 
-def test_catalog_roundtrip_preserves_inheritance_and_explicit_edit_detaches(rule_db):
+def test_catalog_roundtrip_preserves_materialized_prices_and_independent_edits(rule_db):
     from api.catalog import _item_to_dict, update_hardware_item
     from schemas import CatalogItemUpdate
     db, actor = rule_db
@@ -215,20 +175,22 @@ def test_catalog_roundtrip_preserves_inheritance_and_explicit_edit_detaches(rule
     add_rule(db, actor, markup=45)
     append_binding(db, variant, "auto", actor.id, "Use rule", datetime.utcnow())
     db.commit()
+    from engine.construction_pricing import migrate_construction_pricing
+    migrate_construction_pricing(db); db.commit()
     payload = _item_to_dict(item)
     payload["note"] = "Metadata only"
     assert payload["finishVariants"][0]["profileMarkupPercent"] == 45
     saved = update_hardware_item(item.id, CatalogItemUpdate(**payload), db, actor)
-    assert saved["finishVariants"][0]["pricingMode"] == "auto"
-    assert resolve_effective_price(db, item, variant).profile_markup_percent == 45
+    assert saved["finishVariants"][0]["pricingMode"] == "individual"
+    assert current_price(db, item, variant).profile_markup_percent == 45
     saved["finishVariants"][0]["profileMarkupPercent"] = 55
     edited = update_hardware_item(item.id, CatalogItemUpdate(**saved), db, actor)
     assert edited["finishVariants"][0]["pricingMode"] == "individual"
-    assert resolve_effective_price(db, item, variant).profile_markup_percent == 55
+    assert current_price(db, item, variant).profile_markup_percent == 55
     edited["finishVariants"][0]["minimumMarkupPercent"] = "12.5"
     minimum_edited = update_hardware_item(item.id, CatalogItemUpdate(**edited), db, actor)
     assert minimum_edited["finishVariants"][0]["minimumMarkupPercent"] == 12.5
-    assert resolve_effective_price(db, item, variant).min_margin_percent == Decimal("12.5")
+    assert current_price(db, item, variant).min_margin_percent == Decimal("12.5")
 
 
 def test_new_price_version_and_rollback_target_finish_and_honor_date(rule_db):
@@ -250,9 +212,8 @@ def test_new_price_version_and_rollback_target_finish_and_honor_date(rule_db):
     assert resolve_effective_price(db, item, variant).cost == 100
 
 
-def test_bulk_cost_change_preserves_distinct_finish_costs(rule_db):
-    from api.pricing import apply_bulk_price_change, preview_bulk_price_change
-    from schemas import CatalogPriceBulkRequest
+def test_cost_change_preserves_other_finish_cost(rule_db):
+    from api.pricing import create_price_version, FinishPriceVersionCreate
     db, actor = rule_db
     item, variant = item_with_price(db, actor)
     second = models.CatalogFinishVariant(code="RAL_STANDARD", name="RAL стандарт", cost=250, price=250)
@@ -262,27 +223,25 @@ def test_bulk_cost_change_preserves_distinct_finish_costs(rule_db):
         category="profile", unit="п.м.", effective_from=datetime.utcnow()-timedelta(hours=1),
         created_by=actor.id, reason="Second finish"))
     db.commit()
-    request = CatalogPriceBulkRequest(item_ids=[item.id], percent=10,
-                                     effective_from=datetime.utcnow(), reason="Increase cost")
-    preview = preview_bulk_price_change(request, db, actor)
-    assert {row["old_cost"] for row in preview["rows"]} == {"100.00", "250.00"}
-    apply_bulk_price_change(request, db, actor)
-    assert resolve_effective_price(db, item, variant).cost == 110
-    assert resolve_effective_price(db, item, second).cost == 275
+    create_price_version(item.id, FinishPriceVersionCreate(finish_variant_id=variant.id,
+        cost=110, category="profile", unit="п.м.", effective_from=datetime.utcnow(), reason="Cost edit"), db, actor)
+    assert current_price(db, item, variant).cost == 110
+    assert current_price(db, item, second).cost == 250
 
 
-def test_rules_api_denies_non_price_manager(rule_db):
+def test_system_pricing_api_denies_non_price_manager(rule_db):
+    from api.construction_pricing import router
     from auth import get_current_user
     db, actor = rule_db
     actor.role = "user"
     actor.can_manage_prices = False
     app = FastAPI()
-    app.include_router(router, prefix="/api/pricing")
+    app.include_router(router)
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_current_user] = lambda: actor
     with TestClient(app) as client:
-        assert client.get("/api/pricing/rules").status_code == 403
-        assert client.get("/api/pricing/rule-bindings").status_code == 403
+        assert client.get("/api/construction-pricing/systems").status_code == 403
+        assert client.get("/api/construction-pricing/systems/CS").status_code == 403
 
 
 def test_fresh_install_baseline_does_not_run_late_after_prices_are_entered():

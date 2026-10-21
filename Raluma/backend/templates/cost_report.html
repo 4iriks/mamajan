@@ -42,7 +42,7 @@
       <div><span class="label">Редакция</span><span class="value">{{ revision }}</span></div>
       <div><span class="label">Статус</span><span class="value">{{ 'Зафиксирована' if status == 'fixed' else 'Черновик' }}</span></div>
     </div>
-    {% for warning in warnings %}<div class="warning">{{ warning }}</div>{% endfor %}
+
     <div class="metrics">
       <div class="metric"><span class="label">Себестоимость</span><span class="value">{{ summary.cost_text }}</span></div>
       <div class="metric"><span class="label">Внутренняя цена</span><span class="value">{{ summary.internal_text }}</span></div>

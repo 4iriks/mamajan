@@ -340,6 +340,7 @@ export default function AdminPage() {
             <h1 className="text-2xl font-bold">Администрирование</h1>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button onClick={() => navigate('/admin/pricing')} className="rounded-2xl border border-tint/35 bg-tint/25 px-5 py-3 font-bold text-accent hover:bg-tint/40">Настройка конструкций</button>
             <button onClick={() => navigate('/admin/catalog/hardware')}
               className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-tint/25 hover:bg-tint/40 text-accent font-bold border border-tint/35 transition-all">
               <Package className="w-4 h-4" />

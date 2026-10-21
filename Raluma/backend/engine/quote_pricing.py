@@ -18,7 +18,11 @@ from sqlalchemy.orm import Session
 import models
 from engine.glass_types import normalize_slide_glass_type
 from engine.slide_calc import calculate_slide
+from engine.cs_cover_cutting import build_cover_plan, section_allocation_m
 from engine.pricing_rules import resolve_effective_price
+from engine.construction_pricing import (
+    system_code, component_key, current_components, current_global, settings_values, resolve_cs_kit,
+)
 
 
 MONEY = Decimal("0.01")
@@ -32,9 +36,10 @@ MANUAL_SERVICE_UNITS = (
     "шт.",
     "кв.м.",
 )
-QUOTE_SNAPSHOT_VERSION = 7
+QUOTE_SNAPSHOT_VERSION = 9
 
 PUBLIC_QUOTE_FIELDS = {
+    "cs_cover_cutting",
     "money_presentation_version",
     "pricing_issues",
     "document_layout_version",
@@ -99,6 +104,8 @@ PUBLIC_TOTAL_FIELDS = {
     "document_grand_total",
 }
 PUBLIC_SECTION_DETAIL_FIELDS = {
+    "cs_geometry",
+    "system_name",
     "section_id",
     "name",
     "width_mm",
@@ -306,7 +313,7 @@ def safe_public_payload(payload: dict[str, Any]) -> dict[str, Any]:
         if "SLIDE:" in str(warning) or not legacy_money
     ]
     if not bool(payload.get("export_allowed")):
-        safe["warnings"].insert(0, "Расчёт требует проверки менеджером.")
+        safe["warnings"].insert(0, "Расчёт не прошёл проверку. Причины блокировки указаны ниже.")
     return safe
 
 
@@ -500,7 +507,7 @@ def calculate_standalone_sale(
             variant = active_variants[0]
 
         version = resolve_effective_price(db, item, variant, at=now)
-        if version is None:
+        if version is None or not getattr(version, "cost_is_set", True):
             raise QuotePricingError("Для выбранной позиции не задана действующая цена")
         cost = decimal_value(version.cost)
         markup = decimal_value(version.profile_markup_percent)
@@ -784,7 +791,7 @@ def _is_no_option(value: object) -> bool:
 
 
 def _glass_supplied(section: object) -> bool:
-    if str(getattr(section, "system", "") or "").strip().upper() != "СЛАЙД":
+    if str(getattr(section, "system", "") or "").strip().upper() not in {"СЛАЙД", "ЦС"}:
         return True
     return bool(getattr(section, "glass_supplied", True))
 
@@ -866,6 +873,22 @@ def _section_technical_components(section: object) -> dict[str, list[dict[str, s
 
 def _section_snapshot(section: object, calc: object) -> dict[str, Any]:
     """Capture only dealer-safe inputs needed to reproduce both quote sketches."""
+
+    if system_code(section) == "CS":
+        supplied = _glass_supplied(section)
+        return {
+            "section_id": int(getattr(section, "id", 0) or 0),
+            "name": str(getattr(section, "name", "") or "Секция"),
+            "system": "ЦС", "system_name": calc.system.name,
+            "width_mm": decimal_text(decimal_value(calc.installation_width_mm)),
+            "height_mm": decimal_text(decimal_value(calc.installation_height_mm)),
+            "quantity": max(int(getattr(section, "quantity", 1) or 1), 1),
+            "panels": len(calc.panes), "glass_area_m2": decimal_text(decimal_value(calc.glass_area_m2)),
+            "glass_supplied": supplied, "glass_type": calc.glass_type if supplied else "Без стекла",
+            "color": calc.color_text, "glass_weight_kg": "0",
+            "comments": str(getattr(section, "comments", "") or ""),
+            "cs_geometry": calc.frozen_geometry,
+        }
 
     panels = max(int(getattr(section, "panels", 0) or 0), 1)
     width = decimal_value(getattr(section, "width", 0))
@@ -998,12 +1021,13 @@ def _section_breakdown_exact(
     section_total: Decimal,
 ) -> list[dict[str, Any]]:
     grouped: dict[tuple[str, str, str], dict[str, Any]] = {}
-    public_sources = {"profile", "component", "extra_component"}
+    public_sources = {"profile", "component", "extra_component", "glass"}
     public_total = ZERO
     for row in priced_bom:
         if row.get("source") not in public_sources:
             continue
-        key = (str(row["sku"]), str(row["name"]), str(row["unit"]))
+        key = (("", "Стекло", "компл.") if row.get("source") == "glass" else
+               (str(row["sku"]), str(row["name"]), str(row["unit"])))
         grouped_row = grouped.setdefault(
             key,
             {
@@ -1014,11 +1038,14 @@ def _section_breakdown_exact(
                 "total_exact": ZERO,
             },
         )
-        grouped_row["quantity_exact"] += decimal_value(row["quantity"])
+        if row.get("source") == "glass":
+            grouped_row["quantity_exact"] = Decimal("1")
+        else:
+            grouped_row["quantity_exact"] += decimal_value(row["quantity"])
         grouped_row["total_exact"] += decimal_value(row["internal_total"]) * sale_factor
 
     result = []
-    for row in sorted(grouped.values(), key=lambda item: (item["sku"], item["name"])):
+    for row in sorted(grouped.values(), key=lambda item: (not bool(item["sku"]), item["sku"], item["name"])):
         total = max(ZERO, row.pop("total_exact"))
         quantity = row.pop("quantity_exact")
         public_total += total
@@ -1029,17 +1056,9 @@ def _section_breakdown_exact(
                 "exact_total": total,
             }
         )
-    hidden_total = max(ZERO, section_total - public_total)
-    if hidden_total > 0:
-        result.append(
-            {
-                "sku": "",
-                "name": "Стекло",
-                "quantity": "1",
-                "unit": "компл.",
-                "exact_total": hidden_total,
-            }
-        )
+    if public_total > 0:
+        for row in result:
+            row["exact_total"] = row["exact_total"] / public_total * section_total
     return result
 
 
@@ -1126,6 +1145,119 @@ def _section_requirements(section: object) -> tuple[object, list[dict[str, Any]]
     return calc, required
 
 
+def construction_requirements(db: Session, section: object) -> tuple[object, list[dict[str, Any]]]:
+    if system_code(section) != "CS":
+        return _section_requirements(section)
+    from engine.cs_calc import calculate_cs, cs_result_namespace
+    kit = resolve_cs_kit(db, section)
+    raw = calculate_cs(section, system=kit, outer_profile=kit.outer_profile)
+    if raw["normalized_config"].get("doors"):
+        raise ValueError("Двери ЦС пока не поддерживаются в расчёте стоимости")
+    if any(row["role"] == "bubble" for row in raw["profiles"]) and not kit.bubble_seal:
+        raise ValueError("В выбранном составе ЦС не задан пузырьковый уплотнитель")
+    required = []
+    for row in raw["profiles"]:
+        required.append({"sku": row["article"], "name": row["name"], "category": "profile",
+                         "unit": "м", "quantity": decimal_value(row["total_length_mm"]) / 1000,
+                         "source": "profile", "finish": _catalog_finish_name(section, painted=True)
+                         if row["role"] == "cover" else "Без цвета", "role": row["role"]})
+    for row in raw["hardware"]:
+        required.append({"sku": "CS-JOINT-TAPE" if row["role"] == "tape" else row["article"],
+                         "name": row["name"], "category": "component", "unit": row["unit"],
+                         "quantity": decimal_value(row["qty"]), "source": "component",
+                         "finish": "Без цвета", "role": row["role"]})
+    if _glass_supplied(section) and raw["glass_area_m2"] > 0:
+        required.append({"sku": _price_sku("GLASS", raw["glass_type"]), "name": raw["glass_type"],
+                         "category": "component", "unit": "м²", "source": "glass",
+                         "quantity": decimal_value(raw["glass_area_m2"])})
+    # Store only geometry and technical kit identity; never private prices.
+    geometry = {key: raw[key] for key in ("system", "installation_polygon", "clear_polygon", "panes",
+                "normalized_config", "installation_width_mm", "installation_height_mm",
+                "clear_width_mm", "clear_height_mm", "profiles", "hardware")}
+    geometry["normalized_config"] = {key: raw["normalized_config"][key]
+                                     for key in ("vertices", "profiledEdges")
+                                     if key in raw["normalized_config"]}
+    raw["warnings"] = []
+    calc = cs_result_namespace(raw)
+    calc.frozen_geometry = geometry
+    calc.kit_dependency = {"id": kit.id, "code": kit.code, "name": kit.name,
+                           "is_active": kit.is_active,
+                           "parts": {row["role"]: row["sku"] for row in required if "role" in row}}
+    return calc, required
+
+
+def _project_cs_requirements(db: Session, sections: Iterable[object]):
+    """Prepare project quantities once, before any section prices are evaluated."""
+    prepared, entries = {}, []
+    for section in sections:
+        if system_code(section) != "CS":
+            continue
+        try:
+            prepared[id(section)] = construction_requirements(db, section)
+            entries.append((section, prepared[id(section)][0]))
+        except ValueError as exc:
+            prepared[id(section)] = exc
+    plan = build_cover_plan(entries)
+    for index, (section, calc) in enumerate(entries):
+        allocated = section_allocation_m(plan, index)
+        _, requirements = prepared[id(section)]
+        for row in requirements:
+            if row.get("role") == "cover":
+                row["quantity"] = allocated
+        # Keep the technical single-section BOM intact. Only quote composition
+        # carries the billable share, so 4+6+8 cannot appear as an 18-stick sale.
+        geometry = dict(calc.frozen_geometry)
+        geometry["profiles"] = []
+        for profile in calc.frozen_geometry["profiles"]:
+            row = dict(profile)
+            if row["role"] == "cover":
+                for key in ("pieces", "cut_lengths_mm", "cutting_text", "length_mm"):
+                    row.pop(key, None)
+                row["total_length_mm"] = float(allocated * 1000)
+                row["allocation_m"] = str(allocated)
+                row["allocation_note"] = "Доля общего раскроя заказа"
+            geometry["profiles"].append(row)
+        calc.frozen_geometry = geometry
+    return prepared, plan
+
+
+def price_construction_section(db: Session, section: object, *, at=None, active=None,
+                               overrides=None, draft: dict | None = None, prepared=None) -> dict:
+    """The single read-only pricing path for samples and actual quote sections."""
+    when = _normalize_datetime(at or datetime.utcnow())
+    code = system_code(section)
+    settings = current_components(db, code, when)
+    settings.update((draft or {}).get("components", {}))
+    general = current_global(db, code, when)
+    general_values = {"markup_percent": decimal_text(decimal_value(general.markup_percent if general else 0)),
+                      "discount_percent": decimal_text(decimal_value(general.discount_percent if general else 0))}
+    general_values.update((draft or {}).get("general", {}))
+    if prepared is None and code == "CS":
+        inputs, _ = _project_cs_requirements(db, [section])
+        prepared = inputs[id(section)]
+    if isinstance(prepared, ValueError):
+        raise prepared
+    calc, requirements = prepared if prepared is not None else construction_requirements(db, section)
+    active = active if active is not None else _active_price_versions(db, when)
+    bom, issues = [], []
+    for required in requirements:
+        priced, issue = _price_requirement(required, active, overrides or {}, mode="construction",
+                                            db=db, at=when, system_settings=settings, pricing_system=code)
+        if issue:
+            issues.append({**issue, "quantity": decimal_text(decimal_value(required["quantity"])),
+                           "unit": required["unit"]})
+        elif priced:
+            bom.append(priced)
+    subtotal = money(sum((decimal_value(row["internal_total"]) for row in bom), ZERO))
+    after_markup = money(subtotal * _markup_factor(general_values["markup_percent"]))
+    total = money(after_markup * _discount_factor(general_values["discount_percent"]))
+    return {"calc": calc, "bom": bom, "issues": issues, "system_code": code,
+            "stages": {"subtotal": money_text(subtotal), **general_values,
+                       "after_markup": money_text(after_markup), "total": money_text(total)},
+            "dependency": {"general": general_values, "kit": getattr(calc, "kit_dependency", None)},
+            "minimum_total": money_text(sum((decimal_value(row["minimum_total"]) for row in bom), ZERO))}
+
+
 def _price_requirement(
     required: dict[str, Any],
     active: dict[str, tuple[models.CatalogItem, models.CatalogPriceVersion]],
@@ -1134,6 +1266,8 @@ def _price_requirement(
     mode: str = "legacy",
     db: Session | None = None,
     at: datetime | None = None,
+    system_settings: dict | None = None,
+    pricing_system: str | None = None,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     sku = required["sku"]
     override = overrides.get(sku)
@@ -1218,7 +1352,7 @@ def _price_requirement(
     if version is not None:
         if db is not None:
             cost = decimal_value(version.cost)
-        cost_known = True
+        cost_known = getattr(version, "cost_is_set", True) is not False
         price_unit = version.unit
         category = version.category
         profile_markup = decimal_value(
@@ -1250,6 +1384,24 @@ def _price_requirement(
     else:
         cost = ZERO
 
+    if version is not None and not cost_known:
+        return None, {"code": "missing_price", "sku": sku, "name": required["name"],
+                      "unit": required["unit"], "detail": "Себестоимость не заполнена",
+                      "component_key": component_key(item.id, finish_variant_id)}
+    system_setting = None
+    if mode == "construction" and system_settings is not None:
+        key = component_key(item.id, finish_variant_id) if item is not None else ""
+        system_setting = system_settings.get(key)
+        values = settings_values(system_setting)
+        if values is None and override is None:
+            return None, {"code": "missing_price", "sku": sku, "name": required["name"],
+                          "unit": required["unit"], "detail": "Не настроена цена в выбранной системе",
+                          "system_code": pricing_system, "component_key": key}
+        if values:
+            waste_markup = decimal_value(values["waste_percent"])
+            construction_markup = decimal_value(values["markup_percent"])
+            construction_discount = decimal_value(values["discount_percent"])
+
     quantity = decimal_value(required["quantity"])
     base_cost = cost * quantity
     profile_after_markup = base_cost * _markup_factor(profile_markup)
@@ -1275,6 +1427,9 @@ def _price_requirement(
     return {
         **required,
         "quantity": decimal_text(quantity),
+        "component_key": component_key(item.id, finish_variant_id) if getattr(item, "id", None) is not None else None,
+        "system_code": pricing_system,
+        "system_component_version_id": getattr(system_setting, "id", None),
         "catalog_category": category,
         "price_unit": price_unit,
         "price_version_id": version.id if version is not None else None,
@@ -1667,9 +1822,7 @@ def _pricing_context_payload(
         "cost",
         "profile_markup_percent",
         "profile_discount_percent",
-        "waste_markup_percent",
-        "construction_markup_percent",
-        "construction_discount_percent",
+        "cost_is_set",
         "category",
         "unit",
         "min_margin_percent",
@@ -1677,32 +1830,36 @@ def _pricing_context_payload(
     section_fields = [
         column.name
         for column in models.Section.__table__.columns
-        if column.name not in {"document_overrides", "updated_at", "created_at"}
+        if column.name not in {"document_overrides", "updated_at", "created_at", "price_group_id"}
     ]
     used_overrides = set()
     overrides = {
         row["sku"]: row for row in _canonical_overrides(state.overrides_payload)
     }
     catalog: list[dict[str, Any]] = []
+    prepared_cs, cover_plan = _project_cs_requirements(
+        db, sorted(project.sections, key=lambda row: (int(row.order or 0), int(row.id or 0)))
+    )
     for section in sorted(
         project.sections, key=lambda row: (int(row.order or 0), int(row.id or 0))
     ):
-        if str(section.system or "").strip().upper() != "СЛАЙД":
+        if system_code(section) is None:
             continue
-        _, requirements = _section_requirements(section)
-        for required in requirements:
-            used_overrides.add(required["sku"])
-            priced, issue = _price_requirement(
-                required, active, overrides, mode="construction", db=db, at=at
-            )
-            catalog.append(
-                {
-                    "section_id": section.id,
-                    "sku": required["sku"],
-                    "priced": priced,
-                    "issue": issue,
-                }
-            )
+        try:
+            priced_section = price_construction_section(db, section, at=at, active=active, overrides=overrides,
+                                                        prepared=prepared_cs.get(id(section)))
+            used_overrides.update(row["sku"] for row in priced_section["bom"])
+            used_overrides.update(row["sku"] for row in priced_section["issues"] if row.get("sku"))
+            # Standalone-sale percentages and their version IDs do not affect
+            # construction prices. Only consumed inputs invalidate an order.
+            fingerprint_rows = [{key: value for key, value in row.items()
+                                 if key not in {"price_version_id", "price_source", "profile_markup_percent",
+                                                "profile_discount_percent", "price_stages"}}
+                                for row in priced_section["bom"]]
+            catalog.append({"section_id": section.id, "bom": fingerprint_rows,
+                            "issues": priced_section["issues"], "system": priced_section["dependency"]})
+        except ValueError as exc:
+            catalog.append({"section_id": section.id, "error": str(exc)})
 
     active_by_id = {pair[0].id: pair for pair in active.values()}
     for index, extra in enumerate(
@@ -1731,12 +1888,10 @@ def _pricing_context_payload(
                 else None,
                 "finish": {"id": variant.id, "name": variant.name} if variant else None,
                 "price": {
-                    "id": resolved.id,
                     **{
                         field: _signature_value(getattr(resolved, field))
                         for field in price_fields
                     },
-                    "source": resolved.source,
                 }
                 if resolved
                 else None,
@@ -1744,6 +1899,7 @@ def _pricing_context_payload(
         )
     return {
         "engine_version": QUOTE_SNAPSHOT_VERSION,
+        "cs_cover_cutting": cover_plan,
         "project": {
             "id": project.id,
             "number": project.number,
@@ -2005,47 +2161,35 @@ def calculate_quote(
     slide_sections = [
         section
         for section in ordered_sections
-        if str(section.system or "").strip().upper() == "СЛАЙД"
+        if system_code(section) is not None
     ]
     unsupported_sections = [
         section
         for section in ordered_sections
-        if str(section.system or "").strip().upper() != "СЛАЙД"
+        if system_code(section) is None
     ]
+    prepared_cs, cover_plan = _project_cs_requirements(db, ordered_sections)
     for section in slide_sections:
-        calc, requirements = _section_requirements(section)
+        try:
+            priced_section = price_construction_section(db, section, at=now, active=active, overrides=overrides,
+                                                        prepared=prepared_cs.get(id(section)))
+        except ValueError as exc:
+            issues.append({"code": "unsupported_section_pricing", "name": str(exc),
+                           "section_ids": [section.id]})
+            continue
+        calc = priced_section["calc"]
         slide_warnings.extend(
             f"{section.name or f'Секция {section.order}'}: {warning}"
             for warning in getattr(calc, "warnings", []) or []
         )
-        priced_bom: list[dict[str, Any]] = []
-        section_issues: list[dict[str, Any]] = []
-        for required in requirements:
-            priced, issue = _price_requirement(
-                required,
-                active,
-                overrides,
-                mode="construction",
-                db=db,
-                at=now,
-            )
-            if issue is not None:
-                section_issues.append(issue)
-                issues.append(issue)
-            elif priced is not None:
-                priced_bom.append(priced)
+        priced_bom = priced_section["bom"]
+        section_issues = priced_section["issues"]
+        issues.extend(section_issues)
 
         bom_total = sum(
             (decimal_value(line["internal_total"]) for line in priced_bom), ZERO
         )
-        price_group = _construction_group(db, section)
-        group_markup = decimal_value(
-            getattr(price_group, "markup_percent", ZERO) if price_group else ZERO
-        )
-        # The group value is written into immutable item price versions by
-        # the pricing API. Applying it here again would double the requested
-        # construction markup.
-        internal_total = money(bom_total)
+        internal_total = decimal_value(priced_section["stages"]["total"])
         minimum_total = sum(
             (decimal_value(line["minimum_total"]) for line in priced_bom), ZERO
         )
@@ -2126,9 +2270,8 @@ def calculate_quote(
                 "internal_total": money_text(internal_total),
                 "bom_total": money_text(bom_total),
                 "minimum_total": money_text(minimum_total),
-                "price_group_id": price_group.id if price_group else None,
-                "price_group_code": price_group.code if price_group else None,
-                "price_group_markup_percent": decimal_text(group_markup),
+                "system_code": priced_section["system_code"],
+                "system_stages": priced_section["stages"],
                 "dealer_discount_percent": public_line["discount_percent"],
                 "price_before_discount": public_line["line_total_before_discount"],
                 "final_price": public_line["line_total"],
@@ -2214,7 +2357,7 @@ def calculate_quote(
             }
             issues.append(issue)
             continue
-        elif item is not None and version is not None:
+        elif item is not None and version is not None and getattr(version, "cost_is_set", True):
             selected_cost = decimal_value(version.cost)
             unit_sale = money(
                 selected_cost
@@ -2498,7 +2641,7 @@ def calculate_quote(
         issues.append(
             {
                 "code": "unsupported_section_pricing",
-                "name": "Расчёт стоимости пока поддерживает только секции СЛАЙД",
+                "name": "Расчёт стоимости поддерживает Слайд 1, Слайд 2 и ЦС без дверей",
                 "section_ids": [section.id for section in unsupported_sections],
             }
         )
@@ -2593,7 +2736,7 @@ def calculate_quote(
         warnings.append("В проекте нет позиций для расчёта стоимости.")
     if any(issue["code"] == "unsupported_section_pricing" for issue in issues):
         warnings.append(
-            "Расчёт стоимости секций КНИЖКА, ЛИФТ, ЦС и ДВЕРЬ пока не поддерживается."
+            "В проекте есть конфигурации без полного расчёта стоимости. Поддерживаются Слайд 1, Слайд 2 и ЦС без дверей."
         )
     warnings.extend(slide_warnings)
 
@@ -2609,6 +2752,7 @@ def calculate_quote(
         ZERO,
     )
     public_payload = {
+        "cs_cover_cutting": cover_plan,
         "document_layout_version": 2,
         "money_presentation_version": 2,
         "project": {

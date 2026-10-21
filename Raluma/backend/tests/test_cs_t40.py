@@ -29,7 +29,7 @@ def rectangle(width=1755, height=2835, **kwargs):
 
 @pytest.mark.parametrize(
     "count, widths",
-    [(0, [1703]), (1, [850, 850]), (2, [570 + 1 / 3, 556 + 1 / 3, 570 + 1 / 3])],
+    [(0, [1703]), (1, [850, 850]), (2, [570, 556, 570])],
 )
 def test_customer_control_dimensions(count, widths):
     result = calculate_cs(
@@ -42,12 +42,12 @@ def test_customer_control_dimensions(count, widths):
     assert result["hardware"][0]["qty"] == 2 * (count + 1)
     profiles = {p["role"]: p for p in result["profiles"]}
     assert profiles["outer"]["total_length_mm"] == 9180
-    assert profiles["cover"]["total_length_mm"] == 21000
-    assert profiles["cover"]["pieces"] == 7
+    assert profiles["cover"]["total_length_mm"] == 24000
+    assert profiles["cover"]["pieces"] == 8
     assert all(not p["requires_paint"] for p in result["profiles"])
     if count:
         assert result["hardware"][1]["article"] == ""
-        assert result["hardware"][1]["qty"] == pytest.approx(count * 2 * 2.783)
+        assert result["hardware"][1]["qty"] == (6 if count == 1 else 12)
 
 
 @pytest.mark.parametrize("deduction", [6, 7])
@@ -82,7 +82,7 @@ def test_quantity_and_only_covers_painted():
     assert result["hardware"][0]["qty"] == 12
     assert [p["qty"] for p in result["panes"]] == [2, 2, 2]
     assert result["profiles"][0]["pieces"] == 8
-    assert result["profiles"][1]["pieces"] == 14
+    assert result["profiles"][1]["pieces"] == 16
     assert [p["article"] for p in result["profiles"] if p["requires_paint"]] == ["Т40К"]
     assert result["commercial_price_allowed"] is False
 
@@ -139,18 +139,19 @@ def test_concave_clip_returns_separate_panes_and_pads_for_every_component():
     assert len(result["panes"]) == 3
     assert result["hardware"][0]["qty"] == 6
     assert result["hardware"][1]["qty"] == 4
-    assert result["glass_area_m2"] == pytest.approx(7 - 0.006)
+    assert result["glass_area_m2"] == pytest.approx(6.993)
     for pane in result["panes"]:
         polygon = Polygon([(p["x"], p["y"]) for p in pane["polygon"]])
         assert polygon.is_valid
-        assert polygon.area / 1e6 == pytest.approx(pane["area_m2"])
+        expected_area = pane["width_mm"] * pane["height_mm"] if pane["is_rectangle"] else polygon.area
+        assert expected_area / 1e6 == pytest.approx(pane["area_m2"])
 
 
 def test_tape_excludes_crossing_air_gaps():
     result = calculate_cs(
         section(cs_config=rectangle(vertical={"count": 1}, horizontal={"count": 1}))
     )
-    assert result["hardware"][1]["qty"] == pytest.approx(2 * (2783 - 3 + 1703 - 3) / 1000)
+    assert result["hardware"][1]["qty"] == 9
 
 
 def test_triangle_excel_preserves_polygon_area_formula(client):
@@ -295,12 +296,12 @@ def test_documents_contain_real_bom_and_only_cover_in_paint(client, extension):
                 )
         assert "Т40К" in body
         if doc == "paint":
-            # Warning text may mention T40T, but no clamp or pad in paint rows.
+            # Only covers belong in paint rows.
             assert "Зажимной профиль Т40Т в сборе" not in body
             assert "CS-PVC-PAD" not in body
         elif doc == "sketch":
             assert "CS-PVC-PAD" not in body
-            assert "склейка через скотч" in body
+            assert "склейка через скотч" not in body
         else:
             assert "CS-PVC-PAD" in body
             assert "скотч" in body

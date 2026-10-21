@@ -544,8 +544,8 @@ class TestPreview:
             params={"token": token},
         )
         assert r.status_code == 200
-        assert "Предварительный производственный лист ЦС" in r.text
-        assert "Коммерческая цена пока не формируется" in r.text
+        assert "Производственный лист ЦС" in r.text
+        assert "Стоимость ЦС рассчитывается по настройкам системы" not in r.text
         assert "Зажимной профиль Т40Т в сборе" in r.text
 
 
@@ -1554,15 +1554,15 @@ class TestSketchProject:
                 "Комплект 8 (КОМПЛЕКТАЦИЯ)",
             ]
 
-    def test_preliminary_book_is_allowed_and_warning_is_in_document(self, client):
+    def test_preliminary_book_is_allowed_without_system_warning_in_document(self, client):
         response = client.post(
             "/api/projects/local/documents/sketch/preview",
             json=self._payload([self._book(book_system="B16")]),
         )
 
         assert response.status_code == 200, response.text
-        assert "предварительн" in response.text.lower()
-        assert "этой системы заблокированы" in response.text
+        assert "предварительн" not in response.text.lower()
+        assert "этой системы заблокированы" not in response.text
 
     def test_book_geometry_error_returns_422(self, client):
         response = client.post(
@@ -1841,7 +1841,7 @@ class TestSketchProject:
 
         assert response.status_code == 200, response.text
         assert re.search(
-            r"Межстекольный профиль</span><span class=\"meta-value\">—</span>",
+            r"Межстекольный профиль</td><td class=\"meta-item meta-value\">—</td>",
             response.text,
         )
 
@@ -3283,9 +3283,9 @@ class TestOfficeDownloads:
     @pytest.mark.parametrize(
         ("production_stages", "current_stage", "expected_section", "excluded_section"),
         [
-            (1, 1, {"Конструкция", "Стекло"}, set()),
-            (2, 1, {"Конструкция"}, {"Стекло"}),
-            (2, 2, {"Стекло"}, {"Конструкция"}),
+            (1, 1, {"Конструкция", "Стеклянная панель"}, set()),
+            (2, 1, {"Конструкция"}, {"Стеклянная панель"}),
+            (2, 2, {"Стеклянная панель"}, {"Конструкция"}),
         ],
     )
     def test_local_delivery_xlsx_is_one_image_free_sheet_and_respects_stage(
@@ -3387,7 +3387,7 @@ class TestOfficeDownloads:
         assert "15.08.2026" in archive_text
         assert "Петров Пётр" in archive_text
         assert "Второй этап" in archive_text
-        assert "Стекло" in archive_text
+        assert "Стеклянная панель" in archive_text
         assert "Конструкция" not in {
             row.get("B") for row in self._xlsx_sheet_rows(response.content)[0]
         }

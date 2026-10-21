@@ -290,6 +290,8 @@ def test_used_rule_scheduled_activation_changes_quote(dependency_db):
             reason="Test",
         )
     )
+    from engine.construction_pricing import migrate_construction_pricing
+    migrate_construction_pricing(db, at=NOW); db.flush()
     project = add_project(db, actor, item, variant)
     freeze_quote(db, project, actor, at=NOW)
     state = get_or_create_quote_state(db, project)
@@ -407,29 +409,16 @@ def test_preview_token_keeps_precision_of_sale_override(dependency_db, monkeypat
     assert before != current_quote_preview_token(db, project, at=NOW)
 
 
-def test_system_bulk_markup_affects_only_used_item_versions(dependency_db, monkeypatch):
-    from api.pricing import _apply_group_markup_to_catalog
-
-    monkeypatch.setattr("api.pricing.datetime", SimpleNamespace(utcnow=lambda: NOW))
+def test_legacy_group_edits_no_longer_change_prices(dependency_db):
     db, actor = dependency_db
     item, variant = add_item(db, actor)
     project = add_project(db, actor, item, variant)
-    group = models.ConstructionPriceGroup(
-        code="SLIDE_1", name="Slide", markup_percent=30
-    )
-    db.add(group)
-    db.flush()
+    group = models.ConstructionPriceGroup(code="SLIDE_1", name="Slide", markup_percent=30)
+    db.add(group); db.flush()
     freeze_quote(db, project, actor, at=NOW)
     state = get_or_create_quote_state(db, project)
-    group.name = "Label only"
-    group.updated_at = NOW
-    db.flush()
+    group.markup_percent = 900; db.flush()
     assert not quote_is_stale(db, project, state, at=NOW)
-    group.markup_percent = 40
-    _apply_group_markup_to_catalog(db, group, actor)
-    db.flush()
-    # System bulk writes a new actual price version, not a hidden multiplier.
-    assert quote_is_stale(db, project, state, at=NOW)
 
 
 def test_old_fixed_signature_keeps_payload_immutable(dependency_db):

@@ -14,6 +14,7 @@ from api import (
     auth,
     calculations,
     catalog,
+    construction_pricing,
     customers,
     documents,
     pricing,
@@ -51,6 +52,12 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     run_migrations()
     seed_superadmin()
+    from api.catalog import _ensure_catalog_seed
+    from engine.construction_pricing import migrate_construction_pricing
+    with SessionLocal() as db:
+        _ensure_catalog_seed(db)
+        migrate_construction_pricing(db)
+        db.commit()
     yield
 
 
@@ -84,6 +91,7 @@ app.include_router(projects.router)
 app.include_router(sections.router)
 app.include_router(documents.router)
 app.include_router(catalog.router)
+app.include_router(construction_pricing.router)
 app.include_router(pricing.router)
 app.include_router(quotes.router)
 app.include_router(calculations.router)

@@ -76,7 +76,7 @@ function SkeletonRow() {
 
 export default function ProjectsPage() {
   const navigate = useNavigate();
-  const { user, token, clearAuth, isAdmin } = useAuthStore();
+  const { user, token, clearAuth, isAdmin, canManagePrices } = useAuthStore();
   const { theme, toggle: toggleTheme } = useThemeStore();
 
   const [projects, setProjects] = useState<ProjectList[]>([]);
@@ -276,6 +276,7 @@ export default function ProjectsPage() {
               title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}>
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
+            {user && canManagePrices() && <button onClick={() => navigate('/admin/pricing')} className="rounded-xl border border-tint/30 px-3 py-2 text-sm font-semibold text-accent">Настройка конструкций</button>}
             {user && isAdmin() && (
               <button onClick={() => navigate('/admin')}
                 className="flex items-center gap-2 px-2.5 sm:px-4 py-2.5 rounded-xl bg-tint/10 hover:bg-tint/20 text-accent transition-all border border-tint/20"

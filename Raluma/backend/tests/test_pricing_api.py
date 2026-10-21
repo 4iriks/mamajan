@@ -101,7 +101,7 @@ def test_public_catalog_supports_multiple_admins(client, admin_headers):
         client.delete(f"/api/users/{second_admin['id']}", headers=admin_headers)
 
 
-def test_price_versions_future_history_bulk_and_rollback(client, admin_headers):
+def test_price_versions_future_history_and_rollback(client, admin_headers):
     item_id, sku = _new_catalog_item()
     try:
         active = client.post(
@@ -126,34 +126,6 @@ def test_price_versions_future_history_bulk_and_rollback(client, admin_headers):
         assert row["next_price"]["cost"] == "200.00"
         assert row["history_count"] == 2
 
-        bulk_data = {
-            "item_ids": [item_id],
-            "percent": "10",
-            "effective_from": datetime.utcnow().isoformat(),
-            "reason": "Индексация",
-        }
-        preview = client.post(
-            "/api/pricing/catalog/bulk/preview",
-            headers=admin_headers,
-            json=bulk_data,
-        )
-        assert preview.status_code == 200, preview.text
-        assert preview.json()["rows"][0] == {
-            "item_id": item_id,
-            "sku": sku,
-            "name": "Тестовая позиция цены",
-            "old_cost": "100.00",
-            "new_cost": "110.00",
-            "source_version_id": active_id,
-        }
-        applied = client.post(
-            "/api/pricing/catalog/bulk/apply",
-            headers=admin_headers,
-            json=bulk_data,
-        )
-        assert applied.status_code == 201, applied.text
-        assert applied.json()["versions"][0]["cost"] == "110.00"
-
         rolled_back = client.post(
             f"/api/pricing/catalog/{item_id}/rollback/{active_id}",
             headers=admin_headers,
@@ -171,7 +143,7 @@ def test_price_versions_future_history_bulk_and_rollback(client, admin_headers):
             headers=admin_headers,
         )
         assert history.status_code == 200
-        assert len(history.json()["versions"]) == 4
+        assert len(history.json()["versions"]) == 3
     finally:
         _delete_catalog_item(item_id)
 
@@ -355,35 +327,6 @@ def test_standalone_sale_uses_only_item_terms_variants_and_buyer_discount(
         _delete_catalog_item(colored_id)
 
 
-def test_construction_price_groups_are_admin_managed_and_publicly_safe(
-    client, admin_headers
-):
-    admin_list = client.get("/api/pricing/price-groups", headers=admin_headers)
-    assert admin_list.status_code == 200
-    assert {row["code"] for row in admin_list.json()} == {"SLIDE_1", "SLIDE_2"}
-
-    public_list = client.get("/api/catalog/construction-price-groups")
-    assert public_list.status_code == 200
-    assert {row["code"] for row in public_list.json()} == {"SLIDE_1", "SLIDE_2"}
-    assert all("markup_percent" not in row for row in public_list.json())
-
-    fixed = client.get("/api/catalog/system-markups", headers=admin_headers)
-    assert fixed.status_code == 200
-    assert {row["code"] for row in fixed.json()} == {"SLIDE_1", "SLIDE_2", "CS"}
-
-    rejected = client.post(
-        "/api/pricing/price-groups",
-        headers=admin_headers,
-        json={
-            "code": _unique("FUTURE").upper(),
-            "name": "Будущая система",
-            "markup_percent": "33.5",
-            "is_active": True,
-        },
-    )
-    assert rejected.status_code == 409
-
-    assert client.get("/api/pricing/settings", headers=admin_headers).status_code == 404
 
 
 def test_unified_catalog_uses_fixed_finish_rows_and_versioned_prices(
@@ -909,7 +852,7 @@ def test_pricing_permission_and_dealer_quote_access(client, admin_headers):
             )
             assert (
                 client.get("/api/catalog/system-markups", headers=headers).status_code
-                == 403
+                == 404
             )
         terms = client.put(
             f"/api/pricing/dealers/{dealer['id']}",
@@ -1245,6 +1188,7 @@ def test_cost_report_uses_fixed_internal_revision_and_exports_pdf_xlsx(
 def _seed_quote_prices(project_id: int, actor_id: int):
     db = SessionLocal()
     created_versions = []
+    created_settings = []
     version_by_sku = {}
     created_items = []
     try:
@@ -1322,8 +1266,18 @@ def _seed_quote_prices(project_id: int, actor_id: int):
                 db.add(finish_version)
                 db.flush()
                 created_versions.append(finish_version.id)
+        for price_id in created_versions:
+            price = db.get(models.CatalogPriceVersion, price_id)
+            for code in {"SLIDE_2" if s.slide_rows == 2 else "SLIDE_1" for s in project.sections}:
+                setting = models.SystemComponentPriceVersion(system_code=code,
+                    catalog_item_id=price.catalog_item_id, finish_variant_id=price.finish_variant_id,
+                    waste_percent=price.waste_markup_percent, markup_percent=price.construction_markup_percent,
+                    discount_percent=price.construction_discount_percent, effective_from=datetime.utcnow(),
+                    created_by=actor_id, reason="Quote test setup")
+                db.add(setting); db.flush(); created_settings.append(setting.id)
         db.commit()
         return {
+            "settings": created_settings,
             "skipped_sku": skipped_sku,
             "margin_sku": margin_sku,
             "versions": created_versions,
@@ -1338,6 +1292,7 @@ def _seed_quote_prices(project_id: int, actor_id: int):
 def _cleanup_quote_prices(seed):
     db = SessionLocal()
     try:
+        db.query(models.SystemComponentPriceVersion).filter(models.SystemComponentPriceVersion.id.in_(seed["settings"])).delete(synchronize_session=False)
         if seed["versions"]:
             db.query(models.CatalogPriceVersion).filter(
                 models.CatalogPriceVersion.id.in_(seed["versions"])
@@ -1446,82 +1401,6 @@ def test_quote_category_percent_and_order_ruble_discounts(
         _cleanup_quote_prices(seed)
 
 
-def test_system_markup_bulk_updates_finish_prices_and_preserves_fixed_groups(
-    client, admin_headers
-):
-    seeded = client.get("/api/catalog/hardware", headers=admin_headers)
-    assert seeded.status_code == 200, seeded.text
-    db = SessionLocal()
-    try:
-        assert (
-            db.query(models.CatalogPriceVersion)
-            .filter(models.CatalogPriceVersion.finish_variant_id.is_not(None))
-            .count()
-            > 0
-        )
-        version_ids_before = {
-            row[0] for row in db.query(models.CatalogPriceVersion.id).all()
-        }
-        variants = (
-            db.query(models.CatalogFinishVariant)
-            .join(models.CatalogItem)
-            .filter(models.CatalogItem.is_active == True)  # noqa: E712
-            .all()
-        )
-        original_values = {
-            row.id: Decimal(row.construction_markup_percent) for row in variants
-        }
-        target_markup = max(original_values.values(), default=Decimal("0")) + Decimal(
-            "1.25"
-        )
-        group = db.query(models.ConstructionPriceGroup).filter_by(code="SLIDE_1").one()
-        original_group_markup = Decimal(group.markup_percent)
-    finally:
-        db.close()
-
-    try:
-        response = client.put(
-            "/api/catalog/system-markups/SLIDE_1",
-            headers=admin_headers,
-            json={"constructionMarkupPercent": str(target_markup)},
-        )
-        assert response.status_code == 200, response.text
-        assert (
-            Decimal(str(response.json()["constructionMarkupPercent"])) == target_markup
-        )
-
-        db = SessionLocal()
-        try:
-            changed_versions = (
-                db.query(models.CatalogPriceVersion)
-                .filter(~models.CatalogPriceVersion.id.in_(version_ids_before))
-                .all()
-            )
-            assert changed_versions
-            assert all(row.finish_variant_id is not None for row in changed_versions)
-            assert all(
-                Decimal(row.construction_markup_percent) == target_markup
-                for row in changed_versions
-            )
-        finally:
-            db.close()
-    finally:
-        db = SessionLocal()
-        try:
-            for variant_id, value in original_values.items():
-                variant = db.get(models.CatalogFinishVariant, variant_id)
-                if variant is not None:
-                    variant.construction_markup_percent = value
-            group = (
-                db.query(models.ConstructionPriceGroup).filter_by(code="SLIDE_1").one()
-            )
-            group.markup_percent = original_group_markup
-            db.query(models.CatalogPriceVersion).filter(
-                ~models.CatalogPriceVersion.id.in_(version_ids_before)
-            ).delete(synchronize_session=False)
-            db.commit()
-        finally:
-            db.close()
 
 
 def test_slide_without_glass_removes_glass_price_and_weight_but_keeps_geometry(

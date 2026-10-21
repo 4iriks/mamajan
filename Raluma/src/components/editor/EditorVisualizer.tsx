@@ -25,7 +25,7 @@ function isBookCalcPreview(
   return Boolean(calc && 'normalized_config' in calc && 'panels' in calc && 'source_priority' in calc);
 }
 
-function CsRoomView({ section, calc }: { section: Section; calc: CsCalcPreview }) {
+export function CsRoomView({ section, calc }: { section: Section; calc: CsCalcPreview }) {
   const contour = calc.installation_polygon || calc.normalized_config.vertices;
   const minX = Math.min(...contour.map(p => p.x)), minY = Math.min(...contour.map(p => p.y));
   const maxY = Math.max(...contour.map(p => p.y));

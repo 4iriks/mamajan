@@ -1,23 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlertTriangle, ArrowLeft, BadgePercent, Box, Check, Edit2, FileUp, Loader2, Package,
-  ImageIcon, Plus, Ruler, Save, Scale, Search, SlidersHorizontal, Trash2, X,
+  ImageIcon, Plus, Save, Scale, Search, SlidersHorizontal, Trash2, X,
 } from 'lucide-react';
 import {
-  applyCatalogPricingBulk,
   archiveHardwareCatalogItem,
   createCsSystem,
   createHardwareCatalogItem,
   listCsSystems,
   listHardwareCatalog,
-  listSystemMarkups,
-  previewCatalogPricingBulk,
-  updateSystemMarkup,
   updateHardwareCatalogItem,
   updateCsSystem,
-  type CatalogPricingBulkRequest,
   type CsSystem,
   type CatalogUnit,
   type CatalogFinishVariant,
@@ -26,7 +21,6 @@ import {
   type HardwareGroup,
   type PaintMode,
   type SystemGroupCode,
-  type SystemMarkup,
 } from '../api/catalog';
 import {
   applyPriceImport,
@@ -38,10 +32,6 @@ import {
 import { useAuthStore } from '../store/authStore';
 import { toast } from '../store/toastStore';
 import { money, numericDraft, validMoney } from '../utils/money';
-import { PricingRules } from '../components/PricingRules';
-import { applyRuleBindings, previewRuleBindings } from '../api/pricingRules';
-import { catalogBulkPreviewKey, confirmedCatalogBulkRequest, type CatalogBulkPreview } from '../utils/catalogPricing';
-import { CatalogBulkPreviewTable } from '../components/CatalogBulkPreviewTable';
 
 type HardwareItem = HardwareCatalogItem;
 
@@ -742,18 +732,8 @@ function profileSale(variant: CatalogFinishVariant) {
     * (1 - Number(variant.profileDiscountPercent || 0) / 100);
 }
 
-function costWithWaste(_item: HardwareItem, variant: CatalogFinishVariant) {
-  return Number(variant.cost || 0)
-    * (1 + Number(variant.wasteMarkupPercent || 0) / 100);
-}
-
-function constructionPrice(item: HardwareItem, variant: CatalogFinishVariant) {
-  return costWithWaste(item, variant)
-    * (1 + Number(variant.constructionMarkupPercent || 0) / 100)
-    * (1 - Number(variant.constructionDiscountPercent || 0) / 100);
-}
-
 function formatPriceRange(values: number[]) {
+  if (!values.length) return 'Нет действующей цены';
   const ordered = [...values].sort((left, right) => left - right);
   const first = ordered[0] ?? 0;
   const last = ordered[ordered.length - 1] ?? first;
@@ -763,7 +743,7 @@ function formatPriceRange(values: number[]) {
 }
 
 function priceRange(item: HardwareItem, transform: (item: HardwareItem, variant: CatalogFinishVariant) => number) {
-  return formatPriceRange(activeFinishes(item).map(variant => transform(item, variant)));
+  return formatPriceRange(activeFinishes(item).filter(variant => variant.costIsSet !== false && validMoney(variant.cost)).map(variant => transform(item, variant)));
 }
 
 function percentRange(item: HardwareItem, field: keyof CatalogFinishVariant) {
@@ -831,12 +811,12 @@ function PriceField({
   );
 }
 
-function PriceOutput({ label, value }: { label: string; value: number }) {
+function PriceOutput({ label, value }: { label: string; value: number | null }) {
   return (
     <div className="min-w-[116px]">
       <span className="mb-1.5 block text-[9px] font-bold uppercase leading-tight tracking-wider text-fg/35">{label}</span>
       <div className="flex h-11 items-center rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] px-3 font-mono text-sm font-bold text-[var(--catalog-price)]">
-        {formatMoney(value)}
+        {value === null ? '—' : formatMoney(value)}
       </div>
     </div>
   );
@@ -847,6 +827,7 @@ function ChainArrow() {
 }
 
 export default function HardwareCatalogPage() {
+  const openedItem = useRef(false);
   const navigate = useNavigate();
   const { user: me, isAdmin } = useAuthStore();
   const [items, setItems] = useState<HardwareItem[]>(readItems);
@@ -856,27 +837,12 @@ export default function HardwareCatalogPage() {
   const [group, setGroup] = useState<'Все' | HardwareGroup>('Все');
   const [systemGroup, setSystemGroup] = useState<'Все' | SystemGroupCode>('Все');
   const [status, setStatus] = useState<'all' | 'active' | 'inactive'>('active');
-  const [activeCatalogTab, setActiveCatalogTab] = useState<'items' | 'markups' | 'rules'>('items');
+  const [activeCatalogTab, setActiveCatalogTab] = useState<'items' | 'markups'>('items');
   const [draft, setDraft] = useState<HardwareItem | null>(null);
   const [originalDraft, setOriginalDraft] = useState('');
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
-  const [systemMarkups, setSystemMarkups] = useState<SystemMarkup[]>([]);
   const [csSystems, setCsSystems] = useState<CsSystem[]>([]);
   const [savingCsSystem, setSavingCsSystem] = useState<number | null>(null);
-  const [systemMarkupDrafts, setSystemMarkupDrafts] = useState<Record<SystemGroupCode, string>>({ SLIDE_1: '', SLIDE_2: '', CS: '' });
-  const [savingSystemGroup, setSavingSystemGroup] = useState<SystemGroupCode | null>(null);
-  const [bulkScope, setBulkScope] = useState<'filtered' | 'all'>('filtered');
-  const [bulkFinishCodes, setBulkFinishCodes] = useState<FinishCode[]>(['ANOD_UNPAINTED', 'RAL_STANDARD', 'RAL_MOIRE', 'SUBLIMATION', 'COLORLESS']);
-  const [bulkValues, setBulkValues] = useState({
-    profile_markup_percent: '',
-    profile_discount_percent: '',
-    waste_markup_percent: '',
-    construction_markup_percent: '',
-    construction_discount_percent: '',
-  });
-  const [bulkReason, setBulkReason] = useState('Массовая настройка цен каталога');
-  const [bulkPreview, setBulkPreview] = useState<CatalogBulkPreview | null>(null);
-  const [bulkLoading, setBulkLoading] = useState(false);
   const [costImport, setCostImport] = useState<CatalogPriceImportPreview | null>(null);
   const [costImportOpen, setCostImportOpen] = useState(false);
   const [costImportLoading, setCostImportLoading] = useState(false);
@@ -928,18 +894,19 @@ export default function HardwareCatalogPage() {
     setIsCatalogLoading(true);
     setCatalogError(false);
 
-    Promise.all([listHardwareCatalog(), listSystemMarkups(), listCsSystems()])
-      .then(([remoteItems, markups, csRows]) => {
+    Promise.all([listHardwareCatalog(), listCsSystems()])
+      .then(([remoteItems, csRows]) => {
         if (cancelled) return;
         const next = remoteItems.map(item => normalizeItem(item));
         setItems(next);
-        setSystemMarkups(markups);
         setCsSystems(csRows);
-        setSystemMarkupDrafts({
-          SLIDE_1: markups.find(row => row.code === 'SLIDE_1')?.constructionMarkupPercent?.toString() ?? '',
-          SLIDE_2: markups.find(row => row.code === 'SLIDE_2')?.constructionMarkupPercent?.toString() ?? '',
-          CS: markups.find(row => row.code === 'CS')?.constructionMarkupPercent?.toString() ?? '',
-        });
+        const linkedId = Number(new URLSearchParams(window.location.search).get('item'));
+        const linked = next.find(item => item.id === linkedId);
+        if (linked && !openedItem.current) {
+          openedItem.current = true;
+          setDraft(linked);
+          setOriginalDraft(JSON.stringify(linked));
+        }
       })
       .catch(() => {
         if (!cancelled) {
@@ -975,11 +942,6 @@ export default function HardwareCatalogPage() {
     });
   }, [group, items, search, status, systemGroup]);
 
-  const bulkItemIds = (bulkScope === 'filtered' ? filtered : items.filter(item => item.isActive)).map(item => item.id);
-  const bulkPreviewKey = catalogBulkPreviewKey({ itemIds: bulkItemIds, finishCodes: bulkFinishCodes, values: bulkValues, reason: bulkReason, filters: [bulkScope, search, group, systemGroup, status] });
-  const confirmedBulkRequest = confirmedCatalogBulkRequest(bulkPreview, bulkPreviewKey);
-  const currentBulkPreview = confirmedBulkRequest ? bulkPreview?.result : null;
-
   const stats = useMemo(() => {
     const active = items.filter(item => item.isActive);
     const markups = active.flatMap(item => activeFinishes(item).map(variant => Number(variant.profileMarkupPercent || 0)));
@@ -1011,7 +973,7 @@ export default function HardwareCatalogPage() {
       toast.error('Выберите хотя бы одну группу системы');
       return;
     }
-    const priceFields = ['cost', 'profileMarkupPercent', 'profileDiscountPercent', 'wasteMarkupPercent', 'constructionMarkupPercent', 'constructionDiscountPercent'] as const;
+    const priceFields = ['cost', 'profileMarkupPercent', 'profileDiscountPercent'] as const;
     for (const variant of draft.finishVariants || []) {
       const invalid = priceFields.find(field => !validMoney(variant[field], field.includes('Discount') ? 100 : undefined));
       if (invalid) { setDraftError(`${variant.name}: заполните все цены и проценты числами от 0. Скидки — не более 100%. Пустое поле не равно нулю.`); return; }
@@ -1023,16 +985,12 @@ export default function HardwareCatalogPage() {
       sku: draft.sku.trim(),
       name: draft.name.trim(),
       system: draft.system || 'СЛАЙД',
-      wastePercent: Number(draft.finishVariants?.[0]?.wasteMarkupPercent || 0),
       colorVariants: (draft.finishVariants || []).map(variant => variant.name),
       finishVariants: (draft.finishVariants || []).map(variant => ({
         ...variant,
         cost: numericDraft(variant.cost) ?? 0,
         profileMarkupPercent: numericDraft(variant.profileMarkupPercent) ?? 0,
         profileDiscountPercent: numericDraft(variant.profileDiscountPercent) ?? 0,
-        wasteMarkupPercent: numericDraft(variant.wasteMarkupPercent) ?? 0,
-        constructionMarkupPercent: numericDraft(variant.constructionMarkupPercent) ?? 0,
-        constructionDiscountPercent: numericDraft(variant.constructionDiscountPercent) ?? 0,
       })),
       updatedAt: new Date().toISOString().slice(0, 10),
     });
@@ -1051,48 +1009,6 @@ export default function HardwareCatalogPage() {
       const detail = (cause as { response?: { data?: { detail?: unknown } } }).response?.data?.detail;
       const message = typeof detail === 'string' ? detail : 'Не удалось сохранить позицию. Проверьте значения полей; ввод сохранён.';
       setDraftError(message); toast.error(message);
-    }
-  };
-
-  const reloadCatalogPrices = async () => {
-    try { setItems((await listHardwareCatalog()).map(normalizeItem)); }
-    catch { toast.error('Не удалось обновить каталог после изменения правила'); }
-  };
-  const restoreVariantRule = async (variant: CatalogFinishVariant) => {
-    if (!variant.id || !draft) return;
-    if (isDraftDirty) { setDraftError('Сначала сохраните или отмените изменения карточки, затем верните правило.'); return; }
-    const request = { finish_variant_ids: [variant.id], mode: 'auto' as const, reason: 'Возврат исполнения к правилу из карточки каталога' };
-    try {
-      const preview = await previewRuleBindings(request);
-      const row = preview.rows[0];
-      if (!window.confirm(`Вернуть правило для «${variant.name}»?\n${row ? `Профиль: ${money(row.before.profile?.final)} → ${money(row.after.profile?.final)}\nКонструкция: ${money(row.before.construction?.final)} → ${money(row.after.construction?.final)}` : 'Проверьте наличие активного правила.'}\nЗафиксированные КП не изменятся.`)) return;
-      await applyRuleBindings(request);
-      const refreshed = (await listHardwareCatalog()).map(normalizeItem);
-      setItems(refreshed); const current = refreshed.find(item => item.id === draft.id); if (current) openDraft(current);
-      toast.success('Исполнение использует правило');
-    } catch { setDraftError('Не удалось вернуть правило. Проверьте, что для группы или каталога создано активное правило.'); }
-  };
-
-  const handleSystemMarkupSave = async (code: SystemGroupCode) => {
-    const value = Number(systemMarkupDrafts[code]);
-    if (!validMoney(systemMarkupDrafts[code])) {
-      toast.error('Укажите корректную наценку');
-      return;
-    }
-    const affected = items.filter(item => item.isActive && item.systemGroups?.includes(code));
-    if (!window.confirm(`Установить наценку на конструкцию ${value}% для позиций системы (${affected.length} поз.)?\nОбщие детали изменятся также в других системах; индивидуальные проценты заменятся. Зафиксированные КП не изменятся.\nДля автоматического наследования используйте «Готовые правила».`)) return;
-    setSavingSystemGroup(code);
-    try {
-      await updateSystemMarkup(code, value);
-      const [remoteItems, markups] = await Promise.all([listHardwareCatalog(), listSystemMarkups()]);
-      setItems(remoteItems.map(item => normalizeItem(item)));
-      setSystemMarkups(markups);
-      setSystemMarkupDrafts(current => ({ ...current, [code]: value.toString() }));
-      toast.success('Наценка группы сохранена');
-    } catch {
-      toast.error('Не удалось изменить наценку группы');
-    } finally {
-      setSavingSystemGroup(null);
     }
   };
 
@@ -1212,70 +1128,6 @@ export default function HardwareCatalogPage() {
     }
   };
 
-  const buildBulkRequest = (): CatalogPricingBulkRequest | null => {
-    const itemIds = bulkItemIds;
-    const values = (Object.entries(bulkValues) as Array<[keyof typeof bulkValues, string]>)
-      .filter(([, value]) => value.trim() !== '');
-    if (!itemIds.length) {
-      toast.error('Нет позиций для изменения');
-      return null;
-    }
-    if (!bulkFinishCodes.length) {
-      toast.error('Выберите хотя бы одно исполнение');
-      return null;
-    }
-    if (!values.length) {
-      toast.error('Заполните хотя бы одно поле цены');
-      return null;
-    }
-    if (!bulkReason.trim()) {
-      toast.error('Укажите причину изменения');
-      return null;
-    }
-    if (values.some(([field, value]) => !validMoney(value, String(field).includes('discount') ? 100 : undefined))) {
-      toast.error('Укажите корректные проценты от 0; скидки не более 100%');
-      return null;
-    }
-    return {
-      item_ids: itemIds,
-      finish_codes: bulkFinishCodes,
-      reason: bulkReason.trim(),
-      ...Object.fromEntries(values.map(([key, value]) => [key, numericDraft(value)])),
-    } as CatalogPricingBulkRequest;
-  };
-
-  const handleBulkPreview = async () => {
-    const payload = buildBulkRequest();
-    if (!payload) return;
-    setBulkLoading(true);
-    try {
-      const result = await previewCatalogPricingBulk(payload);
-      setBulkPreview({ result, request: payload, key: bulkPreviewKey });
-    } catch {
-      setBulkPreview(null);
-      toast.error('Не удалось подготовить массовое изменение');
-    } finally {
-      setBulkLoading(false);
-    }
-  };
-
-  const handleBulkApply = async () => {
-    const payload = confirmedBulkRequest;
-    if (!payload) { toast.error('Параметры изменились. Сначала обновите предпросмотр'); return; }
-    setBulkLoading(true);
-    try {
-      const result = await applyCatalogPricingBulk(payload);
-      const remoteItems = await listHardwareCatalog();
-      setItems(remoteItems.map(item => normalizeItem(item)));
-      setBulkPreview(null);
-      toast.success(`Обновлено исполнений: ${result.count}`);
-    } catch {
-      toast.error('Не удалось применить массовое изменение');
-    } finally {
-      setBulkLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-page text-fg font-sans flex flex-col">
       <nav className="sticky top-0 z-40 bg-page/90 backdrop-blur-md border-b border-tint/25 px-6 py-4 flex items-center justify-between">
@@ -1342,7 +1194,7 @@ export default function HardwareCatalogPage() {
           </div>
         </div>
 
-        <div className="mb-5 inline-flex rounded-2xl border border-tint/30 bg-surface/30 p-1">
+        <div className="mb-5 inline-flex flex-wrap rounded-2xl border border-tint/30 bg-surface/30 p-1">
           <button
             type="button"
             onClick={() => setActiveCatalogTab('items')}
@@ -1363,17 +1215,17 @@ export default function HardwareCatalogPage() {
             <BadgePercent className="h-4 w-4" />
             Массовые изменения
           </button>
-          <button type="button" onClick={() => setActiveCatalogTab('rules')} className={`rounded-xl px-5 py-2.5 text-sm font-bold ${activeCatalogTab === 'rules' ? 'bg-primary text-white' : 'text-fg/55'}`}>Готовые правила</button>
         </div>
 
-        {activeCatalogTab === 'rules' && <PricingRules onApplied={() => void reloadCatalogPrices()} />}
+
+        <button type="button" onClick={() => navigate('/admin/pricing')} className="mb-5 rounded-xl border border-accent/30 bg-accent/10 px-5 py-2.5 text-sm font-bold text-accent">Настройка конструкций →</button>
 
         {activeCatalogTab === 'items' && <div className="flex flex-col xl:flex-row gap-3 mb-5">
           <div className="relative flex-1 group">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-fg/25 group-focus-within:text-accent transition-colors" />
             <input
               value={search}
-              onChange={event => { setSearch(event.target.value); setBulkPreview(null); }}
+              onChange={event => { setSearch(event.target.value); }}
               placeholder="Поиск по артикулу, названию или исполнению..."
               className="w-full bg-surface/30 border border-tint/30 rounded-2xl pl-12 pr-4 py-4 outline-none focus:border-accent/50 transition-all text-fg"
             />
@@ -1381,7 +1233,7 @@ export default function HardwareCatalogPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <div className="flex items-center gap-2 bg-surface/30 border border-tint/30 rounded-2xl px-3 py-2">
               <SlidersHorizontal className="w-4 h-4 text-accent/60" />
-              <select value={group} onChange={event => { setGroup(event.target.value as typeof group); setBulkPreview(null); }}
+              <select value={group} onChange={event => { setGroup(event.target.value as typeof group); }}
                 aria-label="Тип детали"
                 className="bg-transparent outline-none text-sm font-bold text-fg min-w-[160px]">
                 <option value="Все">Все типы деталей</option>
@@ -1390,7 +1242,7 @@ export default function HardwareCatalogPage() {
             </div>
             <div className="flex items-center gap-2 bg-surface/30 border border-tint/30 rounded-2xl px-3 py-2">
               <Package className="w-4 h-4 text-accent/60" />
-              <select value={systemGroup} onChange={event => { setSystemGroup(event.target.value as typeof systemGroup); setBulkPreview(null); }}
+              <select value={systemGroup} onChange={event => { setSystemGroup(event.target.value as typeof systemGroup); }}
                 aria-label="Тип секции"
                 className="bg-transparent outline-none text-sm font-bold text-fg min-w-[160px]">
                 <option value="Все">Все типы секций</option>
@@ -1403,7 +1255,7 @@ export default function HardwareCatalogPage() {
                 { id: 'all', label: 'Все' },
                 { id: 'inactive', label: 'Архив' },
               ].map(item => (
-                <button key={item.id} onClick={() => { setStatus(item.id as typeof status); setBulkPreview(null); }}
+                <button key={item.id} onClick={() => { setStatus(item.id as typeof status); }}
                   className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
                     status === item.id ? 'bg-accent/15 text-accent border border-accent/30' : 'text-fg/35 border border-transparent hover:text-fg/60'
                   }`}>
@@ -1432,121 +1284,17 @@ export default function HardwareCatalogPage() {
           </div>)}</div>
         </section>}
 
-        {activeCatalogTab === 'markups' && <section className="mx-auto mb-5 w-full max-w-5xl rounded-2xl border border-tint/25 bg-surface/30 p-5 sm:p-6">
-          <div className="mb-5 flex items-start gap-3 border-b border-tint/20 pb-4">
-            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent">
-              <BadgePercent className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold">Массово установить наценку позиций системы</h2>
-              <p className="mt-1 text-sm text-fg/65">Это замена значений в позициях, не дополнительный множитель. Общие детали изменятся и в других системах. Для наследования используйте «Готовые правила».</p>
-            </div>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {SYSTEM_GROUPS.map(systemGroup => {
-              const state = systemMarkups.find(row => row.code === systemGroup.code);
-              return (
-                <div key={systemGroup.code} className="flex min-w-0 items-center gap-3 rounded-xl border border-tint/25 bg-hi/[0.025] p-3">
-                  <div className="min-w-0 flex-1 px-1">
-                    <div className="truncate text-sm font-bold">{systemGroup.label}</div>
-                    {state?.mixed && <div className="text-[10px] text-amber-300">Разные значения</div>}
-                  </div>
-                  <div className="relative w-28 flex-shrink-0">
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={systemMarkupDrafts[systemGroup.code]}
-                      placeholder={state?.mixed ? 'Разные' : '0'}
-                      onChange={event => setSystemMarkupDrafts(current => ({ ...current, [systemGroup.code]: event.target.value }))}
-                      onWheel={event => event.currentTarget.blur()}
-                      className="h-10 w-full rounded-lg border border-tint/30 bg-page/40 px-3 pr-7 font-mono text-sm outline-none focus:border-accent/60"
-                    />
-                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-fg/35">%</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleSystemMarkupSave(systemGroup.code)}
-                    disabled={savingSystemGroup === systemGroup.code}
-                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary text-white transition-colors hover:bg-primary-h disabled:opacity-50"
-                    title={`Сохранить наценку ${systemGroup.label}`}
-                  >
-                    <Save className="h-4 w-4" />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </section>}
-
-        {activeCatalogTab === 'markups' && <section className="mx-auto mb-5 w-full max-w-5xl rounded-2xl border border-tint/25 bg-surface/30 p-5 sm:p-6">
-          <div className="mb-5 border-b border-tint/20 pb-4">
-            <h2 className="text-lg font-bold">Массовая настройка цепочек</h2>
-            <p className="mt-1 text-sm text-fg/45">Изменяются только заполненные поля. Перед применением показывается предпросмотр, каждое изменение записывается новой версией.</p>
-            <p className="mt-2 text-sm text-fg/70">Это разовая настройка: выбранные исполнения перейдут в индивидуальные условия и перестанут наследовать готовые правила. Для постоянного управления общими процентами используйте вкладку «Готовые правила».</p>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-[180px_minmax(0,1fr)]">
-            <div>
-              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-widest text-fg/40">Позиции</label>
-              <select value={bulkScope} onChange={event => { setBulkScope(event.target.value as typeof bulkScope); setBulkPreview(null); }} className={SELECT_CLS}>
-                <option value="filtered">Текущий фильтр ({filtered.length})</option>
-                <option value="all">Все активные ({items.filter(item => item.isActive).length})</option>
-              </select>
-            </div>
-            <div>
-              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-widest text-fg/40">Исполнения</label>
-              <div className="flex min-h-[52px] flex-wrap items-center gap-2 rounded-2xl border border-tint/30 bg-hi/[0.025] p-2">
-                {(Object.entries(FINISHES) as Array<[FinishCode, (typeof FINISHES)[FinishCode]]>).map(([code, finish]) => {
-                  const active = bulkFinishCodes.includes(code);
-                  return <button key={code} type="button" onClick={() => { setBulkFinishCodes(current => active ? current.filter(value => value !== code) : [...current, code]); setBulkPreview(null); }}
-                    className={`rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${active ? 'border-accent/40 bg-accent/15 text-accent' : 'border-tint/20 bg-hi/[0.03] text-fg/45'}`}>
-                    {finish.name}
-                  </button>;
-                })}
-              </div>
-            </div>
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            {([
-              ['profile_markup_percent', 'Профиль: наценка'],
-              ['profile_discount_percent', 'Профиль: скидка'],
-              ['waste_markup_percent', 'Конструкция: отходы'],
-              ['construction_markup_percent', 'Конструкция: наценка'],
-              ['construction_discount_percent', 'Конструкция: скидка'],
-            ] as const).map(([field, label]) => (
-              <div key={field}>
-                <PriceField label={label} value={bulkValues[field]} suffix="%" max={field.includes('discount') ? 100 : undefined}
-                  onChange={value => { setBulkValues(current => ({ ...current, [field]: value })); setBulkPreview(null); }} />
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
-            <label>
-              <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-widest text-fg/40">Причина изменения</span>
-              <input value={bulkReason} onChange={event => { setBulkReason(event.target.value); setBulkPreview(null); }} className={INPUT_CLS} />
-            </label>
-            <button type="button" onClick={handleBulkPreview} disabled={bulkLoading} className="h-[52px] rounded-xl border border-accent/35 bg-accent/10 px-5 font-bold text-accent hover:bg-accent/15 disabled:opacity-50">
-              Предпросмотр
-            </button>
-            <button type="button" onClick={handleBulkApply} disabled={bulkLoading || !confirmedBulkRequest} className="h-[52px] rounded-xl bg-primary px-5 font-bold text-white hover:bg-primary-h disabled:opacity-40">
-              Применить
-            </button>
-          </div>
-          {currentBulkPreview && <CatalogBulkPreviewTable preview={currentBulkPreview} />}
-        </section>}
-
         {activeCatalogTab === 'items' && <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-[2rem] border border-tint/25 bg-surface/30 shadow-2xl backdrop-blur-xl">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1080px] table-fixed border-collapse text-left">
               <colgroup>
                 <col className="w-[8%]" />
-                <col className="w-[31%]" />
+                <col className="w-[38%]" />
                 <col className="w-[11%]" />
                 <col className="w-[10%]" />
                 <col className="w-[9%]" />
                 <col className="w-[10%]" />
                 <col className="w-[8%]" />
-                <col className="w-[7%]" />
                 <col className="w-[6%]" />
               </colgroup>
               <thead>
@@ -1558,14 +1306,13 @@ export default function HardwareCatalogPage() {
                   <th className="px-2.5 py-3.5 text-[10px] font-bold uppercase tracking-wider text-fg/45">Наценка</th>
                   <th className="px-2.5 py-3.5 text-[10px] font-bold uppercase tracking-wider text-fg/45">Продажа</th>
                   <th className="px-2.5 py-3.5 text-[10px] font-bold uppercase tracking-wider text-fg/45">Вес</th>
-                  <th className="px-2.5 py-3.5 text-[10px] font-bold uppercase tracking-wider text-fg/45">Отходы</th>
                   <th className="px-2.5 py-3.5 text-right text-[10px] font-bold uppercase tracking-wider text-fg/45">Действия</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-20 text-center">
+                    <td colSpan={8} className="py-20 text-center">
                       <div className="flex flex-col items-center gap-4">
                         <div className="w-20 h-20 rounded-full bg-tint/15 border border-tint/25 flex items-center justify-center">
                           <Package className="w-10 h-10 text-fg/25" />
@@ -1607,7 +1354,6 @@ export default function HardwareCatalogPage() {
                     <td className="px-2.5 py-3 font-mono text-sm text-amber-400">{percentRange(item, 'profileMarkupPercent')}</td>
                     <td className="px-2.5 py-3 font-mono text-sm text-[var(--catalog-price)]">{priceRange(item, (_item, variant) => profileSale(variant))}</td>
                     <td className="px-2.5 py-3 font-mono text-sm text-fg/65">{item.weight}</td>
-                    <td className="px-2.5 py-3 font-mono text-sm text-fg/65">{percentRange(item, 'wasteMarkupPercent')}</td>
                     <td className="px-1.5 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => openDraft(item)}
@@ -1808,8 +1554,8 @@ export default function HardwareCatalogPage() {
                 <section className="mt-6">
                   <div className="mb-3">
                     <h3 className="text-sm font-bold">Цены по исполнениям</h3>
-                    <p className="mt-1 text-xs text-fg/40">Продажа профиля и готовая конструкция считаются независимо от одной себестоимости.</p>
-                    <p className="mt-1 text-xs font-semibold">Все суммы ниже за 1 {draft.unit}. Стоимость всей конструкции рассчитывается по её фактической комплектации.</p>
+                    <p className="mt-1 text-xs text-fg/40">Себестоимость и условия продажи отдельной детали. Цены конструкций настраиваются отдельно по системам.</p>
+                    <p className="mt-1 text-xs font-semibold">Все суммы ниже за 1 {draft.unit}. Наценка и скидка применяются только к продаже детали.</p>
                     {draftError && <p role="alert" className="mt-2 rounded-lg border border-red-500/30 p-3 text-sm text-red-600">{draftError}</p>}
                   </div>
                   <div className="space-y-3">
@@ -1817,51 +1563,29 @@ export default function HardwareCatalogPage() {
                       const cost = Number(variant.cost || 0);
                       const profileAfterMarkup = cost * (1 + Number(variant.profileMarkupPercent || 0) / 100);
                       const profileFinal = profileAfterMarkup * (1 - Number(variant.profileDiscountPercent || 0) / 100);
-                      const constructionAfterWaste = cost * (1 + Number(variant.wasteMarkupPercent || 0) / 100);
-                      const constructionAfterMarkup = constructionAfterWaste * (1 + Number(variant.constructionMarkupPercent || 0) / 100);
-                      const constructionFinal = constructionAfterMarkup * (1 - Number(variant.constructionDiscountPercent || 0) / 100);
                       const changeField = (field: keyof CatalogFinishVariant, value: string) => setDraft({
                         ...draft,
-                        finishVariants: (draft.finishVariants || []).map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value, ...(!['cost', 'minimumMarkupPercent'].includes(field) ? { pricingMode: 'individual' as const } : {}) } : row),
+                        finishVariants: (draft.finishVariants || []).map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value, ...(field === 'cost' ? { costIsSet: true } : {}) } : row),
                       });
                       return (
                         <div key={variant.code} className="rounded-2xl border border-tint/25 bg-hi/[0.025] p-3.5">
                           <div className="grid gap-3 lg:grid-cols-[150px_minmax(0,1fr)]">
                             <div>
                               <div className="mb-2 text-sm font-bold">{FINISHES[variant.code].name}</div>
-                              <p className="mb-2 text-xs text-fg/65">{variant.pricingMode === 'auto' ? variant.pricingSource?.label || variant.pricingSource?.name || 'По готовому правилу' : 'Индивидуальные значения'}</p>
-                              {variant.id && variant.pricingMode !== 'auto' && <button type="button" className="mb-2 text-xs text-accent underline" onClick={() => void restoreVariantRule(variant)}>Вернуть правило…</button>}
-                              <PriceField label={`Себестоимость, ₽/${draft.unit}`} value={variant.cost ?? ''} suffix="₽" onChange={value => changeField('cost', value)} />
-                              {variant.pricingMode === 'auto' && <p className="mt-2 text-[11px] text-fg/60">Изменение процента создаст индивидуальное исключение только для этого исполнения.</p>}
+                              <PriceField label={`Себестоимость, ₽/${draft.unit}`} value={variant.costIsSet === false ? '' : variant.cost ?? ''} suffix="₽" onChange={value => changeField('cost', value)} />
                               <details className="mt-2 text-xs text-fg/65"><summary className="cursor-pointer">Минимальная наценка</summary><div className="mt-2"><PriceField label="Минимум от себестоимости" value={variant.minimumMarkupPercent ?? '0'} suffix="%" onChange={value => changeField('minimumMarkupPercent', value)} /></div><p className="mt-1">Это наценка на затраты, не доля прибыли в выручке. Ниже порога нужно разрешение администратора.</p></details>
                             </div>
                             <div className="min-w-0 space-y-3">
                               <div className="rounded-xl border border-sky-500/20 bg-sky-500/[0.035] p-3">
-                                <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-sky-300">Профиль отдельно</div>
+                                <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-sky-300">Продажа детали</div>
                                 <div className="grid gap-2 sm:grid-cols-2 xl:flex xl:items-end">
                                   <PriceField label="Наценка" value={variant.profileMarkupPercent} suffix="%" onChange={value => changeField('profileMarkupPercent', value)} />
                                   <ChainArrow />
-                                  <PriceOutput label="После наценки" value={profileAfterMarkup} />
+                                  <PriceOutput label="После наценки" value={variant.costIsSet === false || !validMoney(variant.cost) ? null : profileAfterMarkup} />
                                   <ChainArrow />
                                   <PriceField label="Скидка" value={variant.profileDiscountPercent} suffix="%" max={100} onChange={value => changeField('profileDiscountPercent', value)} />
                                   <ChainArrow />
-                                  <PriceOutput label="Итог профиля" value={profileFinal} />
-                                </div>
-                              </div>
-                              <div className="rounded-xl border border-violet-500/20 bg-violet-500/[0.035] p-3">
-                                <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-violet-300">В готовой конструкции</div>
-                                <div className="grid gap-2 sm:grid-cols-2 xl:flex xl:items-end">
-                                  <PriceField label="Отходы" value={variant.wasteMarkupPercent} suffix="%" onChange={value => changeField('wasteMarkupPercent', value)} />
-                                  <ChainArrow />
-                                  <PriceOutput label="После отходов" value={constructionAfterWaste} />
-                                  <ChainArrow />
-                                  <PriceField label="Наценка" value={variant.constructionMarkupPercent} suffix="%" onChange={value => changeField('constructionMarkupPercent', value)} />
-                                  <ChainArrow />
-                                  <PriceOutput label="После наценки" value={constructionAfterMarkup} />
-                                  <ChainArrow />
-                                  <PriceField label="Скидка" value={variant.constructionDiscountPercent} suffix="%" max={100} onChange={value => changeField('constructionDiscountPercent', value)} />
-                                  <ChainArrow />
-                                  <PriceOutput label="Итог конструкции" value={constructionFinal} />
+                                  <PriceOutput label="Цена продажи" value={variant.costIsSet === false || !validMoney(variant.cost) ? null : profileFinal} />
                                 </div>
                               </div>
                             </div>
@@ -1873,11 +1597,9 @@ export default function HardwareCatalogPage() {
                 </section>
 
                 <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="grid grid-cols-3 gap-2 sm:col-span-2 lg:col-span-3">
+                  <div className="grid gap-2 sm:col-span-2 lg:col-span-3">
                     {[
-                      { label: 'Цена профиля', value: priceRange(draft, (_item, variant) => profileSale(variant)), icon: BadgePercent },
-                      { label: 'После отходов', value: priceRange(draft, costWithWaste), icon: Ruler },
-                      { label: 'Цена в конструкции', value: priceRange(draft, constructionPrice), icon: Scale },
+                      { label: 'Цена продажи', value: priceRange(draft, (_item, variant) => profileSale(variant)), icon: BadgePercent },
                     ].map(card => (
                       <div key={card.label} className="rounded-xl border border-tint/25 bg-hi/[0.04] p-3">
                         <div className="mb-1.5 flex items-center justify-between gap-2">

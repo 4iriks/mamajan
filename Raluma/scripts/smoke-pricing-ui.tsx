@@ -42,7 +42,7 @@ assert.equal(Object.hasOwn(JSON.parse(stringifyExtraComponents([manual], false))
 Object.defineProperty(globalThis, 'localStorage', { value: { getItem: () => null, setItem: () => {}, removeItem: () => {} }, configurable: true });
 const { useAuthStore } = await import('../src/store/authStore');
 const { ProjectEconomics } = await import('../src/components/editor/ProjectEconomics');
-const { RulePreviewTable } = await import('../src/components/PricingRules');
+const { PriceRepair } = await import('../src/components/editor/PricingDetails');
 const user: UserMe = { id: 1, username: 'manager', display_name: 'Менеджер', role: 'user', customer: null, can_manage_prices: false, is_active: true, created_at: '', last_login: null };
 useAuthStore.setState({ user });
 const quote: PublicQuote = { project: { id: 1, number: '1', customer: 'Заказчик' }, revision: 1, status: 'draft', fixed_at: null, currency: 'RUB', money_presentation_version: 2, lines: [], totals: { before_discount: '100.40', discount: '0.00', subtotal: '100.40', grand_total: '100.00', document_before_discount: '100.40', document_discount: '0.00', document_grand_total: '100.00', rounding_adjustment: '-0.40' }, validity_days: 14, valid_until: '', manufacturing_term: '', payment_terms: '', discounts: [], missing_price_count: 1, warnings: ['Не задана цена ручной детали'], export_allowed: false, stale: false };
@@ -90,6 +90,23 @@ assert.doesNotMatch(blockedPendingHtml, /Изменение к КП:/, 'An incom
 const unknownOverrideHtml = renderToStaticMarkup(<ProjectEconomics state={{ ...state, quote: agreed, currentQuote: current, internal: { ...internal, calculation: { sections: [{ section_id: 1, name: 'Тест', bom: [{ sku: 'UNKNOWN-OVERRIDE', quantity: '1', unit: 'шт', cost_known: false, sale_price_override: '50', base_cost_total: '0', internal_total: '50' }] }] } } }} />);
 assert.match(unknownOverrideHtml, /Разовая цена продажи:/);
 assert.match(unknownOverrideHtml, /не задана/);
-const previewHtml = renderToStaticMarkup(<RulePreviewTable preview={{ count: 0, rows: [] }} />);
-assert.match(previewHtml, /Затронуто исполнений/);
-console.log('Pricing frontend smoke passed: money precision, units, discounts, manual prices/privacy, states and rule preview.');
+const approvalState = { ...state, internal: { ...internal, margin_approval: { ...internal.margin_approval, required: true } } };
+for (const role of ['admin', 'superadmin'] as const) {
+  useAuthStore.setState({ user: { ...user, role, can_manage_prices: false } });
+  const approvalHtml = renderToStaticMarkup(<PriceRepair state={approvalState} />);
+  assert.match(approvalHtml, /^<section aria-label="Согласование минимальной цены"/, 'Approval must be visible outside the collapsed advanced settings');
+  assert.match(approvalHtml, /Разрешить цену ниже порога/);
+  assert.match(approvalHtml, /Причина разрешения минимальной цены/);
+  assert.match(approvalHtml, /disabled=""[^>]*>Разрешить цену ниже порога/, 'A reason is required');
+  assert.match(approvalHtml, /не заменяет недостающие цены/);
+  const approvedHtml = renderToStaticMarkup(<PriceRepair state={{ ...approvalState, internal: { ...approvalState.internal, margin_approval: { ...approvalState.internal.margin_approval, valid: true } } }} />);
+  assert.match(approvedHtml, /Цена ниже порога согласована/);
+  assert.doesNotMatch(approvedHtml, /Причина разрешения минимальной цены/);
+}
+for (const role of ['user', 'dealer'] as const) {
+  useAuthStore.setState({ user: { ...user, role, can_manage_prices: true } });
+  const approvalHtml = renderToStaticMarkup(<PriceRepair state={approvalState} />);
+  assert.doesNotMatch(approvalHtml, /Разрешить цену ниже порога/);
+  if (role === 'user') assert.match(approvalHtml, /попросите администратора или суперадминистратора/);
+}
+console.log('Pricing frontend smoke passed: money precision, units, discounts, manual prices/privacy, states and approval permissions.');

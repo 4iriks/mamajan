@@ -142,6 +142,7 @@ class CatalogFinishVariantInput(PricingNumbers):
     name: str = Field(min_length=1, max_length=160)
     price: Decimal = Field(default=Decimal("0"), ge=0)
     cost: Optional[Decimal] = Field(default=None, ge=0)
+    costIsSet: Optional[bool] = None
     profileMarkupPercent: Decimal = Field(default=Decimal("0"), ge=0)
     profileDiscountPercent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     wasteMarkupPercent: Decimal = Field(default=Decimal("0"), ge=0)

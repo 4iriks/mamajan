@@ -311,6 +311,7 @@ class CatalogFinishVariant(Base):
     # formula exactly once.
     price = Column(Numeric(14, 2), default=0, nullable=False)
     cost = Column(Numeric(14, 2), default=0, nullable=False)
+    cost_is_set = Column(Boolean, default=True, server_default="1", nullable=False)
     profile_markup_percent = Column(Numeric(8, 4), default=0, nullable=False)
     profile_discount_percent = Column(Numeric(8, 4), default=0, nullable=False)
     construction_markup_percent = Column(Numeric(8, 4), default=0, nullable=False)
@@ -413,6 +414,7 @@ class CatalogPriceVersion(Base):
         Integer, ForeignKey("catalog_finish_variants.id"), nullable=True, index=True
     )
     cost = Column(Numeric(14, 2), nullable=False)
+    cost_is_set = Column(Boolean, default=True, server_default="1", nullable=False)
     profile_markup_percent = Column(Numeric(8, 4), default=0, nullable=False)
     profile_discount_percent = Column(Numeric(8, 4), default=0, nullable=False)
     waste_markup_percent = Column(Numeric(8, 4), default=0, nullable=False)
@@ -433,6 +435,39 @@ class CatalogPriceVersion(Base):
     finish_variant = relationship(
         "CatalogFinishVariant", back_populates="price_versions"
     )
+
+
+class SystemPricingScope(Base):
+    __tablename__ = "system_pricing_scopes"
+    code = Column(String, primary_key=True)
+    revision = Column(Integer, default=0, nullable=False)
+
+
+class SystemPricingVersion(Base):
+    __tablename__ = "system_pricing_versions"
+    id = Column(Integer, primary_key=True)
+    system_code = Column(String, ForeignKey("system_pricing_scopes.code"), index=True, nullable=False)
+    markup_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    discount_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    effective_from = Column(DateTime, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    reason = Column(Text, nullable=False)
+
+
+class SystemComponentPriceVersion(Base):
+    __tablename__ = "system_component_price_versions"
+    id = Column(Integer, primary_key=True)
+    system_code = Column(String, ForeignKey("system_pricing_scopes.code"), index=True, nullable=False)
+    catalog_item_id = Column(Integer, ForeignKey("catalog_items.id"), index=True, nullable=False)
+    finish_variant_id = Column(Integer, ForeignKey("catalog_finish_variants.id"), index=True, nullable=True)
+    waste_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    markup_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    discount_percent = Column(Numeric(8, 4), default=0, nullable=False)
+    effective_from = Column(DateTime, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    reason = Column(Text, nullable=False)
 
 
 class CatalogPricingRule(Base):

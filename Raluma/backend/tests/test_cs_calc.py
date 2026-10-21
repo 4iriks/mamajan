@@ -38,8 +38,8 @@ def test_cs_equal_grid_produces_nine_deterministic_panes_and_profile_lengths():
 
     assert len(result["panes"]) == 9
     assert [row["number"] for row in result["panes"]] == list(range(1, 10))
-    assert [row["width_mm"] for row in result["panes"][:3]] == pytest.approx([985 + 1 / 3, 971 + 1 / 3, 985 + 1 / 3])
-    assert result["glass_area_m2"] == pytest.approx(2942 * 2968 / 1e6)
+    assert [row["width_mm"] for row in result["panes"][:3]] == [985, 971, 985]
+    assert result["glass_area_m2"] == pytest.approx(2941 * 2966 / 1e6)
     assert result["outer_edge_lengths_mm"] == [3000, 3000, 3000]
     assert result["divider_lengths_mm"] == [2968, 2968, 2942, 2942]
     assert result["normalized_config"]["profiledEdges"] == [1, 2, 3]
@@ -145,7 +145,8 @@ def test_cs_preliminary_documents_cover_sheet_sketch_glass_and_profiles(client):
         json={"project": project, "section": section},
     )
     assert preview.status_code == 200, preview.text
-    assert "ПРЕДВАРИТЕЛЬНЫЙ ПЛ" in preview.text
+    assert "ПРОИЗВОДСТВЕННЫЙ ЛИСТ" in preview.text
+    assert "ПРЕДВАРИТЕЛЬНЫЙ ПЛ" not in preview.text
     assert "Количество стекол" in preview.text
 
     for extension, content_type in (
@@ -161,7 +162,7 @@ def test_cs_preliminary_documents_cover_sheet_sketch_glass_and_profiles(client):
         assert response.content.startswith(b"PK")
 
     for document, expected in (
-        ("sketch", "Коммерческая цена пока не формируется"),
+        ("sketch", "ЦС"),
         ("glass", "1,1"),
         ("hardware_order", "CS-PVC-PAD"),
     ):

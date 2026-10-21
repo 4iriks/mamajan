@@ -131,9 +131,7 @@
       <tr><td>Доставка, разгрузка и монтаж</td><td>{{ delivery.delivery|e }}</td></tr>
     </table>
 
-    {% for warning in document_warnings or [] %}
-      <div class="document-warning">{{ warning|e }}</div>
-    {% endfor %}
+
 
     <table class="main-table">
       <thead>
@@ -194,8 +192,8 @@
                       {% if glass.width is none or glass.height is none %}
                       <td class="center" colspan="2">согласно ТЗ</td>
                       {% else %}
-                      <td class="center">{{ glass.width }}</td>
-                      <td class="center">{{ glass.height }}</td>
+                      <td class="center">{{ glass.width|format_mm }}</td>
+                      <td class="center">{{ glass.height|format_mm }}</td>
                       {% endif %}
                       <td class="center">{{ glass.qty }}</td>
                     </tr>

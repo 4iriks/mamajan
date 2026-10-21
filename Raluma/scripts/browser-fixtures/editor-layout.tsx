@@ -77,11 +77,19 @@ async function run() {
   const room = svgs.find(svg => svg.dataset.roomViewMode === 'full')!;
   assert(room.getBoundingClientRect().height >= 240, 'Room drawing uses available height');
   const finishes = document.querySelector<HTMLElement>('[data-editor-finishes]')!;
-  assert(finishes.getBoundingClientRect().height <= 90, 'Compact two-row finishes');
+  assert(finishes.getBoundingClientRect().height <= 70, 'Compact two-row finishes');
   const labels = [...fields.querySelectorAll('label')];
   const widthLabel = labels.find(label => label.textContent === 'Ширина, мм')!;
   const numberLabel = labels.find(label => label.textContent === 'Секция №')!;
-  assert(widthLabel.getBoundingClientRect().top - numberLabel.getBoundingClientRect().top <= 58, 'No doubled vertical margins between inputs');
+  assert(widthLabel.getBoundingClientRect().top - numberLabel.getBoundingClientRect().top <= 36, 'Short numeric fields use compact inline labels');
+  assert(document.querySelector('[data-editor-main]')!.getBoundingClientRect().height <= 116, 'Basic parameters do not reserve empty vertical rows');
+  const profileLabel = labels.find(label => label.textContent === 'Профили слева')!;
+  assert(profileLabel.getBoundingClientRect().top - fields.getBoundingClientRect().top <= 330, 'Profiles start higher without shrinking drawings');
+  const rails = document.querySelector('[data-system-option="rails"]')!;
+  [...rails.querySelectorAll('button')].find(button => button.textContent === '5 рельсов')!.click(); await pause();
+  assert(current.rails === 5 && current.panels === 3, 'Short rail labels preserve numeric options and panel count');
+  [...rails.querySelectorAll('button')].find(button => button.textContent === '3 рельса')!.click(); await pause();
+  assert(current.rails === 3, 'Three-rail option still works');
   for (const button of fields.querySelectorAll<HTMLElement>('button.ml-4')) {
     assert(button.getBoundingClientRect().right <= button.parentElement!.getBoundingClientRect().right + 1, 'Indented profiles stay inside their column');
   }

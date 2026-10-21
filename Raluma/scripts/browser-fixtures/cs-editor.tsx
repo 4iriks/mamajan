@@ -61,6 +61,34 @@ async function run() {
   await pause();
   assert(document.querySelector('svg[aria-label]')?.textContent?.includes('У4'), 'Vertex labels');
   assert(select('Выбранная сторона').options[3].text === 'С4: У4 → У1', 'Closing side mapping');
+  const cornerPanel = select('Выбранный угол').closest('details')!;
+  const anglePanel = input('Внутренний угол, °').closest('details')!;
+  assert(!cornerPanel.open && !anglePanel.open, 'Corner settings start collapsed');
+  cornerPanel.querySelector('summary')!.click();
+  anglePanel.querySelector('summary')!.click();
+  for (const index of [2, 1, 0]) {
+    const dropdown = select('Выбранный угол');
+    await set(dropdown, String(index));
+    assert(select('Выбранный угол').closest('details')!.open, 'Corner panel stays open when selecting another corner');
+    assert(input('Внутренний угол, °').closest('details')!.open, 'Nested angle panel stays open');
+    assert(document.activeElement === dropdown, 'Corner dropdown retains focus');
+    assert(Number(input('Ш, мм').value) === current.csConfig!.vertices[index].x
+      && Number(input('В, мм').value) === current.csConfig!.vertices[index].y, 'Coordinates follow selected corner');
+  }
+  cornerPanel.querySelector('summary')!.click();
+  await pause();
+  assert(!cornerPanel.open, 'Corner panel can still be closed manually');
+  const sidePanel = select('Выбранная сторона').closest('details')!;
+  for (const index of [2, 1, 0]) {
+    const dropdown = select('Выбранная сторона');
+    await set(dropdown, String(index));
+    assert(select('Выбранная сторона').closest('details')!.open, 'Side panel stays open when selecting another side');
+    assert(document.activeElement === dropdown, 'Side dropdown retains focus');
+    assert(document.body.textContent?.includes(`Добавить угол на С${index + 1}`), 'Side actions follow selection');
+  }
+  sidePanel.querySelector('summary')!.click();
+  await pause();
+  assert(!sidePanel.open, 'Side panel can still be closed manually');
   for (const index of [0, 1]) {
     await set(input('Количество', index), '');
     assert(input('Количество', index).value === '', 'Count must remain erasable');

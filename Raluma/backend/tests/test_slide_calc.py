@@ -2467,6 +2467,67 @@ class TestRS1006FullName:
 class TestSlideTwoRows:
     """Отдельная ветка расчета СЛАЙД стандарт 2 ряда."""
 
+    @pytest.mark.parametrize("quantity", [1, 2])
+    def test_project_4300_keeps_matching_outer_and_central_glass_equal(self, quantity):
+        section = _make_section(
+            width=6580, height=2300, panels=6, rails=3, slide_rows=2,
+            quantity=quantity, first_panel_inside=None, unused_track="Внешний",
+            profile_left_lock_bar=True, profile_right_lock_bar=True,
+            profile_left_handle_bar=True, profile_right_handle_bar=True,
+            center_handle="Ручки-профиль RS112 (2шт)",
+        )
+
+        result = calculate_slide(section)
+
+        assert [panel.width_mm for panel in result.panel_glass] == [
+            1072, 1065, 1072, 1072, 1065, 1072,
+        ]
+        assert [panel.glass_profile_length for panel in result.panel_glass] == [
+            1088, 1062, 1091, 1088, 1062, 1088,
+        ]
+        assert all(panel.height_mm == 2194 for panel in result.panel_glass)
+        assert sum(panel.width_mm for panel in result.panel_glass) == 6418
+        grouped = Counter()
+        for row in result.glass:
+            grouped[row.width_mm] += row.qty
+        assert grouped == {1072: 4 * quantity, 1065: 2 * quantity}
+        assert Counter(row.width_mm for row in _expand_glass_for_order(section, result)) == grouped
+        assert {row.length_mm: row.qty for row in _find_profile(result, "RS2021")} == {
+            1088: 3 * quantity, 1062: 2 * quantity, 1091: quantity,
+        }
+        assert not result.warnings
+
+    @pytest.mark.parametrize("panel_count", [6, 8, 10])
+    def test_minus_three_correction_preserves_shared_outer_and_center_size(self, panel_count):
+        matching = {0, panel_count // 2 - 1, panel_count // 2, panel_count - 1}
+        widths = [608.6 if index in matching else 600.6 for index in range(panel_count)]
+        result = SlideCalcResult(panel_glass=[
+            PanelGlassItem(index + 1, f"Панель {index + 1}", width, 2200, width - 3)
+            for index, width in enumerate(widths)
+        ])
+        initial_total = sum(609 if index in matching else 601 for index in range(panel_count))
+
+        _apply_two_row_glass_total_correction(result, initial_total - 2.5)
+
+        assert [panel.width_mm for panel in result.panel_glass] == [
+            608 if index in matching else 601 for index in range(panel_count)
+        ]
+        assert all(panel.glass_profile_length == panel.width_mm - 3 for panel in result.panel_glass)
+        assert sum(panel.width_mm for panel in result.panel_glass) == initial_total - 4
+        assert not result.warnings
+
+    def test_equal_rounded_sizes_do_not_merge_different_calculated_sizes(self):
+        widths = [608.6, 600.6, 608.7, 608.7, 600.6, 608.6]
+        result = SlideCalcResult(panel_glass=[
+            PanelGlassItem(index + 1, f"Панель {index + 1}", width, 2200, width - 3)
+            for index, width in enumerate(widths)
+        ])
+
+        _apply_two_row_glass_total_correction(result, 4 * 609 + 2 * 601 - 2.5)
+
+        assert [panel.width_mm for panel in result.panel_glass] == [607, 601, 609, 609, 601, 607]
+        assert not result.warnings
+
     def test_system_text_and_panel_rails_3rail_4panels_center_first(self):
         r = calculate_slide(
             _make_section(

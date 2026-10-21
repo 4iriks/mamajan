@@ -22,7 +22,7 @@ const NO_GLASS_OPTION = '__no_glass__';
 
 export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section>) => void }) {
   const glassOptions = glassTypeOptions(s.system);
-  const supportsGlassSupply = s.system === 'СЛАЙД' || s.system === 'КНИЖКА';
+  const supportsGlassSupply = s.system === 'СЛАЙД' || s.system === 'КНИЖКА' || s.system === 'ЦС';
   const supportsCustomGlass = s.system !== 'КНИЖКА' && s.system !== 'ЦС';
   const hasCustomGlass = supportsCustomGlass && !glassOptions.some(option => option === s.glassType);
   const [isCustomGlass, setIsCustomGlass] = useState(hasCustomGlass);
@@ -45,10 +45,10 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
 
   return (<>
     {s.system === 'ЦС' && <CsDimensionModeField section={s} update={update} />}
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6" data-editor-main>
       <div className="space-y-4">
         {s.system === 'ЦС' && <h3 className="text-sm font-bold">{s.csConfig?.dimensionMode === 'clear' ? 'Размеры светового проёма' : 'Наружные размеры конструкции'}</h3>}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3" data-editor-numeric-row>
           <div className="space-y-1.5">
             <label className={LBL}>Секция №</label>
             <input
@@ -63,7 +63,7 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
             <input type="number" min="1" value={s.quantity || ''} onChange={e => update({ quantity: parseInt(e.target.value) || 0 })} className={INP} />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3" data-editor-numeric-row>
           <div className="space-y-1.5">
             <label className={LBL}>Ширина, мм</label>
             <input type="number" step={s.system === 'ЦС' ? 'any' : 1} value={s.width || ''} onChange={e => update({ width: (s.system === 'ЦС' ? parseFloat(e.target.value) : parseInt(e.target.value)) || 0 })} className={INP} />
@@ -146,7 +146,7 @@ export function MainTab({ s, update }: { s: Section; update: (u: Partial<Section
             ))}
           </div>
           {(s.paintingType.includes('RAL') || s.paintingType === 'Сублимация') && (
-            <div className="mt-2 space-y-1.5">
+            <div className="mt-2 space-y-1.5" data-editor-ral>
               <label className={LBL}>{s.paintingType === 'Сублимация' ? 'Декор' : 'Цвет RAL'}</label>
               <input type="text" value={s.ralColor || ''} onChange={e => update({ ralColor: e.target.value })} className={INP} placeholder={s.paintingType === 'Сублимация' ? 'Название декора' : 'Напр. 9016 МАТОВЫЙ'} />
             </div>
@@ -215,13 +215,13 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6" data-slide-system-options>
         <div className="space-y-4">
-          <div className="space-y-1.5">
+          <div className="space-y-1.5" data-system-option="rails">
             <label className={LBL}>Рельсы</label>
             <ToggleGroup
-              value={rails === 5 ? '5ти рельсовая' : '3х рельсовая'}
-              options={['3х рельсовая', '5ти рельсовая']}
+              value={rails === 5 ? '5 рельсов' : '3 рельса'}
+              options={['3 рельса', '5 рельсов']}
               onChange={v => {
                 const newRails = v.startsWith('3') ? 3 : 5;
                 const curRows = s.slideRows ?? 1;
@@ -234,14 +234,14 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
               }}
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1.5" data-system-option="panels">
             <label className={LBL}>Кол-во панелей</label>
             <ToggleGroup value={String(s.panels)}
               options={panelOptions}
               onChange={v => update({ panels: parseInt(v) })} />
           </div>
           {showUnused && (
-            <div className="space-y-1.5">
+            <div className="space-y-1.5" data-system-option="unused">
               <label className={LBL}>
                 {showUnusedStripChoice ? 'Неиспользуемая полоса' : is2row ? 'Первые панели' : 'Неиспользуемый рельс'}
               </label>
@@ -264,23 +264,23 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
             </div>
           )}
           {!is2row && (
-            <div className="space-y-1.5">
-              <label className={LBL}>1-я панель внутри помещения</label>
+            <div className="space-y-1.5" data-system-option="first">
+              <label className={LBL} title="Положение первой панели со стороны помещения">1-я панель внутри</label>
               <ToggleGroup value={s.firstPanelInside} options={['Слева', 'Справа']}
                 onChange={v => update({ firstPanelInside: v })} />
             </div>
           )}
         </div>
         <div className="space-y-4">
-          <div className="space-y-1.5">
+          <div className="space-y-1.5" data-system-option="threshold">
             <label className={LBL}>Порог</label>
-            <select value={thresholdValue} onChange={e => update({ threshold: e.target.value })} className={SEL}>
+            <select value={thresholdValue} title={thresholdOptions.find(option => option.value === thresholdValue)?.label} onChange={e => update({ threshold: e.target.value })} className={SEL}>
               {thresholdOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1.5" data-system-option="interglass">
             <label className={LBL}>Межстекольный профиль</label>
-            <select value={s.interGlassProfile || DEFAULT_INTER_GLASS_PROFILE} onChange={e => update({ interGlassProfile: e.target.value })} className={SEL}>
+            <select value={s.interGlassProfile || DEFAULT_INTER_GLASS_PROFILE} title={s.interGlassProfile || DEFAULT_INTER_GLASS_PROFILE} onChange={e => update({ interGlassProfile: e.target.value })} className={SEL}>
               <option value={NO_INTER_GLASS_PROFILE}>{NO_INTER_GLASS_PROFILE}</option>
               <option>Алюминиевый RS2061</option>
               <option>Прозрачный межстекольный RS1006</option>

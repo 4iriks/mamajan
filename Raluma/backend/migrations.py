@@ -210,6 +210,8 @@ _CREATE_TABLES = [
 # ── Новые колонки ──────────────────────────────────────────────────────────────
 
 _ADD_COLUMNS = [
+    "ALTER TABLE catalog_finish_variants ADD COLUMN cost_is_set BOOLEAN NOT NULL DEFAULT 1",
+    "ALTER TABLE catalog_price_versions ADD COLUMN cost_is_set BOOLEAN NOT NULL DEFAULT 1",
     "ALTER TABLE catalog_finish_variants ADD COLUMN pricing_mode VARCHAR NOT NULL DEFAULT 'individual'",
     "ALTER TABLE catalog_items ADD COLUMN photo_file VARCHAR",
     "ALTER TABLE cs_systems ADD COLUMN cover_profile_item_id INTEGER REFERENCES catalog_items(id)",

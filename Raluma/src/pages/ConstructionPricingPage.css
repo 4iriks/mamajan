@@ -1,0 +1,28 @@
+.pricing-components-container { container-type: inline-size; }
+.pricing-component-grid { display: grid; gap: 12px; align-items: start; }
+.pricing-component-card { container-type: inline-size; min-width: 0; padding-block: 9px; }
+.pricing-component-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px; margin-bottom: 6px; }
+.pricing-component-heading > div:last-child { max-width: 150px; overflow-wrap: anywhere; }
+.pricing-card-stages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px 8px; }
+.pricing-stage-pair { display: grid; grid-template-rows: subgrid; grid-row: span 2; min-width: 0; }
+.pricing-component-card .pricing-percent-field > span:first-child,
+.pricing-component-card .pricing-price-output > span { margin-bottom: 3px; font-size: 11px; line-height: 14px; letter-spacing: 0; }
+.pricing-component-card input { min-height: 34px; padding: 5px 24px 5px 9px; font-size: 14px; line-height: 22px; }
+.pricing-component-card .pricing-percent-field > span:last-child { margin-top: 2px; min-height: 12px; line-height: 12px; }
+.pricing-component-card .pricing-percent-field .pointer-events-none { top: 50%; transform: translateY(-50%); }
+.pricing-component-card .pricing-price-output > div { min-height: 32px; padding: 4px 8px; font-size: 13px; line-height: 22px; overflow-wrap: anywhere; }
+.pricing-component-footer { margin-top: 6px; padding-top: 6px; row-gap: 6px; }
+.pricing-sample-totals dt { min-width: 0; }
+.pricing-sample-totals dd { flex-shrink: 0; white-space: nowrap; }
+@container (min-width: 790px) {
+  .pricing-component-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container (max-width: 350px) {
+  .pricing-card-stages { grid-template-columns: minmax(0, 1fr); }
+  .pricing-stage-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto; grid-row: auto; align-items: start; gap: 8px; }
+  .pricing-component-heading { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .pricing-component-heading > div:last-child { max-width: none; text-align: left; }
+}
+@media (pointer: coarse) {
+  .pricing-component-card input { min-height: 40px; padding-block: 8px; }
+}

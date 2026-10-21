@@ -76,7 +76,7 @@ function PaintingFields({
   return (
     <div className="space-y-1.5">
       <label className={LBL}>Окрашивание</label>
-      <div className="space-y-1.5">
+      <div className="grid grid-cols-2 gap-1" data-editor-finishes>
         {(['Анод/неокрас', 'RAL стандарт', 'RAL муар', 'Сублимация'] as const).map(type => (
           <button
             key={type}
@@ -101,7 +101,7 @@ function PaintingFields({
       </div>
 
       {(section.paintingType.includes('RAL') || section.paintingType === 'Сублимация') && (
-        <div className="mt-2 space-y-1.5">
+        <div className="mt-2 space-y-1.5" data-editor-ral>
           <label className={LBL}>{section.paintingType === 'Сублимация' ? 'Декор' : 'Цвет RAL'}</label>
           <input
             type="text"
@@ -129,7 +129,7 @@ export function LiftMainTab({
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3" data-editor-numeric-row>
           <div className="space-y-1.5">
             <label className={LBL}>Секция №</label>
             <input
@@ -152,7 +152,7 @@ export function LiftMainTab({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3" data-editor-numeric-row>
           <div className="space-y-1.5">
             <label className={LBL}>Ширина, мм</label>
             <input

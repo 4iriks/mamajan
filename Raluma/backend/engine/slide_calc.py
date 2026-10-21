@@ -475,6 +475,17 @@ def _apply_two_row_glass_total_correction(
     if not panels:
         return 0
 
+    outer_and_center = {0, len(panels) // 2 - 1, len(panels) // 2, len(panels) - 1}
+    # Preserve a shared formula size, not an accidental equality after rounding.
+    same_size_as_outer = {
+        index for index, panel in enumerate(panels)
+        if round(float(panel.width_mm), 6) == round(float(panels[0].width_mm), 6)
+    }
+    matching_outer_and_center = (
+        len(panels) >= 6 and len(panels) % 2 == 0
+        and same_size_as_outer == outer_and_center
+    )
+
     for panel in panels:
         panel.width_mm = float(_round_production_mm(panel.width_mm))
         panel.height_mm = float(_round_production_mm(panel.height_mm))
@@ -508,6 +519,10 @@ def _apply_two_row_glass_total_correction(
         # Full section 5 calculation arrives as 631 / 615×3 / 623×2 /
         # 615×3 / 631.  Lower only the six ordinary intermediate panes.
         adjustments = {index: -1 for index in (1, 2, 3, 6, 7, 8)}
+    elif difference_mm == -3 and matching_outer_and_center:
+        # Keep all four matching panes equal (project 4300). Removing 1 mm
+        # from each has the same checksum as removing 2 mm from each edge.
+        adjustments = {index: -1 for index in outer_and_center}
     elif abs(difference_mm) >= 4:
         result.warnings.append(
             "SLIDE: автоматическая коррекция стекол не выполнена. "

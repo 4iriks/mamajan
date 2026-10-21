@@ -42,8 +42,7 @@ import {
 import { EditorSidebar } from './editor/EditorSidebar';
 import { SectionFormWrapper } from './editor/SectionFormWrapper';
 import { ExtraComponentsEditor } from './editor/ExtraComponentsEditor';
-import { useCustomerOptions } from '../hooks/useCustomerOptions';
-import { filterCustomerOptions } from '../utils/customers';
+import { ProjectCustomerField } from './editor/ProjectCustomerField';
 import { defaultGlassType } from '../constants/glass';
 import { csDimensionUpdates } from './editor/csGeometry';
 import {
@@ -75,8 +74,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const savedSectionsRef = useRef<Section[]>([]);
   const [loadingProject, setLoadingProject] = useState(true);
   const economics = useProjectEconomics(projectId, Boolean(token) && !loadingProject, Boolean(user && user.role !== 'dealer'));
-  const [projectCustomerDraft, setProjectCustomerDraft] = useState('');
-  const [showProjectCustomerDrop, setShowProjectCustomerDrop] = useState(false);
 
   useEffect(() => {
     getProject(projectId).then(p => {
@@ -87,7 +84,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         orderNumber: p.order_number,
         customer: p.customer,
       });
-      setProjectCustomerDraft(p.customer || '');
       setProjectExtraComponents(parseExtraComponents(p.extra_components));
       setHardwareInstallation(p.hardware_installation || 'not_installed');
       setProjectComments(p.comments || '');
@@ -141,11 +137,6 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     [sections, activeSectionId]
   );
 
-  const customerOptions = useCustomerOptions();
-  const filteredProjectCustomers = useMemo(
-    () => filterCustomerOptions(customerOptions, projectCustomerDraft),
-    [customerOptions, projectCustomerDraft],
-  );
   useEffect(() => {
     setIsDirty(false);
     if (activeSectionId) setMobileSidebarOpen(false);
@@ -473,22 +464,11 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     catch { toast.error('Не удалось сохранить'); }
   };
 
-  const saveProjectCustomer = async (value: string = projectCustomerDraft) => {
+  const saveProjectCustomer = async (customer: string) => {
     if (!project) return;
-    const customer = value.trim();
-    if (!customer || customer === project.customer) {
-      setShowProjectCustomerDrop(false);
-      return;
-    }
-    try {
-      const savedProject = await updateProject(project.id, { customer });
-      const savedCustomer = savedProject.customer || customer;
-      setProject(prev => prev ? { ...prev, customer: savedCustomer } : prev);
-      setProjectCustomerDraft(savedCustomer);
-      setShowProjectCustomerDrop(false);
-    } catch {
-      toast.error('Не удалось сохранить заказчика');
-    }
+    const savedProject = await updateProject(project.id, { customer });
+    setProject(prev => prev?.id === savedProject.id ? { ...prev, customer: savedProject.customer } : prev);
+    toast.success('Заказчик сохранён');
   };
 
   const saveOrderNumber = async () => {
@@ -698,47 +678,8 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   </div>
                 </div>
 
-                {project.customer && <p className="text-sm mb-3">Заказчик: <b>{project.customer}</b></p>}
+                <ProjectCustomerField key={project.id} value={project.customer} onSave={saveProjectCustomer} />
                 {token && <ProjectEconomics state={economics} />}
-
-                {/* Customer */}
-                {!project.customer.trim() && (
-                  <div className="bg-surface/40 border border-tint/30 rounded-2xl p-5 sm:p-6 mb-4">
-                    <div className="flex items-center gap-3 mb-4">
-                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40">Заказчик</span>
-                    </div>
-                    <div className="relative">
-                      <input
-                        value={projectCustomerDraft}
-                        onChange={e => { setProjectCustomerDraft(e.target.value); setShowProjectCustomerDrop(true); }}
-                        onFocus={() => setShowProjectCustomerDrop(true)}
-                        onBlur={() => {
-                          window.setTimeout(() => setShowProjectCustomerDrop(false), 150);
-                          saveProjectCustomer();
-                        }}
-                        className={INP}
-                        placeholder="Укажите заказчика"
-                      />
-                      {showProjectCustomerDrop && filteredProjectCustomers.length > 0 && (
-                        <div className="absolute left-0 right-0 top-full mt-2 bg-[var(--theme-dropdown)] border border-tint/40 rounded-2xl overflow-y-auto shadow-2xl shadow-black/50 z-20" style={{ maxHeight: '172px' }}>
-                          {filteredProjectCustomers.map(customer => (
-                            <button
-                              key={customer}
-                              type="button"
-                              onMouseDown={event => {
-                                event.preventDefault();
-                                saveProjectCustomer(customer);
-                              }}
-                              className="w-full text-left px-4 py-3 text-sm text-fg/70 hover:bg-tint/20 hover:text-fg transition-colors border-b border-tint/10 last:border-0"
-                            >
-                              {customer}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
 
                 {/* Status */}
                 <div className="bg-surface/40 border border-tint/30 rounded-2xl p-5 sm:p-6 mb-4">

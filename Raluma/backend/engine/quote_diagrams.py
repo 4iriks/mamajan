@@ -135,6 +135,13 @@ def _geometry(details: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def render_quote_room_png(details: dict[str, Any]) -> bytes:
+    if details.get("system") == "ЦС":
+        from types import SimpleNamespace
+        from engine.cs_calc import cs_result_namespace
+        from engine.office_diagrams import render_cs_front
+        section = SimpleNamespace(width=_number(details.get("width_mm")), height=_number(details.get("height_mm")))
+        return render_cs_front(section, cs_result_namespace(details.get("cs_geometry") or {}),
+                               print_dimensions=True, print_size_mm=(198, 65))
     canvas = Image.new("RGB", (1800, 720), BACKGROUND)
     draw = ImageDraw.Draw(canvas)
     title_font = load_font(31, bold=True)

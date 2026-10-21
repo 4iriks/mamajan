@@ -501,7 +501,7 @@
           <tr><td><b>ЗАКАЗЧИК:</b><br>{{ project.customer or '—' }}</td><td><b>ИСПОЛНИТЕЛЬ:</b><br>{{ company_name|e }}</td></tr>
         </table>
         {% endif %}
-        {% for warning in document_warnings or [] %}<div class="document-warning">{{ warning }}</div>{% endfor %}
+
         {% endif %}
 
         <div class="commercial-section-title">Изделие № {{ loop.index }} · {{ row.name|e }}</div>
@@ -510,22 +510,33 @@
             <table>
               <tr><td>Ширина</td><td><b>{{ details.width_mm }} мм</b></td></tr>
               <tr><td>Высота</td><td><b>{{ details.height_mm }} мм</b></td></tr>
-              <tr><td>Система</td><td>{{ details.system|e }}, {{ details.rails }} рельс., {{ details.slide_rows }} ряд</td></tr>
+              <tr><td>Система</td><td>{% if details.system == 'ЦС' %}{{ details.system_name|e }}{% else %}{{ details.system|e }}, {{ details.rails }} рельс., {{ details.slide_rows }} ряд{% endif %}</td></tr>
               <tr><td>Цвет</td><td>{{ details.color|e }}</td></tr>
               <tr><td>Стекло</td><td><b>{{ details.glass_type|e }}</b></td></tr>
               <tr><td>Количество</td><td>{{ details.quantity }} шт.</td></tr>
               <tr><td>Площадь</td><td>{{ details.area_m2 }} м²</td></tr>
               <tr><td>Вес изделия</td><td>{{ details.weight_kg }} кг</td></tr>
-              <tr><td>Порог</td><td>{{ details.threshold|e }}</td></tr>
+              {% if details.system != 'ЦС' %}<tr><td>Порог</td><td>{{ details.threshold|e }}</td></tr>{% endif %}
             </table>
             <div class="quote-product-note"><b>Примечание:</b><br>{{ details.comments|e if details.comments else '—' }}</div>
           </div>
           <div class="commercial-sketch">
             <div class="commercial-sketch-title">Вид на изделие со стороны помещения</div>
-            {{ quote_room(details, loop.index) }}
+            {% if details.system == 'ЦС' %}<img src="data:image/png;base64,{{ quote_snapshot_image(details) }}" alt="Схема ЦС" style="display:block;margin:0 auto;max-width:100%;max-height:65mm;object-fit:contain" />{% else %}{{ quote_room(details, loop.index) }}{% endif %}
           </div>
         </div>
 
+        {% if details.system == 'ЦС' and details.cs_geometry %}
+        <div class="quote-tech-side" style="margin-top:3mm">Состав ЦС · {{ details.quantity }} изд.</div>
+        <table class="quote-technical">
+          <thead><tr><th>Артикул</th><th>Комплектующее</th><th>Расход</th></tr></thead>
+          <tbody>
+          {% for part in details.cs_geometry.profiles or [] %}<tr><td>{{ part.article|e }}</td><td>{{ part.name|e }}</td><td class="right">{% if part.allocation_m is defined %}{{ part.allocation_m }} м · доля общего раскроя{% else %}{{ (part.total_length_mm / 1000)|round(4) }} м{% endif %}</td></tr>{% endfor %}
+          {% for part in details.cs_geometry.hardware or [] %}<tr><td>{{ part.article|e or '—' }}</td><td>{{ part.name|e }}</td><td class="right">{{ part.qty }} {{ part.unit|e }}</td></tr>{% endfor %}
+          {% if details.glass_supplied %}<tr><td>—</td><td>{{ details.glass_type|e }}</td><td class="right">{{ details.glass_area_m2 }} м²</td></tr>{% endif %}
+          </tbody>
+        </table>
+        {% elif details.system != 'ЦС' %}
         <table class="quote-technical">
           <tr>
             {% for label, items in [('Слева', details.technical_left), ('Общие и центральные', details.technical_common), ('Справа', details.technical_right)] %}
@@ -540,6 +551,7 @@
             {% endfor %}
           </tr>
         </table>
+        {% endif %}
       </div>
     {% endfor %}
 
@@ -568,9 +580,12 @@
         <tr><td><b>ЗАКАЗЧИК:</b><br>{{ project.customer or '—' }}</td><td><b>ИСПОЛНИТЕЛЬ:</b><br>{{ company_name|e }}</td></tr>
       </table>
       {% endif %}
-      {% for warning in document_warnings or [] %}<div class="document-warning">{{ warning }}</div>{% endfor %}
+
       {% endif %}
       <div class="quote-summary-title">Итоговая спецификация</div>
+      {% for group in (commercial_quote.cs_cover_cutting or {}).get('groups', []) %}
+      <p style="font-size:9.5pt"><b>{{ group.article|e }} · {{ group.color|e }} · общий раскрой заказа: {{ group.stock_count }} × 3000 мм = {{ group.total_length_mm / 1000 }} м</b></p>
+      {% endfor %}
       <table class="commercial-table">
         <thead><tr><th style="width:7mm;">№</th><th>Изделие / аксессуар / услуга</th><th style="width:25mm;">Цена, ₽</th><th style="width:19mm;">Кол-во</th>{% if not minimal_commercial %}<th style="width:24mm;">До скидки, ₽</th><th style="width:22mm;">Скидка, ₽</th>{% endif %}<th style="width:26mm;">Итого, ₽</th></tr></thead>
         <tbody>
@@ -655,9 +670,7 @@
           </td>
         </tr>
       </table>
-      {% for warning in document_warnings %}
-      <div class="document-warning">{{ warning }}</div>
-      {% endfor %}
+
       <div class="accent-red center" style="margin-bottom:4mm;">
         В счете указать номер заявки и цвет профиля
       </div>
@@ -697,9 +710,9 @@
             </td>
             {% endif %}
             <td class="center">{{ row.qty }}</td>
-            <td class="center">{{ row.clean|int if row.clean == row.clean|int else row.clean }}</td>
-            <td class="center">{{ row.allowance|int if row.allowance == row.allowance|int else row.allowance }}</td>
-            <td class="center">{{ "%.1f"|format(row.total_m) }}</td>
+            <td class="center">{% if not row.is_piece %}{{ row.clean|int if row.clean == row.clean|int else row.clean }}{% endif %}</td>
+            <td class="center">{% if not row.is_piece %}{{ row.allowance|int if row.allowance == row.allowance|int else row.allowance }}{% endif %}</td>
+            <td class="center">{% if not row.is_piece %}{{ "%.1f"|format(row.total_m) }}{% endif %}</td>
           </tr>
           {% endfor %}
         {% endfor %}
@@ -735,9 +748,7 @@
         </td>
       </tr>
     </table>
-    {% for warning in document_warnings %}
-    <div class="document-warning">{{ warning }}</div>
-    {% endfor %}
+
     <div class="accent-red" style="margin-bottom:3mm;">
       КРОМКИ ПОЛИРОВАННЫЕ. Печать закалки не ставить
     </div>

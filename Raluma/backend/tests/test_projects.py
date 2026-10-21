@@ -93,6 +93,35 @@ def test_copy_project(client, admin_headers, project, section):
     client.delete(f"/api/projects/{copy['id']}", headers=admin_headers)
 
 
+def test_change_customer_preserves_sections_extras_and_fixed_quote(client, admin_headers, project, section):
+    from database import SessionLocal
+    from models import ProjectQuoteState
+
+    path = f"/api/projects/{project['id']}"
+    before = client.get(path, headers=admin_headers).json()
+    snapshot = json.dumps({"customer": before["customer"], "totals": {"grand_total": "1234.56"}})
+    with SessionLocal() as db:
+        quote = ProjectQuoteState(project_id=project["id"], status="fixed", revision=3,
+                                  public_payload=snapshot, internal_payload=snapshot)
+        db.add(quote)
+        db.commit()
+        quote_id = quote.id
+    target = "ООО ПРОЗРАЧНЫЕ РЕШЕНИЯ"
+    result = client.put(path, headers=admin_headers, json={"customer": target})
+    assert result.status_code == 200, result.text
+    after = client.get(path, headers=admin_headers).json()
+    assert after["customer"] == target
+    for key in ("sections", "extra_components", "invoice_number", "order_number", "production_stages"):
+        assert after[key] == before[key]
+    with SessionLocal() as db:
+        quote = db.get(ProjectQuoteState, quote_id)
+        assert (quote.status, quote.revision) == ("fixed", 3)
+        assert quote.public_payload == quote.internal_payload == snapshot
+    invalid = client.put(path, headers=admin_headers, json={"customer": "Не из справочника"})
+    assert invalid.status_code == 422
+    assert client.get(path, headers=admin_headers).json()["customer"] == target
+
+
 def test_manual_project_extra_is_normalized_and_color_enables_paint(
     client, admin_headers
 ):

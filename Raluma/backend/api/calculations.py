@@ -57,7 +57,7 @@ def _cs_payload(data: schemas.SectionCreate, db: Session) -> dict:
     if system is None:
         system = (
             db.query(models.CsSystem)
-            .filter(models.CsSystem.is_active == True)  # noqa: E712
+            .filter(models.CsSystem.is_active == True, models.CsSystem.code == "CS_CLAMP")  # noqa: E712
             .order_by(models.CsSystem.id)
             .first()
         )

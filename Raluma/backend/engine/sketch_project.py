@@ -533,7 +533,7 @@ def _diagram_rows(section: object, calc: object) -> list[dict]:
             ),
         ]
         if system == "СЛАЙД"
-        else section_diagrams(section, calc)
+        else section_diagrams(section, calc, cs_print_dimensions=True, cs_print_size_mm=(176, 75))
     )
     room_views = [row for row in diagrams if "из помещения" in row[0].casefold()]
     selected = (

@@ -276,9 +276,7 @@
       <div class="kv"><span>ВВОД КАБЕЛЯ</span><strong {{ editable('lift_summary_cable', calc.cable_side) }}>{{ doc_value('lift_summary_cable', calc.cable_side) }}</strong></div>
     </div>
   </div>
-  {% if calc.warnings %}
-  <div class="warning">{{ calc.warnings|join(' · ')|e }}</div>
-  {% endif %}
+
 
   <div class="diagram-grid">
     <div class="diagram-card">

@@ -170,12 +170,3 @@ export const updateDealerPricingTerms = (
   userId: number,
   data: Omit<DealerPricingTerms, 'user_id' | 'updated_at' | 'updated_by'>,
 ) => client.put<DealerPricingTerms>(`/api/pricing/dealers/${userId}`, data).then(response => response.data);
-
-export const listConstructionPriceGroups = () =>
-  client.get<ConstructionPriceGroup[]>('/api/pricing/price-groups').then(response => response.data);
-
-export const createConstructionPriceGroup = (data: Omit<ConstructionPriceGroup, 'id'>) =>
-  client.post<ConstructionPriceGroup>('/api/pricing/price-groups', data).then(response => response.data);
-
-export const updateConstructionPriceGroup = (id: number, data: Omit<ConstructionPriceGroup, 'id'>) =>
-  client.put<ConstructionPriceGroup>(`/api/pricing/price-groups/${id}`, data).then(response => response.data);

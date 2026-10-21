@@ -23,6 +23,8 @@
     "smoke:documents": "tsx scripts/smoke-document-exports.ts",
     "smoke:pricing": "tsx scripts/smoke-pricing-ui.tsx",
     "smoke:pricing:catalog": "tsx scripts/smoke-catalog-pricing-ui.tsx",
+    "smoke:pricing:systems": "node scripts/smoke-construction-pricing-browser.mjs",
+    "smoke:pricing:editing": "node scripts/smoke-pricing-editing-browser.mjs",
     "smoke:pricing:confirmation": "tsx scripts/smoke-quote-confirmation-ui.tsx"
   },
   "dependencies": {

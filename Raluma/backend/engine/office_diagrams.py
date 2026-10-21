@@ -1250,9 +1250,8 @@ def render_cs_front(
 
     pane_fill = "#DCEFF3"
     pane_font = load_font(30, bold=True)
-    # PDF fits this image into a 49 mm high box; Word uses a fixed width.
-    # Use the actual cropped image, not the mostly empty source canvas, so
-    # portrait and landscape sections have the same readable print size.
+    # Callers supply their printed box (75 mm high for project sketches).
+    # Use the cropped image so portrait and landscape dimensions stay readable.
     dimension_font_size = 28
     if print_dimensions:
         with Image.open(io.BytesIO(render_cs_front(section, calc))) as reference:
@@ -1345,9 +1344,9 @@ def render_cs_front(
     _center_text(
         draw,
         (800, 875 if print_dimensions else 845),
-        "ПРЕДВАРИТЕЛЬНАЯ ГЕОМЕТРИЯ · ЦЕНА НЕ ФОРМИРУЕТСЯ",
+        "ГЕОМЕТРИЯ ЦЕЛЬНОСТЕКЛЯННОЙ КОНСТРУКЦИИ",
         note_font,
-        RED,
+        MUTED,
     )
     return _cropped_png(canvas)
 

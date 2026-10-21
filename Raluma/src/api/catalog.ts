@@ -14,6 +14,7 @@ export interface CatalogFinishVariant {
   code: FinishCode;
   name: string;
   cost?: string | number;
+  costIsSet?: boolean;
   profileMarkupPercent: number | string;
   profileDiscountPercent: number | string;
   wasteMarkupPercent: number | string;
@@ -138,31 +139,6 @@ export const listHardwareCatalogOptions = async () => {
   return resp.data;
 };
 
-export const listConstructionPriceGroupOptions = async () => {
-  const resp = await client.get<ConstructionPriceGroupOption[]>('/api/catalog/construction-price-groups');
-  return resp.data;
-};
-
-export const listSystemMarkups = async () => {
-  const resp = await client.get<SystemMarkup[]>('/api/catalog/system-markups');
-  return resp.data;
-};
-
-export const updateSystemMarkup = async (code: SystemGroupCode, constructionMarkupPercent: number) => {
-  const resp = await client.put(`/api/catalog/system-markups/${code}`, { constructionMarkupPercent });
-  return resp.data;
-};
-
-export const previewCatalogPricingBulk = async (data: CatalogPricingBulkRequest) => {
-  const resp = await client.post<CatalogPricingBulkResult>('/api/catalog/pricing/bulk/preview', data);
-  return resp.data;
-};
-
-export const applyCatalogPricingBulk = async (data: CatalogPricingBulkRequest) => {
-  const resp = await client.post<CatalogPricingBulkResult>('/api/catalog/pricing/bulk/apply', data);
-  return resp.data;
-};
-
 export const listCsSystems = async () => {
   const resp = await client.get<CsSystem[]>('/api/catalog/cs-systems');
   return resp.data;
@@ -179,12 +155,12 @@ export const updateCsSystem = async (id: number, data: Omit<CsSystem, 'id' | 'ou
 };
 
 export const createHardwareCatalogItem = async (data: HardwareCatalogItem) => {
-  const resp = await client.post<HardwareCatalogItem>('/api/catalog/hardware', data);
+  const resp = await client.post<HardwareCatalogItem>('/api/catalog/hardware', standalonePayload(data));
   return resp.data;
 };
 
 export const updateHardwareCatalogItem = async (id: number, data: HardwareCatalogItem) => {
-  const resp = await client.put<HardwareCatalogItem>(`/api/catalog/hardware/${id}`, data);
+  const resp = await client.put<HardwareCatalogItem>(`/api/catalog/hardware/${id}`, standalonePayload(data));
   return resp.data;
 };
 
@@ -192,3 +168,14 @@ export const archiveHardwareCatalogItem = async (id: number) => {
   const resp = await client.delete<HardwareCatalogItem>(`/api/catalog/hardware/${id}`);
   return resp.data;
 };
+
+function standalonePayload(data: HardwareCatalogItem) {
+  const result = { ...data } as Record<string, unknown>;
+  for (const field of ['wastePercent', 'constructionMarkupPercent', 'constructionDiscountPercent']) delete result[field];
+  result.finishVariants = (data.finishVariants || []).map(variant => {
+    const value = { ...variant } as Record<string, unknown>;
+    for (const field of ['wasteMarkupPercent', 'constructionMarkupPercent', 'constructionDiscountPercent', 'pricingMode', 'pricingSource']) delete value[field];
+    return value;
+  });
+  return result;
+}

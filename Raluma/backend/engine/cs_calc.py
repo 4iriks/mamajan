@@ -1,19 +1,21 @@
 """CS geometry according to the customer's T40T specification, September 2026.
 
-All distances are millimetres. Calculations retain precision; presentation rounds.
+All distances are millimetres. Contours retain precision; glass cutting sizes
+are rounded down to whole millimetres before documents and pricing consume them.
 No commercial price is inferred from incomplete catalogue costs.
 """
 
 from __future__ import annotations
 
 from collections import Counter
-from math import ceil, hypot, isfinite
+from math import ceil, floor, hypot, isfinite
 from types import SimpleNamespace
 from typing import Any
 
 from shapely.geometry import LineString, Polygon, box
 from engine.glass_types import normalize_slide_glass_type
 from engine.cs_rounding import triangle_rounding
+from engine.cs_cover_cutting import cover_cuts, pack_cuts, INDIVIDUAL_COVER_NOTE
 
 EPS = 1e-7
 GAP = 3.0
@@ -327,14 +329,19 @@ def calculate_cs(section, *, system=None, outer_profile=None, joint_profile=None
                 glass_polygon.intersection(box(left, bottom, right, top))
             ):
                 px0, py0, px1, py1 = pane.bounds
+                width_mm = floor(px1 - px0 + EPS)
+                height_mm = floor(py1 - py0 + EPS)
+                if min(width_mm, height_mm) < 1:
+                    raise CsCalculationError("Размер стекла после округления должен быть не менее 1 мм")
+                is_rectangle = abs(pane.area - (px1 - px0) * (py1 - py0)) < EPS
                 panes.append(
                     {
                         "column": col + 1,
                         "row": row + 1,
-                        "width_mm": px1 - px0,
-                        "height_mm": py1 - py0,
-                        "area_m2": pane.area / 1e6,
-                        "is_rectangle": abs(pane.area - (px1 - px0) * (py1 - py0)) < EPS,
+                        "width_mm": width_mm,
+                        "height_mm": height_mm,
+                        "area_m2": (width_mm * height_mm if is_rectangle else pane.area) / 1e6,
+                        "is_rectangle": is_rectangle,
                         "qty": quantity,
                         "polygon": _points(pane),
                         "centroid": (pane.centroid.x, pane.centroid.y),
@@ -371,6 +378,8 @@ def calculate_cs(section, *, system=None, outer_profile=None, joint_profile=None
         )
 
     outer_lengths = [length(installation, i) for i in profiled]
+    cover_blanks = cover_cuts(outer_lengths)
+    cover_stocks = pack_cuts(cover_blanks)
     bubble_lengths = [
         length(glass, i) for i, t in enumerate(treatments) if t == "bubble"
     ]
@@ -417,7 +426,7 @@ def calculate_cs(section, *, system=None, outer_profile=None, joint_profile=None
         cover,
         "Т40К",
         "Крышка зажимного профиля Т40К",
-        [3000.0] * ceil(sum(2 * (v + 50) for v in outer_lengths) / 3000),
+        [3000.0] * len(cover_stocks),
         True,
         "T40K-section.jpg",
     )
@@ -445,7 +454,7 @@ def calculate_cs(section, *, system=None, outer_profile=None, joint_profile=None
             {
                 "article": "",
                 "name": "Двухсторонний скотч для соединения стёкол",
-                "qty": sum(cuts) * 2 * quantity / 1000,
+                "qty": ceil(sum(cuts) * 2 * quantity / 1000 - EPS),
                 "unit": "м",
                 "image": "",
                 "role": "tape",
@@ -501,11 +510,14 @@ def calculate_cs(section, *, system=None, outer_profile=None, joint_profile=None
         "glass_type": glass_type,
         "color_text": color_text,
         "outer_edge_lengths_mm": outer_lengths,
+        "cover_cuts": cover_blanks,
+        "cover_stocks": cover_stocks,
         "divider_lengths_mm": cuts,
         "glass_area_m2": sum(pane["area_m2"] * pane["qty"] for pane in panes),
         "warnings": [
-            "Геометрия ЦС рассчитана по ТЗ Т40Т/Т40К. Коммерческая цена пока не формируется.",
+            "Геометрия ЦС рассчитана по ТЗ Т40Т/Т40К. Стоимость проверяется отдельно по настройкам системы.",
             "Т40Т — длины без припуска. Т40К — целые палки 3000 мм, запас 50 мм на каждую крышку учтён. Вес и цены новых деталей требуют заполнения.",
+            INDIVIDUAL_COVER_NOTE,
         ],
         "status": "preliminary",
         "commercial_price_allowed": False,

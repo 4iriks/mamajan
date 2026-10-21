@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { MotionConfig } from 'framer-motion';
 import client from '../../src/api/client';
 import { ProjectEconomics } from '../../src/components/editor/ProjectEconomics';
 import ProjectDocumentModal from '../../src/components/ProjectDocumentModal';
 import { useProjectEconomics } from '../../src/hooks/useProjectEconomics';
 import { useAuthStore } from '../../src/store/authStore';
-import type { QuoteConfig } from '../../src/api/quotes';
+import type { InternalQuoteState, PublicQuote, QuoteConfig } from '../../src/api/quotes';
 import '../../src/index.css';
 
 useAuthStore.getState().setAuth('local-fixture-only', { id: 1, username: 'qa', role: 'superadmin', display_name: 'QA', is_active: true } as never);
@@ -17,7 +18,21 @@ let config: QuoteConfig = { validity_days: 30, manufacturing_term: '', payment_t
 const original = JSON.stringify(config.discounts.filter(rule => rule.id !== 'first'));
 let failSave = false, exportedValue = '', fixed = false, refreshes = 0;
 const pause = (ms = 80) => new Promise(resolve => setTimeout(resolve, ms));
-const quote = () => ({ revision: 1, status: fixed ? 'fixed' : 'draft', stale: fixed, totals: { before_discount: '1000', discount: '100', grand_total: '900' }, export_allowed: true, discounts: config.discounts });
+const quote = (): PublicQuote => ({
+  project: { id: 1, number: 'QA', customer: 'QA' }, revision: 1,
+  status: fixed ? 'fixed' : 'draft', stale: fixed, fixed_at: null, currency: 'RUB', lines: [],
+  totals: { before_discount: '1000', discount: '100', subtotal: '900', grand_total: '900',
+    document_before_discount: '1000', document_discount: '100', document_grand_total: '900' },
+  validity_days: config.validity_days, valid_until: '', manufacturing_term: config.manufacturing_term,
+  payment_terms: config.payment_terms, missing_price_count: 0, warnings: [],
+  export_allowed: true, discounts: config.discounts,
+});
+const internal = (): InternalQuoteState => ({
+  revision: 1, status: fixed ? 'fixed' : 'draft', stale: fixed, config: structuredClone(config),
+  calculation: { sections: [] }, missing_prices: [], pending_warnings: [],
+  margin_approval: { required: false, valid: false, context_signature: 'qa', target_revision: 1,
+    approved_revision: null, comment: '', approved_by: null, approved_at: null },
+});
 client.defaults.adapter = async request => {
   let data: unknown;
   if (request.url?.endsWith('/config')) {
@@ -28,7 +43,8 @@ client.defaults.adapter = async request => {
     exportedValue = config.discounts.find(rule => rule.id === 'first')!.value;
     data = new Blob(['local QA document']);
   } else if (request.url?.endsWith('/refresh')) { refreshes += 1; data = quote(); }
-  else if (request.url?.includes('/pricing/projects/')) data = { config: structuredClone(config) };
+  else if (request.url?.includes('/pricing/projects/')) data = internal();
+  else if (request.url?.endsWith('/revisions')) data = [];
   else data = quote();
   return { data, status: 200, statusText: 'OK', headers: {}, config: request };
 };
@@ -48,16 +64,25 @@ function App() {
     <ProjectDocumentModal isOpen={open} onClose={() => setOpen(false)} projectId={1} projectNumber="QA" docType="commercial" title="КП" />
   </main>;
 }
-createRoot(document.getElementById('root')!).render(<App />);
+// This fixture tests saving/export, independently of animation frame timing.
+createRoot(document.getElementById('root')!).render(<MotionConfig transition={{ duration: 0 }}><App /></MotionConfig>);
 function assert(value: unknown, message: string) { if (!value) throw new Error(message); }
+async function waitUntil(predicate: () => boolean, message: string) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (predicate()) return;
+    await pause(30);
+  }
+  assert(false, message);
+}
 async function set(value: string) {
   const input = document.querySelector<HTMLInputElement>('[aria-label="На изделия, %"]')!;
+  assert(input, 'Discount editor must be rendered');
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
   input.dispatchEvent(new Event('input', { bubbles: true })); await pause();
 }
 async function run() {
   console.log("QA started");
-  await pause(700);
+  await waitUntil(() => Boolean(document.querySelector('[aria-label="На изделия, %"]')), 'Discount editor must load');
   console.log("QA editing");
   await set('21'); document.getElementById('open')!.click();
   await pause(500);
@@ -69,8 +94,8 @@ async function run() {
   await pause(400); assert(exportedValue === '21', 'Immediate export uses saved discount');
   document.querySelector<HTMLButtonElement>('[aria-label="Полноэкранный просмотр"]')!.click();
   await pause(); assert(document.querySelector('[aria-label="Выйти из полноэкранного просмотра"]'), 'Full screen toggle');
-  const close = [...document.querySelectorAll('button')].find(button => button.querySelector('.lucide-x'))!;
-  close.click(); await pause(350);
+  document.querySelector<HTMLButtonElement>('[aria-label="Закрыть документ"]')!.click();
+  await waitUntil(() => !document.querySelector('iframe'), 'Document must close before checking failed save');
   failSave = true; await set('22'); document.getElementById('open')!.click(); await pause(500);
   assert(!document.querySelector('iframe'), 'Failed save must block preview/export');
   assert(document.querySelector<HTMLInputElement>('[aria-label="На изделия, %"]')!.value === '22', 'Failed save preserves input');

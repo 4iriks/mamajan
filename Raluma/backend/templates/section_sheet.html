@@ -218,9 +218,7 @@
     <td style="width:35%; text-align:right">{{ calc.system_text }}</td>
   </tr>
 </table>
-{% for warning in calc.warnings or [] %}
-<div class="calc-warning">{{ warning|e }}</div>
-{% endfor %}
+
 
 <!-- ══════ СХЕМЫ ══════ -->
 <table style="border:1px solid #000; border-top:none;">
@@ -236,8 +234,10 @@
       {% set rpt = 5 %}
       {% set sides = side_projection(section, calc) %}
       {% set segments = side_segments(section) %}
-      {% set left_px = sides.left * rfW / section.width %}
-      {% set right_px = sides.right * rfW / section.width %}
+      {# Keep the wide schematic frame, but do not stretch side profiles with it. #}
+      {% set side_scale = [rfW / ([section.width, 1] | max), rfH / ([section.height, 1] | max)] | min %}
+      {% set left_px = sides.left * side_scale %}
+      {% set right_px = sides.right * side_scale %}
       {% set riX = rfX + left_px %}
       {% set riY = rfY + rpt %}
       {% set riW = rfW - left_px - right_px %}
@@ -284,8 +284,8 @@
         <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rfW }}" height="{{ rfH }}" fill="none" stroke="#000" stroke-width="0.3"/>
         <rect x="{{ rfX }}" y="{{ rfY }}" width="{{ rfW }}" height="{{ rpt }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
         <rect x="{{ rfX }}" y="{{ rfY + rfH - rpt }}" width="{{ rfW }}" height="{{ rpt }}" fill="#f0f0f0" stroke="#000" stroke-width="0.4"/>
-        {% for part in segments.left %}<rect data-side="left" data-segment="{{ part.role }}" data-profile-width-mm="{{ sides.left }}" x="{{ rfX + part.offset_mm * (rfW / section.width) }}" y="{{ rfY }}" width="{{ part.width_mm * (rfW / section.width) }}" height="{{ rfH }}" fill="#d9e3e5" stroke="#123f47" stroke-width="0.3"/>{% endfor %}
-        {% for part in segments.right %}<rect data-side="right" data-segment="{{ part.role }}" data-profile-width-mm="{{ sides.right }}" x="{{ rfX + rfW - (part.offset_mm + part.width_mm) * (rfW / section.width) }}" y="{{ rfY }}" width="{{ part.width_mm * (rfW / section.width) }}" height="{{ rfH }}" fill="#d9e3e5" stroke="#123f47" stroke-width="0.3"/>{% endfor %}
+        {% for part in segments.left %}<rect data-side="left" data-segment="{{ part.role }}" data-profile-width-mm="{{ sides.left }}" x="{{ rfX + part.offset_mm * side_scale }}" y="{{ rfY }}" width="{{ part.width_mm * side_scale }}" height="{{ rfH }}" fill="#d9e3e5" stroke="#123f47" stroke-width="0.3"/>{% endfor %}
+        {% for part in segments.right %}<rect data-side="right" data-segment="{{ part.role }}" data-profile-width-mm="{{ sides.right }}" x="{{ rfX + rfW - (part.offset_mm + part.width_mm) * side_scale }}" y="{{ rfY }}" width="{{ part.width_mm * side_scale }}" height="{{ rfH }}" fill="#d9e3e5" stroke="#123f47" stroke-width="0.3"/>{% endfor %}
         {# Panels #}
         {% set room_ns = namespace(x=riX, centerBoundary=riX + riW / 2) %}
         {% for i in range(section.panels) %}

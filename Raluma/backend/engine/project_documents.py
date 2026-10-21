@@ -15,6 +15,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from engine.book_calc import calculate_book
 from engine.cs_calc import calculate_cs, cs_result_namespace
+from engine.cs_cover_cutting import build_cover_plan
 from engine.component_groups import display_groups, group_extra_sources, group_display_rows
 from engine.document_numbers import (
     production_project_number,
@@ -41,6 +42,20 @@ DOC_TITLES = {
 
 COMPANY_NAME = 'ООО "СТУДИЯ СПК"'
 COMPANY_ADDRESS = "г. Москва, ул. Космонавта Волкова"
+
+RS3020_COVERS_NAME = "накладки замка RS3020"
+RS3020_COVERS_IMAGE = "RS3020_COVERS.png"
+
+
+def _rs3020_covers_quantity(section: object, calc: object) -> int:
+    """Document-only parts; the calculated lock count already includes section quantity."""
+    if str(getattr(section, "system", "")).strip().upper() != "СЛАЙД":
+        return 0
+    return 2 * sum(
+        max(0, int(item.value))
+        for item in getattr(calc, "hardware", [])
+        if str(getattr(item, "article", "")).strip().upper() == "RS3020"
+    )
 
 
 def _plural(value: int, forms: tuple[str, str, str]) -> str:
@@ -200,10 +215,13 @@ def _document_money(value: object, whole: bool = False) -> str:
 
 def _get_env() -> Environment:
     from engine.side_projection import snapshot_side_projection, snapshot_side_segments
+    from engine.quote_diagrams import render_quote_room_png
+    from base64 import b64encode
     env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=False)
     env.globals["snapshot_side_projection"] = snapshot_side_projection
     env.globals["snapshot_side_segments"] = snapshot_side_segments
     env.globals["display_groups"] = display_groups
+    env.globals["quote_snapshot_image"] = lambda details: b64encode(render_quote_room_png(details)).decode("ascii")
     env.filters["img_b64"] = _img_b64
     env.filters["format_mm"] = _format_mm
     env.filters["document_money"] = _document_money
@@ -676,23 +694,23 @@ def _build_paint_pages(
 ) -> list[dict]:
     grouped: dict[str, dict[tuple, dict]] = defaultdict(dict)
 
+    cover_plan = build_cover_plan([(item.section, item.calc) for item in calculated
+                                  if str(getattr(item.section, "system", "")) == "ЦС"])
+    for group in cover_plan["groups"]:
+        if not group["requires_paint"]:
+            continue
+        color = group["color"]
+        color = next((existing for existing in grouped if _paint_color_key(existing) == _paint_color_key(color)), color)
+        key = (group["article"], group["name"], 3000, group["image"], "", "")
+        grouped[color][key] = {
+            "article": group["article"], "name": group["name"], "image": group["image"],
+            "image_data": "", "paint_marker": False, "paint_marker_class": "",
+            "qty": group["stock_count"], "clean": 3000, "allowance": 3000,
+            "total_m": group["total_length_mm"] / 1000, "note": "", "stock_length": True,
+        }
+
     for item in calculated:
         if str(getattr(item.section, "system", "")) == "ЦС":
-            color = item.calc.color_text
-            color = next((existing for existing in grouped if _paint_color_key(existing) == _paint_color_key(color)), color)
-            for profile in item.calc.profiles:
-                if not profile.requires_paint:
-                    continue
-                for length in profile.cut_lengths_mm:
-                    key = (profile.article, profile.name, length, profile.image, "", "")
-                    row = grouped[color].setdefault(key, {
-                        "article": profile.article, "name": profile.name, "image": profile.image,
-                        "image_data": "", "paint_marker": False, "paint_marker_class": "",
-                        "qty": 0, "clean": length, "allowance": length, "total_m": 0,
-                        "note": "", "stock_length": True,
-                    })
-                    row["qty"] += max(1, int(getattr(item.section, "quantity", 1) or 1))
-                    row["total_m"] = round(row["qty"] * length / 1000, 3)
             continue
         if str(getattr(item.calc, "status", "") or "") == "preliminary":
             continue
@@ -737,6 +755,28 @@ def _build_paint_pages(
             )
             row["qty"] += int(profile.qty)
             row["total_m"] = round(row["qty"] * allowance / 1000, 1)
+
+        covers_qty = _rs3020_covers_quantity(item.section, item.calc)
+        if covers_qty:
+            key = ("", RS3020_COVERS_NAME, 0, RS3020_COVERS_IMAGE, "", "")
+            row = grouped[color].setdefault(
+                key,
+                {
+                    "article": "",
+                    "name": RS3020_COVERS_NAME,
+                    "image": RS3020_COVERS_IMAGE,
+                    "image_data": "",
+                    "paint_marker": False,
+                    "paint_marker_class": "",
+                    "is_piece": True,
+                    "qty": 0,
+                    "clean": 0,
+                    "allowance": 0,
+                    "total_m": 0.0,
+                    "note": "",
+                },
+            )
+            row["qty"] += covers_qty
 
     calculated_colors = list(grouped)
     for manual_index, raw in enumerate(_parse_paint_manual_rows(manual_rows), start=1):
@@ -923,8 +963,8 @@ def _physical_glass_pieces(
                     {
                         "marking": f"{section_number},{glass_index}",
                         "glass_type": glass_type,
-                        "width": round(float(getattr(pane, "width_mm", 0)), 1),
-                        "height": round(float(getattr(pane, "height_mm", 0)), 1),
+                        "width": int(getattr(pane, "width_mm", 0)),
+                        "height": int(getattr(pane, "height_mm", 0)),
                         "area": float(getattr(pane, "area_m2", 0) or 0),
                         "shape_key": shape_key,
                         "note": "" if getattr(pane, "is_rectangle", False) else "ЧЕРТЕЖ",
@@ -1401,17 +1441,20 @@ def _build_delivery_glass_rows(
 
         for row in section_rows:
             row_glass_type = row["glass_type"]
-            outer_key = (color, row_glass_type)
+            outer_key = ("ЦС" if system == "ЦС" else color, row_glass_type)
             is_penoplex = row_glass_type == PENOPLEX_20MM
             outer = grouped.setdefault(
                 outer_key,
                 {
                     "name": (
-                        f"ПАНЕЛИ ПЕНОПЛЕКС 20 ММ, {color.upper()}, РАЗМЕРЫ ПАНЕЛЕЙ:"
+                        "СТЕКЛО(ЦС), РАЗМЕРЫ СТЕКОЛ:"
+                        if system == "ЦС"
+                        else f"ПАНЕЛИ ПЕНОПЛЕКС 20 ММ, {color.upper()}, РАЗМЕРЫ ПАНЕЛЕЙ:"
                         if is_penoplex
                         else f"СТЕКЛЯННЫЕ ПАНЕЛИ, {color.upper()}, РАЗМЕРЫ СТЕКОЛ:"
                     ),
-                    "color": color,
+                    "color": "" if system == "ЦС" else color,
+                    "system": system,
                     "glass_type": row_glass_type,
                     "rows": [],
                     "qty": 0,
@@ -1583,12 +1626,21 @@ def _build_delivery_hardware_rows(
     lift_remote_controls: dict[str, dict] = {}
     special_articles = {"RS3014", "RS3017", "RS30201", "RS205", "RS206"}
     excluded_locks = {"RS3018", "RS3020"}
+    cs_entries = []
 
     for section in sections:
         section_qty = max(1, _positive_int(getattr(section, "quantity", 1), 1))
         system = str(getattr(section, "system", "") or "").strip().upper()
         if system == "СЛАЙД" and include_calculated_specials:
             calc = calculate_slide(section)
+            _add_delivery_component(
+                grouped,
+                article="",
+                name=RS3020_COVERS_NAME,
+                qty=_rs3020_covers_quantity(section, calc),
+                color=_section_color(section, calc),
+                stage="2",
+            )
             for item in calc.hardware:
                 article = str(getattr(item, "article", "") or "").strip().upper()
                 name = str(getattr(item, "name", "") or "").strip()
@@ -1671,7 +1723,10 @@ def _build_delivery_hardware_rows(
                     )
         elif system == "ЦС":
             cs = calculate_cs(section, system=getattr(section, "cs_system", None))
+            cs_entries.append((section, cs))
             for profile in cs["profiles"] if extra_stage in (None, 1) else []:
+                if profile["role"] == "cover":
+                    continue
                 for length in profile["cut_lengths_mm"]:
                     _add_delivery_component(grouped, article=profile["article"], name=profile["name"], qty=section_qty,
                                             color=cs["color_text"] if profile["role"] == "cover" else "",
@@ -1685,6 +1740,14 @@ def _build_delivery_hardware_rows(
                     _add_delivery_component(grouped, article=hardware["article"], name=hardware["name"], qty=hardware["qty"], unit=hardware["unit"], stage="1" if is_pad else "2")
         elif include_calculated_specials:
             _add_raw_special_hardware(grouped, section, section_qty)
+
+    if extra_stage in (None, 1):
+        for group in build_cover_plan(cs_entries)["groups"]:
+            _add_delivery_component(
+                grouped, article=group["article"], name=group["name"],
+                qty=group["stock_count"], color=group["color"], size="3000 мм",
+                unit="шт", image=group["image"], stage="1",
+            )
 
     for remote in lift_remote_controls.values():
         _add_delivery_component(
@@ -2225,6 +2288,7 @@ def _build_hardware_order_page(
                     stage=getattr(item, "shipment_stage", ""),
                 )
     elif system == "ЦС":
+        cs_entries = []
         for section in sections:
             cs_system = getattr(section, "cs_system", None)
             calc = cs_result_namespace(
@@ -2235,7 +2299,10 @@ def _build_hardware_order_page(
                     joint_profile=getattr(cs_system, "joint_profile", None),
                 )
             )
+            cs_entries.append((section, calc))
             for item in calc.profiles:
+                if item.role == "cover":
+                    continue
                 for length in item.cut_lengths_mm:
                     _add_hardware_order_row(
                         grouped, article=item.article, name=item.name,
@@ -2248,6 +2315,12 @@ def _build_hardware_order_page(
                     grouped, article=item.article, name=item.name, qty=item.qty,
                     unit=item.unit, image=item.image, stage="",
                 )
+        for group in build_cover_plan(cs_entries)["groups"]:
+            _add_hardware_order_row(
+                grouped, article=group["article"], name=group["name"],
+                qty=group["stock_count"], unit="шт", image=group["image"],
+                stage="", size="3000 мм", color=group["color"],
+            )
         warning = (
             "ЦС: ведомость профилей предварительная; коммерческая цена и дверная "
             "фурнитура не формируются до подтверждения формул."

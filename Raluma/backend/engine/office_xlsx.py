@@ -582,7 +582,7 @@ def _write_cs_glass_and_profiles(
     row: int,
     calc: object,
 ) -> int:
-    row = _write_bar(worksheet, formats, row, "Стекла · предварительные размеры")
+    row = _write_bar(worksheet, formats, row, "Стекла")
     glass_spans = ((0, 0), (1, 2), (3, 4), (5, 6), (7, 8), (9, 11))
     row = _write_headers(
         worksheet,
@@ -602,13 +602,13 @@ def _write_cs_glass_and_profiles(
                 format_number(getattr(pane, "height_mm", 0)),
                 format_number(getattr(pane, "area_m2", 0), 3),
                 getattr(pane, "qty", 1),
-                getattr(pane, "treatment_note", "Контур по схеме; размеры габаритные"),
+                getattr(pane, "treatment_note", ""),
             ),
             glass_spans,
             center={0, 1, 2, 3, 4},
         )
 
-    row = _write_bar(worksheet, formats, row, "Профили · предварительная ведомость")
+    row = _write_bar(worksheet, formats, row, "Профили")
     profile_spans = ((0, 1), (2, 5), (6, 7), (8, 9), (10, 11))
     row = _write_headers(
         worksheet,
@@ -1199,9 +1199,8 @@ def _write_book_main_sheet(
         formats,
         project,
         section,
-        f"{sheet.system_label} · ПРЕДВАРИТЕЛЬНЫЙ ПЛ",
+        f"{sheet.system_label} · ПРОИЗВОДСТВЕННЫЙ ЛИСТ",
     )
-    row = _write_book_warning(worksheet, formats, row, sheet.warning)
     row = _write_diagrams(worksheet, formats, row, section, calc)
     row = _write_book_summary(worksheet, formats, row, sheet)
 
@@ -1479,17 +1478,6 @@ def build_section_xlsx(project: object, section: object, calc: object) -> bytes:
         section,
         f"{system} · ПРОИЗВОДСТВЕННЫЙ ЛИСТ",
     )
-    for warning_text in getattr(calc, "warnings", []) or []:
-        worksheet.merge_range(
-            row,
-            0,
-            row,
-            11,
-            str(warning_text),
-            formats["red_center"],
-        )
-        worksheet.set_row(row, 28)
-        row += 1
     row = _write_summary(worksheet, formats, row, section, calc)
     row = _write_diagrams(worksheet, formats, row, section, calc)
     if system == "ЦС":
@@ -1557,10 +1545,6 @@ def _build_glass_xlsx(context: dict) -> bytes:
         "Заказ стекла",
         context["project"],
     )
-    for warning in context.get("document_warnings", []):
-        worksheet.merge_range(row, 0, row, 7, warning, formats["red_center"])
-        worksheet.set_row(row, 26)
-        row += 1
     worksheet.merge_range(
         row,
         0,
@@ -1700,10 +1684,6 @@ def _build_paint_xlsx(context: dict) -> bytes:
             context["project"],
             last_col=5,
         )
-        for warning in context.get("document_warnings", []):
-            worksheet.merge_range(row, 0, row, 5, warning, formats["red_center"])
-            worksheet.set_row(row, 26)
-            row += 1
         worksheet.merge_range(
             row,
             0,
@@ -1765,16 +1745,20 @@ def _build_paint_xlsx(context: dict) -> bytes:
                 worksheet.write(start, 1, group["name"], formats["cell_bottom"])
             for item in rows:
                 worksheet.write(row, 2, item["qty"], formats["center"])
-                worksheet.write(row, 3, item["clean"], formats["center"])
-                worksheet.write(row, 4, item["allowance"], formats["center"])
-                excel_row = row + 1
-                worksheet.write_formula(
-                    row,
-                    5,
-                    f"=ROUND(C{excel_row}*E{excel_row}/1000,1)",
-                    formats["center"],
-                    item["total_m"],
-                )
+                if item.get("is_piece"):
+                    for column in (3, 4, 5):
+                        worksheet.write_blank(row, column, None, formats["center"])
+                else:
+                    worksheet.write(row, 3, item["clean"], formats["center"])
+                    worksheet.write(row, 4, item["allowance"], formats["center"])
+                    excel_row = row + 1
+                    worksheet.write_formula(
+                        row,
+                        5,
+                        f"=ROUND(C{excel_row}*E{excel_row}/1000,1)",
+                        formats["center"],
+                        item["total_m"],
+                    )
                 worksheet.set_row(row, 58)
                 row += 1
             source = image_stream(
@@ -1863,29 +1847,6 @@ def _build_hardware_order_xlsx(context: dict) -> bytes:
         )
         worksheet.set_row(1, 18)
         row = 2
-        if not used_names or len(used_names) == 1:
-            for warning in context.get("document_warnings", []):
-                worksheet.merge_range(
-                    row,
-                    0,
-                    row,
-                    7,
-                    warning,
-                    formats["red_center"],
-                )
-                worksheet.set_row(row, 24)
-                row += 1
-        if page.get("warning"):
-            worksheet.merge_range(
-                row,
-                0,
-                row,
-                7,
-                page["warning"],
-                formats["red_center"],
-            )
-            worksheet.set_row(row, 24)
-            row += 1
         headers = (
             "Артикул",
             "Эскиз",
@@ -2057,10 +2018,6 @@ def _build_delivery_xlsx(context: dict) -> bytes:
         worksheet.set_row(row, 21 if value else 18)
         row += 1
 
-    for warning in context.get("document_warnings", []):
-        worksheet.merge_range(row, 0, row, 5, warning, formats["red_center"])
-        worksheet.set_row(row, 26)
-        row += 1
 
     stages = int(delivery.get("productionStages") or 1)
     current_stage = int(delivery.get("currentStage") or 1)
@@ -2143,18 +2100,19 @@ def _build_delivery_xlsx(context: dict) -> bytes:
             )
             continue
 
+        is_cs_glass = str(item.get("system") or "").strip().upper() == "ЦС"
         glass_rows = item.get("rows") or []
         for glass_index, glass in enumerate(glass_rows):
             if glass.get("width") is None or glass.get("height") is None:
                 size = "Размеры согласно ТЗ"
             else:
-                size = f"{glass.get('width')} × {glass.get('height')} мм"
+                size = f"{format_number(glass.get('width'))} × {format_number(glass.get('height'))} мм"
             note = str(glass.get("note") or "")
             details_text = "\n".join(
-                filter(None, (size, note, str(item.get("color") or "")))
+                filter(None, (size, note, "" if is_cs_glass else str(item.get("color") or "")))
             )
             write_item(
-                "Стекло",
+                "СТЕКЛО(ЦС)" if is_cs_glass else "Стеклянная панель",
                 str(glass.get("marking") or ""),
                 str(glass.get("glass_type") or item.get("name") or ""),
                 details_text,

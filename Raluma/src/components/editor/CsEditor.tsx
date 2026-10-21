@@ -305,7 +305,7 @@ export function CsEditor({
         </select>
       </label>
       <div className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-xs text-fg">
-        Геометрия по ТЗ Т40Т/Т40К. Коммерческая цена пока не формируется.
+        Геометрия Т40Т/Т40К. Стоимость проверяется в расчёте заказа по настройкам ЦС.
       </div>
     </div>
 
@@ -338,24 +338,24 @@ export function CsEditor({
 
     <div className="cs-advanced">
       <div className="space-y-3">
-        {!isRectangle && <details key={`${section.id}-vertex-${selectedVertex}`} className="space-y-3 rounded-xl border border-tint/25 bg-hi/[0.025] p-3">
+        {!isRectangle && <details key={`${section.id}-vertex`} className="space-y-3 rounded-xl border border-tint/25 bg-hi/[0.025] p-3">
           <summary className="cursor-pointer text-xs font-bold">Дополнительно: координаты углов</summary><label><span className={LBL}>Выбранный угол</span><select value={selectedVertex} onChange={event => setSelectedVertex(Number(event.target.value))} className={SEL}>
             {config.vertices.map((_, index) => <option key={index} value={index}>У{index + 1} — угол {index + 1}</option>)}
           </select></label>
-          <div className="grid grid-cols-2 gap-2">
+          <div key={selectedVertex} className="grid grid-cols-2 gap-2">
             <CsNumberInput label="Ш, мм" value={config.vertices[selectedVertex].x} max={width} onChange={x => updateVertex(selectedVertex, { ...config.vertices[selectedVertex], x })} />
             <CsNumberInput label="В, мм" value={config.vertices[selectedVertex].y} max={height} onChange={y => updateVertex(selectedVertex, { ...config.vertices[selectedVertex], y })} />
           </div>
-          <details><summary className="cursor-pointer text-xs">Дополнительно: угол</summary><CsNumberInput label="Внутренний угол, °" value={csVertexAngle(config.vertices, selectedVertex)} min={0.1} max={359.9}
-            onChange={angle => updateVertex((selectedVertex + 1) % config.vertices.length, csAngleEnd(config.vertices, selectedVertex, angle))} />
+          <details><summary className="cursor-pointer text-xs">Дополнительно: угол</summary><div key={selectedVertex}><CsNumberInput label="Внутренний угол, °" value={csVertexAngle(config.vertices, selectedVertex)} min={0.1} max={359.9}
+            onChange={angle => updateVertex((selectedVertex + 1) % config.vertices.length, csAngleEnd(config.vertices, selectedVertex, angle))} /></div>
           <p className="text-xs text-fg/65">При изменении угла движется У{(selectedVertex + 1) % config.vertices.length + 1}. Длина стороны С{selectedVertex + 1} сохраняется. Числа применяются по Enter или при выходе из поля.</p></details>
           <button type="button" onClick={removeVertex} disabled={config.vertices.length <= 3} className="flex items-center gap-2 rounded-lg border border-red-500/25 px-3 py-2 text-xs text-fg disabled:opacity-30"><Trash2 className="h-4 w-4" /> Удалить У{selectedVertex + 1}</button>
         </details>}
-        {!isRectangle && <details key={`${section.id}-side-${selectedSide}`} className="space-y-3 rounded-xl border border-tint/25 bg-hi/[0.025] p-3">
+        {!isRectangle && <details key={`${section.id}-side`} className="space-y-3 rounded-xl border border-tint/25 bg-hi/[0.025] p-3">
           <summary className="cursor-pointer text-xs font-bold">Дополнительно: стороны</summary><label><span className={LBL}>Выбранная сторона</span><select value={selectedSide} onChange={event => setSelectedSide(Number(event.target.value))} className={SEL}>
             {config.vertices.map((_, index) => <option key={index} value={index}>{sideLabel(index)}</option>)}
           </select></label>
-          <div className="grid grid-cols-2 gap-2">
+          <div key={selectedSide} className="grid grid-cols-2 gap-2">
             <CsNumberInput label="Длина, мм" value={side.length} min={1} onChange={length => updateVertex((selectedSide + 1) % config.vertices.length, csSideEnd(config.vertices, selectedSide, length, side.angle))} />
             <CsNumberInput label="Наклон, °" value={side.angle} max={360} onChange={angle => updateVertex((selectedSide + 1) % config.vertices.length, csSideEnd(config.vertices, selectedSide, side.length, angle))} />
           </div>
@@ -375,7 +375,7 @@ export function CsEditor({
       <summary className="cursor-pointer text-xs font-bold">Предварительная ведомость ЦС</summary><p className="mb-3 text-xs">Конструкция: {calc.installation_width_mm?.toFixed(1)} × {calc.installation_height_mm?.toFixed(1)} мм · Световой: {calc.clear_width_mm?.toFixed(1)} × {calc.clear_height_mm?.toFixed(1)} мм</p>
       <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-bold">Предварительная ведомость ЦС</h4><span className="text-xs text-fg/45">Стекло: {calc.glass_area_m2.toFixed(2)} м² · полотен: {calc.panes.length}</span></div>
       <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[560px] text-left text-xs"><thead><tr className="text-fg/40"><th className="py-2">Артикул</th><th>Наименование</th><th>Длина</th><th>Кол-во</th></tr></thead><tbody className="divide-y divide-tint/15">{calc.profiles.map(row => <tr key={row.role}><td className="py-2 font-mono font-bold">{row.article}</td><td>{row.name}</td><td>{row.cutting_text || `${row.total_length_mm.toFixed(1)} мм`}</td><td>{row.pieces} шт</td></tr>)}{calc.hardware?.map(row => <tr key={row.role}><td className="py-2 font-mono">{row.article || '—'}</td><td>{row.name}</td><td>—</td><td>{Number(row.qty.toFixed(3))} {row.unit}</td></tr>)}</tbody></table></div>
-      <div className="mt-3 text-xs">{calc.panes.map(pane => <div key={pane.number}>З{pane.number}: {pane.width_mm.toFixed(1)} × {pane.height_mm.toFixed(1)} мм · {pane.area_m2.toFixed(3)} м² · {pane.qty} шт.{pane.treatment_note && ` · ${pane.treatment_note}`}</div>)}</div>
+      <div className="mt-3 text-xs">{calc.panes.map(pane => <div key={pane.number}>З{pane.number}: {pane.width_mm} × {pane.height_mm} мм · {pane.area_m2.toFixed(3)} м² · {pane.qty} шт.{pane.treatment_note && ` · ${pane.treatment_note}`}</div>)}</div>
       {calc.warnings.map(warning => <div key={warning} className="mt-2 flex gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200"><AlertTriangle className="h-4 w-4 flex-shrink-0" />{warning}</div>)}
     </details>}
     <div className="rounded-xl border border-tint/20 bg-hi/[0.02] px-4 py-3 text-xs text-fg/45">Входные группы и дверная фурнитура зарезервированы для этапа 2.</div>

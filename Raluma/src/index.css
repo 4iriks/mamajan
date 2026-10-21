@@ -156,9 +156,9 @@ html.light .card-shadow {
 /* October 13: denser controls, with diagrams on the right; CS stays unchanged. */
 .section-editor--compact .section-editor-fields [class*="space-y-"] > * { margin-block: 0; }
 .section-editor--compact .section-editor-fields label:not(.flex) { display: block; line-height: 14px; }
-.section-editor--compact .section-editor-fields [class*="space-y-"] > :not([hidden]) ~ :not([hidden]) { margin-top: 6px; }
+.section-editor--compact .section-editor-fields [class*="space-y-"] > :not([hidden]) ~ :not([hidden]) { margin-top: 4px; }
 .section-editor--compact .section-editor-fields [class*="space-y-1"] > :not([hidden]) ~ :not([hidden]),
-.section-editor--compact .section-editor-fields [class*="space-y-0"] > :not([hidden]) ~ :not([hidden]) { margin-top: 3px; }
+.section-editor--compact .section-editor-fields [class*="space-y-0"] > :not([hidden]) ~ :not([hidden]) { margin-top: 2px; }
 .section-editor--compact .section-editor-fields .mt-3 { margin-top: 6px; }
 .section-editor--compact .section-editor-fields > div:first-child { padding: 10px; margin-bottom: 8px; }
 .section-editor--compact .section-editor-fields button.ml-4 { width: calc(100% - 1rem); }
@@ -166,9 +166,35 @@ html.light .card-shadow {
 .section-editor--compact [data-editor-finishes] > button { padding: 5px 6px; gap: 5px; min-height: 32px; }
 @media (min-width: 1024px) {
   .section-editor-shell { height: 100%; }
+  /* Keep labels beside short values instead of reserving a separate label row. */
+  .section-editor--compact .section-editor-fields [data-editor-numeric-row] > div,
+  .section-editor--compact .section-editor-fields [data-editor-ral] {
+    display: grid; grid-template-columns: 54px minmax(0, 1fr); align-items: center; gap: 4px;
+  }
+  .section-editor--compact .section-editor-fields [data-editor-numeric-row] > div > *,
+  .section-editor--compact .section-editor-fields [data-editor-ral] > * { margin-block: 0; min-width: 0; }
+  .section-editor--compact .section-editor-fields input:not([type=checkbox]):not([type=radio]),
+  .section-editor--compact .section-editor-fields select { min-height: 28px; padding-block: 4px; }
+  .section-editor--compact [data-editor-finishes] > button { padding-block: 3px; min-height: 28px; }
+  .section-editor--compact .section-editor-fields [data-slide-system-options] { gap: 4px 8px; }
+  .section-editor--compact [data-slide-system-options] > div { display: contents; }
+  .section-editor--compact .section-editor-fields [data-system-option] {
+    display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 4px; align-items: center; margin: 0;
+  }
+  .section-editor--compact .section-editor-fields [data-system-option] > * { margin-block: 0; min-width: 0; }
+  .section-editor--compact .section-editor-fields [data-system-option="threshold"],
+  .section-editor--compact .section-editor-fields [data-system-option="interglass"] { display: block; }
+  .section-editor--compact [data-system-option="threshold"] > label,
+  .section-editor--compact [data-system-option="interglass"] > label { margin-bottom: 2px; }
+  .section-editor--compact [data-system-option="rails"] { order: 1; }
+  .section-editor--compact [data-system-option="threshold"] { order: 2; }
+  .section-editor--compact [data-system-option="panels"] { order: 3; }
+  .section-editor--compact [data-system-option="interglass"] { order: 4; }
+  .section-editor--compact [data-system-option="unused"] { order: 5; }
+  .section-editor--compact [data-system-option="first"] { order: 6; }
   .section-editor--compact { display: flex; flex-direction: column; height: 100%; min-height: 0; }
   .section-editor--compact > div:first-child { flex-shrink: 0; }
-  .section-editor--compact .section-editor-layout { flex: 1; height: auto; min-height: 0; grid-template-columns: minmax(400px, 1fr) minmax(320px, 1fr); gap: 8px; }
+  .section-editor--compact .section-editor-layout { flex: 1; height: auto; min-height: 0; grid-template-columns: minmax(460px, 1.15fr) minmax(280px, 1fr); gap: 8px; }
   .section-editor--compact .section-editor-fields { order: 1; min-height: 0; }
   .section-editor--compact .section-editor-diagram { order: 2; min-height: 0; }
   .section-editor--compact [data-slide-visualizer] svg,

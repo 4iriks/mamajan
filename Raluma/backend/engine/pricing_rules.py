@@ -59,6 +59,7 @@ class ResolvedPrice:
     min_margin_percent: Decimal
     effective_from: datetime
     source: dict[str, Any]
+    cost_is_set: bool = True
 
 
 def latest_price_version(item: models.CatalogItem, variant: models.CatalogFinishVariant | None,
@@ -109,6 +110,7 @@ def resolve_effective_price(
     finish_variant: models.CatalogFinishVariant | None = None,
     at: datetime | None = None, *, mode_override: str | None = None,
     rule_override: tuple[models.CatalogPricingRule, Any] | None = None,
+    use_legacy_rules: bool = False,
 ) -> ResolvedPrice | None:
     """Resolve an explicit finish's cost and coefficients at one UTC instant.
 
@@ -133,7 +135,7 @@ def resolve_effective_price(
         raw = version
         cost = decimal(version.cost)
         source_scope = "individual"
-    mode = mode_override or (binding_mode(db, variant, when) if variant is not None else "individual")
+    mode = (mode_override or (binding_mode(db, variant, when) if variant is not None else "individual")) if use_legacy_rules else "individual"
     source = {"mode": mode, "scope": source_scope, "rule_id": None, "rule_version_id": None,
               "name": "Индивидуальные условия", "label": "Индивидуальные условия"}
     percentages = {field: decimal(getattr(raw, field, 0)) for field in PERCENT_FIELDS}
@@ -151,6 +153,7 @@ def resolve_effective_price(
     return ResolvedPrice(
         id=version.id if version else None, catalog_item_id=item.id,
         finish_variant_id=variant.id if variant is not None else None, cost=cost,
+        cost_is_set=getattr(raw, "cost_is_set", True) is not False,
         **percentages, category=getattr(version, "category", None) or price_category(item.group),
         unit=getattr(version, "unit", None) or item.unit,
         min_margin_percent=decimal(getattr(version, "min_margin_percent", 0)),
@@ -201,5 +204,6 @@ def sync_variant_cache(item: models.CatalogItem, variant: models.CatalogFinishVa
     if version is None:
         return
     variant.cost = variant.price = version.cost
+    variant.cost_is_set = version.cost_is_set
     for field in PERCENT_FIELDS:
         setattr(variant, field, getattr(version, field))

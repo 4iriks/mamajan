@@ -431,6 +431,12 @@ def test_dealer_markup_is_included_in_bom_floor_and_final_trace(quote_db):
             cost="10",
             minimum="50",
         )
+    db.add(models.SystemPricingScope(code="SLIDE_1", revision=1))
+    for item in db.query(models.CatalogItem).all():
+        db.add(models.SystemComponentPriceVersion(system_code="SLIDE_1", catalog_item_id=item.id,
+            waste_percent=0, markup_percent=0, discount_percent=0, effective_from=datetime.utcnow(),
+            created_by=actor.id, reason="Quote test setup"))
+    db.flush()
     state = get_or_create_quote_state(db, project)
     public, internal, _ = calculate_quote(db, project, state)
     assert public["export_allowed"], internal["issues"]
