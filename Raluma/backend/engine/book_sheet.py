@@ -200,7 +200,9 @@ def _group_profiles(calc: object) -> list[BookSheetProfileRow]:
         position = str(getattr(profile, "position", "") or "").strip()
         if position and position not in row["positions"]:
             row["positions"].append(position)
-        row["statuses"].append(str(getattr(profile, "status", "confirmed") or "confirmed"))
+        row["statuses"].append(
+            str(getattr(profile, "status", "confirmed") or "confirmed")
+        )
 
     result: list[BookSheetProfileRow] = []
     for index, ((article, name, length, unit), values) in enumerate(grouped.items()):
@@ -241,7 +243,9 @@ def _group_hardware(calc: object) -> list[BookSheetHardwareRow]:
         row["statuses"].append(str(getattr(item, "status", "confirmed") or "confirmed"))
 
     result: list[BookSheetHardwareRow] = []
-    for index, ((article, name, unit, stage, note), values) in enumerate(grouped.items()):
+    for index, ((article, name, unit, stage, note), values) in enumerate(
+        grouped.items()
+    ):
         result.append(
             BookSheetHardwareRow(
                 field_prefix=f"book_hardware_{index}",
@@ -259,7 +263,9 @@ def _group_hardware(calc: object) -> list[BookSheetHardwareRow]:
 
 def build_book_sheet_data(section: object, calc: object) -> BookSheetData:
     config = dict(getattr(calc, "normalized_config", None) or {})
-    book_system = str(config.get("book_system") or getattr(section, "book_system", "") or "B25")
+    book_system = str(
+        config.get("book_system") or getattr(section, "book_system", "") or "B25"
+    )
     door_layout = str(config.get("door_layout") or "none")
     compensator = str(config.get("compensator") or "none")
     door_labels = {
@@ -275,7 +281,9 @@ def build_book_sheet_data(section: object, calc: object) -> BookSheetData:
         "both": "Верхний и нижний",
     }
     glass_rows = _group_glass(calc)
-    glass_supplied = bool(config.get("glass_supplied", getattr(section, "glass_supplied", True)))
+    glass_supplied = bool(
+        config.get("glass_supplied", getattr(section, "glass_supplied", True))
+    )
     summary_rows = [
         ("Система", book_system),
         ("Ширина секции", f"{_number(getattr(section, 'width', 0)):g} мм"),
@@ -284,8 +292,14 @@ def build_book_sheet_data(section: object, calc: object) -> BookSheetData:
         ("Количество секций", f"{int(getattr(section, 'quantity', 1) or 1)} шт."),
         ("Двери", door_labels.get(door_layout, door_layout)),
         ("Компенсатор", compensator_labels.get(compensator, compensator)),
-        ("Стекло", glass_rows[0].glass_type if glass_rows else "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"),
-        ("Поставка стекла", "В комплекте" if glass_supplied else "Не входит в комплект"),
+        (
+            "Стекло",
+            glass_rows[0].glass_type if glass_rows else "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
+        ),
+        (
+            "Поставка стекла",
+            "В комплекте" if glass_supplied else "Не входит в комплект",
+        ),
     ]
     return BookSheetData(
         system_label=f"КНИЖКА {book_system}",
@@ -297,5 +311,7 @@ def build_book_sheet_data(section: object, calc: object) -> BookSheetData:
         hardware_rows=_group_hardware(calc),
         checklist_rows=BOOK_CHECKLIST_ROWS,
         glass_supplied=glass_supplied,
-        calculation_status=str(getattr(calc, "calculation_status", "preliminary") or "preliminary"),
+        calculation_status=str(
+            getattr(calc, "calculation_status", "preliminary") or "preliminary"
+        ),
     )

@@ -49,20 +49,35 @@ def _cs_payload(data: schemas.SectionCreate, db: Session) -> dict:
     if data.cs_system_id is not None:
         system = (
             db.query(models.CsSystem)
-            .filter(models.CsSystem.id == data.cs_system_id, models.CsSystem.is_active == True)  # noqa: E712
+            .filter(
+                models.CsSystem.id == data.cs_system_id,
+                models.CsSystem.is_active.is_(True),
+            )
             .first()
         )
         if system is None:
-            raise HTTPException(status_code=422, detail="Выбранная система ЦС недоступна")
+            raise HTTPException(
+                status_code=422, detail="Выбранная система ЦС недоступна"
+            )
     if system is None:
         system = (
             db.query(models.CsSystem)
-            .filter(models.CsSystem.is_active == True, models.CsSystem.code == "CS_CLAMP")  # noqa: E712
+            .filter(
+                models.CsSystem.is_active.is_(True), models.CsSystem.code == "CS_CLAMP"
+            )
             .order_by(models.CsSystem.id)
             .first()
         )
-    outer_profile = db.get(models.CatalogItem, system.outer_profile_item_id) if system and system.outer_profile_item_id else None
-    joint_profile = db.get(models.CatalogItem, system.joint_profile_item_id) if system and system.joint_profile_item_id else None
+    outer_profile = (
+        db.get(models.CatalogItem, system.outer_profile_item_id)
+        if system and system.outer_profile_item_id
+        else None
+    )
+    joint_profile = (
+        db.get(models.CatalogItem, system.joint_profile_item_id)
+        if system and system.joint_profile_item_id
+        else None
+    )
     try:
         return calculate_cs(
             section,

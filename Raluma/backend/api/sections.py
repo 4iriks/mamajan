@@ -12,6 +12,7 @@ from engine.legacy_values import normalize_section_data_values
 
 router = APIRouter(prefix="/api/projects", tags=["sections"])
 
+
 def _assign_price_group(section_data: dict, db: Session) -> None:
     if str(section_data.get("system") or "").strip().upper() not in {
         "СЛАЙД",

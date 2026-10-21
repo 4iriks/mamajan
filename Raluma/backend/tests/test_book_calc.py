@@ -105,9 +105,7 @@ def test_b16_height_matrix_depends_on_compensator(
     standard_height,
     door_height,
 ):
-    result = calculate_book(
-        book_section(book_system="B16", compensator=compensator)
-    )
+    result = calculate_book(book_section(book_system="B16", compensator=compensator))
 
     assert result.panels[0].glass_height_mm == standard_height
     assert result.panels[-1].glass_height_mm == door_height
@@ -275,7 +273,9 @@ def test_result_is_serializable_and_contains_physical_panel_sources():
         "status": "confirmed",
     }
     assert payload["formulas"]
-    assert all(item["source"] in {"tz", "excel", "legacy"} for item in payload["formulas"])
+    assert all(
+        item["source"] in {"tz", "excel", "legacy"} for item in payload["formulas"]
+    )
 
 
 def test_hardware_preserves_shipment_stage_and_tz_override():
@@ -394,7 +394,9 @@ def test_fixed_panels_do_not_change_left_stack_counting():
         )
     )
 
-    moving = [panel.movement_direction for panel in result.panels if panel.role != "fixed"]
+    moving = [
+        panel.movement_direction for panel in result.panels if panel.role != "fixed"
+    ]
     assert moving == ["left", "left", "right", "right"]
 
 
@@ -403,7 +405,9 @@ def test_glass_dimensions_remain_available_when_dealer_orders_without_glass():
 
     assert result.normalized_config["glass_supplied"] is False
     assert all(panel.glass_width_mm > 0 for panel in result.panels)
-    assert all(panel.glass_type == "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ" for panel in result.panels)
+    assert all(
+        panel.glass_type == "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ" for panel in result.panels
+    )
 
 
 def test_impossible_sum_of_specified_panel_widths_is_rejected():

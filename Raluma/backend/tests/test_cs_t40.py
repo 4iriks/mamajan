@@ -143,7 +143,11 @@ def test_concave_clip_returns_separate_panes_and_pads_for_every_component():
     for pane in result["panes"]:
         polygon = Polygon([(p["x"], p["y"]) for p in pane["polygon"]])
         assert polygon.is_valid
-        expected_area = pane["width_mm"] * pane["height_mm"] if pane["is_rectangle"] else polygon.area
+        expected_area = (
+            pane["width_mm"] * pane["height_mm"]
+            if pane["is_rectangle"]
+            else polygon.area
+        )
         assert expected_area / 1e6 == pytest.approx(pane["area_m2"])
 
 

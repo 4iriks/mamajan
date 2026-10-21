@@ -29,17 +29,15 @@ def test_book_sheet_groups_equal_glass_assemblies_and_profiles_for_quantity():
     section = _section()
     sheet = build_book_sheet_data(section, calculate_book(section))
 
-    assert [(row.width_mm, row.height_mm, row.qty, row.positions) for row in sheet.glass_rows] == [
-        (742.0, 2385.0, 8, [1, 2, 3, 4])
-    ]
+    assert [
+        (row.width_mm, row.height_mm, row.qty, row.positions)
+        for row in sheet.glass_rows
+    ] == [(742.0, 2385.0, 8, [1, 2, 3, 4])]
     assert [
         (row.width_mm, row.height_mm, row.qty, row.positions)
         for row in sheet.assembly_rows
     ] == [(745.0, 2418.0, 8, [1, 2, 3, 4])]
-    assert [
-        (row.article, row.length_mm, row.qty)
-        for row in sheet.profile_rows
-    ] == [
+    assert [(row.article, row.length_mm, row.qty) for row in sheet.profile_rows] == [
         ("RBP001", 3000.0, 4),
         ("RBP003", 3000.0, 4),
         ("RBP002", 745.0, 16),

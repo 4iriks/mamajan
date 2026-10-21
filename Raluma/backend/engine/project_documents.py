@@ -16,7 +16,11 @@ from jinja2 import Environment, FileSystemLoader
 from engine.book_calc import calculate_book
 from engine.cs_calc import calculate_cs, cs_result_namespace
 from engine.cs_cover_cutting import build_cover_plan
-from engine.component_groups import display_groups, group_extra_sources, group_display_rows
+from engine.component_groups import (
+    display_groups,
+    group_extra_sources,
+    group_display_rows,
+)
 from engine.document_numbers import (
     production_project_number,
     resolve_section_numbers,
@@ -178,14 +182,17 @@ def _commercial_summary(lines: object) -> list[dict[str, object]]:
             continue
         precise = any(isinstance(row.get("document_line_total"), str) for row in rows)
         before = sum(
-            Decimal(str(row.get("document_line_total_before_discount") or 0)) for row in rows
+            Decimal(str(row.get("document_line_total_before_discount") or 0))
+            for row in rows
         )
         total = sum(Decimal(str(row.get("document_line_total") or 0)) for row in rows)
         result.append(
             {
                 "label": label,
                 "before_discount": before if precise else int(before),
-                "discount": max(Decimal("0"), before - total) if precise else max(0, int(before - total)),
+                "discount": max(Decimal("0"), before - total)
+                if precise
+                else max(0, int(before - total)),
                 "total": total if precise else int(total),
             }
         )
@@ -217,11 +224,14 @@ def _get_env() -> Environment:
     from engine.side_projection import snapshot_side_projection, snapshot_side_segments
     from engine.quote_diagrams import render_quote_room_png
     from base64 import b64encode
+
     env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=False)
     env.globals["snapshot_side_projection"] = snapshot_side_projection
     env.globals["snapshot_side_segments"] = snapshot_side_segments
     env.globals["display_groups"] = display_groups
-    env.globals["quote_snapshot_image"] = lambda details: b64encode(render_quote_room_png(details)).decode("ascii")
+    env.globals["quote_snapshot_image"] = lambda details: b64encode(
+        render_quote_room_png(details)
+    ).decode("ascii")
     env.filters["img_b64"] = _img_b64
     env.filters["format_mm"] = _format_mm
     env.filters["document_money"] = _document_money
@@ -587,7 +597,7 @@ def _paint_color_key(value: object) -> str:
     if normalized.startswith("ral "):
         normalized = normalized[4:].strip()
     if normalized.startswith("стандарт "):
-        normalized = normalized[len("стандарт "):].strip()
+        normalized = normalized[len("стандарт ") :].strip()
     return normalized
 
 
@@ -600,8 +610,7 @@ def _paint_allowance_label(rows: list[dict]) -> str:
     if any(row.get("stock_length") for row in rows):
         return "Размер в заявку, мм"
     allowances = {
-        round(row["allowance"] - row["clean"], 6)
-        for row in rows if row["clean"] > 0
+        round(row["allowance"] - row["clean"], 6) for row in rows if row["clean"] > 0
     }
     if allowances == {80}:
         return "С припуском 80 мм"
@@ -650,10 +659,7 @@ def _project_extra_paint_rows(project: object) -> list[dict]:
     for extra in _parse_extra_components(getattr(project, "extra_components", None)):
         explicit_color = str(extra.get("color") or "").strip()
         color = str(
-            explicit_color
-            or extra.get("finish_name")
-            or extra.get("finishName")
-            or ""
+            explicit_color or extra.get("finish_name") or extra.get("finishName") or ""
         ).strip()
         finish = str(extra.get("finishName") or extra.get("finish_name") or "").strip()
         if explicit_color and finish and "стандарт" not in finish.casefold():
@@ -661,9 +667,7 @@ def _project_extra_paint_rows(project: object) -> list[dict]:
         requires_paint = extra.get("requires_paint")
         if requires_paint is None:
             requires_paint = extra.get("requiresPaint")
-        is_manual = not (
-            extra.get("catalog_item_id") or extra.get("catalogItemId")
-        )
+        is_manual = not (extra.get("catalog_item_id") or extra.get("catalogItemId"))
         if not (bool(requires_paint) or (is_manual and bool(explicit_color))):
             continue
         size_text = str(extra.get("size") or "")
@@ -680,7 +684,10 @@ def _project_extra_paint_rows(project: object) -> list[dict]:
                 "color": color,
                 "qty": qty,
                 "clean": clean,
-                "allowance": clean + _paint_allowance_mm(extra.get("sku") or extra.get("article")) if clean > 0 else 0,
+                "allowance": clean
+                + _paint_allowance_mm(extra.get("sku") or extra.get("article"))
+                if clean > 0
+                else 0,
                 "imageFile": extra.get("imageFile") or extra.get("image_file") or "",
                 "imageData": extra.get("imageData") or extra.get("image_data") or "",
                 "note": "",
@@ -694,19 +701,39 @@ def _build_paint_pages(
 ) -> list[dict]:
     grouped: dict[str, dict[tuple, dict]] = defaultdict(dict)
 
-    cover_plan = build_cover_plan([(item.section, item.calc) for item in calculated
-                                  if str(getattr(item.section, "system", "")) == "ЦС"])
+    cover_plan = build_cover_plan(
+        [
+            (item.section, item.calc)
+            for item in calculated
+            if str(getattr(item.section, "system", "")) == "ЦС"
+        ]
+    )
     for group in cover_plan["groups"]:
         if not group["requires_paint"]:
             continue
         color = group["color"]
-        color = next((existing for existing in grouped if _paint_color_key(existing) == _paint_color_key(color)), color)
+        color = next(
+            (
+                existing
+                for existing in grouped
+                if _paint_color_key(existing) == _paint_color_key(color)
+            ),
+            color,
+        )
         key = (group["article"], group["name"], 3000, group["image"], "", "")
         grouped[color][key] = {
-            "article": group["article"], "name": group["name"], "image": group["image"],
-            "image_data": "", "paint_marker": False, "paint_marker_class": "",
-            "qty": group["stock_count"], "clean": 3000, "allowance": 3000,
-            "total_m": group["total_length_mm"] / 1000, "note": "", "stock_length": True,
+            "article": group["article"],
+            "name": group["name"],
+            "image": group["image"],
+            "image_data": "",
+            "paint_marker": False,
+            "paint_marker_class": "",
+            "qty": group["stock_count"],
+            "clean": 3000,
+            "allowance": 3000,
+            "total_m": group["total_length_mm"] / 1000,
+            "note": "",
+            "stock_length": True,
         }
 
     for item in calculated:
@@ -716,8 +743,17 @@ def _build_paint_pages(
             continue
         color = item.calc.color_text or "Без цвета"
         if "муар" in str(getattr(item.section, "painting_type", "")).casefold():
-            color = "RAL муар " + str(getattr(item.section, "ral_color", "") or "").strip()
-        color = next((existing for existing in grouped if _paint_color_key(existing) == _paint_color_key(color)), color)
+            color = (
+                "RAL муар " + str(getattr(item.section, "ral_color", "") or "").strip()
+            )
+        color = next(
+            (
+                existing
+                for existing in grouped
+                if _paint_color_key(existing) == _paint_color_key(color)
+            ),
+            color,
+        )
         for profile in item.calc.profiles:
             if not profile.painted or profile.length_mm <= 0:
                 continue
@@ -906,9 +942,7 @@ def _marking_key(marking: str) -> tuple[int, int]:
         return 999999, 999999
 
 
-def _format_glass_markings(
-    markings: Iterable[str], project_number: str = ""
-) -> str:
+def _format_glass_markings(markings: Iterable[str], project_number: str = "") -> str:
     """Render every physical glass marking without losing grouped panes."""
 
     prefix = f"{project_number.strip()} " if project_number.strip() else ""
@@ -931,9 +965,7 @@ def _physical_glass_pieces(
     system = str(getattr(section, "system", "") or "").strip().upper()
     pieces: list[dict] = []
     if system == "ЦС":
-        glass_type = normalize_glass_type(
-            getattr(section, "glass_type", None), system
-        )
+        glass_type = normalize_glass_type(getattr(section, "glass_type", None), system)
         glass_index = 0
         for pane in getattr(calc, "panes", []) or []:
             pane_qty = max(1, _positive_int(getattr(pane, "qty", 1), 1))
@@ -956,7 +988,9 @@ def _physical_glass_pieces(
             # Identical blanks with different edge treatment are not the same glass.
             rounded_corner = getattr(pane, "rounded_corner", None)
             if rounded_corner:
-                shape_key += (("R", rounded_corner.radius_mm, rounded_corner.vertex_index),)
+                shape_key += (
+                    ("R", rounded_corner.radius_mm, rounded_corner.vertex_index),
+                )
             for _ in range(pane_qty):
                 glass_index += 1
                 pieces.append(
@@ -967,7 +1001,9 @@ def _physical_glass_pieces(
                         "height": int(getattr(pane, "height_mm", 0)),
                         "area": float(getattr(pane, "area_m2", 0) or 0),
                         "shape_key": shape_key,
-                        "note": "" if getattr(pane, "is_rectangle", False) else "ЧЕРТЕЖ",
+                        "note": ""
+                        if getattr(pane, "is_rectangle", False)
+                        else "ЧЕРТЕЖ",
                     }
                 )
         return pieces
@@ -1045,11 +1081,13 @@ def _group_section_glass_pieces(
         width = row["width"]
         height = row["height"]
         row["area"] = (
-            row["area"] + float(piece.get("area") or 0)
-        ) if piece.get("area") is not None else (
-            round(width * height * row["qty"] / 1_000_000, 3)
-            if width is not None and height is not None
-            else 0.0
+            (row["area"] + float(piece.get("area") or 0))
+            if piece.get("area") is not None
+            else (
+                round(width * height * row["qty"] / 1_000_000, 3)
+                if width is not None and height is not None
+                else 0.0
+            )
         )
     return list(grouped.values())
 
@@ -1304,7 +1342,11 @@ def _build_delivery_construction_rows(
                 "qty": 0,
             },
         )
-        threshold = "" if system == "ЦС" else _delivery_threshold_text(getattr(section, "threshold", ""))
+        threshold = (
+            ""
+            if system == "ЦС"
+            else _delivery_threshold_text(getattr(section, "threshold", ""))
+        )
         if threshold and threshold not in group["thresholds"]:
             group["thresholds"].append(threshold)
         width = _format_mm(_safe_float(getattr(section, "width", 0)))
@@ -1728,25 +1770,48 @@ def _build_delivery_hardware_rows(
                 if profile["role"] == "cover":
                     continue
                 for length in profile["cut_lengths_mm"]:
-                    _add_delivery_component(grouped, article=profile["article"], name=profile["name"], qty=section_qty,
-                                            color=cs["color_text"] if profile["role"] == "cover" else "",
-                                            size=f"{length:g} мм", unit="шт", image=profile["image"], stage="1")
+                    _add_delivery_component(
+                        grouped,
+                        article=profile["article"],
+                        name=profile["name"],
+                        qty=section_qty,
+                        color=cs["color_text"] if profile["role"] == "cover" else "",
+                        size=f"{length:g} мм",
+                        unit="шт",
+                        image=profile["image"],
+                        stage="1",
+                    )
             for hardware in cs["hardware"]:
                 # Pads are needed to install the clamp, before the glass delivery.
                 # Use the BOM role: a system can select a different catalogue SKU.
                 is_pad = hardware["role"] == "pad"
-                ships_now = extra_stage in (None, 1) if is_pad else include_calculated_specials
+                ships_now = (
+                    extra_stage in (None, 1) if is_pad else include_calculated_specials
+                )
                 if ships_now:
-                    _add_delivery_component(grouped, article=hardware["article"], name=hardware["name"], qty=hardware["qty"], unit=hardware["unit"], stage="1" if is_pad else "2")
+                    _add_delivery_component(
+                        grouped,
+                        article=hardware["article"],
+                        name=hardware["name"],
+                        qty=hardware["qty"],
+                        unit=hardware["unit"],
+                        stage="1" if is_pad else "2",
+                    )
         elif include_calculated_specials:
             _add_raw_special_hardware(grouped, section, section_qty)
 
     if extra_stage in (None, 1):
         for group in build_cover_plan(cs_entries)["groups"]:
             _add_delivery_component(
-                grouped, article=group["article"], name=group["name"],
-                qty=group["stock_count"], color=group["color"], size="3000 мм",
-                unit="шт", image=group["image"], stage="1",
+                grouped,
+                article=group["article"],
+                name=group["name"],
+                qty=group["stock_count"],
+                color=group["color"],
+                size="3000 мм",
+                unit="шт",
+                image=group["image"],
+                stage="1",
             )
 
     for remote in lift_remote_controls.values():
@@ -1772,7 +1837,9 @@ def _build_delivery_hardware_rows(
             "places": _delivery_place(places, kit_key),
         }
     )
-    if sections and all(str(getattr(section, "system", "")) == "ЦС" for section in sections):
+    if sections and all(
+        str(getattr(section, "system", "")) == "ЦС" for section in sections
+    ):
         rows.clear()
     for component_key, component in sorted(
         grouped.items(), key=lambda item: (item[1]["name"], item[1]["article"])
@@ -1857,14 +1924,21 @@ def _build_delivery_project_extra_rows(
                 "qty_text": qty_text,
                 "qty_display": f"{qty_text} {component['unit']}",
                 "size_display": _delivery_extra_size_display(component["size"]),
-                "display_unit": _delivery_extra_unit(component["unit"], component["size"]),
+                "display_unit": _delivery_extra_unit(
+                    component["unit"], component["size"]
+                ),
                 "pdf_qty_display": _delivery_extra_pdf_quantity(
                     qty_text,
                     component["unit"],
                     component["size"],
                 ),
                 "place_key": place_key,
-                "places": _delivery_place(places, place_key, _delivery_key("project-extra", *component_key[:-1]), legacy_place_key),
+                "places": _delivery_place(
+                    places,
+                    place_key,
+                    _delivery_key("project-extra", *component_key[:-1]),
+                    legacy_place_key,
+                ),
             }
         )
     return rows
@@ -2305,21 +2379,37 @@ def _build_hardware_order_page(
                     continue
                 for length in item.cut_lengths_mm:
                     _add_hardware_order_row(
-                        grouped, article=item.article, name=item.name,
-                        qty=max(1, int(getattr(section, "quantity", 1) or 1)), unit="шт",
-                        image=item.image, stage="", size=f"{length:g} мм",
+                        grouped,
+                        article=item.article,
+                        name=item.name,
+                        qty=max(1, int(getattr(section, "quantity", 1) or 1)),
+                        unit="шт",
+                        image=item.image,
+                        stage="",
+                        size=f"{length:g} мм",
                         color=calc.color_text if item.role == "cover" else "Без цвета",
                     )
             for item in calc.hardware:
                 _add_hardware_order_row(
-                    grouped, article=item.article, name=item.name, qty=item.qty,
-                    unit=item.unit, image=item.image, stage="",
+                    grouped,
+                    article=item.article,
+                    name=item.name,
+                    qty=item.qty,
+                    unit=item.unit,
+                    image=item.image,
+                    stage="",
                 )
         for group in build_cover_plan(cs_entries)["groups"]:
             _add_hardware_order_row(
-                grouped, article=group["article"], name=group["name"],
-                qty=group["stock_count"], unit="шт", image=group["image"],
-                stage="", size="3000 мм", color=group["color"],
+                grouped,
+                article=group["article"],
+                name=group["name"],
+                qty=group["stock_count"],
+                unit="шт",
+                image=group["image"],
+                stage="",
+                size="3000 мм",
+                color=group["color"],
             )
         warning = (
             "ЦС: ведомость профилей предварительная; коммерческая цена и дверная "

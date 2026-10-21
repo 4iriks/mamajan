@@ -1,27 +1,27 @@
 repos:
   # Python — ruff (lint + format)
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.4
+    rev: v0.15.8
     hooks:
       - id: ruff
         args: [--fix]
-        files: ^raluma/backend/
+        files: ^Raluma/backend/
       - id: ruff-format
-        files: ^raluma/backend/
+        files: ^Raluma/backend/
 
   # TypeScript typecheck
   - repo: local
     hooks:
       - id: frontend-typecheck
         name: TypeScript typecheck
-        entry: bash -c 'cd raluma && npm run typecheck'
+        entry: bash -c 'cd Raluma && npm run typecheck'
         language: system
         files: \.(ts|tsx)$
         pass_filenames: false
 
       - id: frontend-eslint
         name: ESLint
-        entry: bash -c 'cd raluma && npm run lint'
+        entry: bash -c 'cd Raluma && npm run lint'
         language: system
         files: \.(ts|tsx)$
         pass_filenames: false

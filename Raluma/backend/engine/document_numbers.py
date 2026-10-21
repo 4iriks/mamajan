@@ -58,9 +58,7 @@ def resolve_section_numbers(
     ordered = sorted(
         indexed,
         key=lambda item: (
-            section_name_number(item[1])
-            or _section_order(item[1])
-            or item[0],
+            section_name_number(item[1]) or _section_order(item[1]) or item[0],
             item[0],
         ),
     )
@@ -69,9 +67,7 @@ def resolve_section_numbers(
     used: set[int] = set()
     previous = 0
     for fallback, section in ordered:
-        preferred = (
-            section_name_number(section) or _section_order(section) or fallback
-        )
+        preferred = section_name_number(section) or _section_order(section) or fallback
         number = preferred
         if number <= previous or number in used:
             number = previous + 1

@@ -154,13 +154,17 @@ def _number(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)
     except (TypeError, ValueError) as exc:
-        raise BookCalculationError(f"Ожидалось числовое значение, получено: {value!r}") from exc
+        raise BookCalculationError(
+            f"Ожидалось числовое значение, получено: {value!r}"
+        ) from exc
 
 
 def _integer(value: Any, default: int = 0) -> int:
     number = _number(value, float(default))
     if not number.is_integer():
-        raise BookCalculationError(f"Количество должно быть целым числом, получено: {value!r}")
+        raise BookCalculationError(
+            f"Количество должно быть целым числом, получено: {value!r}"
+        )
     return int(number)
 
 
@@ -186,7 +190,14 @@ def _normalize_door_layout(section: object) -> str:
     raw = _text(_get(section, "door_side")).lower().replace("ё", "е")
     doors = _integer(_get(section, "doors"), 0)
     subtype = _text(_get(section, "book_subtype")).lower()
-    if raw in {"both", "обе", "оба", "с обеих сторон", "левая и правая", "слева и справа"}:
+    if raw in {
+        "both",
+        "обе",
+        "оба",
+        "с обеих сторон",
+        "левая и правая",
+        "слева и справа",
+    }:
         return "both"
     if raw in {"left", "левая", "лев", "слева"}:
         return "both" if doors >= 2 else "left"
@@ -281,9 +292,7 @@ def _book_height_rules(
 
     if book_system == "B25" and compensator == "lower":
         source: FormulaSource = "excel"
-        reference = (
-            "Расчет_книжки_29_07_26_прямые_секции.xlsx, C24/C25, C27/C28"
-        )
+        reference = "Расчет_книжки_29_07_26_прямые_секции.xlsx, C24/C25, C27/C28"
     else:
         source = "legacy"
         reference = (
@@ -437,9 +446,8 @@ def _build_hardware(
 ) -> None:
     q = quantity
     doors = int(door_layout in {"left", "both"}) + int(door_layout in {"right", "both"})
-    lock_doors = (
-        int(door_layout in {"left", "both"} and left_hardware == "lock")
-        + int(door_layout in {"right", "both"} and right_hardware == "lock")
+    lock_doors = int(door_layout in {"left", "both"} and left_hardware == "lock") + int(
+        door_layout in {"right", "both"} and right_hardware == "lock"
     )
     handle_doors = doors - lock_doors
     extra_doors = int(extra_door_enabled)
@@ -448,9 +456,8 @@ def _build_hardware(
 
     left_door = int(door_layout in {"left", "both"})
     right_door = int(door_layout in {"right", "both"})
-    left_closers = (
-        int(left_door and _opening_is_visual_in(left_opening))
-        + int(right_door and not _opening_is_visual_in(right_opening))
+    left_closers = int(left_door and _opening_is_visual_in(left_opening)) + int(
+        right_door and not _opening_is_visual_in(right_opening)
     )
     right_closers = doors - left_closers
 
@@ -645,10 +652,7 @@ def _build_hardware(
         formula="Dбез замка × q",
     )
     short_screws = (
-        pivots_per_section * 2
-        + doors * 3
-        + direct_joints * 16
-        + angular_joints * 16
+        pivots_per_section * 2 + doors * 3 + direct_joints * 16 + angular_joints * 16
     ) * q
     _add_hardware(
         result,
@@ -783,11 +787,17 @@ def calculate_book(section: object) -> BookCalcResult:
     base_panel_count = _integer(_get(section, "panels"))
     quantity = _integer(_get(section, "quantity"), 1)
     if width <= 0 or height <= 0:
-        raise BookCalculationError("Ширина и высота секции КНИЖКИ должны быть больше нуля")
+        raise BookCalculationError(
+            "Ширина и высота секции КНИЖКИ должны быть больше нуля"
+        )
     if base_panel_count < 2:
-        raise BookCalculationError("Для КНИЖКИ количество панелей должно быть не меньше 2")
+        raise BookCalculationError(
+            "Для КНИЖКИ количество панелей должно быть не меньше 2"
+        )
     if quantity <= 0:
-        raise BookCalculationError("Количество одинаковых секций должно быть больше нуля")
+        raise BookCalculationError(
+            "Количество одинаковых секций должно быть больше нуля"
+        )
 
     result = BookCalcResult()
     book_system = _normalize_book_system(_get(section, "book_system"), result.warnings)
@@ -822,10 +832,15 @@ def calculate_book(section: object) -> BookCalcResult:
     angle_right = 0 < angle_right_deg < 180
     extra_door_enabled = bool(_get(section, "book_extra_door_enabled", False))
     preliminary_features: list[str] = []
-    if angle_left or angle_right or _text(_get(section, "book_subtype")).lower() in {
-        "angle",
-        "doors_and_angle",
-    }:
+    if (
+        angle_left
+        or angle_right
+        or _text(_get(section, "book_subtype")).lower()
+        in {
+            "angle",
+            "doors_and_angle",
+        }
+    ):
         preliminary_features.append("угловая конструкция")
     if extra_door_enabled:
         preliminary_features.append("дополнительная двигающаяся дверь")
@@ -914,7 +929,9 @@ def calculate_book(section: object) -> BookCalcResult:
         elif door_layout == "both" and legacy_right:
             legacy_key = "right_fixed_right"
         else:
-            legacy_key = "left_fixed_right" if legacy_right and left_door else "left_fixed_left"
+            legacy_key = (
+                "left_fixed_right" if legacy_right and left_door else "left_fixed_left"
+            )
         fixed_specs[legacy_key] = legacy_width
 
     panel_defs: list[dict[str, Any]] = []
@@ -945,8 +962,7 @@ def calculate_book(section: object) -> BookCalcResult:
     if not left_door and not right_door:
         # Поддержка старых угловых сохранений без двери.
         panel_defs = [
-            {"role": "standard", "door_side": None}
-            for _ in range(base_panel_count)
+            {"role": "standard", "door_side": None} for _ in range(base_panel_count)
         ]
         if fixed_specs:
             key, panel_width = next(iter(fixed_specs.items()))
@@ -992,7 +1008,9 @@ def calculate_book(section: object) -> BookCalcResult:
 
     left_boundary = 27.0 if angle_left else 11.5
     right_boundary = 27.0 if angle_right else 11.5
-    total_glass_span = width - left_boundary - right_boundary - 3.0 * (physical_count - 1)
+    total_glass_span = (
+        width - left_boundary - right_boundary - 3.0 * (physical_count - 1)
+    )
     _require_positive(total_glass_span, "Суммарная ширина стекол")
 
     specified_glass: dict[int, float] = {
@@ -1126,9 +1144,7 @@ def calculate_book(section: object) -> BookCalcResult:
         value=_mm(panel_height),
         unit="мм",
         expression=(
-            "Hстекла + 33"
-            if assembly_height_adjustment > 0
-            else "Hстекла − 33"
+            "Hстекла + 33" if assembly_height_adjustment > 0 else "Hстекла − 33"
         ),
         scope=f"Система {book_system}",
         source=height_source,
@@ -1138,8 +1154,7 @@ def calculate_book(section: object) -> BookCalcResult:
 
     extra_door_opening = _normalize_opening(_get(section, "book_extra_door_opening"))
     moving_rank_by_index = {
-        panel_index: rank
-        for rank, panel_index in enumerate(folding_indices)
+        panel_index: rank for rank, panel_index in enumerate(folding_indices)
     }
     for index, role in enumerate(roles):
         side: str | None = panel_defs[index].get("door_side")
@@ -1166,15 +1181,13 @@ def calculate_book(section: object) -> BookCalcResult:
         panel_glass_height = (
             door_glass_height if role in {"door", "moving_door"} else glass_height
         )
-        profile_addition = 23.0 if (role == "door" and (angle_left or angle_right)) else 3.0
+        profile_addition = (
+            23.0 if (role == "door" and (angle_left or angle_right)) else 3.0
+        )
         profile_width = glass_width + profile_addition
         panel_status: FormulaStatus = (
             "preliminary"
-            if (
-                preliminary_features
-                or book_system != "B25"
-                or role == "moving_door"
-            )
+            if (preliminary_features or book_system != "B25" or role == "moving_door")
             else "confirmed"
         )
         panel_source: FormulaSource = "tz"
@@ -1206,7 +1219,8 @@ def calculate_book(section: object) -> BookCalcResult:
                 door_hardware=hardware,
                 door_opening=opening,
                 door_opening_label=OPENING_LABELS.get(opening) if opening else None,
-                glass_type=_text(_get(section, "glass_type")) or "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
+                glass_type=_text(_get(section, "glass_type"))
+                or "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
                 glass_width_mm=_mm(glass_width),
                 glass_height_mm=_mm(panel_glass_height),
                 glass_profile_article="RBP002",
@@ -1231,11 +1245,7 @@ def calculate_book(section: object) -> BookCalcResult:
                 panel_number=index + 1,
                 source=panel_source,
                 status=panel_status,
-                formula=(
-                    "Wстекла + 23"
-                    if profile_addition == 23.0
-                    else "Wстекла + 3"
-                ),
+                formula=("Wстекла + 23" if profile_addition == 23.0 else "Wстекла + 3"),
             )
         )
 
@@ -1290,9 +1300,7 @@ def calculate_book(section: object) -> BookCalcResult:
     angular_joints = int(angle_left) + int(angle_right)
     joints_90 = int(
         angle_left and abs(_number(_get(section, "angle_left")) - 90.0) < 0.05
-    ) + int(
-        angle_right and abs(_number(_get(section, "angle_right")) - 90.0) < 0.05
-    )
+    ) + int(angle_right and abs(_number(_get(section, "angle_right")) - 90.0) < 0.05)
     _build_hardware(
         result,
         width=width,
@@ -1331,12 +1339,12 @@ def calculate_book(section: object) -> BookCalcResult:
 
     obstacle_distance = _number(_get(section, "book_obstacle_distance"), 0.0)
     if obstacle_distance < 0:
-        raise BookCalculationError("Расстояние до препятствия не может быть отрицательным")
+        raise BookCalculationError(
+            "Расстояние до препятствия не может быть отрицательным"
+        )
     handle_height = _number(_get(section, "book_handle_height"), 0.0)
     if handle_height < 0 or handle_height > height:
-        raise BookCalculationError(
-            "Высота ручки должна быть от 0 до высоты секции"
-        )
+        raise BookCalculationError("Высота ручки должна быть от 0 до высоты секции")
     result.normalized_config = {
         "width_mm": _mm(width),
         "height_mm": _mm(height),
@@ -1348,10 +1356,16 @@ def calculate_book(section: object) -> BookCalcResult:
         "physical_panel_count": physical_count,
         "quantity": quantity,
         "door_layout": door_layout,
-        "left_door_hardware": left_hardware if door_layout in {"left", "both"} else None,
-        "right_door_hardware": right_hardware if door_layout in {"right", "both"} else None,
+        "left_door_hardware": left_hardware
+        if door_layout in {"left", "both"}
+        else None,
+        "right_door_hardware": right_hardware
+        if door_layout in {"right", "both"}
+        else None,
         "left_door_opening": left_opening if door_layout in {"left", "both"} else None,
-        "right_door_opening": right_opening if door_layout in {"right", "both"} else None,
+        "right_door_opening": right_opening
+        if door_layout in {"right", "both"}
+        else None,
         "left_door_width_mm": (
             _mm(_number(_get(section, "book_left_door_width")))
             if left_door and _get(section, "book_left_door_width") not in (None, "")

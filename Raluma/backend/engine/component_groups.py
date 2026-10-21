@@ -1,4 +1,5 @@
 """Document-only grouping. Never rewrite source rows or their prices."""
+
 from collections import OrderedDict
 from decimal import Decimal, InvalidOperation
 from hashlib import sha256
@@ -14,22 +15,31 @@ def group_extra_sources(rows):
             continue
         identity = (
             row.get("catalogItemId") or row.get("catalog_item_id"),
-            row.get("sku") or row.get("article") or row.get("art"), row.get("name"), row.get("category"),
+            row.get("sku") or row.get("article") or row.get("art"),
+            row.get("name"),
+            row.get("category"),
             row.get("finishVariantId") or row.get("finish_variant_id"),
-            row.get("finishName") or row.get("finish_name"), row.get("color"),
+            row.get("finishName") or row.get("finish_name"),
+            row.get("color"),
             row.get("requiresPaint", row.get("requires_paint")),
-            row.get("unit") or "шт", row.get("deliveryStage") or row.get("delivery_stage") or "both",
-            row.get("imageFile") or row.get("image_file"), row.get("imageData") or row.get("image_data"),
+            row.get("unit") or "шт",
+            row.get("deliveryStage") or row.get("delivery_stage") or "both",
+            row.get("imageFile") or row.get("image_file"),
+            row.get("imageData") or row.get("image_data"),
         )
         key = sha256(json.dumps(identity, ensure_ascii=False).encode()).hexdigest()
         size = str(row.get("size") or "").strip()
         try:
-            size_key = str(Decimal(size.replace(",", ".").removesuffix("мм").strip()).normalize())
+            size_key = str(
+                Decimal(size.replace(",", ".").removesuffix("мм").strip()).normalize()
+            )
         except InvalidOperation:
             size_key = size
         sizes = groups.setdefault(key, OrderedDict())
         try:
-            qty = Decimal(str(row.get("qty") or row.get("quantity") or 0).replace(",", "."))
+            qty = Decimal(
+                str(row.get("qty") or row.get("quantity") or 0).replace(",", ".")
+            )
             if not qty.is_finite() or qty <= 0:
                 continue
         except InvalidOperation:
@@ -43,7 +53,10 @@ def group_extra_sources(rows):
 def group_display_rows(rows):
     groups = OrderedDict()
     for row in rows:
-        key = row.get("_view_group") or tuple(str(row.get(k) or "") for k in ("article", "name", "color", "unit", "stage", "image"))
+        key = row.get("_view_group") or tuple(
+            str(row.get(k) or "")
+            for k in ("article", "name", "color", "unit", "stage", "image")
+        )
         groups.setdefault(key, []).append(dict(row))
     result = []
     for group in groups.values():

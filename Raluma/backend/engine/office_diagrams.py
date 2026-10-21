@@ -162,7 +162,9 @@ def _center_vertical_text(
     )
 
 
-def _fitted_font(draw: ImageDraw.ImageDraw, text: str, max_width: float, preferred: int):
+def _fitted_font(
+    draw: ImageDraw.ImageDraw, text: str, max_width: float, preferred: int
+):
     for size in range(preferred, 12, -1):
         font = load_font(size, bold=True)
         if _text_size(draw, text, font)[0] <= max(max_width, 1):
@@ -249,7 +251,9 @@ def _slide_lock_kind(value: object, *, center: bool = False) -> str | None:
     if _is_no_option(text):
         return None
     if center:
-        return "overhead_latch" if "rs206" in text or "накидн" in text else "center_lock"
+        return (
+            "overhead_latch" if "rs206" in text or "накидн" in text else "center_lock"
+        )
     if "2стор" in text or "2-сторон" in text or "ключ" in text:
         return "two_way_lock"
     if "1стор" in text or "1-сторон" in text or "замок" in text or "защ" in text:
@@ -350,7 +354,9 @@ def _slide_room_hardware_markers(
                     "kind": center_lock_kind,
                     "role": "center_lock",
                     "x": panel_boxes[center_left][1],
-                    "y": bottom - 14 if center_lock_kind == "overhead_latch" else center_y + 38,
+                    "y": bottom - 14
+                    if center_lock_kind == "overhead_latch"
+                    else center_y + 38,
                 }
             )
 
@@ -360,7 +366,9 @@ def _slide_room_hardware_markers(
     )
     for field, role, x in latch_fields:
         if bool(getattr(section, field, False)):
-            markers.append({"kind": "floor_latch", "role": role, "x": x, "y": bottom - 5})
+            markers.append(
+                {"kind": "floor_latch", "role": role, "x": x, "y": bottom - 5}
+            )
 
     if slide_rows == 2 and len(panel_boxes) >= 2:
         seam_x = panel_boxes[len(panel_boxes) // 2 - 1][1]
@@ -384,13 +392,17 @@ def _draw_slide_room_hardware_marker(
     kind = str(marker["kind"])
     x, y = float(marker["x"]), float(marker["y"])
     if kind == "knob":
-        draw.ellipse((x - 10, y - 10, x + 10, y + 10), fill=color, outline="#000000", width=2)
+        draw.ellipse(
+            (x - 10, y - 10, x + 10, y + 10), fill=color, outline="#000000", width=2
+        )
     elif kind == "brace":
         draw.line((x, y - 40, x, y + 40), fill=color, width=6)
         draw.ellipse((x - 5, y - 43, x + 5, y - 33), fill=color)
         draw.ellipse((x - 5, y + 33, x + 5, y + 43), fill=color)
     elif kind == "glass_handle":
-        draw.rectangle((x - 9, y - 9, x + 9, y + 9), fill=color, outline="#000000", width=2)
+        draw.rectangle(
+            (x - 9, y - 9, x + 9, y + 9), fill=color, outline="#000000", width=2
+        )
     elif kind in {"one_way_lock", "two_way_lock"}:
         draw.line((x, y - 22, x, y + 22), fill=color, width=5)
         if kind == "two_way_lock":
@@ -398,12 +410,18 @@ def _draw_slide_room_hardware_marker(
             key_x = x + direction * 20
             draw.ellipse((key_x - 7, y - 16, key_x + 7, y - 2), outline=color, width=3)
             draw.line((key_x, y - 2, key_x, y + 20), fill=color, width=3)
-            draw.line((key_x, y + 11, key_x + direction * 7, y + 11), fill=color, width=3)
-            draw.line((key_x, y + 17, key_x + direction * 5, y + 17), fill=color, width=3)
+            draw.line(
+                (key_x, y + 11, key_x + direction * 7, y + 11), fill=color, width=3
+            )
+            draw.line(
+                (key_x, y + 17, key_x + direction * 5, y + 17), fill=color, width=3
+            )
     elif kind in {"center_lock", "overhead_latch"}:
         draw.rounded_rectangle((x - 11, y - 7, x + 11, y + 7), radius=3, fill=color)
     elif kind == "floor_latch":
-        draw.rectangle((x - 7, y - 7, x + 7, y + 7), fill=color, outline="#000000", width=2)
+        draw.rectangle(
+            (x - 7, y - 7, x + 7, y + 7), fill=color, outline="#000000", width=2
+        )
 
 
 def render_slide_room(
@@ -505,9 +523,7 @@ def render_slide_room(
         and not bool(getattr(section, "profile_right_handle_bar", False))
     )
     center_handle = str(getattr(section, "center_handle", "") or "").lower()
-    center_deaf = slide_rows == 2 and (
-        not center_handle or "глух" in center_handle
-    )
+    center_deaf = slide_rows == 2 and (not center_handle or "глух" in center_handle)
     center_left = panels // 2 - 1
     center_right = panels // 2
     room_bidirectional = slide_rows == 1 and not left_deaf and not right_deaf
@@ -520,7 +536,9 @@ def render_slide_room(
         for row in rows:
             offset, part_width = row["offset_mm"] * scale, row["width_mm"] * scale
             x0 = left + offset if side_name == "left" else right - offset - part_width
-            draw.rectangle((x0, top, x0 + part_width, bottom), fill="#D9E3E5", outline=INK)
+            draw.rectangle(
+                (x0, top, x0 + part_width, bottom), fill="#D9E3E5", outline=INK
+            )
     x = left + left_px
     inner_width = max(1, drawing_width - left_px - right_px)
     panel_boxes: list[tuple[int, int]] = []
@@ -537,9 +555,8 @@ def render_slide_room(
         if slide_rows == 2:
             number = panel_numbers[index] if index < len(panel_numbers) else index + 1
             arrow_left = index < panels / 2
-            bidirectional = (
-                (index < panels / 2 and not left_deaf)
-                or (index >= panels / 2 and not right_deaf)
+            bidirectional = (index < panels / 2 and not left_deaf) or (
+                index >= panels / 2 and not right_deaf
             )
         else:
             number = panels - index if first_right else index + 1
@@ -943,7 +960,9 @@ def render_book_room(section: object, calc: object) -> bytes:
     x = left
     config = getattr(calc, "normalized_config", {}) or {}
     handle_height = float(config.get("handle_height_mm") or 1000)
-    handle_y = bottom - min(1.0, max(0.0, handle_height / section_height)) * drawing_height
+    handle_y = (
+        bottom - min(1.0, max(0.0, handle_height / section_height)) * drawing_height
+    )
     for panel in panels:
         panel_width = max(float(getattr(panel, "panel_width_mm", 0) or 0), 1)
         panel_px = drawing_width * panel_width / total_panel_width
@@ -1000,19 +1019,34 @@ def render_book_room(section: object, calc: object) -> bytes:
             outer_x = panel_left + 12 if converges_right else panel_right - 12
             convergence_x = panel_right - 12 if converges_right else panel_left + 12
             draw.line(
-                (outer_x, top + drawing_height * 0.30, convergence_x, top + drawing_height * 0.50),
+                (
+                    outer_x,
+                    top + drawing_height * 0.30,
+                    convergence_x,
+                    top + drawing_height * 0.50,
+                ),
                 fill=INK,
                 width=4,
             )
             draw.line(
-                (convergence_x, top + drawing_height * 0.50, outer_x, top + drawing_height * 0.70),
+                (
+                    convergence_x,
+                    top + drawing_height * 0.50,
+                    outer_x,
+                    top + drawing_height * 0.70,
+                ),
                 fill=INK,
                 width=4,
             )
             hardware_x = panel_left + panel_px * (0.72 if converges_right else 0.28)
             radius = 9 if str(getattr(panel, "door_hardware", "")) == "lock" else 6
             draw.ellipse(
-                (hardware_x - radius, handle_y - radius, hardware_x + radius, handle_y + radius),
+                (
+                    hardware_x - radius,
+                    handle_y - radius,
+                    hardware_x + radius,
+                    handle_y + radius,
+                ),
                 outline=INK,
                 width=3,
             )
@@ -1050,7 +1084,11 @@ def render_book_room(section: object, calc: object) -> bytes:
         RED,
     )
     height_label = height_label.rotate(90, expand=True)
-    canvas.paste(height_label, (right + 25, int((top + bottom - height_label.height) / 2)), height_label)
+    canvas.paste(
+        height_label,
+        (right + 25, int((top + bottom - height_label.height) / 2)),
+        height_label,
+    )
     return _cropped_png(canvas)
 
 
@@ -1171,7 +1209,9 @@ def render_book_top(section: object, calc: object) -> bytes:
             if str(getattr(panel, "role", "")) not in {"door", "moving_door"}:
                 continue
             opening = str(getattr(panel, "door_opening", "inside_in") or "inside_in")
-            active_sides.add("room" if opening in {"inside_in", "outside_in"} else "street")
+            active_sides.add(
+                "room" if opening in {"inside_in", "outside_in"} else "street"
+            )
         for active_side in active_sides or {"room"}:
             obstacle_y = 525 if active_side == "room" else 72
             draw.line((left, obstacle_y, right, obstacle_y), fill=RED, width=3)
@@ -1207,7 +1247,10 @@ def _cs_point_value(point: object, axis: str) -> float:
 
 
 def render_cs_front(
-    section: object, calc: object, *, print_dimensions: bool = False,
+    section: object,
+    calc: object,
+    *,
+    print_dimensions: bool = False,
     print_size_mm: tuple[float, float] = (188, 49),
 ) -> bytes:
     """Render the preliminary all-glass contour and every calculated pane."""
@@ -1215,7 +1258,11 @@ def render_cs_front(
     canvas = Image.new("RGB", (1600, 900), BACKGROUND)
     draw = ImageDraw.Draw(canvas)
     config = getattr(calc, "normalized_config", None)
-    vertices = list(getattr(calc, "installation_polygon", None) or getattr(config, "vertices", None) or [])
+    vertices = list(
+        getattr(calc, "installation_polygon", None)
+        or getattr(config, "vertices", None)
+        or []
+    )
     if len(vertices) < 3:
         width = max(1.0, float(getattr(section, "width", 1) or 1))
         height = max(1.0, float(getattr(section, "height", 1) or 1))
@@ -1256,8 +1303,11 @@ def render_cs_front(
     if print_dimensions:
         with Image.open(io.BytesIO(render_cs_front(section, calc))) as reference:
             dimension_font_size = _print_font_pixels(
-                9.5, reference.width, reference.height + 30,
-                max_width_mm=print_size_mm[0], max_height_mm=print_size_mm[1],
+                9.5,
+                reference.width,
+                reference.height + 30,
+                max_width_mm=print_size_mm[0],
+                max_height_mm=print_size_mm[1],
             )
     dim_font = load_font(
         dimension_font_size,
@@ -1268,7 +1318,9 @@ def render_cs_front(
     for pane in getattr(calc, "panes", None) or []:
         polygon = list(getattr(pane, "polygon", None) or [])
         corner = getattr(pane, "rounded_corner", None)
-        points = [project(point) for point in (getattr(corner, "outline", None) or polygon)]
+        points = [
+            project(point) for point in (getattr(corner, "outline", None) or polygon)
+        ]
         if len(points) < 3:
             continue
         draw.polygon(points, fill=pane_fill, outline=GRID)
@@ -1298,7 +1350,9 @@ def render_cs_front(
             (point[0] - 5, point[1] - 5, point[0] + 5, point[1] + 5),
             fill=INK,
         )
-        draw.text((point[0] + 8, point[1] - 24), f"У{index + 1}", font=note_font, fill=INK)
+        draw.text(
+            (point[0] + 8, point[1] - 24), f"У{index + 1}", font=note_font, fill=INK
+        )
 
     for pane in getattr(calc, "panes", None) or []:
         corner = getattr(pane, "rounded_corner", None)
@@ -1308,14 +1362,28 @@ def render_cs_front(
         label_x = x + (100 if x < offset_x + used_width / 2 else -100)
         label_y = y + (-55 if y > offset_y + used_height / 2 else 55)
         draw.line((x, y, label_x, label_y), fill="#1D4ED8", width=2)
-        _center_text(draw, (label_x, label_y - 20),
-                     f"З{pane.number} · R{corner.radius_mm:g}", note_font, "#1D4ED8")
+        _center_text(
+            draw,
+            (label_x, label_y - 20),
+            f"З{pane.number} · R{corner.radius_mm:g}",
+            note_font,
+            "#1D4ED8",
+        )
 
     dimension_y = offset_y + used_height + 70
-    draw.line((offset_x, dimension_y, offset_x + used_width, dimension_y), fill=INK, width=3)
-    draw.line((offset_x, dimension_y - 12, offset_x, dimension_y + 12), fill=INK, width=3)
     draw.line(
-        (offset_x + used_width, dimension_y - 12, offset_x + used_width, dimension_y + 12),
+        (offset_x, dimension_y, offset_x + used_width, dimension_y), fill=INK, width=3
+    )
+    draw.line(
+        (offset_x, dimension_y - 12, offset_x, dimension_y + 12), fill=INK, width=3
+    )
+    draw.line(
+        (
+            offset_x + used_width,
+            dimension_y - 12,
+            offset_x + used_width,
+            dimension_y + 12,
+        ),
         fill=INK,
         width=3,
     )
@@ -1327,10 +1395,19 @@ def render_cs_front(
         dimension_color,
     )
     dimension_x = offset_x + used_width + 70
-    draw.line((dimension_x, offset_y, dimension_x, offset_y + used_height), fill=INK, width=3)
-    draw.line((dimension_x - 12, offset_y, dimension_x + 12, offset_y), fill=INK, width=3)
     draw.line(
-        (dimension_x - 12, offset_y + used_height, dimension_x + 12, offset_y + used_height),
+        (dimension_x, offset_y, dimension_x, offset_y + used_height), fill=INK, width=3
+    )
+    draw.line(
+        (dimension_x - 12, offset_y, dimension_x + 12, offset_y), fill=INK, width=3
+    )
+    draw.line(
+        (
+            dimension_x - 12,
+            offset_y + used_height,
+            dimension_x + 12,
+            offset_y + used_height,
+        ),
         fill=INK,
         width=3,
     )
@@ -1365,9 +1442,17 @@ def section_diagrams(
             ("Схема · вид сверху", render_book_top(section, calc)),
         ]
     if system == "ЦС":
-        return [("Вид из помещения · геометрия ЦС", render_cs_front(
-            section, calc, print_dimensions=cs_print_dimensions, print_size_mm=cs_print_size_mm,
-        ))]
+        return [
+            (
+                "Вид из помещения · геометрия ЦС",
+                render_cs_front(
+                    section,
+                    calc,
+                    print_dimensions=cs_print_dimensions,
+                    print_size_mm=cs_print_size_mm,
+                ),
+            )
+        ]
     reference = _reference_diagrams(section, calc)
     if system == "ЛИФТ":
         if len(reference) >= 2:

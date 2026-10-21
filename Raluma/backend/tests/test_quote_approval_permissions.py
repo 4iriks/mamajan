@@ -31,8 +31,12 @@ def approval_app():
             ("dealer", "dealer", False),
         ):
             actor = models.User(
-                username=key, display_name=key, password_hash="unused", role=role,
-                is_active=True, can_manage_prices=prices,
+                username=key,
+                display_name=key,
+                password_hash="unused",
+                role=role,
+                is_active=True,
+                can_manage_prices=prices,
             )
             db.add(actor)
             db.flush()
@@ -41,11 +45,20 @@ def approval_app():
                 {"Authorization": "Bearer " + create_access_token(actor.id, key, role)},
             )
         project = models.Project(
-            number="Approval", customer="Test", created_by=users["dealer"][0],
-            extra_components=json.dumps([
-                {"name": "Test item", "qty": "1", "unit": "шт",
-                 "unit_price": "50", "actual_cost": "100"},
-            ]),
+            number="Approval",
+            customer="Test",
+            created_by=users["dealer"][0],
+            extra_components=json.dumps(
+                [
+                    {
+                        "name": "Test item",
+                        "qty": "1",
+                        "unit": "шт",
+                        "unit_price": "50",
+                        "actual_cost": "100",
+                    },
+                ]
+            ),
         )
         db.add(project)
         db.commit()
@@ -76,7 +89,8 @@ def test_admin_can_approve_and_freeze_without_price_manager_flag(approval_app, r
     assert client.post(quote_url + "/freeze", headers=headers).status_code == 409
 
     approved = client.put(
-        quote_url + "/overrides", headers=headers,
+        quote_url + "/overrides",
+        headers=headers,
         json={"overrides": [], "margin_override_comment": "Согласовано для клиента"},
     )
     assert approved.status_code == 200, approved.text
@@ -91,21 +105,30 @@ def test_admin_can_approve_and_freeze_without_price_manager_flag(approval_app, r
     assert fixed.json()["totals"]["grand_total"] == "50.00"
 
     changed = client.put(
-        quote_url + "/config", headers=headers,
-        json={"discounts": [{"id": "new", "scope": "order", "mode": "fixed", "value": "1"}]},
+        quote_url + "/config",
+        headers=headers,
+        json={
+            "discounts": [
+                {"id": "new", "scope": "order", "mode": "fixed", "value": "1"}
+            ]
+        },
     )
     assert changed.status_code == 200, changed.text
     internal = client.get(f"/api/pricing/projects/{project_id}", headers=headers).json()
     assert not internal["margin_approval"]["valid"]
     assert client.post(quote_url + "/refresh", headers=headers).status_code == 409
-    assert client.get(quote_url, headers=headers).json()["totals"]["grand_total"] == "50.00"
+    assert (
+        client.get(quote_url, headers=headers).json()["totals"]["grand_total"]
+        == "50.00"
+    )
 
 
 @pytest.mark.parametrize("role", ["price_manager", "user", "dealer"])
 def test_non_admin_cannot_approve_even_with_price_access(approval_app, role):
     client, _, project_id, users = approval_app
     response = client.put(
-        f"/api/projects/{project_id}/quote/overrides", headers=users[role][1],
+        f"/api/projects/{project_id}/quote/overrides",
+        headers=users[role][1],
         json={"overrides": [], "margin_override_comment": "Attempt"},
     )
     assert response.status_code == 403
@@ -127,7 +150,8 @@ def test_admin_approval_does_not_bypass_missing_prices(approval_app):
     headers = users["admin"][1]
     quote_url = f"/api/projects/{project_id}/quote"
     response = client.put(
-        quote_url + "/overrides", headers=headers,
+        quote_url + "/overrides",
+        headers=headers,
         json={"overrides": [], "margin_override_comment": "Margin exception only"},
     )
     assert response.status_code == 200, response.text

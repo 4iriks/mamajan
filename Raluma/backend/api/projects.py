@@ -54,14 +54,11 @@ def _extra_image_data(row: dict) -> str:
     if not value:
         return ""
     header, separator, encoded = value.partition(",")
-    if (
-        separator != ","
-        or header.lower() not in {
-            "data:image/jpeg;base64",
-            "data:image/png;base64",
-            "data:image/webp;base64",
-        }
-    ):
+    if separator != "," or header.lower() not in {
+        "data:image/jpeg;base64",
+        "data:image/png;base64",
+        "data:image/webp;base64",
+    }:
         raise HTTPException(
             status_code=400,
             detail="Изображение доп. комплектующего должно быть JPG, PNG или WEBP",
@@ -90,10 +87,14 @@ def _extra_money(value: object, label: str) -> str | None:
             raise ValueError
         return format(number.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), "f")
     except (DecimalException, ValueError, TypeError) as exc:
-        raise HTTPException(status_code=400, detail=f"{label}: укажите сумму от нуля") from exc
+        raise HTTPException(
+            status_code=400, detail=f"{label}: укажите сумму от нуля"
+        ) from exc
 
 
-def _project_response(project: models.Project, actor: models.User, *, include_sections=True) -> dict:
+def _project_response(
+    project: models.Project, actor: models.User, *, include_sections=True
+) -> dict:
     schema = schemas.ProjectOut if include_sections else schemas.ProjectList
     result = schema.model_validate(project).model_dump()
     if not user_can_manage_prices(actor):
@@ -117,11 +118,17 @@ def _extra_quantity(row: dict, name: str) -> str:
         return ""
     try:
         quantity = Decimal(text.replace(",", "."))
-        if not quantity.is_finite() or quantity <= 0 or quantity >= Decimal("1000000000000"):
+        if (
+            not quantity.is_finite()
+            or quantity <= 0
+            or quantity >= Decimal("1000000000000")
+        ):
             raise ValueError
         return format(quantity.normalize(), "f")
     except (DecimalException, TypeError, ValueError, OverflowError) as exc:
-        raise HTTPException(status_code=400, detail=f"Количество для {name} должно быть больше нуля") from exc
+        raise HTTPException(
+            status_code=400, detail=f"Количество для {name} должно быть больше нуля"
+        ) from exc
 
 
 def _normalize_project_extras(
@@ -148,7 +155,9 @@ def _normalize_project_extras(
         previous_rows = []
     previous_by_id = {
         str(row.get("id") or f"ec-{index}"): row
-        for index, row in enumerate(previous_rows if isinstance(previous_rows, list) else [])
+        for index, row in enumerate(
+            previous_rows if isinstance(previous_rows, list) else []
+        )
         if isinstance(row, dict)
     }
 
@@ -161,12 +170,16 @@ def _normalize_project_extras(
         row_id = str(row.get("id") or "").strip()
         if row_id:
             if row_id in seen_ids:
-                raise HTTPException(status_code=400, detail="Повторяющийся идентификатор комплектующего")
+                raise HTTPException(
+                    status_code=400, detail="Повторяющийся идентификатор комплектующего"
+                )
             seen_ids.add(row_id)
         private_cost: dict = {}
         if "actual_cost" in row or "actualCost" in row:
             if actor is None or not user_can_manage_prices(actor):
-                raise HTTPException(status_code=403, detail="Нет права изменять себестоимость")
+                raise HTTPException(
+                    status_code=403, detail="Нет права изменять себестоимость"
+                )
             private_cost["actual_cost"] = _extra_money(
                 row.get("actual_cost", row.get("actualCost")), "Себестоимость"
             )
@@ -220,9 +233,12 @@ def _normalize_project_extras(
             }
             if row_id:
                 manual_row["id"] = row_id
-            manual_row["unit_price"] = _extra_money(
-                row.get("unit_price", row.get("unitPrice")), "Цена продажи"
-            ) or ""
+            manual_row["unit_price"] = (
+                _extra_money(
+                    row.get("unit_price", row.get("unitPrice")), "Цена продажи"
+                )
+                or ""
+            )
             manual_row.update(private_cost)
             image_data = _extra_image_data(row)
             if image_data:
@@ -255,8 +271,16 @@ def _normalize_project_extras(
 
         active_price = resolve_effective_price(db, item, variant)
         base_cost = Decimal(str(active_price.cost)) if active_price else Decimal("0")
-        markup = Decimal(str(active_price.profile_markup_percent)) if active_price else Decimal("0")
-        discount = Decimal(str(active_price.profile_discount_percent)) if active_price else Decimal("0")
+        markup = (
+            Decimal(str(active_price.profile_markup_percent))
+            if active_price
+            else Decimal("0")
+        )
+        discount = (
+            Decimal(str(active_price.profile_discount_percent))
+            if active_price
+            else Decimal("0")
+        )
         unit_price = (
             base_cost
             * (Decimal("1") + markup / Decimal("100"))
@@ -309,7 +333,11 @@ def _normalize_project_extras(
                 "requires_paint": requires_paint,
                 "size": str(row.get("size") or "").strip(),
                 "qty": _extra_quantity(row, item.name),
-                "unit": "шт" if category == "profile" else str((active_price.unit if active_price else item.unit) or "шт").strip(),
+                "unit": "шт"
+                if category == "profile"
+                else str(
+                    (active_price.unit if active_price else item.unit) or "шт"
+                ).strip(),
                 "unit_price": (
                     f"{unit_price.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):.2f}"
                 ),
@@ -346,8 +374,10 @@ def list_projects(
     query = db.query(models.Project)
     if current_user.role == "dealer":
         query = query.filter(models.Project.created_by == current_user.id)
-    return [_project_response(project, current_user, include_sections=False)
-            for project in query.order_by(models.Project.created_at.desc()).all()]
+    return [
+        _project_response(project, current_user, include_sections=False)
+        for project in query.order_by(models.Project.created_at.desc()).all()
+    ]
 
 
 @router.post("", response_model=schemas.ProjectOut, status_code=201)
@@ -384,7 +414,9 @@ def get_project(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    return _project_response(_get_project_or_404(project_id, db, current_user), current_user)
+    return _project_response(
+        _get_project_or_404(project_id, db, current_user), current_user
+    )
 
 
 @router.put("/{project_id}", response_model=schemas.ProjectOut)
@@ -400,7 +432,9 @@ def update_project(
         values["customer"] = active_customer(db, values["customer"])
     if "extra_components" in values:
         values["extra_components"] = _normalize_project_extras(
-            values.get("extra_components"), db, actor=current_user,
+            values.get("extra_components"),
+            db,
+            actor=current_user,
             previous=project.extra_components,
         )
     if "order_number" in values or "number" in values:
@@ -439,7 +473,9 @@ def copy_project(
     current_user: models.User = Depends(get_current_user),
 ):
     source = _get_project_or_404(project_id, db, current_user)
-    selected_customer = active_customer(db, customer if customer is not None else source.customer)
+    selected_customer = active_customer(
+        db, customer if customer is not None else source.customer
+    )
     new_project = models.Project(
         # A copy is a new estimate with its own invoice. The production order
         # number is assigned only after the copied estimate is approved.

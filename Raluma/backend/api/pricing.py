@@ -25,8 +25,10 @@ from api.catalog import (
 from auth import get_current_user, require_admin, user_can_manage_prices
 from database import get_db
 from engine.pricing_rules import (
-    PERCENT_FIELDS, latest_price_version, normalized_at,
-    price_preview, resolve_effective_price, sync_variant_cache,
+    normalized_at,
+    price_preview,
+    resolve_effective_price,
+    sync_variant_cache,
 )
 from engine.quote_pricing import (
     MANUAL_SERVICE_UNITS,
@@ -127,8 +129,10 @@ def _catalog_item_dict(item: models.CatalogItem, at: datetime) -> dict:
     variants = [v for v in item.finish_variants if v.is_active]
     representative_id = variants[0].id if variants else None
     active, upcoming = _active_and_next_versions(
-        [v for v in versions if v.finish_variant_id == representative_id], at)
+        [v for v in versions if v.finish_variant_id == representative_id], at
+    )
     from sqlalchemy.orm import object_session
+
     db = object_session(item)
     return {
         "id": item.id,
@@ -143,10 +147,15 @@ def _catalog_item_dict(item: models.CatalogItem, at: datetime) -> dict:
         "next_price": _version_dict(upcoming),
         "history_count": len(versions),
         "finish_prices": [
-            {"finish_variant_id": v.id, "finish_name": v.name,
-             "resolved": price_preview(resolve_effective_price(db, item, v, at))}
+            {
+                "finish_variant_id": v.id,
+                "finish_name": v.name,
+                "resolved": price_preview(resolve_effective_price(db, item, v, at)),
+            }
             for v in variants
-        ] if db else [],
+        ]
+        if db
+        else [],
     }
 
 
@@ -168,9 +177,16 @@ def _new_version(
     rollback_of_id: int | None = None,
 ) -> models.CatalogPriceVersion:
     _validate_price_payload(data)
-    current = max((v for v in item.price_versions if v.finish_variant_id == finish_variant_id
-                   and normalized_at(v.effective_from) <= normalized_at(data.effective_from)),
-                  key=lambda v: (v.effective_from, v.id or 0), default=None)
+    current = max(
+        (
+            v
+            for v in item.price_versions
+            if v.finish_variant_id == finish_variant_id
+            and normalized_at(v.effective_from) <= normalized_at(data.effective_from)
+        ),
+        key=lambda v: (v.effective_from, v.id or 0),
+        default=None,
+    )
     return models.CatalogPriceVersion(
         catalog_item_id=item.id,
         finish_variant_id=finish_variant_id,
@@ -179,8 +195,12 @@ def _new_version(
         profile_markup_percent=data.profile_markup_percent,
         profile_discount_percent=data.profile_discount_percent,
         waste_markup_percent=current.waste_markup_percent if current else 0,
-        construction_markup_percent=current.construction_markup_percent if current else 0,
-        construction_discount_percent=current.construction_discount_percent if current else 0,
+        construction_markup_percent=current.construction_markup_percent
+        if current
+        else 0,
+        construction_discount_percent=current.construction_discount_percent
+        if current
+        else 0,
         category=data.category,
         unit=data.unit.strip(),
         min_margin_percent=data.min_margin_percent,
@@ -275,8 +295,13 @@ def rollback_price_version(
     )
     if item is None or target is None:
         raise HTTPException(status_code=404, detail="Версия цены не найдена")
-    if target.finish_variant_id is None and any(v.is_active for v in item.finish_variants):
-        raise HTTPException(400, "Старая общая версия не определяет исполнение; выберите версию нужного исполнения")
+    if target.finish_variant_id is None and any(
+        v.is_active for v in item.finish_variants
+    ):
+        raise HTTPException(
+            400,
+            "Старая общая версия не определяет исполнение; выберите версию нужного исполнения",
+        )
     payload = schemas.CatalogPriceVersionCreate(
         cost=target.cost,
         profile_markup_percent=target.profile_markup_percent,
@@ -290,7 +315,13 @@ def rollback_price_version(
         effective_from=data.effective_from,
         reason=data.reason,
     )
-    version = _new_version(item, payload, actor, finish_variant_id=target.finish_variant_id, rollback_of_id=target.id)
+    version = _new_version(
+        item,
+        payload,
+        actor,
+        finish_variant_id=target.finish_variant_id,
+        rollback_of_id=target.id,
+    )
     item.price_versions.append(version)
     if target.finish_variant_id is not None:
         variant = db.get(models.CatalogFinishVariant, target.finish_variant_id)
@@ -389,7 +420,9 @@ def _xlsx_rows(content: bytes) -> list[dict[str, Any]]:
                 for node in styles_root.findall("x:numFmts/x:numFmt", namespace)
             }
             attention_fills: set[int] = set()
-            for fill_index, fill in enumerate(styles_root.findall("x:fills/x:fill", namespace)):
+            for fill_index, fill in enumerate(
+                styles_root.findall("x:fills/x:fill", namespace)
+            ):
                 pattern = fill.find("x:patternFill", namespace)
                 if pattern is None or pattern.attrib.get("patternType") != "solid":
                     continue
@@ -400,9 +433,16 @@ def _xlsx_rows(content: bytes) -> list[dict[str, Any]]:
                 indexed = foreground.attrib.get("indexed", "")
                 # White/default fills are structural. Any other solid fill in a
                 # data cell is treated as an explicit review marker.
-                if rgb not in {"", "00000000", "00FFFFFF", "FFFFFFFF"} or indexed not in {"", "64"}:
+                if rgb not in {
+                    "",
+                    "00000000",
+                    "00FFFFFF",
+                    "FFFFFFFF",
+                } or indexed not in {"", "64"}:
                     attention_fills.add(fill_index)
-            for style_index, style in enumerate(styles_root.findall("x:cellXfs/x:xf", namespace)):
+            for style_index, style in enumerate(
+                styles_root.findall("x:cellXfs/x:xf", namespace)
+            ):
                 format_id = int(style.attrib.get("numFmtId", "0"))
                 format_code = custom_formats.get(format_id, "")
                 if format_id in {9, 10} or "%" in format_code:
@@ -481,7 +521,9 @@ def _parse_import_cost(value: object) -> Decimal:
 def _import_source_date(rows: list[dict[str, Any]]) -> datetime:
     for row in rows:
         for value in row["values"]:
-            match = re.search(r"(?<!\d)(\d{1,2})[.]([01]?\d)[.](20\d{2})(?!\d)", str(value))
+            match = re.search(
+                r"(?<!\d)(\d{1,2})[.]([01]?\d)[.](20\d{2})(?!\d)", str(value)
+            )
             if match:
                 day, month, year = map(int, match.groups())
                 try:
@@ -498,8 +540,7 @@ def _import_group(name: str, unit: str) -> str:
     # Extruded thresholds and handle/lock profiles are still profiles.  Check
     # the physical unit before semantic words such as "ручка" or "замок".
     if unit == "м.п." and any(
-        word in normalized
-        for word in ("профил", "порог", "направл", "пристеноч")
+        word in normalized for word in ("профил", "порог", "направл", "пристеноч")
     ):
         return "Профили"
     if "ручк" in normalized:
@@ -535,9 +576,7 @@ def _import_finish_code(variant: models.CatalogFinishVariant) -> str:
 def _target_finish_code(item: models.CatalogItem | None, paint_mode: str = "") -> str:
     if item is not None:
         codes = {
-            _import_finish_code(row)
-            for row in item.finish_variants
-            if row.is_active
+            _import_finish_code(row) for row in item.finish_variants if row.is_active
         }
         if "ANOD_UNPAINTED" in codes:
             return "ANOD_UNPAINTED"
@@ -547,7 +586,11 @@ def _target_finish_code(item: models.CatalogItem | None, paint_mode: str = "") -
             return "ANOD_UNPAINTED"
         if "BASE" in codes:
             return "COLORLESS"
-        if not codes and "крас" in str(item.paint_mode or "").casefold() and "не крас" not in str(item.paint_mode or "").casefold():
+        if (
+            not codes
+            and "крас" in str(item.paint_mode or "").casefold()
+            and "не крас" not in str(item.paint_mode or "").casefold()
+        ):
             return "ANOD_UNPAINTED"
         return "COLORLESS"
     return "COLORLESS" if paint_mode == "Не красится" else "ANOD_UNPAINTED"
@@ -589,11 +632,7 @@ def _import_preview(db: Session, content: bytes) -> dict:
             _HEADER_ALIASES.get(_normalized_header(value), "") for value in values
         ]
         if "sku" in headers and "cost" in headers:
-            layout = {
-                header: column
-                for column, header in enumerate(headers)
-                if header
-            }
+            layout = {header: column for column, header in enumerate(headers) if header}
             header_index = index
             break
         normalized_values = [_normalized_header(value) for value in values]
@@ -664,14 +703,15 @@ def _import_preview(db: Session, content: bytes) -> dict:
         paint_mode = str(getattr(item, "paint_mode", "") or "") or _import_paint_mode(
             name, group, unit
         )
-        candidates = [] if item is not None else items_by_name.get(
-            _normalized_item_name(name), []
+        candidates = (
+            []
+            if item is not None
+            else items_by_name.get(_normalized_item_name(name), [])
         )
         cost_column = layout["cost"]
         pending = sku in _PENDING_COST_SKUS or cost_column in row["highlighted"]
         unit_mismatch = bool(
-            item is not None
-            and _normalize_import_unit(item.unit) != unit
+            item is not None and _normalize_import_unit(item.unit) != unit
         )
         if pending:
             action = "skip"
@@ -693,8 +733,7 @@ def _import_preview(db: Session, content: bytes) -> dict:
             (
                 variant
                 for variant in getattr(item, "finish_variants", [])
-                if variant.is_active
-                and _import_finish_code(variant) == finish_code
+                if variant.is_active and _import_finish_code(variant) == finish_code
             ),
             None,
         )
@@ -716,9 +755,7 @@ def _import_preview(db: Session, content: bytes) -> dict:
             else "",
             "finish_code": finish_code,
             "finish_name": (
-                "Анод/неокрас"
-                if finish_code == "ANOD_UNPAINTED"
-                else "Без цвета"
+                "Анод/неокрас" if finish_code == "ANOD_UNPAINTED" else "Без цвета"
             ),
             # A supplier document date is provenance, not an instruction to
             # insert an obsolete historical price behind today's baseline.
@@ -749,11 +786,19 @@ def _import_preview(db: Session, content: bytes) -> dict:
         if not source_layout:
             normalized.update(
                 {
-                    "profile_markup_percent": mapped.get("profile_markup_percent") or "",
-                    "profile_discount_percent": mapped.get("profile_discount_percent") or "",
+                    "profile_markup_percent": mapped.get("profile_markup_percent")
+                    or "",
+                    "profile_discount_percent": mapped.get("profile_discount_percent")
+                    or "",
                     "waste_markup_percent": mapped.get("waste_markup_percent") or "",
-                    "construction_markup_percent": mapped.get("construction_markup_percent") or "",
-                    "construction_discount_percent": mapped.get("construction_discount_percent") or "",
+                    "construction_markup_percent": mapped.get(
+                        "construction_markup_percent"
+                    )
+                    or "",
+                    "construction_discount_percent": mapped.get(
+                        "construction_discount_percent"
+                    )
+                    or "",
                     "category": mapped.get("category")
                     or (_infer_category(item) if item is not None else "component"),
                     "min_margin_percent": mapped.get("min_margin_percent") or "",
@@ -790,7 +835,9 @@ async def preview_price_import(
     return _import_preview(db, content)
 
 
-def _create_import_catalog_item(row: dict[str, Any], cost: Decimal) -> models.CatalogItem:
+def _create_import_catalog_item(
+    row: dict[str, Any], cost: Decimal
+) -> models.CatalogItem:
     name = str(row.get("name") or row.get("sku") or "Позиция каталога").strip()
     unit = _normalize_import_unit(row.get("unit"))
     group = str(row.get("group") or _import_group(name, unit)).strip()
@@ -890,9 +937,7 @@ def _import_version_payload(
         ),
         profile_discount_percent=selected(
             "profile_discount_percent",
-            fallback.profile_discount_percent
-            if fallback is not None
-            else 0,
+            fallback.profile_discount_percent if fallback is not None else 0,
         ),
         waste_markup_percent=selected(
             "waste_markup_percent",
@@ -902,24 +947,22 @@ def _import_version_payload(
         ),
         construction_markup_percent=selected(
             "construction_markup_percent",
-            fallback.construction_markup_percent
-            if fallback is not None
-            else 0,
+            fallback.construction_markup_percent if fallback is not None else 0,
         ),
         construction_discount_percent=selected(
             "construction_discount_percent",
-            fallback.construction_discount_percent
-            if fallback is not None
-            else 0,
+            fallback.construction_discount_percent if fallback is not None else 0,
         ),
         category=selected(
-            "category", current.category if current is not None else _infer_category(item)
+            "category",
+            current.category if current is not None else _infer_category(item),
         ),
         unit=_normalize_import_unit(
             selected("unit", current.unit if current is not None else item.unit)
         ),
         min_margin_percent=selected(
-            "min_margin_percent", current.min_margin_percent if current is not None else 0
+            "min_margin_percent",
+            current.min_margin_percent if current is not None else 0,
         ),
         effective_from=effective_from,
         reason=reason,
@@ -946,9 +989,7 @@ def apply_price_import(
         sku = str(row.get("sku") or "").strip().upper()
         action = str(row.get("action") or "update").strip().lower()
         if action == "skip":
-            skipped.append(
-                {"sku": sku, "reason": str(row.get("status") or "skipped")}
-            )
+            skipped.append({"sku": sku, "reason": str(row.get("status") or "skipped")})
             continue
         if action not in {"update", "create"}:
             errors.append(
@@ -976,7 +1017,9 @@ def apply_price_import(
         if action == "create":
             existing_item = items.get(sku)
             if existing_item is not None:
-                source_unit = _normalize_import_unit(row.get("unit") or existing_item.unit)
+                source_unit = _normalize_import_unit(
+                    row.get("unit") or existing_item.unit
+                )
                 if _normalize_import_unit(existing_item.unit) != source_unit:
                     errors.append(
                         f"Строка {index}: единица {source_unit} не совпадает с "
@@ -1217,8 +1260,10 @@ def get_internal_project_quote(
                 "validity_days": config["validity_days"],
                 "manufacturing_term": config["manufacturing_term"],
                 "payment_terms": config["payment_terms"],
-                "services": [{key: value for key, value in row.items() if key != "actual_cost"}
-                             for row in config["services"]],
+                "services": [
+                    {key: value for key, value in row.items() if key != "actual_cost"}
+                    for row in config["services"]
+                ],
                 "discounts": config["discounts"],
                 "overrides": [],
                 "margin_override_comment": "",

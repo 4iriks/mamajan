@@ -39,9 +39,7 @@ ADMIN_ROLES = {"admin", "superadmin"}
 
 
 class QuoteRefreshRequest(BaseModel):
-    expected_preview_token: str | None = Field(
-        default=None, pattern=r"^[a-f0-9]{64}$"
-    )
+    expected_preview_token: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
 
 def _require_current_preview(

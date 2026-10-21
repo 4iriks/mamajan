@@ -204,9 +204,7 @@ def _build_panels(
         panel_width = special_width if index == special_index else base_width
         panel_height = special_height if index == special_index else base_height
         panel_filling = (
-            PENOPLEX_20MM
-            if panels == 2 and is_igu and role == "Глухая"
-            else filling
+            PENOPLEX_20MM if panels == 2 and is_igu and role == "Глухая" else filling
         )
         result.append(
             LiftPanelItem(
@@ -475,7 +473,9 @@ def _calculate_torque(
 ) -> LiftTorqueResult:
     opening = str(getattr(section, "lift_opening_type", "") or "Сдвиг вниз")
     moving_panels = len(panels) - (2 if opening == LIFT_SPLIT_OPENING else 1)
-    largest = max(panels, key=lambda panel: panel.glued_width_mm * panel.glued_height_mm)
+    largest = max(
+        panels, key=lambda panel: panel.glued_width_mm * panel.glued_height_mm
+    )
     thickness = 12 if is_igu else 8
     area_m2 = largest.glued_width_mm * largest.glued_height_mm / 1_000_000
     raw_weight = area_m2 * moving_panels * thickness * 2.5 * 1.1
@@ -738,8 +738,7 @@ def lift_geometry_error(section: object) -> str:
     profile_errors = [
         warning
         for warning in result.warnings
-        if "расчетная длина" in warning.lower()
-        and "недопустима" in warning.lower()
+        if "расчетная длина" in warning.lower() and "недопустима" in warning.lower()
     ]
     if profile_errors:
         return "Размеры секции ЛИФТ слишком малы: " + "; ".join(profile_errors)

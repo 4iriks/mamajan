@@ -1,4 +1,5 @@
 """Explicit customer directory; historical project strings never seed this list."""
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.exc import IntegrityError
@@ -24,14 +25,22 @@ class CustomerOut(CustomerWrite):
 def active_customer(db: Session, value: str | None) -> str:
     key = " ".join(str(value or "").split()).casefold()
     aliases = {"ооо пр": "ооо прозрачные решения", "ооо ки": "ооо крокна инжиниринг"}
-    row = db.query(Customer).filter_by(name_key=aliases.get(key, key), is_active=True).first()
+    row = (
+        db.query(Customer)
+        .filter_by(name_key=aliases.get(key, key), is_active=True)
+        .first()
+    )
     if row is None:
         raise HTTPException(422, "Выберите активного заказчика из справочника")
     return row.name
 
 
 @router.get("", response_model=list[CustomerOut])
-def list_customers(include_inactive: bool = False, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def list_customers(
+    include_inactive: bool = False,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     query = db.query(Customer)
     if not include_inactive or user.role != "superadmin":
         query = query.filter_by(is_active=True)
@@ -55,12 +64,21 @@ def save_customer(db: Session, row: Customer, data: CustomerWrite):
 
 
 @router.post("", response_model=CustomerOut, status_code=201)
-def create_customer(data: CustomerWrite, db: Session = Depends(get_db), user: User = Depends(require_superadmin)):
+def create_customer(
+    data: CustomerWrite,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_superadmin),
+):
     return save_customer(db, Customer(), data)
 
 
 @router.put("/{customer_id}", response_model=CustomerOut)
-def update_customer(customer_id: int, data: CustomerWrite, db: Session = Depends(get_db), user: User = Depends(require_superadmin)):
+def update_customer(
+    customer_id: int,
+    data: CustomerWrite,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_superadmin),
+):
     row = db.get(Customer, customer_id)
     if row is None:
         raise HTTPException(404, "Заказчик не найден")

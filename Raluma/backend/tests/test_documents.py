@@ -1509,9 +1509,12 @@ class TestSketchProject:
             },
         )
 
-        assert [
-            panel.width_mm for panel in sketch["sections"][0]["panels"]
-        ] == [669, 654, 654, 669]
+        assert [panel.width_mm for panel in sketch["sections"][0]["panels"]] == [
+            669,
+            654,
+            654,
+            669,
+        ]
         assert {
             (row["width"], row["qty"], tuple(row["markings"]))
             for row in glass["glass_rows"]
@@ -1554,7 +1557,9 @@ class TestSketchProject:
                 "Комплект 8 (КОМПЛЕКТАЦИЯ)",
             ]
 
-    def test_preliminary_book_is_allowed_without_system_warning_in_document(self, client):
+    def test_preliminary_book_is_allowed_without_system_warning_in_document(
+        self, client
+    ):
         response = client.post(
             "/api/projects/local/documents/sketch/preview",
             json=self._payload([self._book(book_system="B16")]),
@@ -1660,9 +1665,7 @@ class TestSketchProject:
         )
 
         context = build_project_document_context(project, [section], "sketch")
-        articles = {
-            row["article"] for row in context["sections"][0]["profiles"]
-        }
+        articles = {row["article"] for row in context["sections"][0]["profiles"]}
 
         assert "RS1002" in articles
         assert "RU007" not in articles
@@ -2107,7 +2110,9 @@ class TestSketchProject:
         assert document_xml.count("w:pageBreakBefore") >= 2
         assert "РАЗМЕРЫ СТЕКОЛ" in self._docx_text(docx.content)
 
-    def test_slide_without_glass_keeps_sizes_and_builds_default_glass_order(self, client):
+    def test_slide_without_glass_keeps_sizes_and_builds_default_glass_order(
+        self, client
+    ):
         payload = self._payload(
             [self._slide(glass_supplied=False, width=2000, height=2400)]
         )
@@ -2633,12 +2638,8 @@ class TestOfficeDownloads:
             "glass.xlsx": build_project_xlsx(project, [section], "glass"),
             "paint.docx": build_project_docx(project, [section], "paint"),
             "paint.xlsx": build_project_xlsx(project, [section], "paint"),
-            "hardware.docx": build_project_docx(
-                project, [section], "hardware_order"
-            ),
-            "hardware.xlsx": build_project_xlsx(
-                project, [section], "hardware_order"
-            ),
+            "hardware.docx": build_project_docx(project, [section], "hardware_order"),
+            "hardware.xlsx": build_project_xlsx(project, [section], "hardware_order"),
             "delivery.xlsx": build_project_xlsx(project, [section], "delivery"),
         }
 
@@ -3205,8 +3206,10 @@ class TestOfficeDownloads:
             for table in docx_tables
         ]
         assert docx_pages == [rows for _, rows in expected_pages]
-        assert responses["preview"].text.count('<table class="paint-table">') == len(expected_pages)
-        assert responses["preview"].text.count('>Сечение</th>') == len(expected_pages)
+        assert responses["preview"].text.count('<table class="paint-table">') == len(
+            expected_pages
+        )
+        assert responses["preview"].text.count(">Сечение</th>") == len(expected_pages)
 
         xlsx_sheets = self._xlsx_sheet_rows(responses["xlsx"].content)
         xlsx_pages = []
@@ -3708,8 +3711,7 @@ class TestProjectGlassOrder:
         rows = _build_glass_rows(project, _iter_calculated_sections(sections))
 
         assert [
-            (row["marking"], row["width"], row["height"], row["qty"])
-            for row in rows
+            (row["marking"], row["width"], row["height"], row["qty"]) for row in rows
         ] == [
             ("1,1", 858, 1969, 2),
             ("1,2", 850, 1969, 3),
@@ -3825,12 +3827,8 @@ class TestProjectGlassOrder:
         sections = [
             _delivery_section(name="B26 кухня", order=0, width=2000, panels=2),
             _delivery_section(name="B26 терраса", order=1, width=2400, panels=2),
-            _delivery_section(
-                name="Этаж 2 / секция 1", order=2, width=2800, panels=2
-            ),
-            _delivery_section(
-                name="Этаж 2 / секция 2", order=3, width=3200, panels=2
-            ),
+            _delivery_section(name="Этаж 2 / секция 1", order=2, width=2800, panels=2),
+            _delivery_section(name="Этаж 2 / секция 2", order=3, width=3200, panels=2),
         ]
 
         calculated = _iter_calculated_sections(sections)
@@ -3884,7 +3882,9 @@ class TestProjectGlassOrder:
         assert all(row["qty"] == 2 for row in delivery_rows)
         assert [section["order"] for section in sketch["sections"]] == [4, 5, 6]
         assert [section["label"] for section in sketch["sections"]] == [
-            "Секция 4", "Секция 5", "Секция 6",
+            "Секция 4",
+            "Секция 5",
+            "Секция 6",
         ]
 
     def test_different_glass_names_keep_same_sizes_but_do_not_merge(self):
@@ -4406,9 +4406,7 @@ class TestDeliveryNote:
             _iter_calculated_sections(sections),
         )
         glass_order_markings = [
-            marking
-            for row in glass_order_rows
-            for marking in row["markings"]
+            marking for row in glass_order_rows for marking in row["markings"]
         ]
 
         delivery = _build_delivery_context(project, sections)
@@ -4419,9 +4417,7 @@ class TestDeliveryNote:
             for detail in group["rows"]
         ]
         delivery_markings = [
-            marking
-            for detail in delivery_details
-            for marking in detail["markings"]
+            marking for detail in delivery_details for marking in detail["markings"]
         ]
 
         assert sum(row["qty"] for row in glass_order_rows) == 18
@@ -4435,7 +4431,9 @@ class TestDeliveryNote:
         assert sum(detail["qty"] for detail in delivery_details) == 18
         assert len(delivery_markings) == len(set(delivery_markings)) == 6
         assert set(delivery_markings) == expected
-        assert all(detail["marking"] == detail["markings"][0] for detail in delivery_details)
+        assert all(
+            detail["marking"] == detail["markings"][0] for detail in delivery_details
+        )
         assert [row["qty"] for row in glass_order_rows] == [2, 2, 4, 4, 2, 4]
         assert [row["qty"] for row in delivery_details] == [2, 2, 4, 4, 2, 4]
 
@@ -4518,9 +4516,7 @@ class TestDeliveryNote:
             io.BytesIO(build_project_xlsx(project, [section], "delivery"))
         )
         xlsx_text = "\n".join(
-            str(cell.value or "")
-            for row in workbook.active.iter_rows()
-            for cell in row
+            str(cell.value or "") for row in workbook.active.iter_rows() for cell in row
         )
 
         assert extra["size"] == "2600"
@@ -4988,8 +4984,7 @@ class TestDeliveryNote:
                 continue
             for row in group["rows"]:
                 section_numbers = {
-                    int(marking.split(",", 1)[0])
-                    for marking in row["markings"]
+                    int(marking.split(",", 1)[0]) for marking in row["markings"]
                 }
                 assert len(section_numbers) == 1
                 section_number = section_numbers.pop()
@@ -5056,11 +5051,15 @@ class TestDeliveryNote:
 
         assert sum(row["qty"] for row in glass_rows) == 9
         assert {detail["marking"] for detail in detail_rows} == {
-            "1,1", "2,1", "2,2", "3,1",
+            "1,1",
+            "2,1",
+            "2,2",
+            "3,1",
         }
-        assert next(
-            detail["qty"] for detail in detail_rows if detail["marking"] == "1,1"
-        ) == 6
+        assert (
+            next(detail["qty"] for detail in detail_rows if detail["marking"] == "1,1")
+            == 6
+        )
         lift_rows = [
             detail for detail in detail_rows if detail["marking"].startswith("2,")
         ]

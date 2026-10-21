@@ -110,8 +110,9 @@ class Project(Base):
         cascade="all, delete-orphan",
         uselist=False,
     )
-    quote_revisions = relationship("ProjectQuoteRevision", back_populates="project",
-                                   cascade="all, delete-orphan")
+    quote_revisions = relationship(
+        "ProjectQuoteRevision", back_populates="project", cascade="all, delete-orphan"
+    )
 
 
 class Section(Base):
@@ -321,7 +322,9 @@ class CatalogFinishVariant(Base):
     waste_markup_percent = Column(Numeric(8, 4), default=0, nullable=False)
     requires_paint = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
-    pricing_mode = Column(String, default="individual", server_default="individual", nullable=False)
+    pricing_mode = Column(
+        String, default="individual", server_default="individual", nullable=False
+    )
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
@@ -333,8 +336,11 @@ class CatalogFinishVariant(Base):
         back_populates="finish_variant",
         order_by="CatalogPriceVersion.effective_from.desc()",
     )
-    pricing_bindings = relationship("CatalogPricingBindingVersion", back_populates="finish_variant",
-                                    cascade="all, delete-orphan")
+    pricing_bindings = relationship(
+        "CatalogPricingBindingVersion",
+        back_populates="finish_variant",
+        cascade="all, delete-orphan",
+    )
 
 
 class CsSystem(Base):
@@ -351,7 +357,9 @@ class CsSystem(Base):
     joint_profile_item_id = Column(
         Integer, ForeignKey("catalog_items.id"), nullable=True
     )
-    cover_profile_item_id = Column(Integer, ForeignKey("catalog_items.id"), nullable=True)
+    cover_profile_item_id = Column(
+        Integer, ForeignKey("catalog_items.id"), nullable=True
+    )
     bubble_seal_item_id = Column(Integer, ForeignKey("catalog_items.id"), nullable=True)
     glass_pad_item_id = Column(Integer, ForeignKey("catalog_items.id"), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
@@ -366,9 +374,15 @@ class CsSystem(Base):
     joint_profile = relationship(
         "CatalogItem", foreign_keys=[joint_profile_item_id], lazy="joined"
     )
-    cover_profile = relationship("CatalogItem", foreign_keys=[cover_profile_item_id], lazy="joined")
-    bubble_seal = relationship("CatalogItem", foreign_keys=[bubble_seal_item_id], lazy="joined")
-    glass_pad = relationship("CatalogItem", foreign_keys=[glass_pad_item_id], lazy="joined")
+    cover_profile = relationship(
+        "CatalogItem", foreign_keys=[cover_profile_item_id], lazy="joined"
+    )
+    bubble_seal = relationship(
+        "CatalogItem", foreign_keys=[bubble_seal_item_id], lazy="joined"
+    )
+    glass_pad = relationship(
+        "CatalogItem", foreign_keys=[glass_pad_item_id], lazy="joined"
+    )
 
 
 class ConstructionPriceGroup(Base):
@@ -446,7 +460,9 @@ class SystemPricingScope(Base):
 class SystemPricingVersion(Base):
     __tablename__ = "system_pricing_versions"
     id = Column(Integer, primary_key=True)
-    system_code = Column(String, ForeignKey("system_pricing_scopes.code"), index=True, nullable=False)
+    system_code = Column(
+        String, ForeignKey("system_pricing_scopes.code"), index=True, nullable=False
+    )
     markup_percent = Column(Numeric(8, 4), default=0, nullable=False)
     discount_percent = Column(Numeric(8, 4), default=0, nullable=False)
     effective_from = Column(DateTime, nullable=False, index=True)
@@ -458,9 +474,15 @@ class SystemPricingVersion(Base):
 class SystemComponentPriceVersion(Base):
     __tablename__ = "system_component_price_versions"
     id = Column(Integer, primary_key=True)
-    system_code = Column(String, ForeignKey("system_pricing_scopes.code"), index=True, nullable=False)
-    catalog_item_id = Column(Integer, ForeignKey("catalog_items.id"), index=True, nullable=False)
-    finish_variant_id = Column(Integer, ForeignKey("catalog_finish_variants.id"), index=True, nullable=True)
+    system_code = Column(
+        String, ForeignKey("system_pricing_scopes.code"), index=True, nullable=False
+    )
+    catalog_item_id = Column(
+        Integer, ForeignKey("catalog_items.id"), index=True, nullable=False
+    )
+    finish_variant_id = Column(
+        Integer, ForeignKey("catalog_finish_variants.id"), index=True, nullable=True
+    )
     waste_percent = Column(Numeric(8, 4), default=0, nullable=False)
     markup_percent = Column(Numeric(8, 4), default=0, nullable=False)
     discount_percent = Column(Numeric(8, 4), default=0, nullable=False)
@@ -478,14 +500,19 @@ class CatalogPricingRule(Base):
     scope_key = Column(String, unique=True, nullable=False)
     scope = Column(String, nullable=False)
     group_name = Column(String, nullable=False, default="")
-    versions = relationship("CatalogPricingRuleVersion", back_populates="rule",
-                            order_by="CatalogPricingRuleVersion.effective_from.desc()")
+    versions = relationship(
+        "CatalogPricingRuleVersion",
+        back_populates="rule",
+        order_by="CatalogPricingRuleVersion.effective_from.desc()",
+    )
 
 
 class CatalogPricingRuleVersion(Base):
     __tablename__ = "catalog_pricing_rule_versions"
     id = Column(Integer, primary_key=True)
-    rule_id = Column(Integer, ForeignKey("catalog_pricing_rules.id"), nullable=False, index=True)
+    rule_id = Column(
+        Integer, ForeignKey("catalog_pricing_rules.id"), nullable=False, index=True
+    )
     name = Column(String, nullable=False)
     is_active = Column(Boolean, nullable=False, default=True)
     profile_markup_percent = Column(Numeric(8, 4), nullable=False, default=0)
@@ -503,18 +530,24 @@ class CatalogPricingRuleVersion(Base):
 class CatalogPricingBindingVersion(Base):
     __tablename__ = "catalog_pricing_binding_versions"
     id = Column(Integer, primary_key=True)
-    finish_variant_id = Column(Integer, ForeignKey("catalog_finish_variants.id"), nullable=False, index=True)
+    finish_variant_id = Column(
+        Integer, ForeignKey("catalog_finish_variants.id"), nullable=False, index=True
+    )
     mode = Column(String, nullable=False)
     effective_from = Column(DateTime, nullable=False, index=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     reason = Column(Text, nullable=False)
-    finish_variant = relationship("CatalogFinishVariant", back_populates="pricing_bindings")
+    finish_variant = relationship(
+        "CatalogFinishVariant", back_populates="pricing_bindings"
+    )
 
 
 class ProjectQuoteRevision(Base):
     __tablename__ = "project_quote_revisions"
-    __table_args__ = (UniqueConstraint("project_id", "revision", name="uq_quote_project_revision"),)
+    __table_args__ = (
+        UniqueConstraint("project_id", "revision", name="uq_quote_project_revision"),
+    )
     id = Column(Integer, primary_key=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
     revision = Column(Integer, nullable=False)

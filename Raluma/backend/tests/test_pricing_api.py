@@ -13,7 +13,11 @@ from pypdf import PdfReader, PdfWriter
 
 import models
 from database import SessionLocal
-from engine.quote_pricing import _section_requirements, _finish_variant_cost, freeze_quote
+from engine.quote_pricing import (
+    _section_requirements,
+    _finish_variant_cost,
+    freeze_quote,
+)
 
 
 def _unique(prefix: str) -> str:
@@ -235,14 +239,24 @@ def test_standalone_sale_uses_only_item_terms_variants_and_buyer_discount(
         # Effective finish versions are now authoritative, not the mutable
         # compatibility fields (production migration creates these baselines).
         for finish in colored.finish_variants:
-            db.add(models.CatalogPriceVersion(
-                catalog_item_id=colored.id, finish_variant_id=finish.id,
-                cost=finish.cost, profile_markup_percent=20, profile_discount_percent=10,
-                waste_markup_percent=90, construction_markup_percent=300,
-                construction_discount_percent=75, category="profile", unit="п.м.",
-                min_margin_percent=0, effective_from=datetime.utcnow() - timedelta(minutes=1),
-                created_by=actor_id, reason="pytest finish baseline",
-            ))
+            db.add(
+                models.CatalogPriceVersion(
+                    catalog_item_id=colored.id,
+                    finish_variant_id=finish.id,
+                    cost=finish.cost,
+                    profile_markup_percent=20,
+                    profile_discount_percent=10,
+                    waste_markup_percent=90,
+                    construction_markup_percent=300,
+                    construction_discount_percent=75,
+                    category="profile",
+                    unit="п.м.",
+                    min_margin_percent=0,
+                    effective_from=datetime.utcnow() - timedelta(minutes=1),
+                    created_by=actor_id,
+                    reason="pytest finish baseline",
+                )
+            )
         db.commit()
         db.refresh(regular)
         db.refresh(colored)
@@ -325,8 +339,6 @@ def test_standalone_sale_uses_only_item_terms_variants_and_buyer_discount(
     finally:
         _delete_catalog_item(regular_id)
         _delete_catalog_item(colored_id)
-
-
 
 
 def test_unified_catalog_uses_fixed_finish_rows_and_versioned_prices(
@@ -720,17 +732,24 @@ def test_supplier_cost_import_updates_only_anod_or_base_and_skips_pending(
 
         db = SessionLocal()
         try:
-            refreshed_paint = db.query(models.CatalogItem).filter_by(sku=paint_sku).one()
+            refreshed_paint = (
+                db.query(models.CatalogItem).filter_by(sku=paint_sku).one()
+            )
             variant_costs = {
-                row.code: Decimal(str(row.cost)) for row in refreshed_paint.finish_variants
+                row.code: Decimal(str(row.cost))
+                for row in refreshed_paint.finish_variants
             }
             assert variant_costs["ANOD"] == Decimal("101.25")
             assert variant_costs["RAL_STANDARD"] == Decimal("222.22")
             assert variant_costs["RAL_NONSTANDARD"] == Decimal("333.33")
             refreshed_base = db.query(models.CatalogItem).filter_by(sku=base_sku).one()
-            assert Decimal(str(refreshed_base.finish_variants[0].cost)) == Decimal("45.50")
+            assert Decimal(str(refreshed_base.finish_variants[0].cost)) == Decimal(
+                "45.50"
+            )
             created = db.query(models.CatalogItem).filter_by(sku=new_sku).one()
-            created_variants = {row.code: Decimal(str(row.cost)) for row in created.finish_variants}
+            created_variants = {
+                row.code: Decimal(str(row.cost)) for row in created.finish_variants
+            }
             assert created_variants == {
                 "ANOD_UNPAINTED": Decimal("77.70"),
                 "RAL_STANDARD": Decimal("0.00"),
@@ -757,9 +776,15 @@ def test_supplier_cost_import_updates_only_anod_or_base_and_skips_pending(
             ) == Decimal("236.67")
             pending = db.query(models.CatalogItem).filter_by(sku="RU003").one()
             assert Decimal(str(pending.finish_variants[0].cost)) == Decimal(
-                str(original_items["RU003"]["variants"][pending.finish_variants[0].id][0])
+                str(
+                    original_items["RU003"]["variants"][pending.finish_variants[0].id][
+                        0
+                    ]
+                )
             )
-            anod = next(row for row in refreshed_paint.finish_variants if row.code == "ANOD")
+            anod = next(
+                row for row in refreshed_paint.finish_variants if row.code == "ANOD"
+            )
             assert any(
                 version.finish_variant_id == anod.id
                 for version in refreshed_paint.price_versions
@@ -1105,7 +1130,11 @@ def test_cost_report_uses_fixed_internal_revision_and_exports_pdf_xlsx(
     }
     db = SessionLocal()
     try:
-        state = db.query(models.ProjectQuoteState).filter_by(project_id=project["id"]).first()
+        state = (
+            db.query(models.ProjectQuoteState)
+            .filter_by(project_id=project["id"])
+            .first()
+        )
         if state is None:
             state = models.ProjectQuoteState(project_id=project["id"])
             db.add(state)
@@ -1227,7 +1256,9 @@ def _seed_quote_prices(project_id: int, actor_id: int):
                 created_items.append(item.id)
             version = models.CatalogPriceVersion(
                 catalog_item_id=item.id,
-                finish_variant_id=_finish_variant_cost(item, required.get("finish", ""))[1],
+                finish_variant_id=_finish_variant_cost(
+                    item, required.get("finish", "")
+                )[1],
                 cost=Decimal("10.00"),
                 profile_markup_percent=Decimal("0"),
                 profile_discount_percent=Decimal("0"),
@@ -1254,27 +1285,43 @@ def _seed_quote_prices(project_id: int, actor_id: int):
                 if not finish.is_active or finish.id == version.finish_variant_id:
                     continue
                 finish_version = models.CatalogPriceVersion(
-                    catalog_item_id=item.id, finish_variant_id=finish.id,
-                    cost=version.cost, profile_markup_percent=version.profile_markup_percent,
+                    catalog_item_id=item.id,
+                    finish_variant_id=finish.id,
+                    cost=version.cost,
+                    profile_markup_percent=version.profile_markup_percent,
                     profile_discount_percent=version.profile_discount_percent,
                     waste_markup_percent=version.waste_markup_percent,
                     construction_markup_percent=version.construction_markup_percent,
                     construction_discount_percent=version.construction_discount_percent,
-                    category=version.category, unit=version.unit, min_margin_percent=version.min_margin_percent,
-                    effective_from=datetime.utcnow(), created_by=actor_id, reason="Интеграционный тест КП: исполнение",
+                    category=version.category,
+                    unit=version.unit,
+                    min_margin_percent=version.min_margin_percent,
+                    effective_from=datetime.utcnow(),
+                    created_by=actor_id,
+                    reason="Интеграционный тест КП: исполнение",
                 )
                 db.add(finish_version)
                 db.flush()
                 created_versions.append(finish_version.id)
         for price_id in created_versions:
             price = db.get(models.CatalogPriceVersion, price_id)
-            for code in {"SLIDE_2" if s.slide_rows == 2 else "SLIDE_1" for s in project.sections}:
-                setting = models.SystemComponentPriceVersion(system_code=code,
-                    catalog_item_id=price.catalog_item_id, finish_variant_id=price.finish_variant_id,
-                    waste_percent=price.waste_markup_percent, markup_percent=price.construction_markup_percent,
-                    discount_percent=price.construction_discount_percent, effective_from=datetime.utcnow(),
-                    created_by=actor_id, reason="Quote test setup")
-                db.add(setting); db.flush(); created_settings.append(setting.id)
+            for code in {
+                "SLIDE_2" if s.slide_rows == 2 else "SLIDE_1" for s in project.sections
+            }:
+                setting = models.SystemComponentPriceVersion(
+                    system_code=code,
+                    catalog_item_id=price.catalog_item_id,
+                    finish_variant_id=price.finish_variant_id,
+                    waste_percent=price.waste_markup_percent,
+                    markup_percent=price.construction_markup_percent,
+                    discount_percent=price.construction_discount_percent,
+                    effective_from=datetime.utcnow(),
+                    created_by=actor_id,
+                    reason="Quote test setup",
+                )
+                db.add(setting)
+                db.flush()
+                created_settings.append(setting.id)
         db.commit()
         return {
             "settings": created_settings,
@@ -1292,7 +1339,9 @@ def _seed_quote_prices(project_id: int, actor_id: int):
 def _cleanup_quote_prices(seed):
     db = SessionLocal()
     try:
-        db.query(models.SystemComponentPriceVersion).filter(models.SystemComponentPriceVersion.id.in_(seed["settings"])).delete(synchronize_session=False)
+        db.query(models.SystemComponentPriceVersion).filter(
+            models.SystemComponentPriceVersion.id.in_(seed["settings"])
+        ).delete(synchronize_session=False)
         if seed["versions"]:
             db.query(models.CatalogPriceVersion).filter(
                 models.CatalogPriceVersion.id.in_(seed["versions"])
@@ -1399,8 +1448,6 @@ def test_quote_category_percent_and_order_ruble_discounts(
         _assert_no_internal_pricing(payload)
     finally:
         _cleanup_quote_prices(seed)
-
-
 
 
 def test_slide_without_glass_removes_glass_price_and_weight_but_keeps_geometry(
@@ -1519,7 +1566,9 @@ def test_quote_missing_override_margin_snapshot_and_safe_exports(
         missing = client.get(
             f"/api/projects/{project['id']}/quote", headers=admin_headers
         ).json()
-        assert missing["missing_price_count"] == 1, client.get(f"/api/pricing/projects/{project['id']}", headers=admin_headers).json()["missing_prices"]
+        assert missing["missing_price_count"] == 1, client.get(
+            f"/api/pricing/projects/{project['id']}", headers=admin_headers
+        ).json()["missing_prices"]
         internal_missing = client.get(
             f"/api/pricing/projects/{project['id']}", headers=admin_headers
         ).json()
@@ -1563,7 +1612,9 @@ def test_quote_missing_override_margin_snapshot_and_safe_exports(
         assert overridden.status_code == 200, overridden.text
         assert overridden.json()["missing_price_count"] == 0
         assert overridden.json()["export_allowed"] is False
-        assert any("минималь" in warning.lower() for warning in overridden.json()["warnings"])
+        assert any(
+            "минималь" in warning.lower() for warning in overridden.json()["warnings"]
+        )
         internal_margin = client.get(
             f"/api/pricing/projects/{project['id']}", headers=admin_headers
         ).json()
@@ -1631,7 +1682,9 @@ def test_quote_missing_override_margin_snapshot_and_safe_exports(
         assert quote["export_allowed"] is True
         assert "vat" not in quote
         assert "vat" not in quote["totals"]
-        assert Decimal(quote["totals"]["grand_total"]) == Decimal(quote["totals"]["subtotal"]) + Decimal(quote["totals"]["rounding_adjustment"])
+        assert Decimal(quote["totals"]["grand_total"]) == Decimal(
+            quote["totals"]["subtotal"]
+        ) + Decimal(quote["totals"]["rounding_adjustment"])
         assert Decimal(quote["totals"]["document_grand_total"]) == sum(
             Decimal(row["document_line_total"]) for row in quote["lines"]
         ) + Decimal(quote["totals"]["rounding_adjustment"])
@@ -1643,10 +1696,9 @@ def test_quote_missing_override_margin_snapshot_and_safe_exports(
         )
         assert len(construction_line["section_details"]["panel_geometry"]) == 3
         assert construction_line["breakdown"][-1]["name"] == "Стекло"
-        assert (
-            sum(Decimal(row["line_total"]) for row in construction_line["breakdown"])
-            == Decimal(construction_line["document_line_total"])
-        )
+        assert sum(
+            Decimal(row["line_total"]) for row in construction_line["breakdown"]
+        ) == Decimal(construction_line["document_line_total"])
         _assert_no_internal_pricing(quote)
         assert "margin_approval" not in quote
         approved_internal = client.get(
@@ -1679,7 +1731,10 @@ def test_quote_missing_override_margin_snapshot_and_safe_exports(
         assert "Разрешено руководителем для тендера" not in preview.text
         assert "margin_approval" not in preview.text
         assert "70% аванс" not in preview.text
-        appendix = client.get(f"/api/projects/{project['id']}/documents/contract_appendix/preview", params={"token": token})
+        appendix = client.get(
+            f"/api/projects/{project['id']}/documents/contract_appendix/preview",
+            params={"token": token},
+        )
         assert appendix.status_code == 200
         assert "70% аванс" in appendix.text
         assert "Общие и центральные" in preview.text
@@ -1698,9 +1753,14 @@ def test_quote_missing_override_margin_snapshot_and_safe_exports(
             ).json()["status"]
             == "draft"
         )
-        fixed_response = client.post(f"/api/projects/{project['id']}/quote/freeze", headers=admin_headers)
+        fixed_response = client.post(
+            f"/api/projects/{project['id']}/quote/freeze", headers=admin_headers
+        )
         assert fixed_response.status_code == 200, fixed_response.text
-        word_draft = client.get(f"/api/projects/{project['id']}/documents/commercial/docx", headers=admin_headers)
+        word_draft = client.get(
+            f"/api/projects/{project['id']}/documents/commercial/docx",
+            headers=admin_headers,
+        )
         assert word_draft.status_code == 200, word_draft.text
         with zipfile.ZipFile(io.BytesIO(word_draft.content)) as archive:
             word_xml = archive.read("word/document.xml").decode("utf-8")

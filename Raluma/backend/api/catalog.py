@@ -1,7 +1,7 @@
 import json
 import re
 from datetime import datetime
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
@@ -105,7 +105,9 @@ def _variant_to_dict(
     }
     if include_cost:
         db = object_session(variant)
-        resolved = resolve_effective_price(db, variant.catalog_item, variant) if db else None
+        resolved = (
+            resolve_effective_price(db, variant.catalog_item, variant) if db else None
+        )
         actual = resolved or variant
         cost = actual.cost if actual.cost is not None else variant.price
         result.update(
@@ -123,7 +125,9 @@ def _variant_to_dict(
                 ),
                 "pricingMode": resolved.source["mode"] if resolved else "individual",
                 "pricingSource": resolved.source if resolved else None,
-                "minimumMarkupPercent": float(resolved.min_margin_percent) if resolved else 0,
+                "minimumMarkupPercent": float(resolved.min_margin_percent)
+                if resolved
+                else 0,
                 "priceAvailable": resolved is not None and resolved.cost_is_set,
             }
         )
@@ -150,7 +154,9 @@ def _seed_item_to_model(index: int, item) -> models.CatalogItem:
         system_groups=json.dumps(
             ["SLIDE_1", "SLIDE_2"]
             if "СЛАЙД" in str(item.system or "").upper()
-            else ["CS"] if item.system == 'ЦС' else [],
+            else ["CS"]
+            if item.system == "ЦС"
+            else [],
             ensure_ascii=False,
         ),
         unit=item.unit,
@@ -273,7 +279,9 @@ def _item_to_dict(item: models.CatalogItem) -> dict:
     representative = variants[0] if variants else None
     db = object_session(item)
     if representative is not None and db is not None:
-        representative = resolve_effective_price(db, item, representative) or representative
+        representative = (
+            resolve_effective_price(db, item, representative) or representative
+        )
     return {
         "id": item.id,
         "sku": item.sku,
@@ -373,8 +381,8 @@ def _apply_payload(item: models.CatalogItem, data: schemas.CatalogItemBase) -> N
     item.section_width_mm = data.sectionWidthMm
     item.section_height_mm = data.sectionHeightMm
     item.image_file = (data.imageFile or "").strip() or None
-    if 'photoFile' in data.model_fields_set:
-        item.photo_file = (data.photoFile or '').strip() or None
+    if "photoFile" in data.model_fields_set:
+        item.photo_file = (data.photoFile or "").strip() or None
     item.paint_mode = data.paintMode.strip() or "Не красится"
     current = {
         _finish_code(row.name, getattr(row, "code", None)): row
@@ -405,7 +413,9 @@ def _apply_payload(item: models.CatalogItem, data: schemas.CatalogItemBase) -> N
         variant.name = fixed_name
         variant.cost = cost
         variant.price = cost
-        variant.cost_is_set = payload.costIsSet if payload and payload.costIsSet is not None else True
+        variant.cost_is_set = (
+            payload.costIsSet if payload and payload.costIsSet is not None else True
+        )
         variant.profile_markup_percent = (
             payload.profileMarkupPercent if payload else data.markupPercent
         )
@@ -414,7 +424,11 @@ def _apply_payload(item: models.CatalogItem, data: schemas.CatalogItemBase) -> N
         )
         # Historical construction caches are retained for archive compatibility;
         # catalogue writes cannot change independent system prices.
-        for field in ("waste_markup_percent", "construction_markup_percent", "construction_discount_percent"):
+        for field in (
+            "waste_markup_percent",
+            "construction_markup_percent",
+            "construction_discount_percent",
+        ):
             if getattr(variant, field, None) is None:
                 setattr(variant, field, 0)
         variant.requires_paint = requires_paint
@@ -460,12 +474,24 @@ def _sync_price_versions(
             key=lambda row: (row.effective_from, row.id or 0),
             default=None,
         )
-        finish_input = next((row for row in data.finishVariants
-                             if variant is not None and _finish_code(row.name, row.code)
-                             == _finish_code(variant.name, variant.code)), None)
-        minimum = (finish_input.minimumMarkupPercent
-                   if finish_input is not None and finish_input.minimumMarkupPercent is not None
-                   else current.min_margin_percent if current else 0)
+        finish_input = next(
+            (
+                row
+                for row in data.finishVariants
+                if variant is not None
+                and _finish_code(row.name, row.code)
+                == _finish_code(variant.name, variant.code)
+            ),
+            None,
+        )
+        minimum = (
+            finish_input.minimumMarkupPercent
+            if finish_input is not None
+            and finish_input.minimumMarkupPercent is not None
+            else current.min_margin_percent
+            if current
+            else 0
+        )
         desired = (
             Decimal(str(variant.cost if variant is not None else data.purchasePrice)),
             Decimal(
@@ -642,13 +668,17 @@ def _cs_profile_summary(item: models.CatalogItem | None) -> dict | None:
 def _cs_system_to_dict(row: models.CsSystem, db: Session) -> dict:
     item_ids = {
         value
-        for value in (row.outer_profile_item_id, row.joint_profile_item_id, row.cover_profile_item_id, row.bubble_seal_item_id, row.glass_pad_item_id)
+        for value in (
+            row.outer_profile_item_id,
+            row.joint_profile_item_id,
+            row.cover_profile_item_id,
+            row.bubble_seal_item_id,
+            row.glass_pad_item_id,
+        )
         if value is not None
     }
     items = (
-        db.query(models.CatalogItem)
-        .filter(models.CatalogItem.id.in_(item_ids))
-        .all()
+        db.query(models.CatalogItem).filter(models.CatalogItem.id.in_(item_ids)).all()
         if item_ids
         else []
     )
@@ -671,7 +701,13 @@ def _cs_system_to_dict(row: models.CsSystem, db: Session) -> dict:
 def _validate_cs_profile_links(db: Session, data: schemas.CsSystemBase) -> None:
     ids = {
         value
-        for value in (data.outer_profile_item_id, data.joint_profile_item_id, data.cover_profile_item_id, data.bubble_seal_item_id, data.glass_pad_item_id)
+        for value in (
+            data.outer_profile_item_id,
+            data.joint_profile_item_id,
+            data.cover_profile_item_id,
+            data.bubble_seal_item_id,
+            data.glass_pad_item_id,
+        )
         if value is not None
     }
     if not ids:
@@ -684,8 +720,16 @@ def _validate_cs_profile_links(db: Session, data: schemas.CsSystemBase) -> None:
             status_code=400,
             detail=f"Не найдены активные профили каталога: {', '.join(map(str, missing))}",
         )
-    profile_ids = {data.outer_profile_item_id, data.joint_profile_item_id, data.cover_profile_item_id}
-    invalid = [item.sku for item in items if item.id in profile_ids and _price_category(item.group) != "profile"]
+    profile_ids = {
+        data.outer_profile_item_id,
+        data.joint_profile_item_id,
+        data.cover_profile_item_id,
+    }
+    invalid = [
+        item.sku
+        for item in items
+        if item.id in profile_ids and _price_category(item.group) != "profile"
+    ]
     if invalid:
         raise HTTPException(
             status_code=400,
@@ -754,7 +798,7 @@ def update_cs_system(
     row.name = data.name.strip()
     row.outer_profile_item_id = data.outer_profile_item_id
     row.joint_profile_item_id = data.joint_profile_item_id
-    for field in ('cover_profile_item_id', 'bubble_seal_item_id', 'glass_pad_item_id'):
+    for field in ("cover_profile_item_id", "bubble_seal_item_id", "glass_pad_item_id"):
         if field in data.model_fields_set:
             setattr(row, field, getattr(data, field))
     row.is_active = data.is_active

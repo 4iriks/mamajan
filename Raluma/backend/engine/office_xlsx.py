@@ -1220,8 +1220,16 @@ def _write_book_main_sheet(
             row,
             (
                 item.glass_type,
-                override_value(overrides, f"{item.field_prefix}_width", format_dimension(item.width_mm)),
-                override_value(overrides, f"{item.field_prefix}_height", format_dimension(item.height_mm)),
+                override_value(
+                    overrides,
+                    f"{item.field_prefix}_width",
+                    format_dimension(item.width_mm),
+                ),
+                override_value(
+                    overrides,
+                    f"{item.field_prefix}_height",
+                    format_dimension(item.height_mm),
+                ),
                 override_value(overrides, f"{item.field_prefix}_qty", item.qty),
                 item.positions_text,
             ),
@@ -1256,8 +1264,16 @@ def _write_book_main_sheet(
             formats,
             row,
             (
-                override_value(overrides, f"{item.field_prefix}_width", format_dimension(item.width_mm)),
-                override_value(overrides, f"{item.field_prefix}_height", format_dimension(item.height_mm)),
+                override_value(
+                    overrides,
+                    f"{item.field_prefix}_width",
+                    format_dimension(item.width_mm),
+                ),
+                override_value(
+                    overrides,
+                    f"{item.field_prefix}_height",
+                    format_dimension(item.height_mm),
+                ),
                 override_value(overrides, f"{item.field_prefix}_qty", item.qty),
                 item.positions_text,
             ),
@@ -1307,7 +1323,8 @@ def _write_book_details_sheet(
     for item in sheet.profile_rows:
         values = (
             "",
-            f"{item.article}\n{item.name}" + (f"\n{item.formula}" if item.formula else ""),
+            f"{item.article}\n{item.name}"
+            + (f"\n{item.formula}" if item.formula else ""),
             (
                 f"{override_value(overrides, f'{item.field_prefix}_length', format_dimension(item.length_mm))} мм × "
                 f"{override_value(overrides, f'{item.field_prefix}_qty', item.qty)} {item.unit}"
@@ -1378,7 +1395,9 @@ def _write_book_details_sheet(
                 worksheet,
                 formats,
                 row,
-                tuple(item.get(key, "") for key in ("art", "name", "size", "qty", "color")),
+                tuple(
+                    item.get(key, "") for key in ("art", "name", "size", "qty", "color")
+                ),
                 extra_spans,
                 center={0, 2, 3, 4},
             )
@@ -1410,7 +1429,9 @@ def _write_book_details_sheet(
         0,
         row + 4,
         11,
-        override_value(overrides, "section_comments", getattr(section, "comments", "") or ""),
+        override_value(
+            overrides, "section_comments", getattr(section, "comments", "") or ""
+        ),
         formats["cell"],
     )
     row += 5
@@ -1589,8 +1610,8 @@ def _build_glass_xlsx(context: dict) -> bytes:
         excel_row = row + 1
         area_formula = (
             f"=ROUND({item['shape_area_m2']:.12f}*F{excel_row},3)"
-            if item.get("shape_area_m2") is not None else
-            f"=ROUND(D{excel_row}*E{excel_row}*F{excel_row}/1000000,3)"
+            if item.get("shape_area_m2") is not None
+            else f"=ROUND(D{excel_row}*E{excel_row}*F{excel_row}/1000000,3)"
         )
         worksheet.write_formula(
             row,
@@ -2018,7 +2039,6 @@ def _build_delivery_xlsx(context: dict) -> bytes:
         worksheet.set_row(row, 21 if value else 18)
         row += 1
 
-
     stages = int(delivery.get("productionStages") or 1)
     current_stage = int(delivery.get("currentStage") or 1)
     stage_text = "Одна отгрузка" if stages == 1 else f"Этап {current_stage} из {stages}"
@@ -2109,7 +2129,10 @@ def _build_delivery_xlsx(context: dict) -> bytes:
                 size = f"{format_number(glass.get('width'))} × {format_number(glass.get('height'))} мм"
             note = str(glass.get("note") or "")
             details_text = "\n".join(
-                filter(None, (size, note, "" if is_cs_glass else str(item.get("color") or "")))
+                filter(
+                    None,
+                    (size, note, "" if is_cs_glass else str(item.get("color") or "")),
+                )
             )
             write_item(
                 "СТЕКЛО(ЦС)" if is_cs_glass else "Стеклянная панель",
@@ -2127,7 +2150,9 @@ def _build_delivery_xlsx(context: dict) -> bytes:
                 (
                     f"Цвет: {item.get('color')}" if item.get("color") else "",
                     f"Размер: {item.get('size')}" if item.get("size") else "",
-                    f"Единица: {item.get('unit')}" if item.get("unit") and item.get("unit") not in {"шт", "шт."} else "",
+                    f"Единица: {item.get('unit')}"
+                    if item.get("unit") and item.get("unit") not in {"шт", "шт."}
+                    else "",
                     str(item.get("note") or ""),
                 ),
             )
@@ -2147,8 +2172,13 @@ def _build_delivery_xlsx(context: dict) -> bytes:
                 None,
                 (
                     f"Цвет: {item.get('color')}" if item.get("color") else "",
-                    f"Размер: {item.get('size_display') or item.get('size')}" if item.get("size") else "",
-                    f"Единица: {item.get('display_unit', item.get('unit'))}" if item.get("display_unit", item.get("unit")) not in {None, "", "шт", "шт."} else "",
+                    f"Размер: {item.get('size_display') or item.get('size')}"
+                    if item.get("size")
+                    else "",
+                    f"Единица: {item.get('display_unit', item.get('unit'))}"
+                    if item.get("display_unit", item.get("unit"))
+                    not in {None, "", "шт", "шт."}
+                    else "",
                 ),
             )
         )

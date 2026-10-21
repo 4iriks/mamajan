@@ -478,11 +478,13 @@ def _apply_two_row_glass_total_correction(
     outer_and_center = {0, len(panels) // 2 - 1, len(panels) // 2, len(panels) - 1}
     # Preserve a shared formula size, not an accidental equality after rounding.
     same_size_as_outer = {
-        index for index, panel in enumerate(panels)
+        index
+        for index, panel in enumerate(panels)
         if round(float(panel.width_mm), 6) == round(float(panels[0].width_mm), 6)
     }
     matching_outer_and_center = (
-        len(panels) >= 6 and len(panels) % 2 == 0
+        len(panels) >= 6
+        and len(panels) % 2 == 0
         and same_size_as_outer == outer_and_center
     )
 
@@ -532,9 +534,7 @@ def _apply_two_row_glass_total_correction(
         )
         return difference_mm
     else:
-        adjustments = _two_row_glass_correction_adjustments(
-            len(panels), difference_mm
-        )
+        adjustments = _two_row_glass_correction_adjustments(len(panels), difference_mm)
     for index, adjustment in adjustments.items():
         panel = panels[index]
         panel.width_mm = round(float(panel.width_mm) + adjustment, 1)
@@ -1084,13 +1084,9 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
         left_rails.reverse()
     result.panel_rails = left_rails + list(reversed(left_rails))[: P - half]
     if unused_track == "Внешний":
-        result.panel_numbers = list(range(half, 0, -1)) + list(
-            range(1, P - half + 1)
-        )
+        result.panel_numbers = list(range(half, 0, -1)) + list(range(1, P - half + 1))
     else:
-        result.panel_numbers = list(range(1, half + 1)) + list(
-            range(P - half, 0, -1)
-        )
+        result.panel_numbers = list(range(1, half + 1)) + list(range(P - half, 0, -1))
 
     wall_l = bool(_get(section, "profile_left_wall", False))
     wall_r = bool(_get(section, "profile_right_wall", False))
@@ -1161,12 +1157,8 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     # central panes still receive the full C. Wider 6/8/10-panel layouts retain
     # the established side +8 mm rule.
     replace_side_eight_with_center_offset = P == 4 and center_offset > 0
-    side_handle_width_left = (
-        0 if replace_side_eight_with_center_offset else krlr
-    )
-    side_handle_width_right = (
-        0 if replace_side_eight_with_center_offset else krrr
-    )
+    side_handle_width_left = 0 if replace_side_eight_with_center_offset else krlr
+    side_handle_width_right = 0 if replace_side_eight_with_center_offset else krrr
     center_rs112_count = 2 if center_is_rs112 else 0
     centr1 = 47.5 if center_is_rs112 else 0
     centr2 = 8 if center_is_rs112 else 0
@@ -1238,17 +1230,9 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     result.glass.append(GlassItem("Левое", left_W, glass_H, Q))
     middle_qty = max(P - 4, 0) * Q
     if middle_qty > 0:
-        result.glass.append(
-            GlassItem(
-                "Промежуточные", middle_W, glass_H, middle_qty
-            )
-        )
+        result.glass.append(GlassItem("Промежуточные", middle_W, glass_H, middle_qty))
     if center_is_rs112:
-        result.glass.append(
-            GlassItem(
-                "Центральное левое", center_left_W, glass_H, Q
-            )
-        )
+        result.glass.append(GlassItem("Центральное левое", center_left_W, glass_H, Q))
         result.glass.append(
             GlassItem(
                 "Центральное правое",
@@ -1258,11 +1242,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
             )
         )
     elif center_left_W != center_right_W:
-        result.glass.append(
-            GlassItem(
-                "Центральное левое", center_left_W, glass_H, Q
-            )
-        )
+        result.glass.append(GlassItem("Центральное левое", center_left_W, glass_H, Q))
         result.glass.append(
             GlassItem(
                 "Центральное правое",
@@ -1272,9 +1252,7 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
             )
         )
     else:
-        result.glass.append(
-            GlassItem("Центральные", center_left_W, glass_H, 2 * Q)
-        )
+        result.glass.append(GlassItem("Центральные", center_left_W, glass_H, 2 * Q))
     result.glass.append(GlassItem("Правое", right_W, glass_H, Q))
 
     threshold_articles = {

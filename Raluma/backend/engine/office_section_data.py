@@ -15,12 +15,24 @@ def section_summary_rows(section: object, calc: object) -> list[tuple[str, str]]
         system_name = str(getattr(cs_system, "name", "") or "Система не выбрана")
         panes = list(getattr(calc, "panes", None) or [])
         return [
-            ("Монтажный проём, мм", f"{format_number(calc.installation_width_mm)} × {format_number(calc.installation_height_mm)}"),
-            ("Световой проём, мм", f"{format_number(calc.clear_width_mm)} × {format_number(calc.clear_height_mm)}"),
+            (
+                "Монтажный проём, мм",
+                f"{format_number(calc.installation_width_mm)} × {format_number(calc.installation_height_mm)}",
+            ),
+            (
+                "Световой проём, мм",
+                f"{format_number(calc.clear_width_mm)} × {format_number(calc.clear_height_mm)}",
+            ),
             ("Количество секций, шт", str(getattr(section, "quantity", 1) or 1)),
-            ("Количество стекол, шт", str(sum(int(getattr(pane, "qty", 1) or 1) for pane in panes))),
+            (
+                "Количество стекол, шт",
+                str(sum(int(getattr(pane, "qty", 1) or 1) for pane in panes)),
+            ),
             ("Система ЦС", system_name),
-            ("Стекло", str(getattr(section, "glass_type", "") or "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ")),
+            (
+                "Стекло",
+                str(getattr(section, "glass_type", "") or "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ"),
+            ),
             ("Площадь стекла, м²", format_number(getattr(calc, "glass_area_m2", 0), 3)),
             ("Статус", "ПРЕДВАРИТЕЛЬНЫЙ РАСЧЁТ"),
         ]
@@ -72,7 +84,9 @@ def hardware_rows(
                             str(sub.article),
                             f"{item.name} {sub.label}".strip(),
                             sub.value,
-                            "м" if str(sub.article) in {"RU007", "RU008"} else item.unit,
+                            "м"
+                            if str(sub.article) in {"RU007", "RU008"}
+                            else item.unit,
                             getattr(sub, "image", None) or item.image,
                             getattr(sub, "field_key", ""),
                             "",

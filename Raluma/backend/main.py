@@ -54,6 +54,7 @@ async def lifespan(app: FastAPI):
     seed_superadmin()
     from api.catalog import _ensure_catalog_seed
     from engine.construction_pricing import migrate_construction_pricing
+
     with SessionLocal() as db:
         _ensure_catalog_seed(db)
         migrate_construction_pricing(db)

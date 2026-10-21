@@ -127,7 +127,17 @@ class PricingNumbers(BaseModel):
         name = info.field_name.lower()
         numeric = Decimal(str(value))
         is_percent = "percent" in name
-        is_money = name in {"price", "cost", "purchaseprice", "base_cost", "sale_price", "actual_cost", "value", "buyer_discount_value", "quantity"}
+        is_money = name in {
+            "price",
+            "cost",
+            "purchaseprice",
+            "base_cost",
+            "sale_price",
+            "actual_cost",
+            "value",
+            "buyer_discount_value",
+            "quantity",
+        }
         if is_percent or is_money:
             # Catalog amounts use NUMERIC(14,2), percentages NUMERIC(8,4).
             limit = Decimal("10000") if is_percent else Decimal("1000000000000")
@@ -200,9 +210,7 @@ class CatalogPricingBulkRequest(PricingNumbers):
     profile_discount_percent: Optional[Decimal] = Field(default=None, ge=0, le=100)
     waste_markup_percent: Optional[Decimal] = Field(default=None, ge=0)
     construction_markup_percent: Optional[Decimal] = Field(default=None, ge=0)
-    construction_discount_percent: Optional[Decimal] = Field(
-        default=None, ge=0, le=100
-    )
+    construction_discount_percent: Optional[Decimal] = Field(default=None, ge=0, le=100)
     effective_from: datetime = Field(default_factory=datetime.utcnow)
     reason: str = Field(min_length=1, max_length=1000)
 
@@ -341,7 +349,9 @@ class StandaloneSaleItem(PricingNumbers):
 class StandaloneSaleRequest(PricingNumbers):
     items: list[StandaloneSaleItem] = Field(min_length=1)
     buyer_discount_mode: Optional[DiscountMode] = None
-    buyer_discount_value: Decimal = Field(default=Decimal("0"), ge=0, allow_inf_nan=False)
+    buyer_discount_value: Decimal = Field(
+        default=Decimal("0"), ge=0, allow_inf_nan=False
+    )
 
     @model_validator(mode="after")
     def validate_discount(self):

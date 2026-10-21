@@ -217,12 +217,10 @@ class TestGlassTotalCorrection:
         expected_adjustments = _glass_correction_adjustments(panel_count, difference)
         assert applied == difference
         assert [panel.width_mm for panel in result.panel_glass] == [
-            500.0 + expected_adjustments.get(index, 0)
-            for index in range(panel_count)
+            500.0 + expected_adjustments.get(index, 0) for index in range(panel_count)
         ]
         assert [panel.glass_profile_length for panel in result.panel_glass] == [
-            497.0 + expected_adjustments.get(index, 0)
-            for index in range(panel_count)
+            497.0 + expected_adjustments.get(index, 0) for index in range(panel_count)
         ]
         assert all(panel.height_mm == 2200.0 for panel in result.panel_glass)
         assert bool(result.warnings) is (abs(difference) >= 4)
@@ -294,13 +292,18 @@ class TestGlassTotalCorrection:
         )
 
         assert [panel.width_mm for panel in result.panel_glass] == expected_widths
-        assert sorted(
-            (profile.length_mm, profile.qty)
-            for profile in _find_profile(result, "RS2021")
-        ) == expected_rs2021
+        assert (
+            sorted(
+                (profile.length_mm, profile.qty)
+                for profile in _find_profile(result, "RS2021")
+            )
+            == expected_rs2021
+        )
         assert not result.warnings
 
-    def test_project_4233_correction_scales_grouped_glass_and_rs2021_with_quantity(self):
+    def test_project_4233_correction_scales_grouped_glass_and_rs2021_with_quantity(
+        self,
+    ):
         section = _make_section(
             width=2633,
             panels=4,
@@ -395,12 +398,22 @@ class TestGlassTotalCorrection:
         )
 
         assert [panel.width_mm for panel in result.panel_glass] == [
-            666, 659, 659, 659, 666,
+            666,
+            659,
+            659,
+            659,
+            666,
         ]
         assert [panel.glass_profile_length for panel in result.panel_glass] == [
-            682, 656, 656, 656, 682,
+            682,
+            656,
+            656,
+            656,
+            682,
         ]
-        assert [(row.length_mm, row.qty) for row in _find_profile(result, "RS2021")] == [
+        assert [
+            (row.length_mm, row.qty) for row in _find_profile(result, "RS2021")
+        ] == [
             (682, 2),
             (656, 3),
         ]
@@ -426,12 +439,32 @@ class TestGlassTotalCorrection:
         )
 
         assert [panel.width_mm for panel in result.panel_glass] == [
-            631, 614, 614, 614, 623, 623, 614, 614, 614, 631,
+            631,
+            614,
+            614,
+            614,
+            623,
+            623,
+            614,
+            614,
+            614,
+            631,
         ]
         assert [panel.glass_profile_length for panel in result.panel_glass] == [
-            631, 611, 611, 611, 642, 639, 611, 611, 611, 631,
+            631,
+            611,
+            611,
+            611,
+            642,
+            639,
+            611,
+            611,
+            611,
+            631,
         ]
-        assert [(row.length_mm, row.qty) for row in _find_profile(result, "RS2021")] == [
+        assert [
+            (row.length_mm, row.qty) for row in _find_profile(result, "RS2021")
+        ] == [
             (631, 2),
             (611, 6),
             (642, 1),
@@ -453,10 +486,28 @@ class TestGlassTotalCorrection:
 
         assert applied == 5
         assert [panel.width_mm for panel in result.panel_glass] == [
-            631, 614, 614, 614, 623, 623, 614, 614, 614, 631,
+            631,
+            614,
+            614,
+            614,
+            623,
+            623,
+            614,
+            614,
+            614,
+            631,
         ]
         assert [panel.glass_profile_length for panel in result.panel_glass] == [
-            628, 611, 611, 611, 620, 620, 611, 611, 611, 628,
+            628,
+            611,
+            611,
+            611,
+            620,
+            620,
+            611,
+            611,
+            611,
+            628,
         ]
         assert not result.warnings
 
@@ -465,18 +516,29 @@ class TestGlassTotalCorrection:
     def test_customer_glass_check_20260924(self, quantity, mirror):
         """9700 mm example: avoid 948.45 -> 948.5 -> 949 double rounding."""
         section = _make_section(
-            width=9700, height=3300, panels=10, rails=5, slide_rows=2,
-            quantity=quantity, first_panel_inside=None, unused_track="Внешний",
-            profile_left_wall=not mirror, profile_right_wall=mirror,
-            profile_left_lock_bar=not mirror, profile_right_lock_bar=mirror,
-            profile_left_handle_bar=not mirror, profile_right_handle_bar=mirror,
-            profile_left_bubble=mirror, profile_right_bubble=not mirror,
+            width=9700,
+            height=3300,
+            panels=10,
+            rails=5,
+            slide_rows=2,
+            quantity=quantity,
+            first_panel_inside=None,
+            unused_track="Внешний",
+            profile_left_wall=not mirror,
+            profile_right_wall=mirror,
+            profile_left_lock_bar=not mirror,
+            profile_right_lock_bar=mirror,
+            profile_left_handle_bar=not mirror,
+            profile_right_handle_bar=mirror,
+            profile_left_bubble=mirror,
+            profile_right_bubble=not mirror,
             handle_left="Без ручки (глухая)" if mirror else None,
             handle_right=None if mirror else "Без ручки (глухая)",
             lock_left=None if mirror else "ЗАМОК двухсторонний с ключом RS3020",
             lock_right="ЗАМОК двухсторонний с ключом RS3020" if mirror else None,
             center_handle="Ручка-скоба 600мм RS30201",
-            center_lock="Замок стекло-стекло RS30301", center_handle_offset=100,
+            center_lock="Замок стекло-стекло RS30301",
+            center_handle_offset=100,
         )
         result = calculate_slide(section)
         widths = [957, 948, 948, 948, 1049, 1049, 948, 948, 948, 949]
@@ -492,11 +554,21 @@ class TestGlassTotalCorrection:
         grouped = Counter()
         for row in result.glass:
             grouped[row.width_mm] += row.qty
-        assert grouped == {1049: 2 * quantity, 957: quantity, 949: quantity, 948: 6 * quantity}
-        assert {p.length_mm: p.qty for p in _find_profile(result, "RS2021")} == {
-            973: quantity, 945: 6 * quantity, 1046: 2 * quantity, 949: quantity,
+        assert grouped == {
+            1049: 2 * quantity,
+            957: quantity,
+            949: quantity,
+            948: 6 * quantity,
         }
-        order = Counter(row.width_mm for row in _expand_glass_for_order(section, result))
+        assert {p.length_mm: p.qty for p in _find_profile(result, "RS2021")} == {
+            973: quantity,
+            945: 6 * quantity,
+            1046: 2 * quantity,
+            949: quantity,
+        }
+        order = Counter(
+            row.width_mm for row in _expand_glass_for_order(section, result)
+        )
         assert order == grouped
 
     @pytest.mark.parametrize("raw_difference", [-5, -4, 4, 4.4, 4.6, 5])
@@ -673,8 +745,7 @@ class TestGlassTotalCorrection:
         for glass in result.glass:
             grouped[(glass.width_mm, glass.glass_profile_length)] += glass.qty
         assert grouped == Counter(
-            (panel.width_mm, panel.glass_profile_length)
-            for panel in result.panel_glass
+            (panel.width_mm, panel.glass_profile_length) for panel in result.panel_glass
         )
         assert _find_hardware(result, "RU005")[0].value == 6
         ordered = _expand_glass_for_order(section, result)
@@ -2470,20 +2541,38 @@ class TestSlideTwoRows:
     @pytest.mark.parametrize("quantity", [1, 2])
     def test_project_4300_keeps_matching_outer_and_central_glass_equal(self, quantity):
         section = _make_section(
-            width=6580, height=2300, panels=6, rails=3, slide_rows=2,
-            quantity=quantity, first_panel_inside=None, unused_track="Внешний",
-            profile_left_lock_bar=True, profile_right_lock_bar=True,
-            profile_left_handle_bar=True, profile_right_handle_bar=True,
+            width=6580,
+            height=2300,
+            panels=6,
+            rails=3,
+            slide_rows=2,
+            quantity=quantity,
+            first_panel_inside=None,
+            unused_track="Внешний",
+            profile_left_lock_bar=True,
+            profile_right_lock_bar=True,
+            profile_left_handle_bar=True,
+            profile_right_handle_bar=True,
             center_handle="Ручки-профиль RS112 (2шт)",
         )
 
         result = calculate_slide(section)
 
         assert [panel.width_mm for panel in result.panel_glass] == [
-            1072, 1065, 1072, 1072, 1065, 1072,
+            1072,
+            1065,
+            1072,
+            1072,
+            1065,
+            1072,
         ]
         assert [panel.glass_profile_length for panel in result.panel_glass] == [
-            1088, 1062, 1091, 1088, 1062, 1088,
+            1088,
+            1062,
+            1091,
+            1088,
+            1062,
+            1088,
         ]
         assert all(panel.height_mm == 2194 for panel in result.panel_glass)
         assert sum(panel.width_mm for panel in result.panel_glass) == 6418
@@ -2491,41 +2580,64 @@ class TestSlideTwoRows:
         for row in result.glass:
             grouped[row.width_mm] += row.qty
         assert grouped == {1072: 4 * quantity, 1065: 2 * quantity}
-        assert Counter(row.width_mm for row in _expand_glass_for_order(section, result)) == grouped
+        assert (
+            Counter(row.width_mm for row in _expand_glass_for_order(section, result))
+            == grouped
+        )
         assert {row.length_mm: row.qty for row in _find_profile(result, "RS2021")} == {
-            1088: 3 * quantity, 1062: 2 * quantity, 1091: quantity,
+            1088: 3 * quantity,
+            1062: 2 * quantity,
+            1091: quantity,
         }
         assert not result.warnings
 
     @pytest.mark.parametrize("panel_count", [6, 8, 10])
-    def test_minus_three_correction_preserves_shared_outer_and_center_size(self, panel_count):
+    def test_minus_three_correction_preserves_shared_outer_and_center_size(
+        self, panel_count
+    ):
         matching = {0, panel_count // 2 - 1, panel_count // 2, panel_count - 1}
         widths = [608.6 if index in matching else 600.6 for index in range(panel_count)]
-        result = SlideCalcResult(panel_glass=[
-            PanelGlassItem(index + 1, f"Панель {index + 1}", width, 2200, width - 3)
-            for index, width in enumerate(widths)
-        ])
-        initial_total = sum(609 if index in matching else 601 for index in range(panel_count))
+        result = SlideCalcResult(
+            panel_glass=[
+                PanelGlassItem(index + 1, f"Панель {index + 1}", width, 2200, width - 3)
+                for index, width in enumerate(widths)
+            ]
+        )
+        initial_total = sum(
+            609 if index in matching else 601 for index in range(panel_count)
+        )
 
         _apply_two_row_glass_total_correction(result, initial_total - 2.5)
 
         assert [panel.width_mm for panel in result.panel_glass] == [
             608 if index in matching else 601 for index in range(panel_count)
         ]
-        assert all(panel.glass_profile_length == panel.width_mm - 3 for panel in result.panel_glass)
+        assert all(
+            panel.glass_profile_length == panel.width_mm - 3
+            for panel in result.panel_glass
+        )
         assert sum(panel.width_mm for panel in result.panel_glass) == initial_total - 4
         assert not result.warnings
 
     def test_equal_rounded_sizes_do_not_merge_different_calculated_sizes(self):
         widths = [608.6, 600.6, 608.7, 608.7, 600.6, 608.6]
-        result = SlideCalcResult(panel_glass=[
-            PanelGlassItem(index + 1, f"Панель {index + 1}", width, 2200, width - 3)
-            for index, width in enumerate(widths)
-        ])
+        result = SlideCalcResult(
+            panel_glass=[
+                PanelGlassItem(index + 1, f"Панель {index + 1}", width, 2200, width - 3)
+                for index, width in enumerate(widths)
+            ]
+        )
 
         _apply_two_row_glass_total_correction(result, 4 * 609 + 2 * 601 - 2.5)
 
-        assert [panel.width_mm for panel in result.panel_glass] == [607, 601, 609, 609, 601, 607]
+        assert [panel.width_mm for panel in result.panel_glass] == [
+            607,
+            601,
+            609,
+            609,
+            601,
+            607,
+        ]
         assert not result.warnings
 
     def test_system_text_and_panel_rails_3rail_4panels_center_first(self):
@@ -2699,10 +2811,16 @@ class TestSlideTwoRows:
         )
 
         assert [panel.width_mm for panel in result.panel_glass] == [
-            1051, 1151, 1151, 1051,
+            1051,
+            1151,
+            1151,
+            1051,
         ]
         assert [panel.glass_profile_length for panel in result.panel_glass] == [
-            1067, 1148, 1148, 1067,
+            1067,
+            1148,
+            1148,
+            1067,
         ]
         assert not result.warnings
 
@@ -2934,9 +3052,7 @@ class TestSlideTwoRows:
             (4, {}),
         ],
     )
-    def test_two_row_checksum_adjusts_only_extreme_panes(
-        self, difference, expected
-    ):
+    def test_two_row_checksum_adjusts_only_extreme_panes(self, difference, expected):
         assert _two_row_glass_correction_adjustments(4, difference) == expected
 
     @pytest.mark.parametrize(
@@ -3042,8 +3158,12 @@ class TestSlideTwoRows:
 
         assert len(result.panel_glass) == panels
         assert len(result.panel_rails) == panels
-        assert all(panel.width_mm == int(panel.width_mm) for panel in result.panel_glass)
-        assert all(panel.height_mm == int(panel.height_mm) for panel in result.panel_glass)
+        assert all(
+            panel.width_mm == int(panel.width_mm) for panel in result.panel_glass
+        )
+        assert all(
+            panel.height_mm == int(panel.height_mm) for panel in result.panel_glass
+        )
         assert all(
             panel.glass_profile_length == int(panel.glass_profile_length)
             for panel in result.panel_glass

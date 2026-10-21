@@ -260,7 +260,9 @@ def calculate_cs(section, *, system=None, outer_profile=None, joint_profile=None
     config = raw if isinstance(raw, dict) else {}
     radius = _number(config.get("triangleCornerRadiusMm", 0), -1)
     if radius not in (0, 8, 10):
-        raise CsCalculationError("Скругление треугольника: выберите без скругления, R8 или R10")
+        raise CsCalculationError(
+            "Скругление треугольника: выберите без скругления, R8 или R10"
+        )
     raw_vertices = config.get("vertices", [])
     if not isinstance(raw_vertices, list) or any(
         not isinstance(p, dict) for p in raw_vertices
@@ -332,7 +334,9 @@ def calculate_cs(section, *, system=None, outer_profile=None, joint_profile=None
                 width_mm = floor(px1 - px0 + EPS)
                 height_mm = floor(py1 - py0 + EPS)
                 if min(width_mm, height_mm) < 1:
-                    raise CsCalculationError("Размер стекла после округления должен быть не менее 1 мм")
+                    raise CsCalculationError(
+                        "Размер стекла после округления должен быть не менее 1 мм"
+                    )
                 is_rectangle = abs(pane.area - (px1 - px0) * (py1 - py0)) < EPS
                 panes.append(
                     {
@@ -340,7 +344,8 @@ def calculate_cs(section, *, system=None, outer_profile=None, joint_profile=None
                         "row": row + 1,
                         "width_mm": width_mm,
                         "height_mm": height_mm,
-                        "area_m2": (width_mm * height_mm if is_rectangle else pane.area) / 1e6,
+                        "area_m2": (width_mm * height_mm if is_rectangle else pane.area)
+                        / 1e6,
                         "is_rectangle": is_rectangle,
                         "qty": quantity,
                         "polygon": _points(pane),
@@ -366,7 +371,9 @@ def calculate_cs(section, *, system=None, outer_profile=None, joint_profile=None
             raise CsCalculationError(f"Стекло З{index}: {error}") from error
         if rounding:
             pane["rounded_corner"] = rounding
-            pane["treatment_note"] = f"Скругление R{radius:g}; расчётные размеры до скругления"
+            pane["treatment_note"] = (
+                f"Скругление R{radius:g}; расчётные размеры до скругления"
+            )
     cuts = [_joint_length(glass_polygon, x, ys, 0) for x in xs]
     cuts += [_joint_length(glass_polygon, y, xs, 1) for y in ys]
     profiled = [i for i, t in enumerate(treatments) if t == "clamp"]

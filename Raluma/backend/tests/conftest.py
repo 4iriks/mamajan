@@ -21,11 +21,26 @@ def client():
         from models import Customer
 
         with SessionLocal() as db:
-            for name in ("ПРОЗРАЧНЫЕ РЕШЕНИЯ", "КРОКНА ИНЖИНИРИНГ", "Тест", "Тестовый заказчик",
-                         "Заказчик", "Клиент", "Контроль", "Контрольный пример", "ООО ТЕСТ",
-                         "Админ", "Дилер", "Гость", "Секретный клиент", "Без внутреннего номера"):
+            for name in (
+                "ПРОЗРАЧНЫЕ РЕШЕНИЯ",
+                "КРОКНА ИНЖИНИРИНГ",
+                "Тест",
+                "Тестовый заказчик",
+                "Заказчик",
+                "Клиент",
+                "Контроль",
+                "Контрольный пример",
+                "ООО ТЕСТ",
+                "Админ",
+                "Дилер",
+                "Гость",
+                "Секретный клиент",
+                "Без внутреннего номера",
+            ):
                 if not db.query(Customer).filter_by(name_key=name.casefold()).first():
-                    db.add(Customer(name=name, name_key=name.casefold(), is_active=True))
+                    db.add(
+                        Customer(name=name, name_key=name.casefold(), is_active=True)
+                    )
             db.commit()
         yield c
     # Dispose engine to release SQLite file lock (required on Windows)

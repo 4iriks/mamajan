@@ -476,10 +476,13 @@ def _document_quote(db, project, revision=None, *, require_fixed=False):
         if not payload.get("export_allowed"):
             raise _quote_blocked(QuoteExportBlocked(payload))
         if payload.get("status") != "fixed":
-            raise HTTPException(status_code=409, detail={
-                "message": "Зафиксируйте КП перед экспортом. Скачивание не изменяет редакцию.",
-                "quote": payload,
-            })
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "Зафиксируйте КП перед экспортом. Скачивание не изменяет редакцию.",
+                    "quote": payload,
+                },
+            )
     return payload
 
 

@@ -273,8 +273,7 @@ def _is_calculated_profile_for_sketch(
     if "уплотн" not in normalized:
         return True
     return any(
-        term in normalized
-        for term in ("пузырьков", "h-уплотн", "h уплотн", "двутавр")
+        term in normalized for term in ("пузырьков", "h-уплотн", "h уплотн", "двутавр")
     )
 
 
@@ -315,12 +314,16 @@ def _calculated_profiles(calc: object, system: str) -> list[dict]:
                 _component_row(
                     article=getattr(item, "article", ""),
                     name=getattr(item, "name", ""),
-                    size=getattr(item, "cutting_text", f"{_format_number(total_length)} мм"),
+                    size=getattr(
+                        item, "cutting_text", f"{_format_number(total_length)} мм"
+                    ),
                     qty=_format_number(pieces),
                     unit="шт",
                     note="Предварительная ведомость",
                     image=getattr(item, "image", ""),
-                    color=getattr(calc, "color_text", "") if getattr(item, "role", "") == "cover" else "Без цвета",
+                    color=getattr(calc, "color_text", "")
+                    if getattr(item, "role", "") == "cover"
+                    else "Без цвета",
                 )
             )
         return rows
@@ -533,7 +536,9 @@ def _diagram_rows(section: object, calc: object) -> list[dict]:
             ),
         ]
         if system == "СЛАЙД"
-        else section_diagrams(section, calc, cs_print_dimensions=True, cs_print_size_mm=(176, 75))
+        else section_diagrams(
+            section, calc, cs_print_dimensions=True, cs_print_size_mm=(176, 75)
+        )
     )
     room_views = [row for row in diagrams if "из помещения" in row[0].casefold()]
     selected = (
@@ -566,7 +571,11 @@ def _side_component_tables(section, components):
         quantity = _positive_int(getattr(section, "quantity", 1))
         for side in sides:
             for item in selected[side]:
-                matches = [row for row in remaining if row["article"] == item["article"] and _number(row["qty"]) > 0]
+                matches = [
+                    row
+                    for row in remaining
+                    if row["article"] == item["article"] and _number(row["qty"]) > 0
+                ]
                 if not matches:
                     continue
                 row = matches[0]
@@ -658,8 +667,12 @@ def _section_data(section: object, order: int) -> dict:
         "label": label,
         "system": system,
         "system_text": _system_text(system, section, calc),
-        "width_mm": _number(getattr(calc, "installation_width_mm", getattr(section, "width", 0))),
-        "height_mm": _number(getattr(calc, "installation_height_mm", getattr(section, "height", 0))),
+        "width_mm": _number(
+            getattr(calc, "installation_width_mm", getattr(section, "width", 0))
+        ),
+        "height_mm": _number(
+            getattr(calc, "installation_height_mm", getattr(section, "height", 0))
+        ),
         "color": _section_color(section, calc),
         "quantity": _positive_int(getattr(section, "quantity", 1)),
         "threshold": threshold,

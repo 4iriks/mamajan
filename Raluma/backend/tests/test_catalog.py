@@ -3,7 +3,6 @@ import json
 import io
 import zipfile
 from decimal import Decimal
-from datetime import datetime
 
 from database import SessionLocal
 import models
@@ -196,9 +195,7 @@ def test_hardware_catalog_updates_item(client, admin_headers):
     assert data["purchasePrice"] == 777
     assert data["markupPercent"] == 41
     anod = next(
-        row
-        for row in data["finishVariants"]
-        if row["code"] == "ANOD_UNPAINTED"
+        row for row in data["finishVariants"] if row["code"] == "ANOD_UNPAINTED"
     )
     assert anod["cost"] == "777.00"
     assert anod["profileMarkupPercent"] == 41
@@ -248,7 +245,16 @@ def test_hardware_catalog_create_duplicate_and_archive(client, admin_headers):
         "sectionWidthMm",
         "sectionHeightMm",
     ):
-        assert item[field] == (0 if field in {"wastePercent", "constructionMarkupPercent", "constructionDiscountPercent"} else payload[field])
+        assert item[field] == (
+            0
+            if field
+            in {
+                "wastePercent",
+                "constructionMarkupPercent",
+                "constructionDiscountPercent",
+            }
+            else payload[field]
+        )
 
     db = SessionLocal()
     try:
@@ -452,7 +458,9 @@ def test_finish_variants_have_public_prices_and_project_snapshots(
         assert "Счет №" in commercial.text
         assert project_response.json()["invoice_number"] in commercial.text
 
-        fixed = client.post(f"/api/projects/{project_id}/quote/freeze", headers=admin_headers)
+        fixed = client.post(
+            f"/api/projects/{project_id}/quote/freeze", headers=admin_headers
+        )
         assert fixed.status_code == 200, fixed.text
         commercial_docx = client.get(
             f"/api/projects/{project_id}/documents/commercial/docx",
@@ -618,19 +626,11 @@ def test_profile_asset_rejects_non_image_extension(client):
     assert r.status_code == 404
 
 
-
-
 def test_cs_system_admin_crud_and_profile_validation(client, admin_headers):
     items = client.get("/api/catalog/hardware", headers=admin_headers).json()
-    profiles = [
-        row
-        for row in items
-        if row["group"] == "Профили" and row["isActive"]
-    ]
+    profiles = [row for row in items if row["group"] == "Профили" and row["isActive"]]
     non_profile = next(
-        row
-        for row in items
-        if row["group"] == "Фурнитура" and row["isActive"]
+        row for row in items if row["group"] == "Фурнитура" and row["isActive"]
     )
     assert len(profiles) >= 2
     code = "PYTEST_CS_SYSTEM"

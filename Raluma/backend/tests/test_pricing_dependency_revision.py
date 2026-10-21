@@ -291,7 +291,9 @@ def test_used_rule_scheduled_activation_changes_quote(dependency_db):
         )
     )
     from engine.construction_pricing import migrate_construction_pricing
-    migrate_construction_pricing(db, at=NOW); db.flush()
+
+    migrate_construction_pricing(db, at=NOW)
+    db.flush()
     project = add_project(db, actor, item, variant)
     freeze_quote(db, project, actor, at=NOW)
     state = get_or_create_quote_state(db, project)
@@ -413,11 +415,15 @@ def test_legacy_group_edits_no_longer_change_prices(dependency_db):
     db, actor = dependency_db
     item, variant = add_item(db, actor)
     project = add_project(db, actor, item, variant)
-    group = models.ConstructionPriceGroup(code="SLIDE_1", name="Slide", markup_percent=30)
-    db.add(group); db.flush()
+    group = models.ConstructionPriceGroup(
+        code="SLIDE_1", name="Slide", markup_percent=30
+    )
+    db.add(group)
+    db.flush()
     freeze_quote(db, project, actor, at=NOW)
     state = get_or_create_quote_state(db, project)
-    group.markup_percent = 900; db.flush()
+    group.markup_percent = 900
+    db.flush()
     assert not quote_is_stale(db, project, state, at=NOW)
 
 

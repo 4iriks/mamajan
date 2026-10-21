@@ -29,9 +29,7 @@ def _section(**overrides):
 
 def _profile_rows(result, article):
     return sorted(
-        (row.length_mm, row.qty)
-        for row in result.profiles
-        if row.article == article
+        (row.length_mm, row.qty) for row in result.profiles if row.article == article
     )
 
 
@@ -276,9 +274,9 @@ def test_lift_opening_changes_panel_order_but_not_dimensions():
         "Подвижная",
         "Подвижная",
     ]
-    assert sorted(
-        (panel.width_mm, panel.height_mm) for panel in down.panels
-    ) == sorted((panel.width_mm, panel.height_mm) for panel in up.panels)
+    assert sorted((panel.width_mm, panel.height_mm) for panel in down.panels) == sorted(
+        (panel.width_mm, panel.height_mm) for panel in up.panels
+    )
 
 
 def test_lift_hardware_uses_torque_drive_and_cable_rules():

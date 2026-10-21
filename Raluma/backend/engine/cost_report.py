@@ -90,10 +90,14 @@ def _decorate_metrics(row: dict[str, Any]) -> dict[str, Any]:
     row.update(metrics)
     row.update(
         {
-            "cost_text": _display_money(row["cost_total"]) if row.get("cost_known", True) else "—",
+            "cost_text": _display_money(row["cost_total"])
+            if row.get("cost_known", True)
+            else "—",
             "internal_text": _display_money(row["internal_total"]),
             "client_text": _display_money(row["client_total"]),
-            "profit_text": _display_money(metrics["profit"]) if metrics["profit"] is not None else "—",
+            "profit_text": _display_money(metrics["profit"])
+            if metrics["profit"] is not None
+            else "—",
             "markup_text": _display_percent(metrics["markup_percent"]),
             "margin_text": _display_percent(metrics["margin_percent"]),
         }
@@ -141,8 +145,13 @@ def _snapshot(
     if quote_revision is not None:
         public, internal = quote_revision_snapshot(db, project, quote_revision)
         internal = {**internal, "public": public}
-        if not any(internal.get(key) for key in ("sections", "project_extras", "services")):
-            internal["issues"] = [*internal.get("issues", []), {"code": "missing_internal_snapshot"}]
+        if not any(
+            internal.get(key) for key in ("sections", "project_extras", "services")
+        ):
+            internal["issues"] = [
+                *internal.get("issues", []),
+                {"code": "missing_internal_snapshot"},
+            ]
         return state, internal, False
     if state.status != "fixed":
         refresh_draft_quote(db, project, state)
@@ -205,7 +214,10 @@ def build_cost_report_context(
             sku = str(source.get("sku") or "").strip()
             cost = _money(source.get("base_cost_total"))
             unit_cost = _money(source.get("cost"))
-            complete = bool(source.get("cost_known", cost > 0)) and sku.upper() not in issue_skus
+            complete = (
+                bool(source.get("cost_known", cost > 0))
+                and sku.upper() not in issue_skus
+            )
             if not complete:
                 missing.append(
                     {
@@ -227,14 +239,18 @@ def build_cost_report_context(
                     "unit_cost": unit_cost,
                     "cost_total": cost,
                     "internal_total": _money(source.get("internal_total")),
-                    "client_total": allocated[index] if index < len(allocated) else Decimal("0"),
+                    "client_total": allocated[index]
+                    if index < len(allocated)
+                    else Decimal("0"),
                     "complete": complete,
                     "cost_known": bool(source.get("cost_known", cost > 0)),
                 }
             )
             rows.append(row)
             component_rows.append(row)
-        section_complete = not section.get("issues") and all(row["complete"] for row in rows)
+        section_complete = not section.get("issues") and all(
+            row["complete"] for row in rows
+        )
         cost_total = sum((row["cost_total"] for row in rows), Decimal("0"))
         section_summary = _decorate_metrics(
             {
@@ -261,7 +277,10 @@ def build_cost_report_context(
         line = public_lines.get(line_id, {})
         sku = str(source.get("sku") or "").strip()
         cost_total = _money(source.get("base_cost_total"))
-        complete = bool(source.get("cost_known", cost_total > 0)) and sku.upper() not in issue_skus
+        complete = (
+            bool(source.get("cost_known", cost_total > 0))
+            and sku.upper() not in issue_skus
+        )
         if not complete:
             missing.append(
                 {
@@ -283,7 +302,9 @@ def build_cost_report_context(
                 "unit_cost": _money(source.get("cost")),
                 "cost_total": cost_total,
                 "internal_total": _money(source.get("internal_total")),
-                "client_total": _money(line.get("line_total") or source.get("final_price")),
+                "client_total": _money(
+                    line.get("line_total") or source.get("final_price")
+                ),
                 "complete": complete,
                 "cost_known": bool(source.get("cost_known", cost_total > 0)),
             }
@@ -299,9 +320,15 @@ def build_cost_report_context(
         line = public_lines.get(line_id, {})
         quantity = decimal_value(source.get("quantity"))
         is_explicit_cost = "actual_cost" in source or "cost_known" in source
-        unit_cost = _money(source.get("actual_cost") if is_explicit_cost else source.get("base_cost"))
+        unit_cost = _money(
+            source.get("actual_cost") if is_explicit_cost else source.get("base_cost")
+        )
         cost_total = _money(unit_cost * quantity)
-        complete = bool(source.get("cost_known", source.get("actual_cost") is not None)) if is_explicit_cost else cost_total > 0
+        complete = (
+            bool(source.get("cost_known", source.get("actual_cost") is not None))
+            if is_explicit_cost
+            else cost_total > 0
+        )
         if not complete:
             missing.append(
                 {
@@ -324,7 +351,9 @@ def build_cost_report_context(
                     "unit_cost": unit_cost,
                     "cost_total": cost_total,
                     "internal_total": _money(source.get("internal_total")),
-                    "client_total": _money(line.get("line_total") or source.get("final_price")),
+                    "client_total": _money(
+                        line.get("line_total") or source.get("final_price")
+                    ),
                     "complete": complete,
                     "cost_known": complete,
                 }
@@ -345,7 +374,9 @@ def build_cost_report_context(
 
     all_rows = [*component_rows, *services]
     cost_total = _money(sum((row["cost_total"] for row in all_rows), Decimal("0")))
-    internal_total = _money(sum((row["internal_total"] for row in all_rows), Decimal("0")))
+    internal_total = _money(
+        sum((row["internal_total"] for row in all_rows), Decimal("0"))
+    )
     client_total = _money(
         (public.get("totals") or {}).get("grand_total")
         or sum((row["client_total"] for row in all_rows), Decimal("0"))
@@ -361,11 +392,15 @@ def build_cost_report_context(
             "complete": not incomplete,
         }
     )
-    project_snapshot = public.get("project") if isinstance(public.get("project"), dict) else {}
+    project_snapshot = (
+        public.get("project") if isinstance(public.get("project"), dict) else {}
+    )
     warnings = [_issue_text(issue) for issue in issues]
     rounding = _money((public.get("totals") or {}).get("rounding_adjustment"))
     if rounding:
-        warnings.append(f"Округление итога до рубля: {_display_money(rounding)}. Учтено в цене клиенту и прибыли.")
+        warnings.append(
+            f"Округление итога до рубля: {_display_money(rounding)}. Учтено в цене клиенту и прибыли."
+        )
     if stale:
         warnings.insert(
             0,
@@ -423,27 +458,58 @@ def _xlsx_formats(workbook: xlsxwriter.Workbook) -> dict[str, Any]:
         ),
         "meta": workbook.add_format({"font_color": "#52666B", "font_size": 9}),
         "warning": workbook.add_format(
-            {"font_color": "#9C2F1B", "bg_color": "#FDE8E2", "text_wrap": True, "valign": "vcenter"}
+            {
+                "font_color": "#9C2F1B",
+                "bg_color": "#FDE8E2",
+                "text_wrap": True,
+                "valign": "vcenter",
+            }
         ),
         "section": workbook.add_format(
             {"bold": True, "font_color": "#FFFFFF", "bg_color": "#164E59", "border": 1}
         ),
         "header": workbook.add_format(
-            {"bold": True, "font_color": "#FFFFFF", "bg_color": "#0F766E", "border": 1, "text_wrap": True, "align": "center", "valign": "vcenter"}
+            {
+                "bold": True,
+                "font_color": "#FFFFFF",
+                "bg_color": "#0F766E",
+                "border": 1,
+                "text_wrap": True,
+                "align": "center",
+                "valign": "vcenter",
+            }
         ),
         "text": workbook.add_format({"border": 1, "valign": "top", "text_wrap": True}),
-        "center": workbook.add_format({"border": 1, "align": "center", "valign": "top"}),
-        "number": workbook.add_format({"border": 1, "num_format": "0.###", "align": "right"}),
-        "money": workbook.add_format({"border": 1, "num_format": '#,##0.00 [$₽-ru-RU]', "align": "right"}),
-        "percent": workbook.add_format({"border": 1, "num_format": "0.00%", "align": "right"}),
+        "center": workbook.add_format(
+            {"border": 1, "align": "center", "valign": "top"}
+        ),
+        "number": workbook.add_format(
+            {"border": 1, "num_format": "0.###", "align": "right"}
+        ),
+        "money": workbook.add_format(
+            {"border": 1, "num_format": "#,##0.00 [$₽-ru-RU]", "align": "right"}
+        ),
+        "percent": workbook.add_format(
+            {"border": 1, "num_format": "0.00%", "align": "right"}
+        ),
         "missing": workbook.add_format(
-            {"border": 1, "font_color": "#9C2F1B", "bg_color": "#FFF1ED", "text_wrap": True}
+            {
+                "border": 1,
+                "font_color": "#9C2F1B",
+                "bg_color": "#FFF1ED",
+                "text_wrap": True,
+            }
         ),
         "total_label": workbook.add_format(
             {"bold": True, "bg_color": "#DCEFF0", "border": 1, "align": "right"}
         ),
         "total_money": workbook.add_format(
-            {"bold": True, "bg_color": "#DCEFF0", "border": 1, "num_format": '#,##0.00 [$₽-ru-RU]'}
+            {
+                "bold": True,
+                "bg_color": "#DCEFF0",
+                "border": 1,
+                "num_format": "#,##0.00 [$₽-ru-RU]",
+            }
         ),
         "total_percent": workbook.add_format(
             {"bold": True, "bg_color": "#DCEFF0", "border": 1, "num_format": "0.00%"}
@@ -517,13 +583,21 @@ def _write_detail_sheet(
         sheet.write_number(row_index, 4, float(source["quantity"]), formats["number"])
         sheet.write(row_index, 5, source["unit"], formats["center"])
         if source.get("cost_known", True):
-            sheet.write_number(row_index, 6, float(source["unit_cost"]), formats["money"])
-            sheet.write_number(row_index, 7, float(source["cost_total"]), formats["money"])
+            sheet.write_number(
+                row_index, 6, float(source["unit_cost"]), formats["money"]
+            )
+            sheet.write_number(
+                row_index, 7, float(source["cost_total"]), formats["money"]
+            )
         else:
             sheet.write_blank(row_index, 6, None, formats["missing"])
             sheet.write_blank(row_index, 7, None, formats["missing"])
-        sheet.write_number(row_index, 8, float(source["internal_total"]), formats["money"])
-        sheet.write_number(row_index, 9, float(source["client_total"]), formats["money"])
+        sheet.write_number(
+            row_index, 8, float(source["internal_total"]), formats["money"]
+        )
+        sheet.write_number(
+            row_index, 9, float(source["client_total"]), formats["money"]
+        )
         excel_row = row_index + 1
         if source["complete"]:
             sheet.write_formula(
@@ -550,11 +624,15 @@ def _write_detail_sheet(
         else:
             for column in (10, 11, 12):
                 sheet.write_blank(row_index, column, None, formats["missing"])
-        sheet.write(row_index, 13, "OK" if source["complete"] else "НЕТ СЕБЕСТОИМОСТИ", style)
+        sheet.write(
+            row_index, 13, "OK" if source["complete"] else "НЕТ СЕБЕСТОИМОСТИ", style
+        )
 
     if not rows:
         row_index += 1
-        sheet.merge_range(row_index, 0, row_index, 13, "Позиции отсутствуют", formats["text"])
+        sheet.merge_range(
+            row_index, 0, row_index, 13, "Позиции отсутствуют", formats["text"]
+        )
     else:
         total_row = row_index + 1
         first_excel = header_row + 2
@@ -562,7 +640,9 @@ def _write_detail_sheet(
         sheet.merge_range(total_row, 0, total_row, 6, "ИТОГО", formats["total_label"])
         for column in (7, 8, 9):
             letter = chr(ord("A") + column)
-            value_key = {7: "cost_total", 8: "internal_total", 9: "client_total"}[column]
+            value_key = {7: "cost_total", 8: "internal_total", 9: "client_total"}[
+                column
+            ]
             total = sum((row[value_key] for row in rows), Decimal("0"))
             sheet.write_formula(
                 total_row,
@@ -576,13 +656,36 @@ def _write_detail_sheet(
             sale = sum((row["client_total"] for row in rows), Decimal("0"))
             metrics = _metrics(cost, sale, complete=True)
             excel_total = total_row + 1
-            sheet.write_formula(total_row, 10, f"=J{excel_total}-H{excel_total}", formats["total_money"], float(metrics["profit"]))
-            sheet.write_formula(total_row, 11, f'=IFERROR(K{excel_total}/H{excel_total},"")', formats["total_percent"], _excel_percent(metrics["markup_percent"]))
-            sheet.write_formula(total_row, 12, f'=IFERROR(K{excel_total}/J{excel_total},"")', formats["total_percent"], _excel_percent(metrics["margin_percent"]))
+            sheet.write_formula(
+                total_row,
+                10,
+                f"=J{excel_total}-H{excel_total}",
+                formats["total_money"],
+                float(metrics["profit"]),
+            )
+            sheet.write_formula(
+                total_row,
+                11,
+                f'=IFERROR(K{excel_total}/H{excel_total},"")',
+                formats["total_percent"],
+                _excel_percent(metrics["markup_percent"]),
+            )
+            sheet.write_formula(
+                total_row,
+                12,
+                f'=IFERROR(K{excel_total}/J{excel_total},"")',
+                formats["total_percent"],
+                _excel_percent(metrics["margin_percent"]),
+            )
         else:
             for column in (10, 11, 12):
                 sheet.write_blank(total_row, column, None, formats["total_label"])
-        sheet.write(total_row, 13, "НЕПОЛНЫЕ ДАННЫЕ" if any(not row["complete"] for row in rows) else "OK", formats["total_label"])
+        sheet.write(
+            total_row,
+            13,
+            "НЕПОЛНЫЕ ДАННЫЕ" if any(not row["complete"] for row in rows) else "OK",
+            formats["total_label"],
+        )
         sheet.autofilter(header_row, 0, row_index, len(DETAIL_HEADERS) - 1)
     sheet.freeze_panes(header_row + 1, 0)
     widths = [20, 16, 34, 18, 12, 9, 18, 18, 18, 18, 18, 20, 14, 23]
@@ -621,15 +724,25 @@ def build_cost_report_xlsx(context: dict[str, Any]) -> bytes:
         row += 1
     if context["warnings"]:
         row += 1
-        summary_sheet.merge_range(row, 0, row, 2, "\n".join(context["warnings"]), formats["warning"])
+        summary_sheet.merge_range(
+            row, 0, row, 2, "\n".join(context["warnings"]), formats["warning"]
+        )
         summary_sheet.set_row(row, max(36, 18 * len(context["warnings"])))
         row += 2
     summary_header = row
     for column, value in enumerate(("Показатель", "Сумма", "Комментарий")):
         summary_sheet.write(row, column, value, formats["header"])
     summary_rows = [
-        ("Себестоимость", context["summary"]["cost_total"], "Частичная" if context["incomplete"] else "Полная"),
-        ("Внутренняя цена", context["summary"]["internal_total"], "После внутренних коэффициентов"),
+        (
+            "Себестоимость",
+            context["summary"]["cost_total"],
+            "Частичная" if context["incomplete"] else "Полная",
+        ),
+        (
+            "Внутренняя цена",
+            context["summary"]["internal_total"],
+            "После внутренних коэффициентов",
+        ),
         ("Цена клиенту", context["summary"]["client_total"], "После скидок"),
     ]
     for label, value, note in summary_rows:
@@ -640,23 +753,47 @@ def build_cost_report_xlsx(context: dict[str, Any]) -> bytes:
     row += 1
     summary_sheet.write(row, 0, "Прибыль", formats["total_label"])
     if context["summary"]["profit"] is not None:
-        summary_sheet.write_formula(row, 1, f"=B{row}-B{row - 2}", formats["total_money"], float(context["summary"]["profit"]))
-        summary_sheet.write(row, 2, "Цена клиенту − себестоимость", formats["total_label"])
+        summary_sheet.write_formula(
+            row,
+            1,
+            f"=B{row}-B{row - 2}",
+            formats["total_money"],
+            float(context["summary"]["profit"]),
+        )
+        summary_sheet.write(
+            row, 2, "Цена клиенту − себестоимость", formats["total_label"]
+        )
     else:
         summary_sheet.write_blank(row, 1, None, formats["total_money"])
-        summary_sheet.write(row, 2, "Не рассчитывается: есть незаполненные позиции", formats["total_label"])
+        summary_sheet.write(
+            row,
+            2,
+            "Не рассчитывается: есть незаполненные позиции",
+            formats["total_label"],
+        )
     for label, key, formula in (
-        ("Наценка на себестоимость", "markup_percent", f'=IFERROR(B{row + 1}/B{row - 2},"")'),
+        (
+            "Наценка на себестоимость",
+            "markup_percent",
+            f'=IFERROR(B{row + 1}/B{row - 2},"")',
+        ),
         ("Маржа", "margin_percent", f'=IFERROR(B{row + 1}/B{row},"")'),
     ):
         row += 1
         summary_sheet.write(row, 0, label, formats["total_label"])
         value = context["summary"][key]
         if value is not None:
-            summary_sheet.write_formula(row, 1, formula, formats["total_percent"], float(value / Decimal("100")))
+            summary_sheet.write_formula(
+                row, 1, formula, formats["total_percent"], float(value / Decimal("100"))
+            )
         else:
             summary_sheet.write_blank(row, 1, None, formats["total_percent"])
-        summary_sheet.write(row, 2, "" if value is not None else "Неполные данные", formats["total_label"])
+        summary_sheet.write(
+            row,
+            2,
+            "" if value is not None else "Неполные данные",
+            formats["total_label"],
+        )
     summary_sheet.freeze_panes(summary_header + 1, 0)
     summary_sheet.set_portrait()
     summary_sheet.fit_to_pages(1, 1)
@@ -683,14 +820,18 @@ def build_cost_report_xlsx(context: dict[str, Any]) -> bytes:
     missing_sheet.set_landscape()
     missing_sheet.fit_to_pages(1, 1)
     missing_sheet.set_margins(0.35, 0.35, 0.45, 0.45)
-    missing_sheet.merge_range(0, 0, 0, 3, "Незаполненные и проблемные позиции", formats["title"])
+    missing_sheet.merge_range(
+        0, 0, 0, 3, "Незаполненные и проблемные позиции", formats["title"]
+    )
     for column, label in enumerate(("Раздел", "Артикул", "Наименование", "Причина")):
         missing_sheet.write(2, column, label, formats["header"])
     for index, item in enumerate(context["missing"], start=3):
         for column, key in enumerate(("scope", "sku", "name", "reason")):
             missing_sheet.write(index, column, item.get(key, ""), formats["missing"])
     if not context["missing"]:
-        missing_sheet.merge_range(3, 0, 3, 3, "Все используемые позиции имеют себестоимость", formats["text"])
+        missing_sheet.merge_range(
+            3, 0, 3, 3, "Все используемые позиции имеют себестоимость", formats["text"]
+        )
     missing_sheet.set_column(0, 0, 24)
     missing_sheet.set_column(1, 1, 18)
     missing_sheet.set_column(2, 2, 38)

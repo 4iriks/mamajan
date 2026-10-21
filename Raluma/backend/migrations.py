@@ -1029,7 +1029,7 @@ def _migrate_finish_chains_v2(conn) -> None:
 
     items = conn.execute(
         text(
-            "SELECT id, paint_mode, waste_percent, \"group\", unit "
+            'SELECT id, paint_mode, waste_percent, "group", unit '
             "FROM catalog_items ORDER BY id"
         )
     ).fetchall()
@@ -1060,7 +1060,11 @@ def _migrate_finish_chains_v2(conn) -> None:
             normalized_name = " ".join(str(raw_name or "").casefold().split())
             if code in {"ANOD", "BASE"} or "анод" in normalized_name:
                 canonical = "ANOD_UNPAINTED" if paintable else "COLORLESS"
-            elif code == "RAL_NONSTANDARD" or "нестандарт" in normalized_name or "муар" in normalized_name:
+            elif (
+                code == "RAL_NONSTANDARD"
+                or "нестандарт" in normalized_name
+                or "муар" in normalized_name
+            ):
                 canonical = "RAL_MOIRE"
             elif code == "RAL_STANDARD" or "ral" in normalized_name:
                 canonical = "RAL_STANDARD"
@@ -1225,41 +1229,85 @@ def _migrate_finish_chains_v2(conn) -> None:
 
 def _seed_customer_directory_once(conn):
     marker = "customer_directory_v1"
-    if conn.execute(text("SELECT 1 FROM migration_markers WHERE name=:name"), {"name": marker}).first():
+    if conn.execute(
+        text("SELECT 1 FROM migration_markers WHERE name=:name"), {"name": marker}
+    ).first():
         return
     for name in ("ООО ПРОЗРАЧНЫЕ РЕШЕНИЯ", "ООО КРОКНА ИНЖИНИРИНГ"):
-        conn.execute(text("INSERT INTO customers (name, name_key, is_active) VALUES (:name, :key, 1) ON CONFLICT(name_key) DO NOTHING"), {"name": name, "key": name.casefold()})
-    conn.execute(text("INSERT INTO migration_markers (name) VALUES (:name)"), {"name": marker})
+        conn.execute(
+            text(
+                "INSERT INTO customers (name, name_key, is_active) VALUES (:name, :key, 1) ON CONFLICT(name_key) DO NOTHING"
+            ),
+            {"name": name, "key": name.casefold()},
+        )
+    conn.execute(
+        text("INSERT INTO migration_markers (name) VALUES (:name)"), {"name": marker}
+    )
 
 
 def _migrate_cs_t40_once(conn):
     from engine.profile_catalog import PROFILE_CATALOG
 
-    marker = 'cs_t40_catalog_v1'
-    if conn.execute(text('SELECT 1 FROM migration_markers WHERE name=:name'), {'name': marker}).first():
+    marker = "cs_t40_catalog_v1"
+    if conn.execute(
+        text("SELECT 1 FROM migration_markers WHERE name=:name"), {"name": marker}
+    ).first():
         return
-    for sku in ('Т40Т', 'Т40К', 'CS-PVC-PAD', 'RS1002'):
+    for sku in ("Т40Т", "Т40К", "CS-PVC-PAD", "RS1002"):
         item = PROFILE_CATALOG[sku]
-        groups = ['CS'] if sku != 'RS1002' else ['SLIDE_1', 'SLIDE_2', 'CS']
-        conn.execute(text('''INSERT OR IGNORE INTO catalog_items
+        groups = ["CS"] if sku != "RS1002" else ["SLIDE_1", "SLIDE_2", "CS"]
+        conn.execute(
+            text("""INSERT OR IGNORE INTO catalog_items
             (sku, name, "group", system, system_groups, unit, purchase_price, markup_percent, weight,
              waste_percent, section_width_mm, section_height_mm, image_file, photo_file, paint_mode,
              color_variants, supplier, is_active, note, created_at, updated_at)
             VALUES (:sku,:name,:group,:system,:groups,:unit,:price,:markup,:weight,:waste,:width,:height,
-                    :image,:photo,:paint,:colors,:supplier,1,:note,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)'''),
-            dict(sku=sku, name=item.name, group=item.group, system=item.system, groups=json.dumps(groups),
-                 unit=item.unit, price=item.purchase_price, markup=item.markup_percent, weight=item.weight,
-                 waste=item.waste_percent, width=item.section_width_mm, height=item.section_height_mm,
-                 image=item.image, photo=item.photo, paint=item.paint_mode,
-                 colors=json.dumps(item.color_variants, ensure_ascii=False), supplier=item.supplier, note=item.note))
-    row = conn.execute(text("SELECT system_groups FROM catalog_items WHERE sku='RS1002'")).first()
-    groups = json.loads(row[0] or '[]')
-    if 'CS' not in groups:
-        conn.execute(text("UPDATE catalog_items SET system_groups=:groups WHERE sku='RS1002'"), {'groups': json.dumps([*groups, 'CS'])})
-    for field, sku in [('outer_profile_item_id', 'Т40Т'), ('cover_profile_item_id', 'Т40К'),
-                       ('bubble_seal_item_id', 'RS1002'), ('glass_pad_item_id', 'CS-PVC-PAD')]:
-        conn.execute(text(f"UPDATE cs_systems SET {field}=COALESCE({field}, (SELECT id FROM catalog_items WHERE sku=:sku)) WHERE code='CS_CLAMP'"), {'sku': sku})
-    conn.execute(text('INSERT INTO migration_markers (name) VALUES (:name)'), {'name': marker})
+                    :image,:photo,:paint,:colors,:supplier,1,:note,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"""),
+            dict(
+                sku=sku,
+                name=item.name,
+                group=item.group,
+                system=item.system,
+                groups=json.dumps(groups),
+                unit=item.unit,
+                price=item.purchase_price,
+                markup=item.markup_percent,
+                weight=item.weight,
+                waste=item.waste_percent,
+                width=item.section_width_mm,
+                height=item.section_height_mm,
+                image=item.image,
+                photo=item.photo,
+                paint=item.paint_mode,
+                colors=json.dumps(item.color_variants, ensure_ascii=False),
+                supplier=item.supplier,
+                note=item.note,
+            ),
+        )
+    row = conn.execute(
+        text("SELECT system_groups FROM catalog_items WHERE sku='RS1002'")
+    ).first()
+    groups = json.loads(row[0] or "[]")
+    if "CS" not in groups:
+        conn.execute(
+            text("UPDATE catalog_items SET system_groups=:groups WHERE sku='RS1002'"),
+            {"groups": json.dumps([*groups, "CS"])},
+        )
+    for field, sku in [
+        ("outer_profile_item_id", "Т40Т"),
+        ("cover_profile_item_id", "Т40К"),
+        ("bubble_seal_item_id", "RS1002"),
+        ("glass_pad_item_id", "CS-PVC-PAD"),
+    ]:
+        conn.execute(
+            text(
+                f"UPDATE cs_systems SET {field}=COALESCE({field}, (SELECT id FROM catalog_items WHERE sku=:sku)) WHERE code='CS_CLAMP'"
+            ),
+            {"sku": sku},
+        )
+    conn.execute(
+        text("INSERT INTO migration_markers (name) VALUES (:name)"), {"name": marker}
+    )
 
 
 def _preserve_effective_pricing_baseline_once(conn):
@@ -1272,44 +1320,86 @@ def _preserve_effective_pricing_baseline_once(conn):
     from datetime import datetime
 
     marker = "effective_pricing_baseline_v1"
-    if conn.execute(text("SELECT 1 FROM migration_markers WHERE name=:name"), {"name": marker}).first():
+    if conn.execute(
+        text("SELECT 1 FROM migration_markers WHERE name=:name"), {"name": marker}
+    ).first():
         return
-    actor = conn.execute(text("SELECT id FROM users WHERE role IN ('admin','superadmin') ORDER BY id LIMIT 1")).scalar()
+    actor = conn.execute(
+        text(
+            "SELECT id FROM users WHERE role IN ('admin','superadmin') ORDER BY id LIMIT 1"
+        )
+    ).scalar()
     if actor is None:
-        if not conn.execute(text("SELECT 1 FROM catalog_price_versions LIMIT 1")).first():
+        if not conn.execute(
+            text("SELECT 1 FROM catalog_price_versions LIMIT 1")
+        ).first():
             # Fresh installation, before seed_superadmin(): there are no old
             # effective prices to preserve. Do not postpone this baseline to a
             # later restart and overwrite already scheduled new-engine prices.
-            conn.execute(text("INSERT INTO migration_markers (name) VALUES (:name)"), {"name": marker})
+            conn.execute(
+                text("INSERT INTO migration_markers (name) VALUES (:name)"),
+                {"name": marker},
+            )
         return
     now = datetime.utcnow()
-    rows = conn.execute(text('''SELECT v.*, i.unit AS item_unit, i."group" AS item_group
-        FROM catalog_finish_variants v JOIN catalog_items i ON i.id=v.catalog_item_id''')).mappings().all()
+    rows = (
+        conn.execute(
+            text("""SELECT v.*, i.unit AS item_unit, i."group" AS item_group
+        FROM catalog_finish_variants v JOIN catalog_items i ON i.id=v.catalog_item_id""")
+        )
+        .mappings()
+        .all()
+    )
     for row in rows:
-        current = conn.execute(text('''SELECT * FROM catalog_price_versions
+        current = (
+            conn.execute(
+                text("""SELECT * FROM catalog_price_versions
             WHERE catalog_item_id=:item_id AND effective_from<=:now
             ORDER BY CASE WHEN finish_variant_id IS NULL THEN 0 ELSE 1 END,
-                     effective_from DESC, id DESC LIMIT 1'''),
-            {"item_id": row["catalog_item_id"], "now": now}).mappings().first()
+                     effective_from DESC, id DESC LIMIT 1"""),
+                {"item_id": row["catalog_item_id"], "now": now},
+            )
+            .mappings()
+            .first()
+        )
         group = str(row["item_group"] or "").casefold()
-        category = current["category"] if current else (
-            "service" if "услуг" in group or "работ" in group else
-            "profile" if "проф" in group or "уплотн" in group else "component")
-        conn.execute(text('''INSERT INTO catalog_price_versions
+        category = (
+            current["category"]
+            if current
+            else (
+                "service"
+                if "услуг" in group or "работ" in group
+                else "profile"
+                if "проф" in group or "уплотн" in group
+                else "component"
+            )
+        )
+        conn.execute(
+            text("""INSERT INTO catalog_price_versions
             (catalog_item_id,finish_variant_id,cost,profile_markup_percent,profile_discount_percent,
              waste_markup_percent,construction_markup_percent,construction_discount_percent,
              category,unit,min_margin_percent,effective_from,created_at,created_by,reason)
-            VALUES (:item_id,:variant_id,:cost,:pm,:pd,:w,:cm,:cd,:category,:unit,:minimum,:now,:now,:actor,:reason)'''),
-            {"item_id": row["catalog_item_id"], "variant_id": row["id"],
-             "cost": row["cost"] if row["cost"] is not None else row["price"],
-             "pm": row["profile_markup_percent"], "pd": row["profile_discount_percent"],
-             "w": row["waste_markup_percent"], "cm": row["construction_markup_percent"],
-             "cd": row["construction_discount_percent"], "category": category,
-             "unit": current["unit"] if current else row["item_unit"],
-             "minimum": current["min_margin_percent"] if current else 0,
-             "now": now, "actor": actor,
-             "reason": "Сохранение действующей цены при переходе на единый источник; индивидуальные условия"})
-    conn.execute(text("INSERT INTO migration_markers (name) VALUES (:name)"), {"name": marker})
+            VALUES (:item_id,:variant_id,:cost,:pm,:pd,:w,:cm,:cd,:category,:unit,:minimum,:now,:now,:actor,:reason)"""),
+            {
+                "item_id": row["catalog_item_id"],
+                "variant_id": row["id"],
+                "cost": row["cost"] if row["cost"] is not None else row["price"],
+                "pm": row["profile_markup_percent"],
+                "pd": row["profile_discount_percent"],
+                "w": row["waste_markup_percent"],
+                "cm": row["construction_markup_percent"],
+                "cd": row["construction_discount_percent"],
+                "category": category,
+                "unit": current["unit"] if current else row["item_unit"],
+                "minimum": current["min_margin_percent"] if current else 0,
+                "now": now,
+                "actor": actor,
+                "reason": "Сохранение действующей цены при переходе на единый источник; индивидуальные условия",
+            },
+        )
+    conn.execute(
+        text("INSERT INTO migration_markers (name) VALUES (:name)"), {"name": marker}
+    )
 
 
 def run_migrations():

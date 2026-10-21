@@ -1,4 +1,5 @@
 """Only the delivery amendments of October 13; other documents stay unchanged."""
+
 from copy import deepcopy
 from io import BytesIO
 from types import SimpleNamespace
@@ -9,7 +10,10 @@ import pytest
 
 from engine.cs_calc import calculate_cs
 from engine.office_xlsx import build_project_xlsx
-from engine.project_documents import build_project_document_context, render_project_document_html
+from engine.project_documents import (
+    build_project_document_context,
+    render_project_document_html,
+)
 from schemas import SectionCreate
 
 # Exports resolve catalogue entries; initialize/clean the test catalogue through
@@ -17,23 +21,46 @@ from schemas import SectionCreate
 pytestmark = pytest.mark.usefixtures("client")
 
 
-@pytest.mark.parametrize("stages,stage,pads_present,tape_present", [
-    (1, 1, True, True), (2, 1, True, False), (2, 2, False, True),
-])
+@pytest.mark.parametrize(
+    "stages,stage,pads_present,tape_present",
+    [
+        (1, 1, True, True),
+        (2, 1, True, False),
+        (2, 2, False, True),
+    ],
+)
 @pytest.mark.parametrize("quantity,divisions", [(1, 0), (3, 2)])
 @pytest.mark.parametrize("custom_pad", [False, True])
-def test_cs_pads_ship_with_clamp_once(stages, stage, pads_present, tape_present, quantity, divisions, custom_pad):
-    section = SimpleNamespace(**SectionCreate(
-        name="Секция 1", system="ЦС", width=2240, height=600, quantity=quantity,
-        cs_config={"version": 2, "vertices": [
-            {"x": 0, "y": 0}, {"x": 2240, "y": 0},
-            {"x": 2240, "y": 600}, {"x": 0, "y": 600},
-        ], "vertical": {"count": divisions, "mode": "equal"}},
-    ).model_dump())
+def test_cs_pads_ship_with_clamp_once(
+    stages, stage, pads_present, tape_present, quantity, divisions, custom_pad
+):
+    section = SimpleNamespace(
+        **SectionCreate(
+            name="Секция 1",
+            system="ЦС",
+            width=2240,
+            height=600,
+            quantity=quantity,
+            cs_config={
+                "version": 2,
+                "vertices": [
+                    {"x": 0, "y": 0},
+                    {"x": 2240, "y": 0},
+                    {"x": 2240, "y": 600},
+                    {"x": 0, "y": 600},
+                ],
+                "vertical": {"count": divisions, "mode": "equal"},
+            },
+        ).model_dump()
+    )
     sku = "CUSTOM-PAD" if custom_pad else "CS-PVC-PAD"
     if custom_pad:
-        section.cs_system = SimpleNamespace(glass_pad=SimpleNamespace(sku=sku, name="Подкладка заказная"))
-    project = SimpleNamespace(number="QA", production_stages=stages, current_stage=stage)
+        section.cs_system = SimpleNamespace(
+            glass_pad=SimpleNamespace(sku=sku, name="Подкладка заказная")
+        )
+    project = SimpleNamespace(
+        number="QA", production_stages=stages, current_stage=stage
+    )
     before = deepcopy(section.__dict__)
     calculated = calculate_cs(section, system=getattr(section, "cs_system", None))
     context = build_project_document_context(project, [section], "delivery")
@@ -48,7 +75,9 @@ def test_cs_pads_ship_with_clamp_once(stages, stage, pads_present, tape_present,
         assert pads[0]["qty"] == len(calculated["panes"]) * 2 * quantity
     html = render_project_document_html(project, [section], "delivery", is_pdf=True)
     assert (sku in html) == pads_present
-    sheet = load_workbook(BytesIO(build_project_xlsx(project, [section], "delivery"))).active
+    sheet = load_workbook(
+        BytesIO(build_project_xlsx(project, [section], "delivery"))
+    ).active
     xlsx_pads = [row for row in sheet.values if row[2] == sku]
     assert bool(xlsx_pads) == pads_present
     if pads_present:
@@ -57,8 +86,16 @@ def test_cs_pads_ship_with_clamp_once(stages, stage, pads_present, tape_present,
 
 
 def test_delivery_lengths_have_names_without_images_and_keep_place_keys():
-    base = dict(sku="BOX-40", name="Бокс 40", color="9005", finishName="RAL стандарт",
-                unit="м", qty=2, image="T40K-section.jpg", deliveryStage="both")
+    base = dict(
+        sku="BOX-40",
+        name="Бокс 40",
+        color="9005",
+        finishName="RAL стандарт",
+        unit="м",
+        qty=2,
+        image="T40K-section.jpg",
+        deliveryStage="both",
+    )
     extras = [{**base, "size": length} for length in ("1000", "1500", "2000")]
     extras.append({**base, "size": "1000", "color": "9016"})
     project = SimpleNamespace(number="QA", extra_components=extras)

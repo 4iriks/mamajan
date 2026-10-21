@@ -93,16 +93,25 @@ def test_copy_project(client, admin_headers, project, section):
     client.delete(f"/api/projects/{copy['id']}", headers=admin_headers)
 
 
-def test_change_customer_preserves_sections_extras_and_fixed_quote(client, admin_headers, project, section):
+def test_change_customer_preserves_sections_extras_and_fixed_quote(
+    client, admin_headers, project, section
+):
     from database import SessionLocal
     from models import ProjectQuoteState
 
     path = f"/api/projects/{project['id']}"
     before = client.get(path, headers=admin_headers).json()
-    snapshot = json.dumps({"customer": before["customer"], "totals": {"grand_total": "1234.56"}})
+    snapshot = json.dumps(
+        {"customer": before["customer"], "totals": {"grand_total": "1234.56"}}
+    )
     with SessionLocal() as db:
-        quote = ProjectQuoteState(project_id=project["id"], status="fixed", revision=3,
-                                  public_payload=snapshot, internal_payload=snapshot)
+        quote = ProjectQuoteState(
+            project_id=project["id"],
+            status="fixed",
+            revision=3,
+            public_payload=snapshot,
+            internal_payload=snapshot,
+        )
         db.add(quote)
         db.commit()
         quote_id = quote.id
@@ -111,13 +120,21 @@ def test_change_customer_preserves_sections_extras_and_fixed_quote(client, admin
     assert result.status_code == 200, result.text
     after = client.get(path, headers=admin_headers).json()
     assert after["customer"] == target
-    for key in ("sections", "extra_components", "invoice_number", "order_number", "production_stages"):
+    for key in (
+        "sections",
+        "extra_components",
+        "invoice_number",
+        "order_number",
+        "production_stages",
+    ):
         assert after[key] == before[key]
     with SessionLocal() as db:
         quote = db.get(ProjectQuoteState, quote_id)
         assert (quote.status, quote.revision) == ("fixed", 3)
         assert quote.public_payload == quote.internal_payload == snapshot
-    invalid = client.put(path, headers=admin_headers, json={"customer": "Не из справочника"})
+    invalid = client.put(
+        path, headers=admin_headers, json={"customer": "Не из справочника"}
+    )
     assert invalid.status_code == 422
     assert client.get(path, headers=admin_headers).json()["customer"] == target
 
@@ -326,10 +343,7 @@ def test_legacy_project_numbers_and_section_extras_migrate_once():
             )
         )
         connection.execute(
-            text(
-                "INSERT INTO projects VALUES "
-                "(1, 'OLD-77', NULL, NULL, :extras)"
-            ),
+            text("INSERT INTO projects VALUES (1, 'OLD-77', NULL, NULL, :extras)"),
             {
                 "extras": json.dumps(
                     [{"sku": "A", "name": "Позиция A", "qty": 1, "unit": "шт"}],
@@ -375,9 +389,12 @@ def test_legacy_project_numbers_and_section_extras_migrate_once():
         assert migrated["A"]["qty"] == "7"
         assert migrated["B"]["qty"] == "2"
         assert second_payload == first_payload
-        assert connection.execute(
-            text("SELECT COUNT(*) FROM sections WHERE extra_components <> '[]'")
-        ).scalar_one() == 0
+        assert (
+            connection.execute(
+                text("SELECT COUNT(*) FROM sections WHERE extra_components <> '[]'")
+            ).scalar_one()
+            == 0
+        )
         project_row = connection.execute(
             text("SELECT order_number, invoice_number FROM projects WHERE id = 1")
         ).one()
@@ -447,9 +464,7 @@ def test_projects_require_auth(client):
     assert r.status_code == 403
 
 
-def test_project_rejects_unknown_hardware_installation(
-    client, admin_headers, project
-):
+def test_project_rejects_unknown_hardware_installation(client, admin_headers, project):
     response = client.put(
         f"/api/projects/{project['id']}",
         headers=admin_headers,

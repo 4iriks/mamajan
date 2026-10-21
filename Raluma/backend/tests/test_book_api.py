@@ -203,22 +203,25 @@ def test_book_production_sheet_is_available_and_preliminary_configs_are_blocked(
     assert xlsx.content.startswith(b"PK")
 
     word = Document(io.BytesIO(docx.content))
-    word_text = "\n".join(
-        paragraph.text for paragraph in word.paragraphs
-    ) + "\n" + "\n".join(
-        cell.text
-        for table in word.tables
-        for row in table.rows
-        for cell in row.cells
+    word_text = (
+        "\n".join(paragraph.text for paragraph in word.paragraphs)
+        + "\n"
+        + "\n".join(
+            cell.text
+            for table in word.tables
+            for row in table.rows
+            for cell in row.cells
+        )
     )
     assert "ПРЕДВАРИТЕЛЬНЫЙ ПРОИЗВОДСТВЕННЫЙ ЛИСТ" in word_text
     assert "Сверловка D13/D6" in word_text
     assert all(article in word_text for article in ("RBP001", "RBP002", "RBP003"))
     assert "отверстие 93" not in word_text
     with zipfile.ZipFile(io.BytesIO(docx.content)) as archive:
-        assert len(
-            [name for name in archive.namelist() if name.startswith("word/media/")]
-        ) >= 5
+        assert (
+            len([name for name in archive.namelist() if name.startswith("word/media/")])
+            >= 5
+        )
 
     workbook = load_workbook(io.BytesIO(xlsx.content), read_only=True, data_only=True)
     assert workbook.sheetnames == ["ПЛ КНИЖКА", "Комплектация"]
@@ -234,9 +237,10 @@ def test_book_production_sheet_is_available_and_preliminary_configs_are_blocked(
     assert all(article in excel_text for article in ("RBP001", "RBP002", "RBP003"))
     assert "отверстие 93" not in excel_text
     with zipfile.ZipFile(io.BytesIO(xlsx.content)) as archive:
-        assert len(
-            [name for name in archive.namelist() if name.startswith("xl/media/")]
-        ) >= 5
+        assert (
+            len([name for name in archive.namelist() if name.startswith("xl/media/")])
+            >= 5
+        )
 
     monkeypatch.setattr("api.documents.generate_pdf", lambda html: b"%PDF-1.4\n%%EOF")
     pdf = client.post("/api/projects/local/sections/pdf", json=confirmed)

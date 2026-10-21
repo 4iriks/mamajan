@@ -161,9 +161,7 @@ def test_lift_fields_have_isolated_defaults(client, admin_headers, project):
         {"lift_remote_6ch_qty": -1},
     ],
 )
-def test_invalid_lift_fields_are_rejected(
-    client, admin_headers, project, overrides
-):
+def test_invalid_lift_fields_are_rejected(client, admin_headers, project, overrides):
     payload = {
         "name": "Некорректный ЛИФТ",
         "system": "ЛИФТ",

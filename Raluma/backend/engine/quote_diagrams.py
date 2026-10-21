@@ -72,7 +72,9 @@ def _center_text(
     draw.text((xy[0] - width / 2, xy[1] - height / 2), text, font=font, fill=fill)
 
 
-def _fitted_font(draw: ImageDraw.ImageDraw, text: str, max_width: float, *, preferred: int = 24):
+def _fitted_font(
+    draw: ImageDraw.ImageDraw, text: str, max_width: float, *, preferred: int = 24
+):
     """Return the largest readable dimension font which fits its panel."""
     for size in range(preferred, 12, -1):
         font = load_font(size, bold=True)
@@ -102,8 +104,14 @@ def _arrow(
         draw.polygon(
             (
                 tip,
-                (tip[0] - ux * size + px * size * 0.55, tip[1] - uy * size + py * size * 0.55),
-                (tip[0] - ux * size - px * size * 0.55, tip[1] - uy * size - py * size * 0.55),
+                (
+                    tip[0] - ux * size + px * size * 0.55,
+                    tip[1] - uy * size + py * size * 0.55,
+                ),
+                (
+                    tip[0] - ux * size - px * size * 0.55,
+                    tip[1] - uy * size - py * size * 0.55,
+                ),
             ),
             fill=INK,
         )
@@ -139,9 +147,17 @@ def render_quote_room_png(details: dict[str, Any]) -> bytes:
         from types import SimpleNamespace
         from engine.cs_calc import cs_result_namespace
         from engine.office_diagrams import render_cs_front
-        section = SimpleNamespace(width=_number(details.get("width_mm")), height=_number(details.get("height_mm")))
-        return render_cs_front(section, cs_result_namespace(details.get("cs_geometry") or {}),
-                               print_dimensions=True, print_size_mm=(198, 65))
+
+        section = SimpleNamespace(
+            width=_number(details.get("width_mm")),
+            height=_number(details.get("height_mm")),
+        )
+        return render_cs_front(
+            section,
+            cs_result_namespace(details.get("cs_geometry") or {}),
+            print_dimensions=True,
+            print_size_mm=(198, 65),
+        )
     canvas = Image.new("RGB", (1800, 720), BACKGROUND)
     draw = ImageDraw.Draw(canvas)
     title_font = load_font(31, bold=True)
@@ -162,7 +178,9 @@ def render_quote_room_png(details: dict[str, Any]) -> bytes:
     legacy = "side_projection_segments" not in details
     draw.rectangle((left, top, right, bottom), outline=INK, width=7 if legacy else 1)
     if legacy:
-        draw.rectangle((left + 10, top + 10, right - 10, bottom - 10), outline=GRID, width=2)
+        draw.rectangle(
+            (left + 10, top + 10, right - 10, bottom - 10), outline=GRID, width=2
+        )
 
     rows = _geometry(details)
     widths = [max(_number(row.get("width_mm"), 1), 1) for row in rows]
@@ -179,7 +197,9 @@ def render_quote_room_png(details: dict[str, Any]) -> bytes:
         for row in parts:
             offset, part_width = row["offset_mm"] * scale, row["width_mm"] * scale
             x0 = left + offset if side_name == "left" else right - offset - part_width
-            draw.rectangle((x0, top, x0 + part_width, bottom), fill="#D9E3E5", outline=INK)
+            draw.rectangle(
+                (x0, top, x0 + part_width, bottom), fill="#D9E3E5", outline=INK
+            )
     x = left + left_px
     inner_width = max(1, drawing_width - left_px - right_px)
     for row, width_mm in zip(rows, widths):
@@ -192,10 +212,23 @@ def render_quote_room_png(details: dict[str, Any]) -> bytes:
             _matte_pattern(draw, box)
         cx = (panel_left + panel_right) / 2
         cy = (top + bottom) / 2
-        _center_text(draw, (cx, cy - 28), str(row.get("number") or row.get("index") or ""), number_font)
+        _center_text(
+            draw,
+            (cx, cy - 28),
+            str(row.get("number") or row.get("index") or ""),
+            number_font,
+        )
         if bool(row.get("deaf")) or row.get("direction") == "none":
-            draw.line((panel_left + 12, top + 22, panel_right - 12, bottom - 22), fill=GRID, width=3)
-            draw.line((panel_right - 12, top + 22, panel_left + 12, bottom - 22), fill=GRID, width=3)
+            draw.line(
+                (panel_left + 12, top + 22, panel_right - 12, bottom - 22),
+                fill=GRID,
+                width=3,
+            )
+            draw.line(
+                (panel_right - 12, top + 22, panel_left + 12, bottom - 22),
+                fill=GRID,
+                width=3,
+            )
         else:
             direction = str(row.get("direction") or "right")
             start = (cx - 34, cy + 24)
@@ -213,11 +246,23 @@ def render_quote_room_png(details: dict[str, Any]) -> bytes:
         x += panel_px
 
     draw.line((left, bottom + 61, right, bottom + 61), fill=GRID, width=2)
-    _center_text(draw, ((left + right) / 2, bottom + 92), str(round(section_width)), dimension_font)
+    _center_text(
+        draw,
+        ((left + right) / 2, bottom + 92),
+        str(round(section_width)),
+        dimension_font,
+    )
     draw.line((right + 36, top, right + 36, bottom), fill=GRID, width=2)
-    _center_text(draw, (right + 76, (top + bottom) / 2), str(round(section_height)), dimension_font)
+    _center_text(
+        draw,
+        (right + 76, (top + bottom) / 2),
+        str(round(section_height)),
+        dimension_font,
+    )
     _center_text(draw, ((left + right) / 2, top - 24), "УЛИЦА", small_font, MUTED)
-    _center_text(draw, ((left + right) / 2, bottom + 126), "ПОМЕЩЕНИЕ", small_font, MUTED)
+    _center_text(
+        draw, ((left + right) / 2, bottom + 126), "ПОМЕЩЕНИЕ", small_font, MUTED
+    )
     return _png(canvas)
 
 
