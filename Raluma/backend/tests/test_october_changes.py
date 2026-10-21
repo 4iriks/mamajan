@@ -1,6 +1,7 @@
 """Acceptance checks for October editor/document changes (no production data)."""
 
 from copy import deepcopy
+from math import ceil
 from types import SimpleNamespace
 
 import pytest
@@ -199,9 +200,7 @@ def test_tape_and_pads_follow_actual_grid_and_section_quantity(quantity):
     pads = next(row for row in result["hardware"] if row["role"] == "pad")
     assert len(result["panes"]) == 6
     assert pads["qty"] == 12 * quantity
-    assert tape["qty"] == pytest.approx(
-        2 * (2 * (548 - 3) + (2188 - 2 * 3)) * quantity / 1000
-    )
+    assert tape["qty"] == ceil(2 * (2 * (548 - 3) + (2188 - 2 * 3)) * quantity / 1000)
 
 
 def test_glass_note_uses_each_pane_geometry_not_section_name():

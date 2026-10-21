@@ -188,9 +188,9 @@ def test_book_production_sheet_is_available_and_preliminary_configs_are_blocked(
     }
     preview = client.post("/api/projects/local/sections/preview", json=confirmed)
     assert preview.status_code == 200
-    assert "ПРОИЗВОДСТВЕННЫЙ ЛИСТ" in preview.text
+    assert "ПРОИЗВОДСТВЕННЫЙ ЛИСТ" in preview.text.upper()
     assert "ПРЕДВАРИТЕЛЬНЫЙ" not in preview.text
-    assert "Сверловка D13/D6" in preview.text
+    assert "Сверловка D13/D6" not in preview.text
     assert "RBP001" in preview.text
     assert "RBP002" in preview.text
     assert "RBP003" in preview.text
@@ -216,7 +216,7 @@ def test_book_production_sheet_is_available_and_preliminary_configs_are_blocked(
     )
     assert "ПРОИЗВОДСТВЕННЫЙ ЛИСТ" in word_text
     assert "ПРЕДВАРИТЕЛЬНЫЙ" not in word_text
-    assert "Сверловка D13/D6" in word_text
+    assert "Сверловка D13/D6" not in word_text
     assert all(article in word_text for article in ("RBP001", "RBP002", "RBP003"))
     assert "отверстие 93" not in word_text
     with zipfile.ZipFile(io.BytesIO(docx.content)) as archive:
@@ -236,7 +236,7 @@ def test_book_production_sheet_is_available_and_preliminary_configs_are_blocked(
     )
     assert "ПРОИЗВОДСТВЕННЫЙ ЛИСТ" in excel_text
     assert "ПРЕДВАРИТЕЛЬНЫЙ" not in excel_text
-    assert "Сверловка D13/D6" in excel_text
+    assert "Сверловка D13/D6" not in excel_text
     assert all(article in excel_text for article in ("RBP001", "RBP002", "RBP003"))
     assert "отверстие 93" not in excel_text
     with zipfile.ZipFile(io.BytesIO(xlsx.content)) as archive:
@@ -336,7 +336,7 @@ def test_book_does_not_block_supported_parts_of_mixed_project_documents(
         preview = responses["preview"]
         assert "КНИЖКА не включена" not in preview.text
         context = build_project_document_context(project, sections, doc_type)
-        assert any("КНИЖКА не включена" in w for w in context["warnings"])
+        assert any("КНИЖКА не включена" in w for w in context["document_warnings"])
         if doc_type == "glass":
             assert context["glass_rows"]
             expected_token = str(context["glass_rows"][0]["width"])

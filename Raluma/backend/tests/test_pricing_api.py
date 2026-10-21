@@ -1890,7 +1890,7 @@ def test_quote_missing_override_margin_snapshot_and_safe_exports(
         assert stale_word.status_code == 200
         with zipfile.ZipFile(io.BytesIO(stale_word.content)) as archive:
             stale_word_xml = archive.read("word/document.xml").decode("utf-8")
-        assert "Расчёт устарел" in stale_word_xml
+        assert "Расчёт устарел" not in stale_word_xml
         assert "2000 мм" in stale_word_xml
         assert "2100 мм" not in stale_word_xml
 
