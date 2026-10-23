@@ -64,11 +64,11 @@ try {
   await page.screenshot({ path: path.join(screenshots, 'economics-1366.png') });
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.screenshot({ path: path.join(screenshots, 'economics-1280.png') });
-  await page.getByText('Услуги (0)', { exact: true }).click();
-  await page.getByRole('button', { name: '+ Добавить услугу', exact: true }).click();
+  await page.getByRole('button', { name: /^Услуги/ }).click();
+  await page.getByRole('button', { name: 'Добавить услугу', exact: true }).click();
   await page.getByLabel('Название', { exact: true }).fill('Сборка QA');
   await page.getByLabel('Цена продажи, ₽/ед.', { exact: true }).fill('123.45');
-  await page.getByRole('button', { name: 'Сохранить и пересчитать', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Услуги проекта' }).getByRole('button', { name: 'Сохранить и пересчитать', exact: true }).click();
   await page.getByRole('button', { name: 'Обновить расчёт', exact: true }).waitFor();
   await page.getByLabel('Общая, %', { exact: true }).fill('6');
   await page.getByRole('button', { name: 'Коммерческое предложение', exact: true }).click();

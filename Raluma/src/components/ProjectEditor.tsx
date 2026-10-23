@@ -1,5 +1,6 @@
 import { useProjectEconomics } from '../hooks/useProjectEconomics';
 import { ProjectEconomics } from './editor/ProjectEconomics';
+import { ProjectServicesModal } from './editor/ProjectServicesModal';
 import { csPreset } from './editor/csPresets';
 /**
  * @license
@@ -118,6 +119,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const [projectExtraComponentsDraft, setProjectExtraComponentsDraft] = useState<ExtraComponent[]>([]);
   const [hardwareInstallation, setHardwareInstallation] = useState<'installed' | 'not_installed'>('not_installed');
   const [projectExtrasOpen, setProjectExtrasOpen] = useState(false);
+  const [projectServicesOpen, setProjectServicesOpen] = useState(false);
   const [projectComments, setProjectComments] = useState('');
   const [productionStages, setProductionStages] = useState<1 | 2>(1);
   const [currentStage, setCurrentStage] = useState<1 | 2>(1);
@@ -631,6 +633,9 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           setProjectComments={setProjectComments}
           projectExtraComponentsCount={projectExtraComponents.length}
           onOpenProjectExtraComponents={openProjectExtras}
+          projectServicesCount={economics.config?.services.length ?? 0}
+          onOpenProjectServices={token && user && user.role !== 'dealer' ? () => setProjectServicesOpen(true) : undefined}
+          projectServicesDisabled={!economics.config || economics.busy}
           onSaveProjectNotes={handleSaveProjectNotes}
         />
 
@@ -851,6 +856,12 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           </AnimatePresence>
         </main>
       </div>
+
+      <AnimatePresence>
+        {projectServicesOpen && economics.config && (
+          <ProjectServicesModal state={economics} onClose={() => setProjectServicesOpen(false)} />
+        )}
+      </AnimatePresence>
 
       {/* Project extra-components modal */}
       <AnimatePresence>

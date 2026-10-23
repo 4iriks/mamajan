@@ -3,10 +3,10 @@
  * Извлечено из ProjectEditor.tsx (строки 438–663).
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CS_SHAPES, csShapeLabel } from './csPresets';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Plus, Trash2, ChevronRight, PackagePlus } from 'lucide-react';
+import { Copy, Plus, Trash2, ChevronRight, ChevronDown, PackagePlus, Wrench } from 'lucide-react';
 import { Section, SystemType, SYSTEM_COLORS, SYSTEM_ACCENT_BG, SYSTEM_PICKER_COLORS } from './types';
 import { getSectionTypeLabel, getSectionColorLabel } from './FormInputs';
 
@@ -29,6 +29,9 @@ export interface EditorSidebarProps {
   setProjectComments: (v: string) => void;
   projectExtraComponentsCount: number;
   onOpenProjectExtraComponents: () => void;
+  projectServicesCount?: number;
+  onOpenProjectServices?: () => void;
+  projectServicesDisabled?: boolean;
   onSaveProjectNotes: () => void;
 }
 
@@ -45,6 +48,9 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
   setProjectComments,
   projectExtraComponentsCount,
   onOpenProjectExtraComponents,
+  projectServicesCount = 0,
+  onOpenProjectServices,
+  projectServicesDisabled = false,
   onSaveProjectNotes,
 }) => {
   const [showSystemPicker, setShowSystemPicker] = useState(false);
@@ -53,6 +59,24 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
   const [liftSubVisible, setLiftSubVisible] = useState(false);
   const [csSubVisible, setCsSubVisible] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [hasSectionsBelow, setHasSectionsBelow] = useState(false);
+  const sectionsViewport = useRef<HTMLDivElement>(null);
+  const sectionsContent = useRef<HTMLDivElement>(null);
+
+  const updateSectionsHint = useCallback(() => {
+    const viewport = sectionsViewport.current;
+    const content = sectionsContent.current;
+    setHasSectionsBelow(Boolean(sections.length && viewport && content && viewport.clientHeight > 0 &&
+      content.getBoundingClientRect().bottom > viewport.getBoundingClientRect().bottom + 4));
+  }, [sections.length]);
+
+  useEffect(() => {
+    const observer = new ResizeObserver(updateSectionsHint);
+    if (sectionsViewport.current) observer.observe(sectionsViewport.current);
+    if (sectionsContent.current) observer.observe(sectionsContent.current);
+    updateSectionsHint();
+    return () => observer.disconnect();
+  }, [updateSectionsHint]);
 
   // Reset picker when active section changes
   useEffect(() => { setShowSystemPicker(false); }, [activeSectionId]);
@@ -67,8 +91,10 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
   };
 
   return (
-    <aside className={`border-r border-tint/30 flex-col bg-page/80 backdrop-blur-sm z-10 flex-shrink-0 w-full sm:w-[260px] ${mobileSidebarOpen ? 'flex' : 'hidden sm:flex'}`}>
-      <div className="p-5 flex-1 overflow-y-auto">
+    <aside className={`min-h-0 flex-1 overflow-hidden border-r border-tint/30 flex-col bg-page/80 backdrop-blur-sm z-10 w-full sm:w-[260px] sm:flex-none ${mobileSidebarOpen ? 'flex' : 'hidden sm:flex'}`}>
+      <div className="relative min-h-0 flex-1">
+      <div ref={sectionsViewport} data-sidebar-sections onScroll={updateSectionsHint} className="h-full overflow-y-auto p-5">
+        <div ref={sectionsContent}>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40">Секции</h3>
           <button
@@ -236,8 +262,18 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
           )}
         </div>
 
-        {/* Sidebar project notes */}
-        <div className="mt-5 pt-4 border-t border-tint/20">
+        </div>
+      </div>
+      {hasSectionsBelow && (
+        <div data-sections-below className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 border-t border-tint/30 bg-page/95 px-3 py-2 text-[11px] font-bold text-accent shadow-[0_-8px_12px_rgba(0,0,0,0.05)]">
+          <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0" />
+          Ниже ещё секции
+        </div>
+      )}
+      </div>
+
+        {/* Project actions stay visible while sections scroll independently. */}
+        <div data-sidebar-project-actions className="shrink-0 border-t border-tint/20 p-5 pt-4">
           <button
             type="button"
             onClick={onOpenProjectExtraComponents}
@@ -251,6 +287,22 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
               {projectExtraComponentsCount}
             </span>
           </button>
+          {onOpenProjectServices && (
+            <button
+              type="button"
+              onClick={onOpenProjectServices}
+              disabled={projectServicesDisabled}
+              className="mb-3 flex w-full items-center justify-between gap-2 rounded-xl border border-tint/30 bg-tint/10 px-3 py-2.5 text-left text-xs font-bold text-accent transition-colors hover:bg-tint/20 disabled:opacity-40"
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <Wrench className="h-4 w-4 shrink-0" />
+                <span className="truncate">Услуги</span>
+              </span>
+              <span className="rounded-full bg-accent/15 px-2 py-0.5 font-mono text-[11px]">
+                {projectServicesCount}
+              </span>
+            </button>
+          )}
           <button
             onClick={() => setNotesOpen(v => !v)}
             className="flex items-center justify-between w-full group mb-0"
@@ -288,7 +340,6 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
             )}
           </AnimatePresence>
         </div>
-      </div>
 
       {activeSectionId && (
         <div className="sm:hidden p-3 border-t border-tint/20 flex-shrink-0">
