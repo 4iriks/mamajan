@@ -2141,6 +2141,107 @@ class TestSketchProject:
         assert 'class="glass-table"' not in delivery.text
         assert "Raluma SLIDE" in delivery.text
 
+    @pytest.mark.parametrize("glass_supplied", [False, True])
+    @pytest.mark.parametrize(
+        "section_data",
+        [
+            _slide.__func__(),
+            _book.__func__(),
+            {"system": "ЦС", "width": 2125, "height": 890, "order": 5},
+        ],
+        ids=["slide", "book", "cs"],
+    )
+    def test_sketch_glass_supply_and_system_metadata_in_all_formats(
+        self, client, section_data, glass_supplied
+    ):
+        glass_type = "10ММ ЗАКАЛЕННОЕ БРОНЗА В МАССЕ"
+        section_data = {
+            **section_data,
+            "quantity": 2,
+            "glass_type": glass_type,
+            "glass_supplied": glass_supplied,
+        }
+        payload = self._payload([section_data])
+        expected_header = glass_type if glass_supplied else "Без стекла"
+        expected_panel = glass_type if glass_supplied else "10ММ ЗАКАЛЕННОЕ"
+        has_threshold = section_data["system"] == "СЛАЙД"
+
+        preview = client.post(
+            "/api/projects/local/documents/sketch/preview", json=payload
+        )
+        assert preview.status_code == 200, preview.text
+        meta_html = re.search(
+            r'<table class="meta-grid">(.*?)</table>', preview.text, re.DOTALL
+        ).group(1)
+        meta = ElementTree.fromstring(meta_html)
+        meta_rows = meta.findall("tr")
+        assert len(meta_rows) == (5 if has_threshold else 4)
+        assert meta_rows[-1].findall("td")[1].find("strong").text == expected_header
+        assert ("Порог" in meta_html) is has_threshold
+        assert ("Межстекольный профиль" in meta_html) is has_threshold
+        panel_html = re.search(
+            r'<table class="panel-table">.*?(<tbody>.*?</tbody>)',
+            preview.text,
+            re.DOTALL,
+        ).group(1)
+        panel_rows = ElementTree.fromstring(panel_html).findall("tr")
+        assert panel_rows
+        assert all(row.findall("td")[2].text == expected_panel for row in panel_rows)
+
+        docx = client.post("/api/projects/local/documents/sketch/docx", json=payload)
+        assert docx.status_code == 200, docx.text
+        document = DocxDocument(io.BytesIO(docx.content))
+        assert len(document.tables[0].rows) == len(meta_rows)
+        assert document.tables[0].rows[-1].cells[1].text == expected_header
+        for label in ("Порог", "Межстекольный профиль"):
+            assert (
+                any(
+                    cell.text == label
+                    for row in document.tables[0].rows
+                    for cell in row.cells
+                )
+                is has_threshold
+            )
+        assert [
+            [cell.text for cell in row.cells] for row in document.tables[-1].rows[1:]
+        ] == [[cell.text for cell in row.findall("td")] for row in panel_rows]
+
+        pdf = client.post("/api/projects/local/documents/sketch/pdf", json=payload)
+        assert pdf.status_code == 200, pdf.text
+        pdf_text = " ".join(self._pdf_text(pdf.content).split())
+        assert expected_header in pdf_text
+        assert expected_panel in pdf_text
+        assert ("Порог" in pdf_text) is has_threshold
+        assert ("Межстекольный профиль" in pdf_text) is has_threshold
+        if not glass_supplied:
+            assert "БРОНЗА" not in pdf_text
+            assert pdf_text.count("Без стекла") == 1
+            assert pdf_text.count(expected_panel) == len(panel_rows)
+
+    @pytest.mark.parametrize("system", ["СЛАЙД", "КНИЖКА", "ЦС"])
+    def test_sketch_glass_supply_does_not_change_panel_sizes_or_quantities(
+        self, system
+    ):
+        project = SimpleNamespace(number="SKETCH-GLASS")
+        data = self._slide(system=system, quantity=3)
+        if system == "КНИЖКА":
+            data = self._book(quantity=3)
+        sections = [
+            build_project_document_context(
+                project,
+                [SectionCreate(**data, glass_supplied=supplied)],
+                "sketch",
+            )["sections"][0]
+            for supplied in (True, False)
+        ]
+        assert [
+            (p.number, p.position, p.width_mm, p.height_mm, p.qty)
+            for p in sections[0]["panels"]
+        ] == [
+            (p.number, p.position, p.width_mm, p.height_mm, p.qty)
+            for p in sections[1]["panels"]
+        ]
+
     def test_project_paint_preview_returns_html(self, client, admin_headers, project):
         _create_slide_section(
             client,

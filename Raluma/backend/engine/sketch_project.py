@@ -97,11 +97,7 @@ def _book_warnings(calc: object) -> list[str]:
 
 
 def _slide_panels(section: object, calc: object) -> list[SketchPanelRow]:
-    filling = (
-        _text(getattr(calc, "glass_type", None))
-        if bool(getattr(section, "glass_supplied", True))
-        else "Без стекла"
-    )
+    filling = _text(getattr(calc, "glass_type", None))
     quantity = _positive_int(getattr(section, "quantity", 1))
     panel_numbers = list(getattr(calc, "panel_numbers", None) or [])
     return [
@@ -612,22 +608,14 @@ def _section_data(section: object, order: int) -> dict:
             if _inter_glass_article(selected_inter_glass)
             else "—"
         )
-        filling = (
-            _text(getattr(calc, "glass_type", None))
-            if bool(getattr(section, "glass_supplied", True))
-            else "Без стекла"
-        )
+        filling = _text(getattr(calc, "glass_type", None))
     elif system == "КНИЖКА":
         calc = calculate_book(section)
         panel_rows = _book_panels(calc)
         warnings = _book_warnings(calc)
         threshold = "—"
         inter_glass = "—"
-        filling = (
-            _text(getattr(section, "glass_type", None))
-            if bool(getattr(section, "glass_supplied", True))
-            else "Без стекла"
-        )
+        filling = _text(getattr(section, "glass_type", None))
     elif system == "ЛИФТ":
         geometry_error = lift_geometry_error(section)
         if geometry_error:
@@ -659,6 +647,13 @@ def _section_data(section: object, order: int) -> dict:
             "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
         )
 
+    if system in {"СЛАЙД", "КНИЖКА", "ЦС"} and not bool(
+        getattr(section, "glass_supplied", True)
+    ):
+        filling = "Без стекла"
+        for panel in panel_rows:
+            panel.filling = "10ММ ЗАКАЛЕННОЕ"
+
     label = _section_label(section, order)
     components = _calculated_components(calc, system)
     sides, common = _side_component_tables(section, components)
@@ -677,6 +672,7 @@ def _section_data(section: object, order: int) -> dict:
         "quantity": _positive_int(getattr(section, "quantity", 1)),
         "threshold": threshold,
         "inter_glass_profile": inter_glass,
+        "show_threshold_row": system not in {"ЦС", "КНИЖКА"},
         "filling": filling,
         "panels": panel_rows,
         "profiles": components,

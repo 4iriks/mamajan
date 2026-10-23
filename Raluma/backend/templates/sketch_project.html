@@ -194,10 +194,14 @@
         </tr><tr>
           <td class="meta-item meta-label">Цвет</td><td class="meta-item meta-value">{{ section.color|e }}</td>
           <td class="meta-item meta-label">Количество</td><td class="meta-item meta-value">{{ section.quantity }} шт</td>
-        </tr><tr>
+        </tr>
+        {% if section.show_threshold_row %}
+        <tr>
           <td class="meta-item meta-label">Порог</td><td class="meta-item meta-value">{{ section.threshold|e }}</td>
           <td class="meta-item meta-label">Межстекольный профиль</td><td class="meta-item meta-value">{{ section.inter_glass_profile|e }}</td>
-        </tr><tr>
+        </tr>
+        {% endif %}
+        <tr>
           <td class="meta-item meta-label">Стекло / заполнение</td><td class="meta-item" colspan="3"><strong>{{ section.filling|e }}</strong></td>
         </tr>
       </tbody></table>

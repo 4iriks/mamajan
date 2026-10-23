@@ -1473,8 +1473,7 @@ def _build_sketch_docx(context: dict) -> bytes:
             page_break_before=bool(section_index),
         )
 
-        meta = document.add_table(rows=5, cols=4)
-        meta_values = (
+        meta_values = [
             (
                 "Номер изделия",
                 sketch_section["order"],
@@ -1493,13 +1492,18 @@ def _build_sketch_docx(context: dict) -> bytes:
                 "Количество",
                 f"{sketch_section['quantity']} шт",
             ),
-            (
-                "Порог",
-                sketch_section["threshold"],
-                "Межстекольный профиль",
-                sketch_section["inter_glass_profile"],
-            ),
-        )
+        ]
+        if sketch_section["show_threshold_row"]:
+            meta_values.append(
+                (
+                    "Порог",
+                    sketch_section["threshold"],
+                    "Межстекольный профиль",
+                    sketch_section["inter_glass_profile"],
+                )
+            )
+        filling_row = len(meta_values)
+        meta = document.add_table(rows=filling_row + 1, cols=4)
         for row_index, values in enumerate(meta_values):
             for column, value in enumerate(values):
                 _set_cell_text(
@@ -1510,9 +1514,11 @@ def _build_sketch_docx(context: dict) -> bytes:
                 )
                 if column % 2 == 0:
                     _set_cell_shading(meta.cell(row_index, column), HEADER_GRAY)
-        _set_cell_text(meta.cell(4, 0), "Стекло / заполнение", bold=True, size=10)
-        _set_cell_shading(meta.cell(4, 0), HEADER_GRAY)
-        filling_cell = meta.cell(4, 1).merge(meta.cell(4, 3))
+        _set_cell_text(
+            meta.cell(filling_row, 0), "Стекло / заполнение", bold=True, size=10
+        )
+        _set_cell_shading(meta.cell(filling_row, 0), HEADER_GRAY)
+        filling_cell = meta.cell(filling_row, 1).merge(meta.cell(filling_row, 3))
         _set_cell_text(filling_cell, sketch_section["filling"], bold=True, size=10)
         meta.style = "Table Grid"
         _set_table_geometry_mm(meta, (32, 59, 32, 59))
