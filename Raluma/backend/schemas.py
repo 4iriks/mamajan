@@ -445,6 +445,7 @@ class SectionBase(BaseModel):
     threshold: Optional[str] = None
     first_panel_inside: Optional[str] = None
     unused_track: Optional[str] = None
+    first_panels_placement: Optional[Literal["center", "outside"]] = None
     inter_glass_profile: Optional[str] = None
     profile_left: Optional[str] = None
     profile_right: Optional[str] = None

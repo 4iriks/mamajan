@@ -161,6 +161,7 @@ function normalizeSection(
     threshold: section.threshold ?? 'Стандартный окраш',
     first_panel_inside: section.first_panel_inside,
     unused_track: section.unused_track,
+    first_panels_placement: section.first_panels_placement,
     inter_glass_profile: section.inter_glass_profile,
     profile_left: section.profile_left,
     profile_right: section.profile_right,

@@ -205,7 +205,7 @@ def test_sketch_extras_use_original_shared_table():
     assert tables[0].cell(3, 0).text == "EXTRA-B"
 
 
-def test_delivery_uses_original_shared_table_without_mutating_sources():
+def test_delivery_repeats_group_heading_on_pages_without_mutating_sources():
     extra = dict(
         sku="QA-LONG",
         name="Длинная группа",
@@ -226,8 +226,9 @@ def test_delivery_uses_original_shared_table_without_mutating_sources():
     )
     html = render_project_document_html(project, [], "delivery", is_pdf=True)
     assert html.count('<table class="main-table">') == 1
-    assert '<table class="main-table extra-group' not in html
-    assert html.count("QA-LONG") == 90
+    assert html.count('<table class="main-table extra-table">') == 1
+    assert html.count("QA-LONG") == 1
+    assert html.count("Размер:") == 90
     pdf = PdfReader(io.BytesIO(generate_pdf(html)))
     pages = [page.extract_text() for page in pdf.pages]
     assert len(pages) >= 3

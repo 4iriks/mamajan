@@ -298,6 +298,7 @@ _ADD_COLUMNS = [
     "ALTER TABLE sections ADD COLUMN document_overrides TEXT DEFAULT '{}'",
     # СЛАЙД 2 ряда
     "ALTER TABLE sections ADD COLUMN slide_rows INTEGER DEFAULT 1",
+    "ALTER TABLE sections ADD COLUMN first_panels_placement VARCHAR",
     "ALTER TABLE sections ADD COLUMN center_handle VARCHAR",
     "ALTER TABLE sections ADD COLUMN center_lock VARCHAR",
     "ALTER TABLE sections ADD COLUMN center_handle_offset INTEGER",

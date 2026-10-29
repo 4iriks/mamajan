@@ -46,6 +46,7 @@ export interface Section {
   threshold?: string;
   firstPanelInside?: string;
   unusedTrack?: string;
+  firstPanelsPlacement?: 'center' | 'outside';
   interGlassProfile?: string;
   profileLeft?: string;
   profileRight?: string;

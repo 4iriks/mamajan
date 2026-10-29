@@ -1,3 +1,5 @@
+import { firstPanelsPlacement, twoRowLayout } from '../src/components/editor/slideLayout';
+import { apiToLocal, localToApi } from '../src/components/editor/converters';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -116,7 +118,7 @@ const fiveRailEightPanelMarkup = renderToStaticMarkup(
 assert.match(fiveRailEightPanelMarkup, /Неиспользуемая полоса/);
 assert.match(fiveRailEightPanelMarkup, />Внутренняя</);
 assert.match(fiveRailEightPanelMarkup, />Внешняя</);
-assert.doesNotMatch(fiveRailEightPanelMarkup, /Первые панели/);
+assert.match(fiveRailEightPanelMarkup, /Первые панели/);
 
 const rs112 = SLIDE_HARDWARE_PRESETS[2];
 assert.equal(rs112.updates.centerLock, undefined);
@@ -135,3 +137,19 @@ assert.equal((staleRs112Markup.match(/data-center-rs112-room=/g) ?? []).length, 
 assert.doesNotMatch(staleRs112Markup, /data-center-lock=/);
 
 console.log('SLIDE fixed presets and RS112 compatibility smoke passed.');
+
+// Blank rails and first-panel placement are independent, including local storage.
+for (const placement of ['center', 'outside'] as const) {
+  const outer = { ...twoRowSection, panels: 8, rails: 5 as const, unusedTrack: 'Внешний', firstPanelsPlacement: placement };
+  const inner = { ...outer, unusedTrack: 'Внутренний' };
+  assert.deepEqual(twoRowLayout(inner).numbers, twoRowLayout(outer).numbers);
+  assert.deepEqual(twoRowLayout(inner).rails, twoRowLayout(outer).rails.map(rail => rail - 1));
+  const saved = localToApi(inner, 0);
+  assert.equal(saved.first_panels_placement, placement);
+  assert.equal(apiToLocal({ ...saved, id: 99, project_id: 1, order: 1 } as Parameters<typeof apiToLocal>[0]).firstPanelsPlacement, placement);
+}
+assert.equal(firstPanelsPlacement({ unusedTrack: 'Внутренний' }), 'outside');
+assert.equal(firstPanelsPlacement({ unusedTrack: 'Внешний' }), 'center');
+const maxPanelsMarkup = renderToStaticMarkup(<SlideSystemTab s={{ ...twoRowSection, panels: 10, rails: 5 }} update={() => undefined} />);
+assert.match(maxPanelsMarkup, /Первые панели/);
+assert.doesNotMatch(maxPanelsMarkup, /Неиспользуемая полоса/);

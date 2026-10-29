@@ -15,7 +15,12 @@ from typing import Any
 from shapely.geometry import LineString, Polygon, box
 from engine.glass_types import normalize_slide_glass_type
 from engine.cs_rounding import triangle_rounding
-from engine.cs_cover_cutting import cover_cuts, pack_cuts, INDIVIDUAL_COVER_NOTE
+from engine.cs_cover_cutting import (
+    cover_cuts,
+    pack_cuts,
+    INDIVIDUAL_COVER_NOTE,
+    STOCK_MM,
+)
 
 EPS = 1e-7
 GAP = 3.0
@@ -78,6 +83,53 @@ def _polygon(points):
     return polygon
 
 
+def _clip_convex_inset(points, lines, orientation):
+    """Clip against all inward half-planes; short sides may disappear."""
+    result = [dict(point) for point in points]
+    for x, y, dx, dy in lines:
+        length = hypot(dx, dy)
+
+        def signed(point):
+            return (
+                orientation * (dx * (point["y"] - y) - dy * (point["x"] - x)) / length
+            )
+
+        clipped = []
+        for index, start in enumerate(result):
+            end = result[(index + 1) % len(result)]
+            a, b = signed(start), signed(end)
+            if a >= -EPS:
+                clipped.append(start)
+            if (a >= -EPS) != (b >= -EPS):
+                factor = a / (a - b)
+                clipped.append(
+                    {
+                        "x": start["x"] + factor * (end["x"] - start["x"]),
+                        "y": start["y"] + factor * (end["y"] - start["y"]),
+                    }
+                )
+        result = []
+        for point in clipped:
+            if (
+                not result
+                or hypot(point["x"] - result[-1]["x"], point["y"] - result[-1]["y"])
+                > EPS
+            ):
+                result.append(point)
+        if (
+            len(result) > 1
+            and hypot(
+                result[0]["x"] - result[-1]["x"], result[0]["y"] - result[-1]["y"]
+            )
+            <= EPS
+        ):
+            result.pop()
+        if len(result) < 3:
+            raise CsCalculationError("Вычеты не оставляют места для стекла")
+    _polygon(result)
+    return result
+
+
 def offset_contour(points, distances):
     """Intersect adjacent offset lines; retain vertex/edge numbering and winding."""
     original = _polygon(points)
@@ -108,18 +160,60 @@ def offset_contour(points, distances):
             factor = ((bx - ax) * vy - (by - ay) * vx) / determinant
             point = {"x": ax + factor * ux, "y": ay + factor * uy}
         result.append(point)
-    shifted = _polygon(result)
-    for index, point in enumerate(result):
-        end = result[(index + 1) % len(result)]
-        _, _, dx, dy = lines[index]
-        if (end["x"] - point["x"]) * dx + (end["y"] - point["y"]) * dy <= EPS:
-            raise CsCalculationError(
-                "Вычеты схлопывают сторону: увеличьте проём или измените комплектацию"
-            )
+    try:
+        shifted = _polygon(result)
+        for index, point in enumerate(result):
+            end = result[(index + 1) % len(result)]
+            _, _, dx, dy = lines[index]
+            if (end["x"] - point["x"]) * dx + (end["y"] - point["y"]) * dy <= EPS:
+                raise CsCalculationError(
+                    "Вычеты схлопывают сторону: увеличьте проём или измените комплектацию"
+                )
+    except CsCalculationError:
+        if all(d >= 0 for d in distances) and original.equals(original.convex_hull):
+            return _clip_convex_inset(points, lines, orientation)
+        raise
     if all(d >= 0 for d in distances) and not original.buffer(1e-5).covers(shifted):
         raise CsCalculationError("Вычеты образуют недопустимый контур стекла")
     if all(d <= 0 for d in distances) and not shifted.buffer(1e-5).covers(original):
         raise CsCalculationError("Не удалось восстановить монтажный контур")
+    return result
+
+
+def _offset_edge_length(installation, contour, index, distance):
+    """Measure the surviving source side, without reusing shifted vertex indexes."""
+    start, end = installation[index], installation[(index + 1) % len(installation)]
+    dx, dy = end["x"] - start["x"], end["y"] - start["y"]
+    length = hypot(dx, dy)
+    winding = 1 if _signed_area(installation) > 0 else -1
+
+    def on_line(point):
+        return (
+            abs(
+                winding
+                * (dx * (point["y"] - start["y"]) - dy * (point["x"] - start["x"]))
+                / length
+                - distance
+            )
+            < 1e-5
+        )
+
+    return sum(
+        hypot(b["x"] - a["x"], b["y"] - a["y"])
+        for a, b in zip(contour, contour[1:] + contour[:1])
+        if on_line(a) and on_line(b)
+    )
+
+
+def split_profile_lengths(lengths):
+    """Split physical T40T cuts, without changing side lengths used by covers."""
+    result = []
+    for length in lengths:
+        full = int(length // STOCK_MM)
+        result.extend([float(STOCK_MM)] * full)
+        tail = length - full * STOCK_MM
+        if tail > EPS:
+            result.append(tail)
     return result
 
 
@@ -388,8 +482,15 @@ def calculate_cs(section, *, system=None, outer_profile=None, joint_profile=None
     cover_blanks = cover_cuts(outer_lengths)
     cover_stocks = pack_cuts(cover_blanks)
     bubble_lengths = [
-        length(glass, i) for i, t in enumerate(treatments) if t == "bubble"
+        (
+            length(glass, i)
+            if len(glass) == len(installation)
+            else _offset_edge_length(installation, glass, i, bubble)
+        )
+        for i, t in enumerate(treatments)
+        if t == "bubble"
     ]
+    bubble_lengths = [value for value in bubble_lengths if value > EPS]
     cover = getattr(system, "cover_profile", None)
     seal = getattr(system, "bubble_seal", None)
     pad = getattr(system, "glass_pad", None)
@@ -424,7 +525,7 @@ def calculate_cs(section, *, system=None, outer_profile=None, joint_profile=None
         outer_profile,
         "Т40Т",
         "Зажимной профиль Т40Т в сборе",
-        outer_lengths,
+        split_profile_lengths(outer_lengths),
         False,
         "T40T-section.jpg",
     )

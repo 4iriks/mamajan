@@ -106,15 +106,20 @@ def test_delivery_lengths_have_names_without_images_and_keep_place_keys():
     assert len({row["place_key"] for row in rows}) == 4
     for is_pdf in (False, True):
         html = render_project_document_html(project, [], "delivery", is_pdf=is_pdf)
-        assert html.count("BOX-40") == html.count("Бокс 40") == 4
+        assert html.count("BOX-40") == html.count("Бокс 40") == 2
+        assert html.count("Размер:") == 4
         assert "<img" not in html
         if not is_pdf:
             assert all(row["place_key"] in html for row in rows)
     data = build_project_xlsx(project, [], "delivery")
     sheet = load_workbook(BytesIO(data)).active
-    xlsx_rows = [row for row in sheet.values if row[2] == "BOX-40"]
+    headings = [row[0] for row in sheet.values if "BOX-40" in str(row[0])]
+    assert len(headings) == 2
+    assert any("9005" in heading for heading in headings)
+    assert any("9016" in heading for heading in headings)
+    xlsx_rows = [row for row in sheet.values if str(row[3]).startswith("Размер:")]
     assert len(xlsx_rows) == 4
-    assert all(row[3].startswith("Бокс 40\n") and row[4] == 2 for row in xlsx_rows)
+    assert all(row[4] == 2 for row in xlsx_rows)
     with ZipFile(BytesIO(data)) as archive:
         assert not any(path.startswith("xl/media/") for path in archive.namelist())
     assert extras == before

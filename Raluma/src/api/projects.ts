@@ -74,6 +74,7 @@ export interface SectionOut {
   threshold?: string;
   first_panel_inside?: string;
   unused_track?: string;
+  first_panels_placement?: 'center' | 'outside' | null;
   inter_glass_profile?: string;
   profile_left?: string;
   profile_right?: string;

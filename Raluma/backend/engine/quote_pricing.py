@@ -136,6 +136,7 @@ PUBLIC_SECTION_DETAIL_FIELDS = {
     "slide_rows",
     "first_panel_inside",
     "unused_track",
+    "first_panels_placement",
     "slide_direction",
     "panel_width_total_mm",
     "panel_geometry",
@@ -949,7 +950,9 @@ def _section_snapshot(section: object, calc: object) -> dict[str, Any]:
             {
                 "index": index + 1,
                 "number": (
-                    index + 1
+                    (getattr(calc, "panel_numbers", []) or list(range(1, panels + 1)))[
+                        index
+                    ]
                     if slide_rows == 2
                     else panels - index
                     if first_right
@@ -1018,6 +1021,12 @@ def _section_snapshot(section: object, calc: object) -> dict[str, Any]:
         "slide_rows": slide_rows,
         "first_panel_inside": first_inside,
         "unused_track": str(getattr(section, "unused_track", "") or ""),
+        "first_panels_placement": getattr(section, "first_panels_placement", None)
+        or (
+            "center"
+            if (getattr(section, "unused_track", None) or "Внешний") == "Внешний"
+            else "outside"
+        ),
         "slide_direction": (
             "both" if slide_rows == 2 else "left" if first_right else "right"
         ),

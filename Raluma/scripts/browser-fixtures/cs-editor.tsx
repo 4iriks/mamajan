@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import client from '../../src/api/client';
 import { CsEditor } from '../../src/components/editor/CsEditor';
+import { csContourFrames } from '../../src/components/editor/csGeometry';
 import type { Section } from '../../src/components/editor/types';
 import '../../src/index.css';
 
@@ -21,8 +22,10 @@ const initial: Section = {
   },
 };
 let current = initial;
+let loadFixture: (section: Section) => void;
 function App() {
   const [section, setSection] = useState(initial);
+  loadFixture = setSection;
   current = section;
   return <main className="mx-auto max-w-[1250px] p-5">
     <div id="price" className="mb-4 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] p-3 font-bold text-[var(--catalog-price)]">2 059 ₽</div>
@@ -158,6 +161,28 @@ async function run() {
   await set(select('Выбранная сторона'), '2'); await click('Добавить угол на С3');
   await set(input('В, мм'), '1950', true);
   await set(select('Выбранная сторона'), '4'); await click('Добавить угол на С5');
+  loadFixture({
+    ...initial, id: 'narrow-trapezoid', width: 4499, height: 967, quantity: 2, csShape: 'Трапеция',
+    csConfig: {
+      version: 2, dimensionMode: 'installation',
+      vertices: [{ x: 0, y: 0 }, { x: 4499, y: 0 }, { x: 4499, y: 500 }, { x: 0, y: 967 }],
+      edgeTreatments: ['clamp', 'none', 'clamp', 'clamp'], profiledEdges: [0, 2, 3],
+      vertical: { count: 0, mode: 'equal' }, horizontal: { count: 0, mode: 'equal' }, triangleCornerRadiusMm: 8,
+    },
+  });
+  await pause();
+  await set(select('Выбранный угол'), '2');
+  await set(input('В, мм'), '40', true);
+  assert(current.csConfig!.vertices[2].y === 40, 'Short outer side can be entered');
+  assert(current.csConfig!.vertices.length === 4 && csContourFrames(current.csConfig!).glass.length === 3, 'Outer trapezoid retains four sides around triangular glass');
+  assert(!document.querySelector('[role=alert]'), 'Narrow trapezoid does not report collapsed side');
+  assert(document.querySelector('[data-cs-radius="8"]'), 'Triangular glass inside trapezoid supports R8');
+  await click('Отразить зеркально');
+  assert(current.csConfig!.vertices[2].y === 40 && current.csConfig!.vertices[2].x === 0, 'Mirror retains short side');
+  assert(current.csConfig!.edgeTreatments!.join(',') === 'clamp,none,clamp,clamp', 'Mirror retains source side fittings');
+  await click('Отразить зеркально');
+  await set(input('Количество'), '1', true);
+  assert(current.panels === 2 && current.quantity === 2, 'Two glass panes and two sections');
   if (new URLSearchParams(location.search).has('rounding')) {
     await click('Треугольник прямоугольный');
     await set(select('Скругление треугольного стекла'), '8');

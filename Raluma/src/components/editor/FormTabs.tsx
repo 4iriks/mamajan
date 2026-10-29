@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { firstPanelsPlacement as resolveFirstPanelsPlacement } from './slideLayout';
 import {
   DEFAULT_INTER_GLASS_PROFILE,
   NO_INTER_GLASS_PROFILE,
@@ -191,10 +192,10 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
   // Неиспользуемый рельс: показываем когда панелей < макс
   const maxPanels1row = rails;
   const showUnused = is2row
-    ? true
+    ? (s.panels ?? 4) / 2 < rails
     : (s.panels ?? 3) < maxPanels1row;
-  const showUnusedStripChoice = is2row && rails === 5 && (s.panels ?? 4) === 8;
-  const firstPanelsPlacement = (s.unusedTrack ?? 'Внешний') === 'Внешний' ? 'В центре' : 'Снаружи';
+  const placement = resolveFirstPanelsPlacement(s);
+  const firstPanelsPlacement = placement === 'center' ? 'В центре' : 'Снаружи';
   const unusedStrip = (s.unusedTrack ?? 'Внешний') === 'Внешний' ? 'Внешняя' : 'Внутренняя';
 
   const showLockLeft  = (s.profileLeftLockBar  || s.profileLeftHandleBar)  && !(s.profileLeftPBar  && s.profileLeftHandleBar);
@@ -243,24 +244,25 @@ export function SlideSystemTab({ s, update }: { s: Section; update: (u: Partial<
           {showUnused && (
             <div className="space-y-1.5" data-system-option="unused">
               <label className={LBL}>
-                {showUnusedStripChoice ? 'Неиспользуемая полоса' : is2row ? 'Первые панели' : 'Неиспользуемый рельс'}
+                {is2row ? 'Неиспользуемая полоса' : 'Неиспользуемый рельс'}
               </label>
-              {showUnusedStripChoice ? (
+              {is2row ? (
                 <ToggleGroup
                   value={unusedStrip}
                   options={['Внутренняя', 'Внешняя']}
-                  onChange={v => update({ unusedTrack: v === 'Внешняя' ? 'Внешний' : 'Внутренний' })}
-                />
-              ) : is2row ? (
-                <ToggleGroup
-                  value={firstPanelsPlacement}
-                  options={['В центре', 'Снаружи']}
-                  onChange={v => update({ unusedTrack: v === 'В центре' ? 'Внешний' : 'Внутренний' })}
+                  onChange={v => update({ unusedTrack: v === 'Внешняя' ? 'Внешний' : 'Внутренний', firstPanelsPlacement: placement })}
                 />
               ) : (
                 <ToggleGroup value={s.unusedTrack ?? 'Внутренний'} options={['Внутренний', 'Внешний']}
                   onChange={v => update({ unusedTrack: v })} />
               )}
+            </div>
+          )}
+          {is2row && (
+            <div className="space-y-1.5" data-system-option="first">
+              <label className={LBL}>Первые панели</label>
+              <ToggleGroup value={firstPanelsPlacement} options={['В центре', 'Снаружи']}
+                onChange={v => update({ firstPanelsPlacement: v === 'В центре' ? 'center' : 'outside' })} />
             </div>
           )}
           {!is2row && (

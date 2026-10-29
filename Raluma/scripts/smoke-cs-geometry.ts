@@ -209,7 +209,27 @@ for (let index = 0; index < outsideCount; index++) {
   assert.equal(clear.hardware.length, outside.hardware.length);
   outside.hardware.forEach((item, i) => { assert.equal(clear.hardware[i].role, item.role); near(clear.hardware[i].qty, item.qty); });
 }
-near(results[1].glass_area_m2, (4000 - 52 - 6) * (3000 - 26) / 1e6);
-near(results[2].glass_area_m2, (4000 - 52 - 6) * (4500 - 26) / 1e6);
-near(results[3].glass_area_m2, (1500 - 52 - 6) * (1500 - 26) / 1e6);
+near(results[1].glass_area_m2, (1318 + 1304 + 1318) * (3000 - 26) / 1e6);
+near(results[2].glass_area_m2, (1318 + 1304 + 1318) * (4500 - 26) / 1e6);
+near(results[3].glass_area_m2, (485 + 471 + 485) * (1500 - 26) / 1e6);
 console.log(`CS geometry: resize, draft parsing and ${sections.length} frontend/backend comparisons passed.`);
+
+// A four-sided opening can contain triangular glass after profile deductions.
+for (const mirrored of [false, true]) {
+  const narrow: CsConfig = {
+    version: 2, dimensionMode: 'installation',
+    vertices: [{ x: 0, y: 0 }, { x: 4499, y: 0 }, { x: 4499, y: 40 }, { x: 0, y: 967 }].map(p => ({ x: mirrored ? 4499 - p.x : p.x, y: p.y })),
+    edgeTreatments: ['clamp', 'none', 'clamp', 'clamp'], profiledEdges: [0, 2, 3],
+    vertical: { count: 1, mode: 'equal' }, horizontal: { count: 0, mode: 'equal' }, triangleCornerRadiusMm: 8,
+  };
+  const before = JSON.stringify(narrow);
+  const frames = csContourFrames(narrow);
+  assert.equal(frames.installation.length, 4);
+  assert.equal(frames.clear.length, 3);
+  assert.equal(frames.glass.length, 3);
+  const glassWidth = csBounds(frames.glass).maxX - csBounds(frames.glass).minX;
+  assert.ok(Math.abs(glassWidth - 4412.110303) < 0.001);
+  assert.throws(() => csChangeDimensionMode(narrow, 'clear'), /наружные размеры/);
+  assert.equal(JSON.stringify(narrow), before);
+  assert.ok(csTriangleRounding(frames.glass, 8));
+}

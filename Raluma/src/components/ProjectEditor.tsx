@@ -155,6 +155,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           interGlassProfile: DEFAULT_INTER_GLASS_PROFILE,
           firstPanelInside: rows === 1 ? 'Справа' : undefined,
           unusedTrack: rows === 2 ? 'Внешний' : undefined,
+          firstPanelsPlacement: rows === 2 ? 'center' : undefined,
           panels: rows === 2 ? 4 : 3,
         };
       }

@@ -31,11 +31,37 @@ export function csOffsetContour(vertices: CsPoint[], distances: number[]): CsPoi
     return { x: a.x + factor * a.dx, y: a.y + factor * a.dy };
   });
   const error = csContourError(result);
-  if (error) throw new Error(error);
-  result.forEach((point, index) => {
+  const collapsed = result.some((point, index) => {
     const end = result[(index + 1) % result.length];
-    if ((end.x - point.x) * lines[index].dx + (end.y - point.y) * lines[index].dy <= EPS) throw new Error('Вычеты схлопывают сторону');
+    return (end.x - point.x) * lines[index].dx + (end.y - point.y) * lines[index].dy <= EPS;
   });
+  if (error || collapsed) {
+    const convex = vertices.every((a, index) => {
+      const b = vertices[(index + 1) % vertices.length], c = vertices[(index + 2) % vertices.length];
+      return winding * ((b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)) >= -EPS;
+    });
+    if (!convex || distances.some(value => value < 0)) throw new Error(error || 'Вычеты схлопывают сторону');
+    let clipped = vertices.map(point => ({ ...point }));
+    for (const line of lines) {
+      const signed = (point: CsPoint) => winding * (line.dx * (point.y - line.y) - line.dy * (point.x - line.x)) / Math.hypot(line.dx, line.dy);
+      const next: CsPoint[] = [];
+      clipped.forEach((a, index) => {
+        const b = clipped[(index + 1) % clipped.length];
+        const da = signed(a), db = signed(b);
+        if (da >= -EPS) next.push(a);
+        if ((da >= -EPS) !== (db >= -EPS)) {
+          const factor = da / (da - db);
+          next.push({ x: a.x + factor * (b.x - a.x), y: a.y + factor * (b.y - a.y) });
+        }
+      });
+      clipped = next.filter((point, index) => index === 0 || Math.hypot(point.x - next[index - 1].x, point.y - next[index - 1].y) > EPS);
+      if (clipped.length > 1 && Math.hypot(clipped[0].x - clipped.at(-1)!.x, clipped[0].y - clipped.at(-1)!.y) <= EPS) clipped.pop();
+      if (clipped.length < 3) throw new Error('Вычеты не оставляют места для стекла');
+    }
+    const clippedError = csContourError(clipped);
+    if (clippedError) throw new Error(clippedError);
+    return clipped;
+  }
   return result;
 }
 
@@ -51,6 +77,9 @@ export function csChangeDimensionMode(source: CsConfig, dimensionMode: 'installa
   const config = normalizeCsConfig(source);
   const frames = csContourFrames(config);
   const target = frames[dimensionMode];
+  if (target.length !== config.vertices.length) {
+    throw new Error('Используйте наружные размеры: в световом проёме короткая сторона исчезает, поэтому исходную форму нельзя восстановить.');
+  }
   const bounds = csBounds(target);
   const width = bounds.maxX - bounds.minX, height = bounds.maxY - bounds.minY;
   const translate = (split: CsSplitConfig, offset: number) => ({ ...split, positions: split.positions?.map(value => value - offset) });

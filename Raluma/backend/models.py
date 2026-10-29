@@ -148,6 +148,9 @@ class Section(Base):
     threshold = Column(String, nullable=True)
     first_panel_inside = Column(String, nullable=True)  # Слева | Справа
     unused_track = Column(String, nullable=True)  # Без | Внешний | Внутренний
+    first_panels_placement = Column(
+        String, nullable=True
+    )  # center | outside; null = legacy
     inter_glass_profile = Column(String, nullable=True)
     profile_left = Column(String, nullable=True)
     profile_right = Column(String, nullable=True)

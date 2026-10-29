@@ -5,7 +5,7 @@
 """
 
 from dataclasses import dataclass, field
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_FLOOR, ROUND_HALF_UP
 from math import ceil
 
 from engine.glass_types import SLIDE_DEFAULT_GLASS_TYPE, normalize_slide_glass_type
@@ -489,15 +489,23 @@ def _apply_two_row_glass_total_correction(
     )
 
     for panel in panels:
-        panel.width_mm = float(_round_production_mm(panel.width_mm))
+        # Keep full formula precision and issue two-row widths downwards.
+        panel.width_mm = float(
+            Decimal(str(panel.width_mm)).quantize(Decimal("1"), rounding=ROUND_FLOOR)
+        )
         panel.height_mm = float(_round_production_mm(panel.height_mm))
         panel.glass_profile_length = float(
-            _round_production_mm(panel.glass_profile_length)
+            Decimal(str(panel.glass_profile_length)).quantize(
+                Decimal("1"), rounding=ROUND_FLOOR
+            )
         )
 
     actual_total_mm = sum(float(panel.width_mm or 0) for panel in panels)
     raw_difference_mm = float(control_total_mm) - actual_total_mm
     difference_mm = _round_glass_difference_mm(raw_difference_mm)
+    # This allowance is per physical section, before legacy corrections.
+    if len(panels) >= 6 and 2 - 1e-7 <= raw_difference_mm <= 5 + 1e-7:
+        return difference_mm
     confirmed_ten_panel_positive_case = (
         len(panels) == 10 and round(raw_difference_mm, 1) == 4.5
     )
@@ -1078,12 +1086,15 @@ def _calculate_slide_2row(section) -> SlideCalcResult:
     left_rails = available[:half]
     if len(left_rails) < half:
         left_rails.extend([available[-1]] * (half - len(left_rails)))
-    if unused_track == "Внутренний":
+    first_panels_placement = _get(section, "first_panels_placement", None) or (
+        "center" if unused_track == "Внешний" else "outside"
+    )
+    if first_panels_placement == "outside":
         # With the first panels outside, the whole two-row layout is mirrored:
         # panel No. 1 is nearest the room at each outer edge, not at the centre.
         left_rails.reverse()
     result.panel_rails = left_rails + list(reversed(left_rails))[: P - half]
-    if unused_track == "Внешний":
+    if first_panels_placement == "center":
         result.panel_numbers = list(range(half, 0, -1)) + list(range(1, P - half + 1))
     else:
         result.panel_numbers = list(range(1, half + 1)) + list(range(P - half, 0, -1))

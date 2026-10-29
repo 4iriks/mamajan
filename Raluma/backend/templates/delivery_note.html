@@ -59,6 +59,9 @@
       font-weight: 700;
     }
     .main-table { table-layout: fixed; }
+    .extra-table { margin-top: 2mm; }
+    .extra-heading { text-align: left; }
+    .extra-heading .row-meta { font-weight: normal; }
     .main-table > thead { display: table-header-group; }
     .main-table > tbody > tr { break-inside: avoid; page-break-inside: avoid; }
     .item-number { width: 10mm; text-align: center; vertical-align: middle; font-weight: 700; }
@@ -231,23 +234,35 @@
         </tr>
         {% endfor %}
 
-        {% for row in delivery_project_extra_rows %}
+      </tbody>
+    </table>
+
+    {% for group in delivery_extra_groups %}
+    {% set head = group[0] %}
+    <table class="main-table extra-table">
+      <thead>
+        <tr>
+          <th class="item-number">3</th>
+          <th class="extra-heading">
+            <div class="row-title">{% if head.article %}{{ head.article|e }} — {% endif %}{{ head.name|e }}</div>
+            {% if head.color %}<div class="row-meta">Цвет: {{ head.color|e }}</div>{% endif %}
+          </th>
+          <th class="quantity">Количество</th>
+          <th class="places">Кол-во мест</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in group %}
         <tr class="group-row">
-          {% if loop.first %}<td class="item-number" rowspan="{{ delivery_project_extra_rows|length }}">3</td>{% endif %}
-          <td>
-            <div class="row-title">
-              {% if row.article %}<span class="nowrap">{{ row.article|e }}</span> — {% endif %}{{ row.name|e }}
-            </div>
-            {% if row.color %}<div class="row-meta">Цвет: {{ row.color|e }}</div>{% endif %}
-            {% if row.size_display %}<div class="row-meta">Размер: {{ row.size_display|e }}</div>{% endif %}
-          </td>
+          <td class="item-number"></td>
+          <td>{% if row.size_display %}Размер: {{ row.size_display|e }}{% else %}Без размера{% endif %}</td>
           <td class="quantity">{{ row.pdf_qty_display }}</td>
           <td class="places" {% if not is_pdf %}contenteditable="true" data-delivery-place-key="{{ row.place_key }}" data-original="{{ row.places|e }}"{% endif %}>{{ row.places|e }}</td>
         </tr>
         {% endfor %}
-
       </tbody>
     </table>
+    {% endfor %}
 
     <div class="names-total">Всего наименований: {{ delivery_names_count }}.</div>
     <div class="acceptance">

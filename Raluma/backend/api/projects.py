@@ -527,6 +527,7 @@ def copy_project(
             threshold=s.threshold,
             first_panel_inside=s.first_panel_inside,
             unused_track=s.unused_track,
+            first_panels_placement=s.first_panels_placement,
             inter_glass_profile=s.inter_glass_profile,
             profile_left=s.profile_left,
             profile_right=s.profile_right,

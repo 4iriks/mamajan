@@ -1,4 +1,5 @@
 import { slideSideSegments } from './slideSideProjection';
+import { firstPanelsPlacement, twoRowLayout } from './slideLayout';
 import React from 'react';
 import { SlideCalcPreview } from '../../api/projects';
 import { diagramGlassFillColor, isMatteGlass } from '../../constants/glass';
@@ -82,10 +83,7 @@ function panelNumber(
       ? panels - index
       : index + 1;
   }
-  const half = Math.floor(panels / 2);
-  return (section.unusedTrack ?? 'Внешний') === 'Внешний'
-    ? (index < half ? half - index : index - half + 1)
-    : (index < half ? index + 1 : panels - index);
+  return twoRowLayout(section).numbers[index];
 }
 
 function findProfileDimension(
@@ -213,9 +211,11 @@ export function SlideSchemeSVG({ section, calc, fit = false }: { section: Sectio
     .filter(i => !unusedRailSet.has(i));
 
   const mirrorRails = !is2row && firstPanelInside === 'Слева';
+  const twoRowRails = is2row ? twoRowLayout(section).rails : [];
   const panelRailMap = Array.from({ length: panels }, (_, pi) => {
     const calcRail = calc?.panel_rails?.[pi];
     if (typeof calcRail === 'number') return calcRail;
+    if (is2row) return twoRowRails[pi];
     const railIdx = mirrorRails ? (availableRails.length - 1 - pi) : pi;
     return availableRails[railIdx] ?? availableRails[railIdx % Math.max(availableRails.length, 1)] ?? pi % railCount;
   });
@@ -582,7 +582,7 @@ export function SlideRoomViewSVG({
   const floorLatchRight = section.floorLatchesRight;
   const centerHandle = section.centerHandle || 'Без ручки (глухие)';
   const centerLock = section.centerLock || 'Без';
-  const firstPanelsInCenter = (section.unusedTrack ?? 'Внешний') === 'Внешний';
+  const firstPanelsInCenter = firstPanelsPlacement(section) === 'center';
   const centerIsDeaf = centerHandle === 'Без ручки (глухие)' || centerHandle === '';
   const centerIsRs112 = is2row && centerHandle.toLowerCase().includes('rs112');
   const centerLeftIdx = Math.max(0, Math.floor(panels / 2) - 1);

@@ -335,7 +335,9 @@
         {% endif %}
         {# Panel number #}
         <text x="{{ gcx }}" y="{{ gcy - 4 }}" text-anchor="middle" font-size="7" font-family="Arial" font-weight="bold" fill="#555">{{ pnum }}</text>
-        <text x="{{ gcx }}" y="{{ riY + riH - 2 }}" text-anchor="middle" font-size="7" font-family="Arial" font-weight="bold" fill="#777">{{ panel_w_mm|glass_mm }} ({{ panel_profile_mm|glass_mm }})</text>
+        {% set dimension_text = (panel_w_mm|glass_mm) ~ ' (' ~ (panel_profile_mm|glass_mm) ~ ')' %}
+        {% set dimension_font = [7, (rpW - 3) / (dimension_text|length * 0.6)] | min if is2row else 7 %}
+        <text x="{{ gcx }}" y="{{ riY + riH - 2 }}" text-anchor="middle" font-size="{{ dimension_font }}" font-family="Arial" font-weight="bold" fill="#777">{{ dimension_text }}</text>
         {# Arrow (non-deaf panels) #}
         {% if not panelDeaf %}
         {% set alen = [10, rpW * 0.35] | min %}

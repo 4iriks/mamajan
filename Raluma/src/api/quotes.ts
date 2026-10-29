@@ -27,6 +27,7 @@ export interface QuoteSectionDetails {
   slide_rows: number;
   first_panel_inside: string;
   unused_track: string;
+  first_panels_placement?: 'center' | 'outside';
   slide_direction: string;
   panel_width_total_mm: string;
   panel_geometry: QuotePanelGeometry[];

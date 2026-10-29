@@ -2063,6 +2063,26 @@ def _build_delivery_xlsx(context: dict) -> bytes:
     row += 1
     data_start_row = row
     item_number = 1
+    page_height = 0.0
+    page_breaks = []
+    extra_heading = ""
+
+    def ensure_space(height):
+        nonlocal page_height
+        if page_height and page_height + height > 650:
+            page_breaks.append(row)
+            page_height = 0.0
+            return True
+        return False
+
+    def write_extra_heading():
+        nonlocal row, page_height
+        height = 16 * (extra_heading.count("\n") + 1) + 8
+        ensure_space(height + 24)
+        worksheet.merge_range(row, 0, row, 5, extra_heading, detail_bold)
+        worksheet.set_row(row, height)
+        page_height += height
+        row += 1
 
     def write_item(
         section_name: str,
@@ -2072,22 +2092,32 @@ def _build_delivery_xlsx(context: dict) -> bytes:
         qty: object,
         places: object,
     ) -> None:
-        nonlocal row, item_number
+        nonlocal row, item_number, page_height
         try:
             numeric_qty = float(qty or 0)
         except (TypeError, ValueError):
             numeric_qty = 0.0
+        text = (
+            name
+            if not details_text
+            else f"{name}\n{details_text}"
+            if name
+            else details_text
+        )
+        height = max(24, 16 * (text.count("\n") + 1))
+        if ensure_space(height) and extra_heading:
+            write_extra_heading()
         worksheet.write_number(row, 0, item_number, formats["center"])
         worksheet.write(row, 1, section_name, formats["center"])
         worksheet.write(row, 2, article, formats["center_bold"])
-        text = name if not details_text else f"{name}\n{details_text}"
         worksheet.write(row, 3, text, detail_bold if name else detail)
         quantity_format = (
             quantity_integer if numeric_qty.is_integer() else quantity_decimal
         )
         worksheet.write_number(row, 4, numeric_qty, quantity_format)
         worksheet.write(row, 5, str(places or ""), formats["center"])
-        worksheet.set_row(row, max(24, 16 * (text.count("\n") + 1)))
+        worksheet.set_row(row, height)
+        page_height += height
         item_number += 1
         row += 1
 
@@ -2166,30 +2196,37 @@ def _build_delivery_xlsx(context: dict) -> bytes:
             item.get("places"),
         )
 
-    for item in context.get("delivery_project_extra_rows") or []:
-        details_text = "\n".join(
-            filter(
-                None,
-                (
-                    f"Цвет: {item.get('color')}" if item.get("color") else "",
-                    f"Размер: {item.get('size_display') or item.get('size')}"
-                    if item.get("size")
-                    else "",
-                    f"Единица: {item.get('display_unit', item.get('unit'))}"
-                    if item.get("display_unit", item.get("unit"))
-                    not in {None, "", "шт", "шт."}
-                    else "",
-                ),
+    # Each group has a single heading; sizes retain their own quantities/places.
+    for group in context.get("delivery_extra_groups") or []:
+        head = group[0]
+        heading = str(head.get("name") or "")
+        if head.get("article"):
+            heading = f"{head['article']} — {heading}"
+        if head.get("color"):
+            heading += f"\nЦвет: {head['color']}"
+        extra_heading = heading
+        write_extra_heading()
+        for item in group:
+            details_text = (
+                f"Размер: {item.get('size_display') or item.get('size')}"
+                if item.get("size")
+                else "Без размера"
             )
-        )
-        write_item(
-            "Доп. комплектующие проекта",
-            str(item.get("article") or ""),
-            str(item.get("name") or ""),
-            details_text,
-            item.get("qty"),
-            item.get("places"),
-        )
+            unit = item.get("display_unit", item.get("unit"))
+            if unit not in {None, "", "шт", "шт."}:
+                details_text += f"\nЕдиница: {unit}"
+            write_item(
+                "Доп. комплектующие проекта",
+                "",
+                "",
+                details_text,
+                item.get("qty"),
+                item.get("places"),
+            )
+
+    # Fixed scale lets Excel honour explicit breaks and repeat group headings.
+    worksheet.set_print_scale(70)
+    worksheet.set_h_pagebreaks(page_breaks)
 
     if row == data_start_row:
         worksheet.merge_range(row, 0, row, 3, "Позиции для отгрузки не найдены", detail)

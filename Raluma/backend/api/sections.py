@@ -113,6 +113,16 @@ def update_section(
     if not section:
         raise HTTPException(status_code=404, detail="Секция не найдена")
     section_data = normalize_section_data_values(data.model_dump())
+    if not section_data.get("first_panels_placement"):
+        section_data["first_panels_placement"] = section.first_panels_placement
+        if (section.slide_rows or 1) == 2 and section_data.get(
+            "unused_track"
+        ) != section.unused_track:
+            section_data["first_panels_placement"] = section.first_panels_placement or (
+                "center"
+                if (section.unused_track or "Внешний") == "Внешний"
+                else "outside"
+            )
     _assign_price_group(section_data, db)
     # ``order`` is server-owned after creation. Older editors sent a zero-based
     # array index here and could silently turn the first section into order=0.
