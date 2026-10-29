@@ -2065,7 +2065,6 @@ def _build_delivery_xlsx(context: dict) -> bytes:
     item_number = 1
     page_height = 0.0
     page_breaks = []
-    extra_heading = ""
 
     def ensure_space(height):
         nonlocal page_height
@@ -2074,15 +2073,6 @@ def _build_delivery_xlsx(context: dict) -> bytes:
             page_height = 0.0
             return True
         return False
-
-    def write_extra_heading():
-        nonlocal row, page_height
-        height = 16 * (extra_heading.count("\n") + 1) + 8
-        ensure_space(height + 24)
-        worksheet.merge_range(row, 0, row, 5, extra_heading, detail_bold)
-        worksheet.set_row(row, height)
-        page_height += height
-        row += 1
 
     def write_item(
         section_name: str,
@@ -2105,8 +2095,7 @@ def _build_delivery_xlsx(context: dict) -> bytes:
             else details_text
         )
         height = max(24, 16 * (text.count("\n") + 1))
-        if ensure_space(height) and extra_heading:
-            write_extra_heading()
+        ensure_space(height)
         worksheet.write_number(row, 0, item_number, formats["center"])
         worksheet.write(row, 1, section_name, formats["center"])
         worksheet.write(row, 2, article, formats["center_bold"])
@@ -2196,7 +2185,34 @@ def _build_delivery_xlsx(context: dict) -> bytes:
             item.get("places"),
         )
 
-    # Each group has a single heading; sizes retain their own quantities/places.
+    def write_extra_chunk(heading, chunk):
+        nonlocal row, page_height
+        heights = [max(24, 16 * (text.count("\n") + 1)) for _, text in chunk]
+        # A one-size group must still fit both the product name and its colour.
+        heights[0] += max(0, 16 * (heading.count("\n") + 1) + 8 - sum(heights))
+        ensure_space(24 + sum(heights))
+        worksheet.merge_range(row, 0, row, 2, "Наименование", formats["header"])
+        for column, label in ((3, "Размер"), (4, "Количество"), (5, "Кол-во мест")):
+            worksheet.write(row, column, label, formats["header"])
+        worksheet.set_row(row, 24)
+        row += 1
+        worksheet.merge_range(row, 0, row + len(chunk) - 1, 2, heading, detail_bold)
+        for (item, text), height in zip(chunk, heights):
+            numeric_qty = float(item.get("qty") or 0)
+            worksheet.write(row, 3, text, detail)
+            worksheet.write_number(
+                row,
+                4,
+                numeric_qty,
+                quantity_integer if numeric_qty.is_integer() else quantity_decimal,
+            )
+            worksheet.write(row, 5, str(item.get("places") or ""), formats["center"])
+            worksheet.set_row(row, height)
+            row += 1
+        page_height += 24 + sum(heights)
+
+    # Product/colour are merged on the left; individual sizes are on the right.
+    # Split long groups before a page break so each page has its own product cell.
     for group in context.get("delivery_extra_groups") or []:
         head = group[0]
         heading = str(head.get("name") or "")
@@ -2204,25 +2220,25 @@ def _build_delivery_xlsx(context: dict) -> bytes:
             heading = f"{head['article']} — {heading}"
         if head.get("color"):
             heading += f"\nЦвет: {head['color']}"
-        extra_heading = heading
-        write_extra_heading()
+        chunk = []
+        chunk_height = 0
         for item in group:
             details_text = (
-                f"Размер: {item.get('size_display') or item.get('size')}"
+                str(item.get("size_display") or item.get("size"))
                 if item.get("size")
                 else "Без размера"
             )
             unit = item.get("display_unit", item.get("unit"))
             if unit not in {None, "", "шт", "шт."}:
                 details_text += f"\nЕдиница: {unit}"
-            write_item(
-                "Доп. комплектующие проекта",
-                "",
-                "",
-                details_text,
-                item.get("qty"),
-                item.get("places"),
-            )
+            height = max(24, 16 * (details_text.count("\n") + 1))
+            if chunk and chunk_height + height > 600:
+                write_extra_chunk(heading, chunk)
+                chunk, chunk_height = [], 0
+            chunk.append((item, details_text))
+            chunk_height += height
+        if chunk:
+            write_extra_chunk(heading, chunk)
 
     # Fixed scale lets Excel honour explicit breaks and repeat group headings.
     worksheet.set_print_scale(70)

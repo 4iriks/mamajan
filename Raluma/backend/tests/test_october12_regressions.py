@@ -226,13 +226,13 @@ def test_delivery_repeats_group_heading_on_pages_without_mutating_sources():
     )
     html = render_project_document_html(project, [], "delivery", is_pdf=True)
     assert html.count('<table class="main-table">') == 1
-    assert html.count('<table class="main-table extra-table">') == 1
-    assert html.count("QA-LONG") == 1
-    assert html.count("Размер:") == 90
+    assert html.count('<table class="main-table extra-table">') == 4
+    assert html.count("QA-LONG") == 4
+    assert html.count('<td class="extra-size">') == 90
     pdf = PdfReader(io.BytesIO(generate_pdf(html)))
     pages = [page.extract_text() for page in pdf.pages]
     assert len(pages) >= 3
-    assert all("QA-LONG" in page for page in pages if "Размер:" in page)
+    assert all("QA-LONG" in page for page in pages if " мм" in page)
     workbook = load_workbook(io.BytesIO(build_project_xlsx(project, [], "delivery")))
     text = "\n".join(
         str(cell.value)

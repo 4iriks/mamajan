@@ -274,6 +274,8 @@ def test_delivery_groups_sizes_and_keeps_individual_places():
     html = render_project_document_html(project, [], "delivery")
     assert html.count("УГОЛ АЛ, 20х30мм") == 1
     assert html.count("Цвет: 7024 МАТОВЫЙ") == 1
+    assert '<td class="extra-product" rowspan="8">' in html
+    assert html.count('<td class="extra-size">') == 8
     assert (
         html.count("data-delivery-place-key=")
         == len(context["delivery_item2_rows"]) + 8
@@ -283,4 +285,13 @@ def test_delivery_groups_sizes_and_keeps_individual_places():
         cell.value for row in workbook.active for cell in row if cell.value is not None
     ]
     assert sum("УГОЛ АЛ, 20х30мм" in str(value) for value in values) == 1
-    assert len([value for value in values if str(value).startswith("Размер:")]) == 8
+    sheet = workbook.active
+    assert any(
+        r.min_col == 1 and r.max_col == 3 and r.max_row - r.min_row == 7
+        for r in sheet.merged_cells.ranges
+    )
+    sizes = [row for row in sheet.values if str(row[3]).endswith(" мм")]
+    assert len(sizes) == 8
+    assert [(row[4], row[5]) for row in sizes] == [
+        (item["qty"], item["places"]) for item in context["delivery_extra_groups"][0]
+    ]

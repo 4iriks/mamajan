@@ -59,9 +59,11 @@
       font-weight: 700;
     }
     .main-table { table-layout: fixed; }
-    .extra-table { margin-top: 2mm; }
-    .extra-heading { text-align: left; }
-    .extra-heading .row-meta { font-weight: normal; }
+    .extra-table { margin-top: 2mm; break-inside: avoid; page-break-inside: avoid; }
+    .extra-table:last-of-type { break-after: avoid; page-break-after: avoid; }
+    .delivery-footer { break-inside: avoid; page-break-inside: avoid; }
+    .extra-product { vertical-align: middle; }
+    .extra-size { width: 32mm; text-align: center; vertical-align: middle; }
     .main-table > thead { display: table-header-group; }
     .main-table > tbody > tr { break-inside: avoid; page-break-inside: avoid; }
     .item-number { width: 10mm; text-align: center; vertical-align: middle; font-weight: 700; }
@@ -239,23 +241,29 @@
 
     {% for group in delivery_extra_groups %}
     {% set head = group[0] %}
+    {# Keep each merged product cell on one page; repeat it for long groups. #}
+    {% for chunk in group|batch(24) %}
     <table class="main-table extra-table">
       <thead>
         <tr>
-          <th class="item-number">3</th>
-          <th class="extra-heading">
-            <div class="row-title">{% if head.article %}{{ head.article|e }} — {% endif %}{{ head.name|e }}</div>
-            {% if head.color %}<div class="row-meta">Цвет: {{ head.color|e }}</div>{% endif %}
-          </th>
+          <th class="item-number">№</th>
+          <th>Наименование</th>
+          <th class="extra-size">Размер</th>
           <th class="quantity">Количество</th>
           <th class="places">Кол-во мест</th>
         </tr>
       </thead>
       <tbody>
-        {% for row in group %}
+        {% for row in chunk %}
         <tr class="group-row">
-          <td class="item-number"></td>
-          <td>{% if row.size_display %}Размер: {{ row.size_display|e }}{% else %}Без размера{% endif %}</td>
+          {% if loop.first %}
+          <td class="item-number" rowspan="{{ chunk|length }}">3</td>
+          <td class="extra-product" rowspan="{{ chunk|length }}">
+            <div class="row-title">{% if head.article %}{{ head.article|e }} — {% endif %}{{ head.name|e }}</div>
+            {% if head.color %}<div class="row-meta">Цвет: {{ head.color|e }}</div>{% endif %}
+          </td>
+          {% endif %}
+          <td class="extra-size">{{ row.size_display|e or 'Без размера' }}</td>
           <td class="quantity">{{ row.pdf_qty_display }}</td>
           <td class="places" {% if not is_pdf %}contenteditable="true" data-delivery-place-key="{{ row.place_key }}" data-original="{{ row.places|e }}"{% endif %}>{{ row.places|e }}</td>
         </tr>
@@ -263,7 +271,9 @@
       </tbody>
     </table>
     {% endfor %}
+    {% endfor %}
 
+    <div class="delivery-footer">
     <div class="names-total">Всего наименований: {{ delivery_names_count }}.</div>
     <div class="acceptance">
       Изделия и комплектацию принял. Претензий по качеству и количеству не имею. <span class="acceptance-line"></span>
@@ -272,6 +282,7 @@
     <div class="signatures">
       <div><div class="signature-row"><span class="signature-role">Исполнитель</span><span class="signature-rule"></span></div><div class="signature-caption">подпись</div></div>
       <div><div class="signature-row"><span class="signature-role">Заказчик</span><span class="signature-rule"></span></div><div class="signature-caption">подпись</div></div>
+    </div>
     </div>
   </div>
 

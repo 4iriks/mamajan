@@ -107,7 +107,7 @@ def test_delivery_lengths_have_names_without_images_and_keep_place_keys():
     for is_pdf in (False, True):
         html = render_project_document_html(project, [], "delivery", is_pdf=is_pdf)
         assert html.count("BOX-40") == html.count("Бокс 40") == 2
-        assert html.count("Размер:") == 4
+        assert html.count('<td class="extra-size">') == 4
         assert "<img" not in html
         if not is_pdf:
             assert all(row["place_key"] in html for row in rows)
@@ -117,7 +117,7 @@ def test_delivery_lengths_have_names_without_images_and_keep_place_keys():
     assert len(headings) == 2
     assert any("9005" in heading for heading in headings)
     assert any("9016" in heading for heading in headings)
-    xlsx_rows = [row for row in sheet.values if str(row[3]).startswith("Размер:")]
+    xlsx_rows = [row for row in sheet.values if str(row[3]).endswith(" мм")]
     assert len(xlsx_rows) == 4
     assert all(row[4] == 2 for row in xlsx_rows)
     with ZipFile(BytesIO(data)) as archive:

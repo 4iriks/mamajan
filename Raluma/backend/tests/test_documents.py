@@ -4624,12 +4624,11 @@ class TestDeliveryNote:
         assert extra["unit"] == "м.п."
         assert extra["size_display"] == "2600 мм"
         assert extra["pdf_qty_display"] == "2 шт."
-        assert "Размер: 2600 мм" in html
+        assert '<td class="extra-size">2600 мм</td>' in html
         assert re.search(r'<td class="quantity">\s*2 шт\.\s*</td>', html)
         assert "2 м.п." not in html
-        assert "Размер: 2600" in xlsx_text
         assert "Единица: м.п." not in xlsx_text
-        assert "Размер: 2600 мм" in xlsx_text
+        assert "2600 мм" in xlsx_text
 
     def test_project_4169_bubble_seal_counts_three_meter_blanks(self):
         sections = [
