@@ -220,9 +220,9 @@
           </tr>
         {% endif %}
 
-        {% for row in delivery_item2_rows %}
+        {% for row in delivery_item2_plain_rows %}
         <tr class="group-row">
-          {% if loop.first %}<td class="item-number" rowspan="{{ delivery_item2_rows|length }}">2</td>{% endif %}
+          {% if loop.first %}<td class="item-number" rowspan="{{ delivery_item2_plain_rows|length }}">2</td>{% endif %}
           <td>
             <div class="row-title">
               {% if row.article %}<span class="nowrap">{{ row.article|e }}</span> — {% endif %}{{ row.name|e }}
@@ -239,7 +239,8 @@
       </tbody>
     </table>
 
-    {% for group in delivery_extra_groups %}
+    {% for item_number, groups in [(2, delivery_hardware_groups), (3, delivery_extra_groups)] %}
+    {% for group in groups %}
     {% set head = group[0] %}
     {# Keep each merged product cell on one page; repeat it for long groups. #}
     {% for chunk in group|batch(24) %}
@@ -257,10 +258,11 @@
         {% for row in chunk %}
         <tr class="group-row">
           {% if loop.first %}
-          <td class="item-number" rowspan="{{ chunk|length }}">3</td>
+          <td class="item-number" rowspan="{{ chunk|length }}">{{ item_number }}</td>
           <td class="extra-product" rowspan="{{ chunk|length }}">
             <div class="row-title">{% if head.article %}{{ head.article|e }} — {% endif %}{{ head.name|e }}</div>
             {% if head.color %}<div class="row-meta">Цвет: {{ head.color|e }}</div>{% endif %}
+            {% if head.note %}<div class="row-note">{{ head.note|e }}</div>{% endif %}
           </td>
           {% endif %}
           <td class="extra-size">{{ row.size_display|e or 'Без размера' }}</td>
@@ -270,6 +272,7 @@
         {% endfor %}
       </tbody>
     </table>
+    {% endfor %}
     {% endfor %}
     {% endfor %}
 

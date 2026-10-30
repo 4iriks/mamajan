@@ -2162,7 +2162,7 @@ def _build_delivery_xlsx(context: dict) -> bytes:
                 item.get("places") if glass_index == 0 else "",
             )
 
-    for item in context.get("delivery_item2_rows") or []:
+    for item in context.get("delivery_item2_plain_rows") or []:
         details_text = "\n".join(
             filter(
                 None,
@@ -2213,13 +2213,18 @@ def _build_delivery_xlsx(context: dict) -> bytes:
 
     # Product/colour are merged on the left; individual sizes are on the right.
     # Split long groups before a page break so each page has its own product cell.
-    for group in context.get("delivery_extra_groups") or []:
+    for group in [
+        *(context.get("delivery_hardware_groups") or []),
+        *(context.get("delivery_extra_groups") or []),
+    ]:
         head = group[0]
         heading = str(head.get("name") or "")
         if head.get("article"):
             heading = f"{head['article']} — {heading}"
         if head.get("color"):
             heading += f"\nЦвет: {head['color']}"
+        if head.get("note"):
+            heading += f"\n{head['note']}"
         chunk = []
         chunk_height = 0
         for item in group:

@@ -153,7 +153,12 @@ def test_documents_share_order_count_and_delivery_stage():
         book = load_workbook(
             io.BytesIO(build_project_xlsx(project, rows, kind)), data_only=True
         )
-        found = [list(r) for sheet in book for r in sheet.values if "Т40К" in r]
+        found = [
+            list(r)
+            for sheet in book
+            for r in sheet.values
+            if any(str(value).split(" — ")[0] == "Т40К" for value in r)
+        ]
         assert found and any(16 in r for r in found), kind
     project.production_stages = 2
     project.current_stage = 2

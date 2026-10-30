@@ -1944,6 +1944,42 @@ def _build_delivery_project_extra_rows(
     return rows
 
 
+def _delivery_hardware_groups(rows: list[dict]) -> tuple[list[dict], list[list[dict]]]:
+    """Group dimension variants for display without changing saved place keys."""
+    grouped: dict[tuple, list[dict]] = {}
+    for row in rows:
+        key = tuple(
+            row.get(field) or ""
+            for field in (
+                "article",
+                "name",
+                "color",
+                "unit",
+                "stage",
+                "note",
+                "image",
+                "_view_group",
+            )
+        )
+        grouped.setdefault(key, []).append(row)
+    plain, sized = [], []
+    for group in grouped.values():
+        if not any(row.get("size") for row in group):
+            plain.extend(group)
+            continue
+        sized.append(
+            [
+                {
+                    **row,
+                    "size_display": _delivery_extra_size_display(row.get("size", "")),
+                    "pdf_qty_display": row.get("qty_display") or row["qty_text"],
+                }
+                for row in group
+            ]
+        )
+    return plain, sized
+
+
 def _build_delivery_context(project: object, sections: Iterable[object]) -> dict:
     sorted_sections = _sorted_sections(sections)
     settings = _delivery_settings(project)
@@ -1980,6 +2016,7 @@ def _build_delivery_context(project: object, sections: Iterable[object]) -> dict
     )
     project_extra_rows = group_display_rows(project_extra_rows)
     extra_groups = display_groups(project_extra_rows)
+    hardware_plain_rows, hardware_groups = _delivery_hardware_groups(hardware_rows)
     item1_rows = [
         *(
             {
@@ -2010,6 +2047,8 @@ def _build_delivery_context(project: object, sections: Iterable[object]) -> dict
         },
         "delivery_item1_rows": item1_rows,
         "delivery_item2_rows": hardware_rows,
+        "delivery_item2_plain_rows": hardware_plain_rows,
+        "delivery_hardware_groups": hardware_groups,
         "delivery_project_extra_rows": project_extra_rows,
         "delivery_extra_groups": extra_groups,
         "delivery_names_count": 2 + int(bool(project_extra_rows)),
