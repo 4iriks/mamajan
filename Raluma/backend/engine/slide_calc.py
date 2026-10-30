@@ -274,6 +274,13 @@ def _round_production_mm(value: float) -> int:
     return _round_glass_difference_mm(value)
 
 
+def _round_two_row_production_mm(value: float) -> int:
+    """Round the full formula value up only from a 0.6 mm remainder."""
+    return int(
+        (Decimal(str(value)) + Decimal("0.4")).to_integral_value(rounding=ROUND_FLOOR)
+    )
+
+
 def _is_half_mm_excess(actual_total_mm: float, control_total_mm: float) -> bool:
     """Return whether the issued glass exceeds its control total by exactly 0.5 mm."""
     excess = Decimal(str(float(actual_total_mm))) - Decimal(
@@ -489,15 +496,10 @@ def _apply_two_row_glass_total_correction(
     )
 
     for panel in panels:
-        # Keep full formula precision and issue two-row widths downwards.
-        panel.width_mm = float(
-            Decimal(str(panel.width_mm)).quantize(Decimal("1"), rounding=ROUND_FLOOR)
-        )
+        panel.width_mm = float(_round_two_row_production_mm(panel.width_mm))
         panel.height_mm = float(_round_production_mm(panel.height_mm))
         panel.glass_profile_length = float(
-            Decimal(str(panel.glass_profile_length)).quantize(
-                Decimal("1"), rounding=ROUND_FLOOR
-            )
+            _round_two_row_production_mm(panel.glass_profile_length)
         )
 
     actual_total_mm = sum(float(panel.width_mm or 0) for panel in panels)

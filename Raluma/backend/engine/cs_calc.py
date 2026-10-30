@@ -206,9 +206,10 @@ def _offset_edge_length(installation, contour, index, distance):
 
 
 def split_profile_lengths(lengths):
-    """Split physical T40T cuts, without changing side lengths used by covers."""
+    """Ceil T40T cuts to whole mm; preserve original side lengths for covers."""
     result = []
     for length in lengths:
+        length = ceil(length - EPS)
         full = int(length // STOCK_MM)
         result.extend([float(STOCK_MM)] * full)
         tail = length - full * STOCK_MM

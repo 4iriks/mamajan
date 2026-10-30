@@ -4,7 +4,7 @@ from collections import Counter
 from copy import deepcopy
 from io import BytesIO
 import json
-from math import hypot
+from math import ceil, hypot
 from types import SimpleNamespace
 
 from openpyxl import load_workbook
@@ -69,7 +69,7 @@ def test_invoice_71_section_2(quantity):
 def test_positive_section_tolerance_preserves_all_cuts(count, difference):
     result = SlideCalcResult(
         panel_glass=[
-            PanelGlassItem(i + 1, "", 600.96, 2200, 597.96) for i in range(count)
+            PanelGlassItem(i + 1, "", 600.59, 2200, 597.59) for i in range(count)
         ]
     )
     _apply_two_row_glass_total_correction(result, count * 600 + difference)
@@ -191,9 +191,9 @@ def test_narrow_trapezoid_keeps_full_profiles_and_valid_rounded_glass(mirror):
     outer = result["profiles"][0]
     assert outer["pieces"] == 10
     assert outer["cut_lengths_mm"] == pytest.approx(
-        [3000, 1499, 3000, hypot(4499, 927) - 3000, 967]
+        [3000, 1499, 3000, ceil(hypot(4499, 927)) - 3000, 967]
     )
-    assert outer["total_length_mm"] == pytest.approx(sum(full) * 2)
+    assert outer["total_length_mm"] == sum(ceil(v) for v in full) * 2
 
 
 @pytest.mark.parametrize(

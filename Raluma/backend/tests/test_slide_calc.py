@@ -1033,10 +1033,10 @@ class TestProfileVariables:
             pytest.param(1, 3, 100, 0, 952, 1052, 968, id="one-row-left"),
             pytest.param(1, 3, 0, 100, 952, 968, 1052, id="one-row-right"),
             pytest.param(1, 3, 100, 100, 924, 1024, 1024, id="one-row-both"),
-            pytest.param(2, 6, 0, 0, 492, 508, 508, id="two-row-zero"),
-            pytest.param(2, 6, 100, 0, 478, 578, 494, id="two-row-left"),
-            pytest.param(2, 6, 0, 100, 478, 494, 578, id="two-row-right"),
-            pytest.param(2, 6, 100, 100, 464, 564, 564, id="two-row-both"),
+            pytest.param(2, 6, 0, 0, 493, 509, 509, id="two-row-zero"),
+            pytest.param(2, 6, 100, 0, 479, 579, 495, id="two-row-left"),
+            pytest.param(2, 6, 0, 100, 479, 495, 579, id="two-row-right"),
+            pytest.param(2, 6, 100, 100, 465, 565, 565, id="two-row-both"),
         ],
     )
     def test_side_offsets_replace_only_their_own_edge_compensation(
@@ -2828,9 +2828,9 @@ class TestSlideTwoRows:
     @pytest.mark.parametrize(
         ("panels", "width", "expected_widths"),
         [
-            (6, 5402, [872, 864, 964, 964, 864, 872]),
-            (8, 7201, [883, 875, 875, 975, 975, 875, 875, 883]),
-            (10, 9004, [890, 882, 882, 882, 982, 982, 882, 882, 882, 890]),
+            (6, 5402, [873, 865, 965, 965, 865, 873]),
+            (8, 7201, [884, 876, 876, 976, 976, 876, 876, 884]),
+            (10, 9004, [891, 883, 883, 883, 983, 983, 883, 883, 883, 891]),
         ],
     )
     def test_side_eight_is_preserved_for_wider_two_row_sections(
@@ -2853,9 +2853,7 @@ class TestSlideTwoRows:
         assert [panel.width_mm for panel in result.panel_glass] == expected_widths
         assert result.panel_glass[0].width_mm - result.panel_glass[1].width_mm == 8
         assert result.panel_glass[-1].width_mm - result.panel_glass[-2].width_mm == 8
-        assert bool(result.warnings) == (
-            panels >= 8
-        )  # 7/9 mm exceed the new 5 mm allowance.
+        assert not result.warnings  # Rounding from 0.6 leaves only a 1 mm excess.
 
     def test_hidden_center_offset_is_ignored_for_six_panel_knob_reference(self):
         r = calculate_slide(
@@ -2885,10 +2883,10 @@ class TestSlideTwoRows:
             (item.width_mm, item.glass_profile_length) for item in r.panel_glass
         ] == [
             (653, 653),
-            (637, 634),
-            (637, 634),
-            (637, 634),
-            (637, 634),
+            (638, 635),
+            (638, 635),
+            (638, 635),
+            (638, 635),
             (653, 653),
         ]
 
@@ -2970,10 +2968,10 @@ class TestSlideTwoRows:
         )
         left = _find_glass(r, "Левое")[0]
         center = _find_glass(r, "Центральные")[0]
-        # Production sizes are rounded to whole millimetres, as before.
-        expected = int((2000 - 3 - 16 - 16 + 11 * 2) / 4)
-        assert left.width_mm == expected + 1  # Existing four-panel +3 mm correction.
-        assert center.width_mm == expected
+        # 496.75 rounds up from 0.6; the checksum permits the resulting 1 mm excess.
+        assert left.width_mm == 497
+        assert center.width_mm == 497
+        assert not r.warnings
         assert _find_profile(r, "RS3061")
 
     @pytest.mark.parametrize(
@@ -3035,10 +3033,10 @@ class TestSlideTwoRows:
         )
 
         assert [panel.width_mm for panel in r.panel_glass] == [
-            480,
-            488,
-            488,
-            480,
+            481,
+            489,
+            489,
+            481,
         ]
 
     @pytest.mark.parametrize(
@@ -3114,18 +3112,18 @@ class TestSlideTwoRows:
 
         assert [panel.width_mm for panel in result.panel_glass] == [
             788,
-            772,
-            772,
-            772,
-            772,
+            773,
+            773,
+            773,
+            773,
             788,
         ]
         assert [panel.glass_profile_length for panel in result.panel_glass] == [
             785,
-            769,
-            769,
-            769,
-            769,
+            770,
+            770,
+            770,
+            770,
             785,
         ]
         assert not result.warnings
