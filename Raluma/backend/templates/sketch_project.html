@@ -15,10 +15,10 @@
       line-height: 1.15;
     }
     main {
-      width: 188mm;
+      width: 210mm;
       min-height: 273mm;
       margin: 0 auto;
-      padding: 9mm 8mm 11mm;
+      padding: 10mm 11mm 12mm;
       background: #fff;
     }
     h1 {
@@ -167,6 +167,7 @@
       body { background: #fff; }
       main { width: auto; min-height: 0; margin: 0; padding: 0; }
     }
+    {{ sketch_fit_css|default('') }}
   </style>
 </head>
 <body>
@@ -178,7 +179,7 @@
   {% endif %}
 
   {% for section in sections %}
-  <section class="sketch-section{% if section.width_mm < section.height_mm %} sketch-section-tall{% endif %}{% if section.panels|length >= 6 %} sketch-section-dense{% endif %}" data-sketch-section="{{ section.order }}" data-system="{{ section.system|e }}">
+  <section class="sketch-section{% if section.width_mm < section.height_mm %} sketch-section-tall{% endif %}{% if section.panels|length >= 6 %} sketch-section-dense{% endif %}" data-sketch-index="{{ loop.index0 }}" data-sketch-section="{{ section.order }}" data-system="{{ section.system|e }}">
     <div class="section-intro">
       <h2 class="section-heading">Изделие № {{ section.order }} · {{ section.system_text|e }}</h2>
 

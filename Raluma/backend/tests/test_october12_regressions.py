@@ -225,8 +225,8 @@ def test_delivery_repeats_group_heading_on_pages_without_mutating_sources():
         for row in context["delivery_project_extra_rows"]
     )
     html = render_project_document_html(project, [], "delivery", is_pdf=True)
-    assert html.count('<table class="main-table">') == 1
-    assert html.count('<table class="main-table extra-table">') == 4
+    assert html.count('<table class="main-table">') == 0
+    assert html.count('<table class="main-table component-table">') == 1
     assert html.count("QA-LONG") == 4
     assert html.count('<td class="extra-size">') == 90
     pdf = PdfReader(io.BytesIO(generate_pdf(html)))

@@ -204,7 +204,9 @@ def _style_table(table, header_rows: int = 1) -> None:
                     run.bold = True
 
 
-def _set_table_geometry_mm(table, widths_mm: tuple[float, ...]) -> None:
+def _set_table_geometry_mm(
+    table, widths_mm: tuple[float, ...], *, set_grid: bool = False
+) -> None:
     table.autofit = False
     properties = table._tbl.tblPr
     layout = properties.find(qn("w:tblLayout"))
@@ -218,6 +220,9 @@ def _set_table_geometry_mm(table, widths_mm: tuple[float, ...]) -> None:
         properties.append(width)
     width.set(qn("w:w"), str(int(sum(widths_mm) * 56.6929)))
     width.set(qn("w:type"), "dxa")
+    if set_grid:
+        for column, column_width in zip(table.columns, widths_mm, strict=True):
+            column.width = Mm(column_width)
     for row in table.rows:
         for cell, cell_width in zip(row.cells, widths_mm, strict=False):
             _set_cell_width(cell, cell_width)
@@ -1436,6 +1441,11 @@ def _sketch_heading(
 
 
 def _build_sketch_docx(context: dict) -> bytes:
+    from docx.table import _Cell
+    from docx.text.paragraph import Paragraph
+    from engine.sketch_layout import fit_sketch_context
+
+    layouts = fit_sketch_context(context)
     document = Document()
     _configure_document(document, landscape=False)
     section = document.sections[0]
@@ -1466,6 +1476,8 @@ def _build_sketch_docx(context: dict) -> bytes:
         paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     for section_index, sketch_section in enumerate(context["sections"]):
+        fit = layouts[section_index]
+        section_start = len(document.element.body) - 1  # final child is sectPr
         _sketch_heading(
             document,
             f"Изделие № {sketch_section['order']} · {sketch_section['system_text']}",
@@ -1521,7 +1533,7 @@ def _build_sketch_docx(context: dict) -> bytes:
         filling_cell = meta.cell(filling_row, 1).merge(meta.cell(filling_row, 3))
         _set_cell_text(filling_cell, sketch_section["filling"], bold=True, size=10)
         meta.style = "Table Grid"
-        _set_table_geometry_mm(meta, (32, 59, 32, 59))
+        _set_table_geometry_mm(meta, (32, 59, 32, 59), set_grid=True)
         for row in meta.rows:
             _prevent_row_split(row)
 
@@ -1551,12 +1563,13 @@ def _build_sketch_docx(context: dict) -> bytes:
                     cell,
                     diagram["png"],
                     max_width_mm=176,
-                    max_height_mm=75 if diagram.get("kind") == "room" else 27,
+                    max_height_mm=fit.diagram_height(diagram.get("kind")),
                 )
             diagram_table.style = "Table Grid"
             _set_table_geometry_mm(
                 diagram_table,
                 (182,),
+                set_grid=True,
             )
             for row in diagram_table.rows:
                 _prevent_row_split(row)
@@ -1576,7 +1589,7 @@ def _build_sketch_docx(context: dict) -> bytes:
                     table.cell(1, index), text or "Без комплектующих", size=9.5
                 )
             _style_table(table)
-            _set_table_geometry_mm(table, (91, 91))
+            _set_table_geometry_mm(table, (91, 91), set_grid=True)
 
         profiles = (
             sketch_section.get("common_profiles", sketch_section.get("profiles")) or []
@@ -1618,7 +1631,7 @@ def _build_sketch_docx(context: dict) -> bytes:
                         ),
                     )
             _style_table(profiles_table)
-            _set_table_geometry_mm(profiles_table, (28, 82, 38, 34))
+            _set_table_geometry_mm(profiles_table, (28, 82, 38, 34), set_grid=True)
             for row in profiles_table.rows:
                 _prevent_row_split(row)
 
@@ -1663,9 +1676,43 @@ def _build_sketch_docx(context: dict) -> bytes:
                     ),
                 )
         _style_table(panels_table)
-        _set_table_geometry_mm(panels_table, (12, 32, 70, 25, 25, 18))
+        _set_table_geometry_mm(panels_table, (12, 32, 70, 25, 25, 18), set_grid=True)
         for row in panels_table.rows:
             _prevent_row_split(row)
+
+        # Apply the measured product layout only to this product's editable text.
+        paragraphs = []
+        for node in list(document.element.body)[section_start:-1]:
+            for cell_node in node.iter(qn("w:tc")):
+                _set_cell_margins(
+                    _Cell(cell_node, document),
+                    top=round(51 * fit.spacing),
+                    bottom=round(51 * fit.spacing),
+                    start=round(80 * fit.scale),
+                    end=round(80 * fit.scale),
+                )
+            for paragraph_node in node.iter(qn("w:p")):
+                paragraph = Paragraph(paragraph_node, document)
+                paragraphs.append(paragraph)
+                fmt = paragraph.paragraph_format
+                fmt.line_spacing = fit.line_height
+                fmt.keep_with_next = True
+                fmt.keep_together = True
+                for attr in ("space_before", "space_after"):
+                    value = getattr(fmt, attr)
+                    if value is not None:
+                        setattr(fmt, attr, Pt(value.pt * fit.spacing))
+                for run in paragraph.runs:
+                    run.font.size = Pt(
+                        (run.font.size.pt if run.font.size else 9.5) * fit.scale
+                    )
+        if paragraphs:
+            paragraphs[-1].paragraph_format.keep_with_next = False
+        # Word keeps a table row with the next row if ANY cell requests it.
+        # End the chain in every cell before the next product's page break.
+        for cell in panels_table.rows[-1].cells:
+            for paragraph in cell.paragraphs:
+                paragraph.paragraph_format.keep_with_next = False
 
     project_components = context.get("project_components") or []
     if project_components:

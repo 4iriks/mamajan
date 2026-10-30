@@ -3,6 +3,7 @@
 from copy import deepcopy
 from io import BytesIO
 import json
+import re
 from types import SimpleNamespace
 
 from openpyxl import load_workbook
@@ -63,7 +64,7 @@ def test_clamp_group_preserves_summed_sizes_and_saved_places(quantities):
     assert any(
         r.min_row == heading.row
         and r.max_row == heading.row + 3
-        and r.min_col == 1
+        and r.min_col == 2
         and r.max_col == 3
         for r in sheet.merged_cells.ranges
     )
@@ -123,3 +124,36 @@ def test_unsized_components_keep_quantity_units_notes_and_places():
     before = deepcopy(row)
     assert _delivery_hardware_groups([row]) == ([row], [])
     assert row == before
+
+
+def test_all_delivery_components_share_one_table_and_sequential_numbers():
+    project = SimpleNamespace(
+        number="QA",
+        production_stages=2,
+        current_stage=1,
+        extra_components=json.dumps([dict(name="Угол", size="1500", qty=2, unit="шт")]),
+    )
+    sections = [cs_section()]
+    context = _build_delivery_context(project, sections)
+    groups = context["delivery_component_groups"]
+    first = len(context["delivery_item1_rows"]) + 1
+    assert [g["number"] for g in groups] == list(range(first, first + len(groups)))
+    assert context["delivery_names_count"] == first - 1 + len(groups)
+    html = render_project_document_html(project, sections, "delivery")
+    assert html.count('<table class="main-table component-table">') == 1
+    table = html.split('<table class="main-table component-table">')[1].split(
+        "</table>"
+    )[0]
+    assert table.count("<thead>") == 1
+    assert [
+        int(n)
+        for n in re.findall(r'class="item-number" rowspan="\d+">(\d+)</td>', table)
+    ] == [g["number"] for g in groups]
+    for group in groups:
+        for row in group["rows"]:
+            assert table.count(f'data-delivery-place-key="{row["place_key"]}"') == 1
+    sheet = load_workbook(BytesIO(_build_delivery_xlsx(context))).active
+    for group in groups:
+        name = group["rows"][0]["name"]
+        cell = next(c for row in sheet for c in row if name in str(c.value))
+        assert sheet.cell(cell.row, 1).value == group["number"]

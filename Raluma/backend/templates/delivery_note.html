@@ -59,11 +59,11 @@
       font-weight: 700;
     }
     .main-table { table-layout: fixed; }
-    .extra-table { margin-top: 2mm; break-inside: avoid; page-break-inside: avoid; }
-    .extra-table:last-of-type { break-after: avoid; page-break-after: avoid; }
+    .component-table { margin-top: 2mm; }
+    .component-group { break-inside: avoid; page-break-inside: avoid; }
     .delivery-footer { break-inside: avoid; page-break-inside: avoid; }
     .extra-product { vertical-align: middle; }
-    .extra-size { width: 32mm; text-align: center; vertical-align: middle; }
+    .extra-size, .component-no-size { width: 32mm; text-align: center; vertical-align: middle; }
     .main-table > thead { display: table-header-group; }
     .main-table > tbody > tr { break-inside: avoid; page-break-inside: avoid; }
     .item-number { width: 10mm; text-align: center; vertical-align: middle; font-weight: 700; }
@@ -138,6 +138,7 @@
 
 
 
+    {% if delivery_item1_rows %}
     <table class="main-table">
       <thead>
         <tr>
@@ -151,7 +152,7 @@
         {% if delivery_item1_rows %}
           {% for row in delivery_item1_rows %}
           <tr class="group-row">
-            {% if loop.first %}<td class="item-number" rowspan="{{ delivery_item1_rows|length }}">1</td>{% endif %}
+            <td class="item-number">{{ loop.index }}</td>
             <td>
               <div class="row-title">{{ row.name|e }}</div>
               {% if row.kind == 'construction' %}
@@ -220,31 +221,12 @@
           </tr>
         {% endif %}
 
-        {% for row in delivery_item2_plain_rows %}
-        <tr class="group-row">
-          {% if loop.first %}<td class="item-number" rowspan="{{ delivery_item2_plain_rows|length }}">2</td>{% endif %}
-          <td>
-            <div class="row-title">
-              {% if row.article %}<span class="nowrap">{{ row.article|e }}</span> — {% endif %}{{ row.name|e }}
-            </div>
-            {% if row.color %}<div class="row-meta">Цвет: {{ row.color|e }}</div>{% endif %}
-            {% if row.size %}<div class="row-meta">Размер: {{ row.size|e }}</div>{% endif %}
-            {% if row.note %}<div class="row-note">{{ row.note|e }}</div>{% endif %}
-          </td>
-          <td class="quantity">{{ row.qty_display or row.qty_text }}</td>
-          <td class="places" {% if not is_pdf %}contenteditable="true" data-delivery-place-key="{{ row.place_key }}" data-original="{{ row.places|e }}"{% endif %}>{{ row.places|e }}</td>
-        </tr>
-        {% endfor %}
-
       </tbody>
     </table>
+    {% endif %}
 
-    {% for item_number, groups in [(2, delivery_hardware_groups), (3, delivery_extra_groups)] %}
-    {% for group in groups %}
-    {% set head = group[0] %}
-    {# Keep each merged product cell on one page; repeat it for long groups. #}
-    {% for chunk in group|batch(24) %}
-    <table class="main-table extra-table">
+    {% if delivery_component_groups %}
+    <table class="main-table component-table">
       <thead>
         <tr>
           <th class="item-number">№</th>
@@ -254,27 +236,31 @@
           <th class="places">Кол-во мест</th>
         </tr>
       </thead>
-      <tbody>
+      {% for group in delivery_component_groups %}
+      {% set head = group.rows[0] %}
+      {# A long group repeats its own name/number; the table header repeats per page. #}
+      {% for chunk in group.rows|batch(24) %}
+      <tbody class="component-group">
         {% for row in chunk %}
         <tr class="group-row">
           {% if loop.first %}
-          <td class="item-number" rowspan="{{ chunk|length }}">{{ item_number }}</td>
+          <td class="item-number" rowspan="{{ chunk|length }}">{{ group.number }}</td>
           <td class="extra-product" rowspan="{{ chunk|length }}">
             <div class="row-title">{% if head.article %}{{ head.article|e }} — {% endif %}{{ head.name|e }}</div>
             {% if head.color %}<div class="row-meta">Цвет: {{ head.color|e }}</div>{% endif %}
             {% if head.note %}<div class="row-note">{{ head.note|e }}</div>{% endif %}
           </td>
           {% endif %}
-          <td class="extra-size">{{ row.size_display|e or 'Без размера' }}</td>
+          <td class="{{ 'extra-size' if row.size else 'component-no-size' }}">{{ row.size_display|e or '—' }}</td>
           <td class="quantity">{{ row.pdf_qty_display }}</td>
           <td class="places" {% if not is_pdf %}contenteditable="true" data-delivery-place-key="{{ row.place_key }}" data-original="{{ row.places|e }}"{% endif %}>{{ row.places|e }}</td>
         </tr>
         {% endfor %}
       </tbody>
+      {% endfor %}
+      {% endfor %}
     </table>
-    {% endfor %}
-    {% endfor %}
-    {% endfor %}
+    {% endif %}
 
     <div class="delivery-footer">
     <div class="names-total">Всего наименований: {{ delivery_names_count }}.</div>

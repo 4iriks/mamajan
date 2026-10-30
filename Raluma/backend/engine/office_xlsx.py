@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+from math import ceil
 import re
 from typing import Any, Iterable
 
@@ -2055,12 +2056,13 @@ def _build_delivery_xlsx(context: dict) -> bytes:
         "Кол-во мест",
     )
     header_row = row
-    for column, header in enumerate(headers):
-        worksheet.write(row, column, header, formats["header"])
-    worksheet.set_row(row, 30)
-    worksheet.repeat_rows(0, row)
-    worksheet.freeze_panes(row + 1, 0)
-    row += 1
+    worksheet.repeat_rows(0, row - 1)
+    if context.get("delivery_item1_rows"):
+        for column, header in enumerate(headers):
+            worksheet.write(row, column, header, formats["header"])
+        worksheet.set_row(row, 30)
+        row += 1
+    worksheet.freeze_panes(row, 0)
     data_start_row = row
     item_number = 1
     page_height = 0.0
@@ -2081,6 +2083,7 @@ def _build_delivery_xlsx(context: dict) -> bytes:
         details_text: str,
         qty: object,
         places: object,
+        show_number: bool = True,
     ) -> None:
         nonlocal row, item_number, page_height
         try:
@@ -2095,8 +2098,16 @@ def _build_delivery_xlsx(context: dict) -> bytes:
             else details_text
         )
         height = max(24, 16 * (text.count("\n") + 1))
-        ensure_space(height)
-        worksheet.write_number(row, 0, item_number, formats["center"])
+        if ensure_space(height):
+            for column, header in enumerate(headers):
+                worksheet.write(row, column, header, formats["header"])
+            worksheet.set_row(row, 30)
+            row += 1
+            page_height += 30
+        if show_number:
+            worksheet.write_number(row, 0, item_number, formats["center"])
+        else:
+            worksheet.write_blank(row, 0, None, formats["center"])
         worksheet.write(row, 1, section_name, formats["center"])
         worksheet.write(row, 2, article, formats["center_bold"])
         worksheet.write(row, 3, text, detail_bold if name else detail)
@@ -2107,10 +2118,9 @@ def _build_delivery_xlsx(context: dict) -> bytes:
         worksheet.write(row, 5, str(places or ""), formats["center"])
         worksheet.set_row(row, height)
         page_height += height
-        item_number += 1
         row += 1
 
-    for item in context.get("delivery_item1_rows") or []:
+    for item_number, item in enumerate(context.get("delivery_item1_rows") or [], 1):
         if item.get("kind") == "construction":
             dimensions = []
             for dimension in item.get("dimensions") or []:
@@ -2160,43 +2170,36 @@ def _build_delivery_xlsx(context: dict) -> bytes:
                 details_text,
                 glass.get("qty"),
                 item.get("places") if glass_index == 0 else "",
+                show_number=glass_index == 0,
             )
 
-    for item in context.get("delivery_item2_plain_rows") or []:
-        details_text = "\n".join(
-            filter(
-                None,
-                (
-                    f"Цвет: {item.get('color')}" if item.get("color") else "",
-                    f"Размер: {item.get('size')}" if item.get("size") else "",
-                    f"Единица: {item.get('unit')}"
-                    if item.get("unit") and item.get("unit") not in {"шт", "шт."}
-                    else "",
-                    str(item.get("note") or ""),
-                ),
-            )
-        )
-        write_item(
-            "Фурнитура",
-            str(item.get("article") or ""),
-            str(item.get("name") or ""),
-            details_text,
-            item.get("qty"),
-            item.get("places"),
-        )
+    component_header_written = False
 
-    def write_extra_chunk(heading, chunk):
-        nonlocal row, page_height
+    def write_extra_chunk(number, heading, chunk):
+        nonlocal row, page_height, component_header_written
         heights = [max(24, 16 * (text.count("\n") + 1)) for _, text in chunk]
         # A one-size group must still fit both the product name and its colour.
-        heights[0] += max(0, 16 * (heading.count("\n") + 1) + 8 - sum(heights))
-        ensure_space(24 + sum(heights))
-        worksheet.merge_range(row, 0, row, 2, "Наименование", formats["header"])
-        for column, label in ((3, "Размер"), (4, "Количество"), (5, "Кол-во мест")):
-            worksheet.write(row, column, label, formats["header"])
-        worksheet.set_row(row, 24)
-        row += 1
-        worksheet.merge_range(row, 0, row + len(chunk) - 1, 2, heading, detail_bold)
+        heading_lines = sum(
+            max(1, ceil(len(line) / 34)) for line in heading.split("\n")
+        )
+        heights[0] += max(0, 16 * heading_lines + 8 - sum(heights))
+        new_page = ensure_space(sum(heights) + (0 if component_header_written else 24))
+        if new_page or not component_header_written:
+            worksheet.write(row, 0, "№", formats["header"])
+            worksheet.merge_range(row, 1, row, 2, "Наименование", formats["header"])
+            for column, label in ((3, "Размер"), (4, "Количество"), (5, "Кол-во мест")):
+                worksheet.write(row, column, label, formats["header"])
+            worksheet.set_row(row, 24)
+            row += 1
+            page_height += 24
+            component_header_written = True
+        if len(chunk) == 1:
+            worksheet.write_number(row, 0, number, formats["center"])
+        else:
+            worksheet.merge_range(
+                row, 0, row + len(chunk) - 1, 0, number, formats["center"]
+            )
+        worksheet.merge_range(row, 1, row + len(chunk) - 1, 2, heading, detail_bold)
         for (item, text), height in zip(chunk, heights):
             numeric_qty = float(item.get("qty") or 0)
             worksheet.write(row, 3, text, detail)
@@ -2209,14 +2212,13 @@ def _build_delivery_xlsx(context: dict) -> bytes:
             worksheet.write(row, 5, str(item.get("places") or ""), formats["center"])
             worksheet.set_row(row, height)
             row += 1
-        page_height += 24 + sum(heights)
+        page_height += sum(heights)
 
     # Product/colour are merged on the left; individual sizes are on the right.
     # Split long groups before a page break so each page has its own product cell.
-    for group in [
-        *(context.get("delivery_hardware_groups") or []),
-        *(context.get("delivery_extra_groups") or []),
-    ]:
+    for component_group in context.get("delivery_component_groups") or []:
+        group = component_group["rows"]
+        number = component_group["number"]
         head = group[0]
         heading = str(head.get("name") or "")
         if head.get("article"):
@@ -2231,19 +2233,19 @@ def _build_delivery_xlsx(context: dict) -> bytes:
             details_text = (
                 str(item.get("size_display") or item.get("size"))
                 if item.get("size")
-                else "Без размера"
+                else "—"
             )
             unit = item.get("display_unit", item.get("unit"))
             if unit not in {None, "", "шт", "шт."}:
                 details_text += f"\nЕдиница: {unit}"
             height = max(24, 16 * (details_text.count("\n") + 1))
             if chunk and chunk_height + height > 600:
-                write_extra_chunk(heading, chunk)
+                write_extra_chunk(number, heading, chunk)
                 chunk, chunk_height = [], 0
             chunk.append((item, details_text))
             chunk_height += height
         if chunk:
-            write_extra_chunk(heading, chunk)
+            write_extra_chunk(number, heading, chunk)
 
     # Fixed scale lets Excel honour explicit breaks and repeat group headings.
     worksheet.set_print_scale(70)
@@ -2257,6 +2259,15 @@ def _build_delivery_xlsx(context: dict) -> bytes:
 
     # Quantities have different units (шт., м, компл.); a shared numeric total
     # would be misleading, so the document intentionally has no total row.
+    row += 1
+    worksheet.merge_range(
+        row,
+        0,
+        row,
+        5,
+        f"Всего наименований: {context['delivery_names_count']}.",
+        detail_bold,
+    )
     row += 1
 
     worksheet.merge_range(

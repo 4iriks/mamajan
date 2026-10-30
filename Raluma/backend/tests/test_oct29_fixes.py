@@ -287,7 +287,7 @@ def test_delivery_groups_sizes_and_keeps_individual_places():
     assert sum("УГОЛ АЛ, 20х30мм" in str(value) for value in values) == 1
     sheet = workbook.active
     assert any(
-        r.min_col == 1 and r.max_col == 3 and r.max_row - r.min_row == 7
+        r.min_col == 2 and r.max_col == 3 and r.max_row - r.min_row == 7
         for r in sheet.merged_cells.ranges
     )
     sizes = [row for row in sheet.values if str(row[3]).endswith(" мм")]

@@ -78,7 +78,7 @@ def test_cs_pads_ship_with_clamp_once(
     sheet = load_workbook(
         BytesIO(build_project_xlsx(project, [section], "delivery"))
     ).active
-    xlsx_pads = [row for row in sheet.values if row[2] == sku]
+    xlsx_pads = [row for row in sheet.values if str(row[1]).startswith(sku + " — ")]
     assert bool(xlsx_pads) == pads_present
     if pads_present:
         assert xlsx_pads[0][4] == pads[0]["qty"]
@@ -113,7 +113,7 @@ def test_delivery_lengths_have_names_without_images_and_keep_place_keys():
             assert all(row["place_key"] in html for row in rows)
     data = build_project_xlsx(project, [], "delivery")
     sheet = load_workbook(BytesIO(data)).active
-    headings = [row[0] for row in sheet.values if "BOX-40" in str(row[0])]
+    headings = [row[1] for row in sheet.values if "BOX-40" in str(row[1])]
     assert len(headings) == 2
     assert any("9005" in heading for heading in headings)
     assert any("9016" in heading for heading in headings)

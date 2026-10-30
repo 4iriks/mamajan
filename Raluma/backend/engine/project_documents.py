@@ -2031,6 +2031,20 @@ def _build_delivery_context(project: object, sections: Iterable[object]) -> dict
         ),
         *({**row, "kind": "glass", "qty_text": str(row["qty"])} for row in glass_rows),
     ]
+    component_groups = (
+        [
+            [
+                dict(
+                    row,
+                    size_display="",
+                    pdf_qty_display=row.get("qty_display") or row["qty_text"],
+                )
+            ]
+            for row in hardware_plain_rows
+        ]
+        + hardware_groups
+        + extra_groups
+    )
     return {
         "doc_type": "delivery",
         "title": DOC_TITLES["delivery"],
@@ -2051,7 +2065,11 @@ def _build_delivery_context(project: object, sections: Iterable[object]) -> dict
         "delivery_hardware_groups": hardware_groups,
         "delivery_project_extra_rows": project_extra_rows,
         "delivery_extra_groups": extra_groups,
-        "delivery_names_count": 2 + int(bool(project_extra_rows)),
+        "delivery_component_groups": [
+            {"number": index, "rows": group}
+            for index, group in enumerate(component_groups, start=len(item1_rows) + 1)
+        ],
+        "delivery_names_count": len(item1_rows) + len(component_groups),
         "document_warnings": _slide_document_warnings(sorted_sections),
     }
 
@@ -2689,4 +2707,8 @@ def render_project_document_html(
         "hardware_order": "hardware_order.html",
     }.get(doc_type, "project_document.html")
     template = _get_env().get_template(template_name)
+    if doc_type == "sketch":
+        from engine.sketch_layout import fit_sketch_context
+
+        fit_sketch_context(context, template)
     return template.render(**context)
