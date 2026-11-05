@@ -55,7 +55,12 @@ def section_summary_rows(section: object, calc: object) -> list[tuple[str, str]]
     else:
         rows.extend(
             [
-                ("Стекло", str(getattr(calc, "glass_type", "") or "")),
+                (
+                    "Стекло",
+                    "БЕЗ СТЕКЛА"
+                    if getattr(section, "glass_supplied", True) is False
+                    else str(getattr(calc, "glass_type", "") or ""),
+                ),
                 ("Порог", str(getattr(calc, "threshold_text", "") or "")),
                 ("Система", str(getattr(calc, "system_text", "") or "")),
             ]

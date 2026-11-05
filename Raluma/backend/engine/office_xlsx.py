@@ -504,7 +504,7 @@ def _write_section_glass_or_panels(
     overrides: dict[str, Any],
 ) -> int:
     if hasattr(calc, "glass"):
-        row = _write_bar(worksheet, formats, row, "Стекла")
+        row = _write_bar(worksheet, formats, row, "РАЗМЕРЫ СТЕКОЛ (10ММ)")
         spans = ((0, 2), (3, 4), (5, 6), (7, 8), (9, 11))
         headers = ("Позиция", "Ширина, мм", "Высота, мм", "Кол-во, шт", "RS2021, мм")
         row = _write_headers(worksheet, formats, row, headers, spans)

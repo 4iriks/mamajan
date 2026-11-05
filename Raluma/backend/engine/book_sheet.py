@@ -294,7 +294,11 @@ def build_book_sheet_data(section: object, calc: object) -> BookSheetData:
         ("Компенсатор", compensator_labels.get(compensator, compensator)),
         (
             "Стекло",
-            glass_rows[0].glass_type if glass_rows else "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
+            "БЕЗ СТЕКЛА"
+            if not glass_supplied
+            else glass_rows[0].glass_type
+            if glass_rows
+            else "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
         ),
         (
             "Поставка стекла",

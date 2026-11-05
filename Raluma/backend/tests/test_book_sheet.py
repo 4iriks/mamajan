@@ -29,6 +29,8 @@ def test_book_sheet_groups_equal_glass_assemblies_and_profiles_for_quantity():
     section = _section()
     sheet = build_book_sheet_data(section, calculate_book(section))
 
+    assert dict(sheet.summary_rows)["Стекло"] == section.glass_type
+
     assert [
         (row.width_mm, row.height_mm, row.qty, row.positions)
         for row in sheet.glass_rows
@@ -60,6 +62,7 @@ def test_book_sheet_merges_equal_doors_and_keeps_unsupplied_glass_dimensions():
     sheet = build_book_sheet_data(section, calculate_book(section))
 
     assert sheet.glass_supplied is False
+    assert dict(sheet.summary_rows)["Стекло"] == "БЕЗ СТЕКЛА"
     assert [(row.width_mm, row.qty, row.positions) for row in sheet.glass_rows] == [
         (797.0, 2, [1, 4]),
         (687.0, 2, [2, 3]),

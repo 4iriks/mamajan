@@ -337,7 +337,12 @@ def _add_slide_parameters(
     left.text = ""
     labels = (
         ("ЦВЕТ", getattr(calc, "color_text", "") or ""),
-        ("СТЕКЛО", getattr(calc, "glass_type", "") or ""),
+        (
+            "СТЕКЛО",
+            "БЕЗ СТЕКЛА"
+            if getattr(section, "glass_supplied", True) is False
+            else getattr(calc, "glass_type", "") or "",
+        ),
         ("ПОРОГ", getattr(calc, "threshold_text", "") or ""),
         ("СИСТЕМА", getattr(calc, "system_text", "") or ""),
     )
@@ -355,7 +360,9 @@ def _add_slide_parameters(
         value_run.font.size = Pt(6.7)
 
     glass_table = left.add_table(rows=1, cols=4)
-    for index, header in enumerate(("СТЕКЛА", "ширина", "высота", "кол-во")):
+    for index, header in enumerate(
+        ("РАЗМЕРЫ СТЕКОЛ (10ММ)", "ширина", "высота", "кол-во")
+    ):
         _set_cell_text(
             glass_table.cell(0, index),
             header,
@@ -499,7 +506,7 @@ def _add_diagrams(document: Document, section: object, calc: object) -> None:
 def _add_slide_glass(
     document: Document, calc: object, overrides: dict[str, Any]
 ) -> None:
-    _add_bar(document, "Стекла")
+    _add_bar(document, "РАЗМЕРЫ СТЕКОЛ (10ММ)")
     table = document.add_table(rows=1, cols=5)
     headers = ("Позиция", "Ширина, мм", "Высота, мм", "Кол-во, шт", "RS2021, мм")
     for index, header in enumerate(headers):
