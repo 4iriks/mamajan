@@ -265,7 +265,9 @@ def test_catalog_migration_and_system_links(client, admin_headers):
 
 
 @pytest.mark.parametrize("extension", ["preview", "docx", "xlsx"])
-def test_documents_contain_real_bom_and_only_cover_in_paint(client, extension):
+def test_documents_contain_real_bom_and_only_cover_in_paint(
+    client, admin_headers, extension
+):
     s = dict(
         system="ЦС",
         width=1755,
@@ -289,7 +291,7 @@ def test_documents_contain_real_bom_and_only_cover_in_paint(client, extension):
             if doc == "section"
             else {"project": project, "sections": [s]}
         )
-        response = client.post(url, json=data)
+        response = client.post(url, headers=admin_headers, json=data)
         assert response.status_code == 200, response.text
         if extension == "preview":
             body = response.text

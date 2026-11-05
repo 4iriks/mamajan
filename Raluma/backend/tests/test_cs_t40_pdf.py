@@ -11,7 +11,7 @@ from pypdf import PdfReader
 @pytest.mark.parametrize(
     "document", ["section", "sketch", "glass", "paint", "hardware_order"]
 )
-def test_cs_t40_pdf_contains_geometry_and_bom(client, document):
+def test_cs_t40_pdf_contains_geometry_and_bom(client, admin_headers, document):
     section = dict(
         system="ЦС",
         name="Секция 1",
@@ -34,7 +34,7 @@ def test_cs_t40_pdf_contains_geometry_and_bom(client, document):
         if document == "section"
         else {"project": project, "sections": [section]}
     )
-    response = client.post(url, json=payload)
+    response = client.post(url, headers=admin_headers, json=payload)
     assert response.status_code == 200, response.text
     pdf = PdfReader(BytesIO(response.content))
     assert len(pdf.pages) > 0
