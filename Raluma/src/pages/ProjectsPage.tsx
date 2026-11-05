@@ -210,10 +210,10 @@ export default function ProjectsPage() {
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     clearAuth();
-    await loadProjects();
-    toast.info('Вы вышли. Открыт гостевой режим');
+    navigate('/login', { replace: true });
+    toast.info('Вы вышли из аккаунта');
   };
 
   const handleImportLocalProjects = async () => {

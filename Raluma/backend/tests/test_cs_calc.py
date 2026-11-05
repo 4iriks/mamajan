@@ -82,7 +82,7 @@ def test_cs_rejects_self_intersecting_contour():
         )
 
 
-def test_cs_guest_and_authenticated_endpoints_return_same_preliminary_result(
+def test_cs_local_and_authenticated_endpoints_return_same_preliminary_result(
     client,
     admin_headers,
 ):
@@ -106,18 +106,20 @@ def test_cs_guest_and_authenticated_endpoints_return_same_preliminary_result(
         },
     }
 
-    guest = client.post("/api/calculate/local/cs", json=payload)
-    assert guest.status_code == 200, guest.text
+    local = client.post("/api/calculate/local/cs", headers=admin_headers, json=payload)
+    assert local.status_code == 200, local.text
     authenticated = client.post(
         "/api/calculate/cs", headers=admin_headers, json=payload
     )
     assert authenticated.status_code == 200, authenticated.text
-    assert authenticated.json() == guest.json()
-    assert len(guest.json()["panes"]) == 3
-    assert guest.json()["commercial_price_allowed"] is False
+    assert authenticated.json() == local.json()
+    assert len(local.json()["panes"]) == 3
+    assert local.json()["commercial_price_allowed"] is False
 
 
-def test_cs_preliminary_documents_cover_sheet_sketch_glass_and_profiles(client):
+def test_cs_preliminary_documents_cover_sheet_sketch_glass_and_profiles(
+    client, admin_headers
+):
     section = {
         "name": "ЦС 1",
         "system": "ЦС",
@@ -142,6 +144,7 @@ def test_cs_preliminary_documents_cover_sheet_sketch_glass_and_profiles(client):
 
     preview = client.post(
         "/api/projects/local/sections/preview",
+        headers=admin_headers,
         json={"project": project, "section": section},
     )
     assert preview.status_code == 200, preview.text
@@ -155,6 +158,7 @@ def test_cs_preliminary_documents_cover_sheet_sketch_glass_and_profiles(client):
     ):
         response = client.post(
             f"/api/projects/local/sections/{extension}",
+            headers=admin_headers,
             json={"project": project, "section": section},
         )
         assert response.status_code == 200, response.text
@@ -168,6 +172,7 @@ def test_cs_preliminary_documents_cover_sheet_sketch_glass_and_profiles(client):
     ):
         response = client.post(
             f"/api/projects/local/documents/{document}/preview",
+            headers=admin_headers,
             json={"project": project, "sections": [section]},
         )
         assert response.status_code == 200, response.text

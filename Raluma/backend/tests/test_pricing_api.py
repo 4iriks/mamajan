@@ -98,7 +98,7 @@ def _price_payload(cost: str, effective_from: datetime, reason="Тест цен�
 def test_public_catalog_supports_multiple_admins(client, admin_headers):
     second_admin, _ = _create_user(client, admin_headers, role="admin")
     try:
-        response = client.get("/api/catalog/hardware/options")
+        response = client.get("/api/catalog/hardware/options", headers=admin_headers)
         assert response.status_code == 200, response.text
         assert response.json()
     finally:
@@ -1202,6 +1202,7 @@ def test_cost_report_uses_fixed_internal_revision_and_exports_pdf_xlsx(
 
     local = client.post(
         "/api/projects/local/documents/cost_report/pdf",
+        headers=admin_headers,
         json={"project": {}, "sections": []},
     )
     assert local.status_code == 403

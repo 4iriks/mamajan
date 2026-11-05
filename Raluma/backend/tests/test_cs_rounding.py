@@ -157,7 +157,7 @@ def test_cs_glass_group_key_distinguishes_treatment():
 
 
 @pytest.mark.parametrize("radius", [8, 10])
-def test_cs_rounding_documents_and_api(client, radius):
+def test_cs_rounding_documents_and_api(client, admin_headers, radius):
     data = section(radius)
     payload = {
         "name": f"Треугольник R{radius}",
@@ -167,18 +167,24 @@ def test_cs_rounding_documents_and_api(client, radius):
         "quantity": 2,
         "cs_config": data.cs_config,
     }
-    result = client.post("/api/calculate/local/cs", json=payload)
+    result = client.post("/api/calculate/local/cs", headers=admin_headers, json=payload)
     assert result.status_code == 200, result.text
     assert result.json()["panes"][0]["rounded_corner"]["radius_mm"] == radius
     body = {
         "project": {"number": "CS-RADIUS", "customer": "Проверка"},
         "section": payload,
     }
-    html = client.post("/api/projects/local/sections/preview", json=body)
+    html = client.post(
+        "/api/projects/local/sections/preview", headers=admin_headers, json=body
+    )
     assert html.status_code == 200, html.text
     assert f"Скругление R{radius}; расчётные размеры до скругления" in html.text
     for extension in ("docx", "xlsx"):
-        response = client.post(f"/api/projects/local/sections/{extension}", json=body)
+        response = client.post(
+            f"/api/projects/local/sections/{extension}",
+            headers=admin_headers,
+            json=body,
+        )
         assert response.status_code == 200, response.text
         with ZipFile(BytesIO(response.content)) as archive:
             xml = "".join(

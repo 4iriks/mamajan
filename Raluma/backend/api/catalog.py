@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, object_session
 
-from auth import require_admin
+from auth import get_current_user, require_admin
 from database import get_db
 from engine.pdf import get_profile_asset_path
 from engine.profile_catalog import PROFILE_CATALOG
@@ -647,7 +647,7 @@ def list_hardware_catalog(
     return [_item_to_dict(item) for item in items]
 
 
-@router.get("/hardware/options")
+@router.get("/hardware/options", dependencies=[Depends(get_current_user)])
 def list_hardware_options(db: Session = Depends(get_db)):
     _ensure_catalog_seed(db)
     items = (
@@ -737,7 +737,7 @@ def _validate_cs_profile_links(db: Session, data: schemas.CsSystemBase) -> None:
         )
 
 
-@router.get("/cs-systems")
+@router.get("/cs-systems", dependencies=[Depends(get_current_user)])
 def list_cs_systems(db: Session = Depends(get_db)):
     rows = (
         db.query(models.CsSystem)

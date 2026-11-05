@@ -141,13 +141,6 @@ export default function LoginPage() {
               </AnimatePresence>
             </button>
           </form>
-          <button
-            type="button"
-            onClick={() => navigate('/', { replace: true })}
-            className="w-full mt-5 text-xs font-bold uppercase tracking-wider text-fg/30 hover:text-accent transition-colors"
-          >
-            Продолжить без входа
-          </button>
         </div>
       </motion.div>
       <button onClick={toggleTheme}

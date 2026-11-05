@@ -51,8 +51,8 @@ def test_hardware_catalog_requires_admin(client):
     assert r.status_code in (401, 403)
 
 
-def test_hardware_catalog_options_are_public(client):
-    r = client.get("/api/catalog/hardware/options")
+def test_hardware_catalog_options_require_account(client, admin_headers):
+    r = client.get("/api/catalog/hardware/options", headers=admin_headers)
 
     assert r.status_code == 200
     data = r.json()
@@ -72,7 +72,7 @@ def test_hardware_catalog_options_are_public(client):
 def test_no_color_catalog_item_auto_selects_hidden_execution_snapshot(
     client, admin_headers
 ):
-    options = client.get("/api/catalog/hardware/options").json()
+    options = client.get("/api/catalog/hardware/options", headers=admin_headers).json()
     item = next(
         row for row in options if not row["finishVariants"] and not row["requiresPaint"]
     )
@@ -127,7 +127,7 @@ def test_hardware_catalog_options_use_natural_sku_order(client, admin_headers):
         assert response.status_code == 201, response.text
         created_ids.append(response.json()["id"])
 
-    options = client.get("/api/catalog/hardware/options").json()
+    options = client.get("/api/catalog/hardware/options", headers=admin_headers).json()
     ordered = [row["sku"] for row in options if "-NATURAL" in row["sku"]]
     assert ordered == ["ZZ-NATURAL", "ZZ2-NATURAL", "ZZ10-NATURAL"]
 
@@ -355,7 +355,7 @@ def test_finish_variants_have_public_prices_and_project_snapshots(
         assert variants["RAL стандарт"]["cost"] == "175.50"
         assert variants["RAL стандарт"]["requiresPaint"] is True
 
-        options = client.get("/api/catalog/hardware/options")
+        options = client.get("/api/catalog/hardware/options", headers=admin_headers)
         assert options.status_code == 200
         public = next(row for row in options.json() if row["id"] == item["id"])
         assert public["paintMode"] == "Красится"
@@ -653,7 +653,7 @@ def test_cs_system_admin_crud_and_profile_validation(client, admin_headers):
         assert created_data["outer_profile"]["id"] == profiles[0]["id"]
         assert created_data["joint_profile"]["id"] == profiles[1]["id"]
 
-        listed = client.get("/api/catalog/cs-systems")
+        listed = client.get("/api/catalog/cs-systems", headers=admin_headers)
         assert listed.status_code == 200, listed.text
         assert any(row["id"] == created_id for row in listed.json())
 

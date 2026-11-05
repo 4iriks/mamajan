@@ -23,9 +23,9 @@ function EditorPage() {
   return <ProjectEditor projectId={Number(id)} onBack={() => navigate('/')} />;
 }
 
-// ── Admin Route ───────────────────────────────────────────────────────────────
+// ── Authenticated Route ───────────────────────────────────────────────────────
 
-function AdminRoute({ children }: { children: React.ReactNode }) {
+function AuthenticatedRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore();
   if (!token) return <Navigate to="/login" replace />;
   return <>{children}</>;
@@ -47,11 +47,11 @@ export default function App() {
       <ToastContainer />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/" element={<ProjectsPage />} />
-        <Route path="/projects/:id" element={<EditorPage />} />
-        <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
-        <Route path="/admin/catalog/hardware" element={<AdminRoute><HardwareCatalogPage /></AdminRoute>} />
-        <Route path="/admin/pricing" element={<AdminRoute><ConstructionPricingPage /></AdminRoute>} />
+        <Route path="/" element={<AuthenticatedRoute><ProjectsPage /></AuthenticatedRoute>} />
+        <Route path="/projects/:id" element={<AuthenticatedRoute><EditorPage /></AuthenticatedRoute>} />
+        <Route path="/admin" element={<AuthenticatedRoute><AdminPage /></AuthenticatedRoute>} />
+        <Route path="/admin/catalog/hardware" element={<AuthenticatedRoute><HardwareCatalogPage /></AuthenticatedRoute>} />
+        <Route path="/admin/pricing" element={<AuthenticatedRoute><ConstructionPricingPage /></AuthenticatedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

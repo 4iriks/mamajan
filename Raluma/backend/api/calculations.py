@@ -36,9 +36,9 @@ def calculate_book_section(
     return _book_payload(data)
 
 
-@router.post("/local/book")
+@router.post("/local/book", dependencies=[Depends(get_current_user)])
 def calculate_local_book_section(data: schemas.SectionCreate):
-    """Гостевой расчёт КНИЖКИ без авторизации."""
+    """Расчёт несохранённой КНИЖКИ для авторизованного пользователя."""
     return _book_payload(data)
 
 
@@ -98,7 +98,7 @@ def calculate_cs_section(
     return _cs_payload(data, db)
 
 
-@router.post("/local/cs")
+@router.post("/local/cs", dependencies=[Depends(get_current_user)])
 def calculate_local_cs_section(
     data: schemas.SectionCreate,
     db: Session = Depends(get_db),

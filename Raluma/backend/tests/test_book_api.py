@@ -33,14 +33,16 @@ def book_payload(**overrides):
     return payload
 
 
-def test_book_calculation_has_authenticated_and_guest_endpoints(
+def test_book_calculation_has_authenticated_and_local_endpoints(
     client,
     admin_headers,
 ):
-    guest = client.post("/api/calculate/local/book", json=book_payload())
-    assert guest.status_code == 200
-    assert guest.json()["panels"][0]["glass_width_mm"] == 742.0
-    assert guest.json()["normalized_config"]["door_layout"] == "both"
+    local = client.post(
+        "/api/calculate/local/book", headers=admin_headers, json=book_payload()
+    )
+    assert local.status_code == 200
+    assert local.json()["panels"][0]["glass_width_mm"] == 742.0
+    assert local.json()["normalized_config"]["door_layout"] == "both"
 
     assert client.post("/api/calculate/book", json=book_payload()).status_code == 403
     authenticated = client.post(
@@ -49,12 +51,13 @@ def test_book_calculation_has_authenticated_and_guest_endpoints(
         json=book_payload(),
     )
     assert authenticated.status_code == 200
-    assert authenticated.json() == guest.json()
+    assert authenticated.json() == local.json()
 
 
-def test_existing_guest_calc_dispatches_to_book(client):
+def test_existing_local_calc_dispatches_to_book(client, admin_headers):
     response = client.post(
         "/api/projects/local/sections/calc",
+        headers=admin_headers,
         json={
             "project": {"number": "Гость", "customer": ""},
             "section": book_payload(),
@@ -66,9 +69,10 @@ def test_existing_guest_calc_dispatches_to_book(client):
     assert response.json()["source_priority"][0] == "tz"
 
 
-def test_book_api_returns_clear_calculation_error(client):
+def test_book_api_returns_clear_calculation_error(client, admin_headers):
     response = client.post(
         "/api/calculate/local/book",
+        headers=admin_headers,
         json=book_payload(width=20),
     )
 
@@ -180,13 +184,16 @@ def test_book_fields_save_copy_and_legacy_mapping(
 
 def test_book_production_sheet_is_available_and_preliminary_configs_are_blocked(
     client,
+    admin_headers,
     monkeypatch,
 ):
     confirmed = {
         "project": {"number": "Гость", "customer": ""},
         "section": book_payload(door_side="right", doors=1),
     }
-    preview = client.post("/api/projects/local/sections/preview", json=confirmed)
+    preview = client.post(
+        "/api/projects/local/sections/preview", headers=admin_headers, json=confirmed
+    )
     assert preview.status_code == 200
     assert "ПРОИЗВОДСТВЕННЫЙ ЛИСТ" in preview.text.upper()
     assert "ПРЕДВАРИТЕЛЬНЫЙ" not in preview.text
@@ -196,8 +203,12 @@ def test_book_production_sheet_is_available_and_preliminary_configs_are_blocked(
     assert "RBP003" in preview.text
     assert "отверстие 93" not in preview.text
 
-    docx = client.post("/api/projects/local/sections/docx", json=confirmed)
-    xlsx = client.post("/api/projects/local/sections/xlsx", json=confirmed)
+    docx = client.post(
+        "/api/projects/local/sections/docx", headers=admin_headers, json=confirmed
+    )
+    xlsx = client.post(
+        "/api/projects/local/sections/xlsx", headers=admin_headers, json=confirmed
+    )
     assert docx.status_code == 200
     assert xlsx.status_code == 200
     assert docx.content.startswith(b"PK")
@@ -246,7 +257,9 @@ def test_book_production_sheet_is_available_and_preliminary_configs_are_blocked(
         )
 
     monkeypatch.setattr("api.documents.generate_pdf", lambda html: b"%PDF-1.4\n%%EOF")
-    pdf = client.post("/api/projects/local/sections/pdf", json=confirmed)
+    pdf = client.post(
+        "/api/projects/local/sections/pdf", headers=admin_headers, json=confirmed
+    )
     assert pdf.status_code == 200
     assert pdf.content.startswith(b"%PDF")
 
@@ -254,12 +267,15 @@ def test_book_production_sheet_is_available_and_preliminary_configs_are_blocked(
         "project": {"number": "Гость", "customer": ""},
         "section": book_payload(angle_left=90),
     }
-    blocked = client.post("/api/projects/local/sections/pdf", json=preliminary)
+    blocked = client.post(
+        "/api/projects/local/sections/pdf", headers=admin_headers, json=preliminary
+    )
     assert blocked.status_code == 409
     assert "заблокированы" in blocked.json()["detail"]
 
     project_doc = client.post(
         "/api/projects/local/documents/glass/preview",
+        headers=admin_headers,
         json={
             "project": {"number": "Гость", "customer": ""},
             "sections": [book_payload()],
@@ -269,6 +285,7 @@ def test_book_production_sheet_is_available_and_preliminary_configs_are_blocked(
 
     preliminary_project_doc = client.post(
         "/api/projects/local/documents/glass/preview",
+        headers=admin_headers,
         json={
             "project": {"number": "Гость", "customer": ""},
             "sections": [book_payload(angle_left=90)],
@@ -278,6 +295,7 @@ def test_book_production_sheet_is_available_and_preliminary_configs_are_blocked(
 
     confirmed_delivery = client.post(
         "/api/projects/local/documents/delivery/preview",
+        headers=admin_headers,
         json={
             "project": {"number": "Гость", "customer": ""},
             "sections": [book_payload()],
@@ -287,6 +305,7 @@ def test_book_production_sheet_is_available_and_preliminary_configs_are_blocked(
 
     preliminary_delivery = client.post(
         "/api/projects/local/documents/delivery/preview",
+        headers=admin_headers,
         json={
             "project": {"number": "Гость", "customer": ""},
             "sections": [book_payload(angle_left=90)],
@@ -297,6 +316,7 @@ def test_book_production_sheet_is_available_and_preliminary_configs_are_blocked(
 
 def test_book_does_not_block_supported_parts_of_mixed_project_documents(
     client,
+    admin_headers,
     monkeypatch,
 ):
     monkeypatch.setattr("api.documents.generate_pdf", lambda html: b"%PDF-1.4\n%%EOF")
@@ -328,6 +348,7 @@ def test_book_does_not_block_supported_parts_of_mixed_project_documents(
         responses = {
             extension: client.post(
                 f"/api/projects/local/documents/{doc_type}/{extension}",
+                headers=admin_headers,
                 json=payload,
             )
             for extension in ("preview", "pdf", "docx", "xlsx")
@@ -349,10 +370,11 @@ def test_book_does_not_block_supported_parts_of_mixed_project_documents(
         assert expected_token in preview.text
 
 
-def test_book_hardware_order_contains_calculated_and_manual_rows(client):
+def test_book_hardware_order_contains_calculated_and_manual_rows(client, admin_headers):
     book = book_payload()
     response = client.post(
         "/api/projects/local/documents/hardware_order/preview",
+        headers=admin_headers,
         json={
             "project": {
                 "number": "BOOK-HARDWARE",

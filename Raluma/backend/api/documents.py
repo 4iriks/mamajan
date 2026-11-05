@@ -493,7 +493,11 @@ def _cost_context(db, project, revision=None):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@router.post("/local/sections/preview", response_class=HTMLResponse)
+@router.post(
+    "/local/sections/preview",
+    response_class=HTMLResponse,
+    dependencies=[Depends(get_current_user)],
+)
 def preview_local_section(payload: LocalDocumentPayload):
     project, section = _build_local_document_objects(payload)
     _ensure_book_section_documents_supported(section)
@@ -506,13 +510,17 @@ def preview_local_section(payload: LocalDocumentPayload):
     return HTMLResponse(html)
 
 
-@router.post("/local/sections/calc")
+@router.post("/local/sections/calc", dependencies=[Depends(get_current_user)])
 def calculate_local_section(payload: LocalDocumentPayload):
     _, section = _build_local_document_objects(payload)
     return asdict(_calculate_section(section))
 
 
-@router.post("/local/documents/{doc_type}/preview", response_class=HTMLResponse)
+@router.post(
+    "/local/documents/{doc_type}/preview",
+    response_class=HTMLResponse,
+    dependencies=[Depends(get_current_user)],
+)
 def preview_local_project_document(doc_type: str, payload: LocalProjectDocumentPayload):
     doc_type = _validate_project_doc_type(doc_type)
     _ensure_local_document_access(doc_type)
@@ -527,7 +535,7 @@ def preview_local_project_document(doc_type: str, payload: LocalProjectDocumentP
     return HTMLResponse(html)
 
 
-@router.post("/local/sections/pdf")
+@router.post("/local/sections/pdf", dependencies=[Depends(get_current_user)])
 def download_local_pdf(payload: LocalDocumentPayload):
     project, section = _build_local_document_objects(payload)
     _ensure_book_section_documents_supported(section)
@@ -563,17 +571,19 @@ def _download_local_section_office(
     return _office_response(content, filename, file_format)
 
 
-@router.post("/local/sections/docx")
+@router.post("/local/sections/docx", dependencies=[Depends(get_current_user)])
 def download_local_section_docx(payload: LocalDocumentPayload):
     return _download_local_section_office(payload, "docx")
 
 
-@router.post("/local/sections/xlsx")
+@router.post("/local/sections/xlsx", dependencies=[Depends(get_current_user)])
 def download_local_section_xlsx(payload: LocalDocumentPayload):
     return _download_local_section_office(payload, "xlsx")
 
 
-@router.post("/local/documents/{doc_type}/pdf")
+@router.post(
+    "/local/documents/{doc_type}/pdf", dependencies=[Depends(get_current_user)]
+)
 def download_local_project_document_pdf(
     doc_type: str,
     payload: LocalProjectDocumentPayload,
@@ -626,7 +636,9 @@ def _download_local_project_office(
     return _office_response(content, filename, file_format)
 
 
-@router.post("/local/documents/{doc_type}/docx")
+@router.post(
+    "/local/documents/{doc_type}/docx", dependencies=[Depends(get_current_user)]
+)
 def download_local_project_document_docx(
     doc_type: str,
     payload: LocalProjectDocumentPayload,
@@ -634,7 +646,9 @@ def download_local_project_document_docx(
     return _download_local_project_office(doc_type, payload, "docx")
 
 
-@router.post("/local/documents/{doc_type}/xlsx")
+@router.post(
+    "/local/documents/{doc_type}/xlsx", dependencies=[Depends(get_current_user)]
+)
 def download_local_project_document_xlsx(
     doc_type: str,
     payload: LocalProjectDocumentPayload,

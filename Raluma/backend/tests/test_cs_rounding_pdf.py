@@ -9,7 +9,7 @@ from pypdf import PdfReader
 
 
 @pytest.mark.parametrize("radius,mirror", [(10, False), (8, True)])
-def test_cs_rounded_sheet_exports(client, radius, mirror):
+def test_cs_rounded_sheet_exports(client, admin_headers, radius, mirror):
     vertices = [{"x": 0, "y": 0}, {"x": 2390, "y": 0}, {"x": 2390, "y": 745}]
     if mirror:
         vertices = [{**p, "x": 2390 - p["x"]} for p in vertices]
@@ -31,7 +31,9 @@ def test_cs_rounded_sheet_exports(client, radius, mirror):
         "project": {"number": "CS-RADIUS", "customer": "Контрольный пример"},
         "section": section,
     }
-    pdf = client.post("/api/projects/local/sections/pdf", json=body)
+    pdf = client.post(
+        "/api/projects/local/sections/pdf", headers=admin_headers, json=body
+    )
     assert pdf.status_code == 200, pdf.text
     text = "\n".join(
         page.extract_text() for page in PdfReader(BytesIO(pdf.content)).pages
@@ -42,7 +44,9 @@ def test_cs_rounded_sheet_exports(client, radius, mirror):
         directory = Path(os.environ["CS_ROUNDING_QA_DIR"]).resolve()
         directory.mkdir(parents=True, exist_ok=True)
         (directory / f"cs-r{radius}.pdf").write_bytes(pdf.content)
-        docx = client.post("/api/projects/local/sections/docx", json=body)
+        docx = client.post(
+            "/api/projects/local/sections/docx", headers=admin_headers, json=body
+        )
         assert docx.status_code == 200, docx.text
         (directory / f"cs-r{radius}.docx").write_bytes(docx.content)
         from engine.cs_calc import calculate_cs, cs_result_namespace

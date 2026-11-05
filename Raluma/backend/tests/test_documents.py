@@ -550,9 +550,10 @@ class TestPreview:
 
 
 class TestLocalPreview:
-    def test_local_preview_returns_html_without_auth(self, client):
+    def test_local_preview_returns_html_with_auth(self, client, admin_headers):
         r = client.post(
             "/api/projects/local/sections/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-001", "customer": "Гость"},
                 "section": {
@@ -573,9 +574,10 @@ class TestLocalPreview:
         assert "LOCAL-001" in r.text
         assert "contenteditable" in r.text
 
-    def test_local_preview_two_rows_renders_central_glass(self, client):
+    def test_local_preview_two_rows_renders_central_glass(self, client, admin_headers):
         r = client.post(
             "/api/projects/local/sections/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-2R", "customer": "Тест"},
                 "section": {
@@ -609,9 +611,12 @@ class TestLocalPreview:
         assert 'data-center-lock-room="center"' in r.text
         assert 'data-center-lock-top="center"' in r.text
 
-    def test_local_preview_places_center_lock_on_physical_panel_boundary(self, client):
+    def test_local_preview_places_center_lock_on_physical_panel_boundary(
+        self, client, admin_headers
+    ):
         r = client.post(
             "/api/projects/local/sections/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-2R-ASYM", "customer": "Тест"},
                 "section": {
@@ -652,9 +657,12 @@ class TestLocalPreview:
         assert boundary == pytest.approx(float(panel_match.group(1)))
         assert float(lock_match.group(1)) == pytest.approx(boundary - 3)
 
-    def test_local_preview_two_rows_matches_movement_and_center_rs112(self, client):
+    def test_local_preview_two_rows_matches_movement_and_center_rs112(
+        self, client, admin_headers
+    ):
         r = client.post(
             "/api/projects/local/sections/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-2R-RS112", "customer": "Тест"},
                 "section": {
@@ -686,9 +694,12 @@ class TestLocalPreview:
         assert 'data-center-rs112-top="left"' in r.text
         assert 'data-center-rs112-top="right"' in r.text
 
-    def test_local_preview_two_rows_keeps_deaf_half_outward(self, client):
+    def test_local_preview_two_rows_keeps_deaf_half_outward(
+        self, client, admin_headers
+    ):
         r = client.post(
             "/api/projects/local/sections/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-2R-DEAF", "customer": "Тест"},
                 "section": {
@@ -713,9 +724,12 @@ class TestLocalPreview:
         assert r.text.count('data-panel-direction="both"') == 2
         assert r.text.count('data-panel-direction="left"') == 1
 
-    def test_two_row_six_panel_inter_glass_profiles_start_from_center(self, client):
+    def test_two_row_six_panel_inter_glass_profiles_start_from_center(
+        self, client, admin_headers
+    ):
         r = client.post(
             "/api/projects/local/sections/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-2R-6"},
                 "section": {
@@ -742,9 +756,10 @@ class TestLocalPreview:
                 f'data-dir="{direction}"'
             ) in r.text
 
-    def test_local_preview_non_slide(self, client):
+    def test_local_preview_non_slide(self, client, admin_headers):
         r = client.post(
             "/api/projects/local/sections/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-002"},
                 "section": {"name": "Комплект", "system": "КОМПЛЕКТАЦИЯ"},
@@ -753,9 +768,10 @@ class TestLocalPreview:
         assert r.status_code == 200
         assert "для этой системы пока не реализован" in r.text
 
-    def test_local_lift_preview_uses_dedicated_sheet(self, client):
+    def test_local_lift_preview_uses_dedicated_sheet(self, client, admin_headers):
         r = client.post(
             "/api/projects/local/sections/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-LIFT", "customer": "Тест"},
                 "section": {
@@ -787,9 +803,12 @@ class TestLocalPreview:
         assert "Крутящий момент" in r.text
         assert "section_sheet.html" not in r.text
 
-    def test_local_lift_calc_returns_panels_profiles_and_hardware(self, client):
+    def test_local_lift_calc_returns_panels_profiles_and_hardware(
+        self, client, admin_headers
+    ):
         r = client.post(
             "/api/projects/local/sections/calc",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-LIFT-CALC"},
                 "section": {
@@ -813,9 +832,10 @@ class TestLocalPreview:
         assert any(row["article"] == "RL101" for row in data["profiles"])
         assert any(row["article"] == "RL210" for row in data["hardware"])
 
-    def test_local_preview_unused_track_and_side_profile(self, client):
+    def test_local_preview_unused_track_and_side_profile(self, client, admin_headers):
         r = client.post(
             "/api/projects/local/sections/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-TRACK", "customer": "Тест"},
                 "section": {
@@ -874,9 +894,12 @@ class TestLocalPreview:
         assert re.search(r'data-scheme-panel="1"[^>]+height="7"', r.text)
         assert 'style="display:block; width:72%; margin:0 auto;"' in r.text
 
-    def test_local_preview_bubble_only_uses_dedicated_side_image(self, client):
+    def test_local_preview_bubble_only_uses_dedicated_side_image(
+        self, client, admin_headers
+    ):
         r = client.post(
             "/api/projects/local/sections/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-BUBBLE", "customer": "Тест"},
                 "section": {
@@ -896,9 +919,12 @@ class TestLocalPreview:
         assert 'data-side-assembly="bubble"' in r.text
         assert 'data-side-assembly-image="SIDE_RS1002.png"' in r.text
 
-    def test_local_preview_inter_glass_mirrors_for_first_panel_right(self, client):
+    def test_local_preview_inter_glass_mirrors_for_first_panel_right(
+        self, client, admin_headers
+    ):
         r = client.post(
             "/api/projects/local/sections/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-IG", "customer": "Тест"},
                 "section": {
@@ -925,9 +951,12 @@ class TestLocalPreview:
             in r.text
         )
 
-    def test_local_preview_rs2021_skips_zero_intermediate_label(self, client):
+    def test_local_preview_rs2021_skips_zero_intermediate_label(
+        self, client, admin_headers
+    ):
         r = client.post(
             "/api/projects/local/sections/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-RS2021", "customer": "Тест"},
                 "section": {
@@ -954,9 +983,12 @@ class TestLocalPreview:
         assert "</span> шт</td>" in r.text
         assert "Промежуточные" not in r.text
 
-    def test_local_preview_ignores_legacy_section_extra_components(self, client):
+    def test_local_preview_ignores_legacy_section_extra_components(
+        self, client, admin_headers
+    ):
         r = client.post(
             "/api/projects/local/sections/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-EC", "customer": "Тест"},
                 "section": {
@@ -991,7 +1023,9 @@ class TestLocalPreview:
         assert "RAL 9016" not in r.text
         assert '<div class="ec-section">' not in r.text
 
-    def test_local_pdf_ignores_legacy_section_extra_components(self, client):
+    def test_local_pdf_ignores_legacy_section_extra_components(
+        self, client, admin_headers
+    ):
         pytest.importorskip("weasyprint")
 
         extra_components = [
@@ -1006,6 +1040,7 @@ class TestLocalPreview:
         ]
         r = client.post(
             "/api/projects/local/sections/pdf",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-EC-10", "customer": "Тест"},
                 "section": {
@@ -1043,10 +1078,11 @@ class TestLocalPreview:
         assert "Ответственные за заказ на производстве" in second_page_text
 
     def test_local_preview_slide_sheet_uses_three_hardware_columns_without_checklist(
-        self, client
+        self, client, admin_headers
     ):
         r = client.post(
             "/api/projects/local/sections/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-HW", "customer": "Тест"},
                 "section": {
@@ -1093,10 +1129,11 @@ class TestLocalPreview:
         assert r.text.count('style="width:33%;"') >= 2
 
     def test_local_preview_renders_rs3020_and_rs123_in_separate_hardware_cells(
-        self, client
+        self, client, admin_headers
     ):
         r = client.post(
             "/api/projects/local/sections/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-LOCK", "customer": "Тест"},
                 "section": {
@@ -1123,9 +1160,12 @@ class TestLocalPreview:
         assert '<div class="hw-art">RS3020</div>' in r.text
         assert '<div class="hw-art">RS123</div>' in r.text
 
-    def test_local_preview_hides_rs3110_length_but_keeps_piece_quantity(self, client):
+    def test_local_preview_hides_rs3110_length_but_keeps_piece_quantity(
+        self, client, admin_headers
+    ):
         r = client.post(
             "/api/projects/local/sections/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-RS1005", "customer": "Тест"},
                 "section": {
@@ -1150,10 +1190,11 @@ class TestLocalPreview:
         assert 'data-profile-article="RS1005"' not in r.text
 
     def test_local_preview_section_4_room_scheme_keeps_physical_glass_order(
-        self, client
+        self, client, admin_headers
     ):
         r = client.post(
             "/api/projects/local/sections/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-S4", "customer": "Тест"},
                 "section": {
@@ -1187,10 +1228,11 @@ class TestLocalPreview:
         assert r.text.index("902 (918)") < r.text.index("910 (910)")
 
     def test_local_preview_two_row_sheet_uses_three_hardware_columns_without_checklist(
-        self, client
+        self, client, admin_headers
     ):
         r = client.post(
             "/api/projects/local/sections/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-HW2", "customer": "Тест"},
                 "section": {
@@ -1242,9 +1284,10 @@ class TestLocalPreview:
             }
         ]
 
-    def test_local_calc_returns_glass_and_catalog_profiles(self, client):
+    def test_local_calc_returns_glass_and_catalog_profiles(self, client, admin_headers):
         r = client.post(
             "/api/projects/local/sections/calc",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-CALC"},
                 "section": {
@@ -1267,9 +1310,12 @@ class TestLocalPreview:
         assert threshold["section_width_mm"] == 76
         assert threshold["paint_note"] == "НЕ КРАСИТЬ!!!"
 
-    def test_local_lift_calc_returns_torque_warning_for_section_form(self, client):
+    def test_local_lift_calc_returns_torque_warning_for_section_form(
+        self, client, admin_headers
+    ):
         r = client.post(
             "/api/projects/local/sections/calc",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-LIFT-WARNING"},
                 "section": {
@@ -1412,11 +1458,12 @@ class TestSketchProject:
             (_lift.__func__(), "ВИД ИЗ ПОМЕЩЕНИЯ", False),
         ],
     )
-    def test_guest_preview_supports_each_system(
-        self, client, section, expected_diagram, has_top_view
+    def test_local_preview_supports_each_system(
+        self, client, admin_headers, section, expected_diagram, has_top_view
     ):
         response = client.post(
             "/api/projects/local/documents/sketch/preview",
+            headers=admin_headers,
             json=self._payload([section]),
         )
 
@@ -1429,13 +1476,14 @@ class TestSketchProject:
         assert "Комплектация" not in response.text
 
     def test_mixed_preview_pdf_and_docx_share_order_geometry_and_components(
-        self, client
+        self, client, admin_headers
     ):
         pytest.importorskip("weasyprint")
         payload = self._payload()
         responses = {
             extension: client.post(
                 f"/api/projects/local/documents/sketch/{extension}",
+                headers=admin_headers,
                 json=payload,
             )
             for extension in ("preview", "pdf", "docx")
@@ -1481,7 +1529,7 @@ class TestSketchProject:
             assert "итого" not in lowered
 
     def test_project_4233_corrected_glass_reaches_sketch_glass_order_and_sheet(
-        self, client
+        self, client, admin_headers
     ):
         section = SectionCreate(
             **self._slide(
@@ -1503,6 +1551,7 @@ class TestSketchProject:
         glass = build_project_document_context(project, [section], "glass")
         sheet = client.post(
             "/api/projects/local/sections/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": project.number, "customer": project.customer},
                 "section": section.model_dump(),
@@ -1527,20 +1576,24 @@ class TestSketchProject:
         assert "669" in sheet.text
         assert "654" in sheet.text
 
-    def test_sketch_docx_is_allowed_but_xlsx_is_not(self, client):
+    def test_sketch_docx_is_allowed_but_xlsx_is_not(self, client, admin_headers):
         docx = client.post(
             "/api/projects/local/documents/sketch/docx",
+            headers=admin_headers,
             json=self._payload([self._slide()]),
         )
         xlsx = client.post(
             "/api/projects/local/documents/sketch/xlsx",
+            headers=admin_headers,
             json=self._payload([self._slide()]),
         )
 
         assert docx.status_code == 200
         assert xlsx.status_code == 400
 
-    def test_unsupported_system_blocks_whole_document_with_section_list(self, client):
+    def test_unsupported_system_blocks_whole_document_with_section_list(
+        self, client, admin_headers
+    ):
         sections = [
             self._slide(),
             {"name": "ЦС 7", "order": 7, "system": "ЦС"},
@@ -1549,6 +1602,7 @@ class TestSketchProject:
         for extension in ("preview", "pdf", "docx"):
             response = client.post(
                 f"/api/projects/local/documents/sketch/{extension}",
+                headers=admin_headers,
                 json=self._payload(sections),
             )
             assert response.status_code == 409
@@ -1558,10 +1612,11 @@ class TestSketchProject:
             ]
 
     def test_preliminary_book_is_allowed_without_system_warning_in_document(
-        self, client
+        self, client, admin_headers
     ):
         response = client.post(
             "/api/projects/local/documents/sketch/preview",
+            headers=admin_headers,
             json=self._payload([self._book(book_system="B16")]),
         )
 
@@ -1569,9 +1624,10 @@ class TestSketchProject:
         assert "предварительн" not in response.text.lower()
         assert "этой системы заблокированы" not in response.text
 
-    def test_book_geometry_error_returns_422(self, client):
+    def test_book_geometry_error_returns_422(self, client, admin_headers):
         response = client.post(
             "/api/projects/local/documents/sketch/preview",
+            headers=admin_headers,
             json=self._payload([self._book(width=20)]),
         )
 
@@ -1626,10 +1682,13 @@ class TestSketchProject:
 
         assert actual_top == expected_top
 
-    def test_slide_sketch_restores_profile_rows_and_total_quantity(self, client):
+    def test_slide_sketch_restores_profile_rows_and_total_quantity(
+        self, client, admin_headers
+    ):
         section = self._slide(quantity=2)
         response = client.post(
             "/api/projects/local/documents/sketch/preview",
+            headers=admin_headers,
             json=self._payload([section]),
         )
 
@@ -1814,9 +1873,12 @@ class TestSketchProject:
         ):
             assert forbidden not in serialized
 
-    def test_sketch_filters_minor_consumables_from_components(self, client):
+    def test_sketch_filters_minor_consumables_from_components(
+        self, client, admin_headers
+    ):
         response = client.post(
             "/api/projects/local/documents/sketch/preview",
+            headers=admin_headers,
             json=self._payload([self._book()]),
         )
 
@@ -1834,9 +1896,12 @@ class TestSketchProject:
         ):
             assert forbidden not in lowered
 
-    def test_sketch_marks_missing_interglass_profile_as_not_applicable(self, client):
+    def test_sketch_marks_missing_interglass_profile_as_not_applicable(
+        self, client, admin_headers
+    ):
         response = client.post(
             "/api/projects/local/documents/sketch/preview",
+            headers=admin_headers,
             json=self._payload(
                 [self._slide(inter_glass_profile="— Без межстекольного профиля —")]
             ),
@@ -1848,9 +1913,12 @@ class TestSketchProject:
             response.text,
         )
 
-    def test_legacy_section_extra_components_are_not_rendered(self, client):
+    def test_legacy_section_extra_components_are_not_rendered(
+        self, client, admin_headers
+    ):
         response = client.post(
             "/api/projects/local/documents/sketch/preview",
+            headers=admin_headers,
             json=self._payload(
                 [
                     self._slide(
@@ -1867,9 +1935,12 @@ class TestSketchProject:
         assert response.status_code == 200, response.text
         assert "EXTRA-SKETCH" not in response.text
 
-    def test_slide_sketch_keeps_comments_but_omits_component_catalog(self, client):
+    def test_slide_sketch_keeps_comments_but_omits_component_catalog(
+        self, client, admin_headers
+    ):
         response = client.post(
             "/api/projects/local/documents/sketch/preview",
+            headers=admin_headers,
             json=self._payload(
                 [
                     self._slide(
@@ -1902,7 +1973,7 @@ class TestSketchProject:
         assert "/api/catalog/profile-assets/" not in response.text
 
     def test_project_sketch_extras_are_rendered_once_without_section_multiplier(
-        self, client
+        self, client, admin_headers
     ):
         payload = self._payload([self._slide(quantity=4), self._book(quantity=3)])
         payload["project"].update(
@@ -1929,10 +2000,12 @@ class TestSketchProject:
 
         response = client.post(
             "/api/projects/local/documents/sketch/preview",
+            headers=admin_headers,
             json=payload,
         )
         docx = client.post(
             "/api/projects/local/documents/sketch/docx",
+            headers=admin_headers,
             json=payload,
         )
 
@@ -1950,7 +2023,9 @@ class TestSketchProject:
         assert "800 мм" in docx_text
         assert "2 шт" in docx_text
 
-    def test_project_extras_flow_to_paint_delivery_order_and_sketch(self, client):
+    def test_project_extras_flow_to_paint_delivery_order_and_sketch(
+        self, client, admin_headers
+    ):
         payload = self._payload([self._slide()])
         payload["project"]["extra_components"] = json.dumps(
             [
@@ -1984,15 +2059,25 @@ class TestSketchProject:
             ensure_ascii=False,
         )
 
-        paint = client.post("/api/projects/local/documents/paint/preview", json=payload)
+        paint = client.post(
+            "/api/projects/local/documents/paint/preview",
+            headers=admin_headers,
+            json=payload,
+        )
         delivery = client.post(
-            "/api/projects/local/documents/delivery/preview", json=payload
+            "/api/projects/local/documents/delivery/preview",
+            headers=admin_headers,
+            json=payload,
         )
         hardware = client.post(
-            "/api/projects/local/documents/hardware_order/preview", json=payload
+            "/api/projects/local/documents/hardware_order/preview",
+            headers=admin_headers,
+            json=payload,
         )
         sketch = client.post(
-            "/api/projects/local/documents/sketch/preview", json=payload
+            "/api/projects/local/documents/sketch/preview",
+            headers=admin_headers,
+            json=payload,
         )
 
         assert paint.status_code == 200
@@ -2009,7 +2094,9 @@ class TestSketchProject:
             assert "RAL 9005" in response.text
             assert "Анод" in response.text
 
-    def test_manual_colored_extra_flows_to_all_production_documents(self, client):
+    def test_manual_colored_extra_flows_to_all_production_documents(
+        self, client, admin_headers
+    ):
         payload = self._payload([self._slide()])
         payload["project"]["extra_components"] = json.dumps(
             [
@@ -2027,6 +2114,7 @@ class TestSketchProject:
         responses = {
             document: client.post(
                 f"/api/projects/local/documents/{document}/preview",
+                headers=admin_headers,
                 json=payload,
             )
             for document in ("paint", "delivery", "hardware_order", "sketch")
@@ -2040,7 +2128,9 @@ class TestSketchProject:
         for document in ("delivery", "hardware_order", "sketch"):
             assert "Уголок монтажный" in responses[document].text
 
-    def test_manual_project_extra_image_flows_to_all_paint_formats(self, client):
+    def test_manual_project_extra_image_flows_to_all_paint_formats(
+        self, client, admin_headers
+    ):
         encoded = (
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/"
             "x8AAusB9Y9Zl9sAAAAASUVORK5CYII="
@@ -2063,10 +2153,20 @@ class TestSketchProject:
         payload["project"]["extra_components"] = extra_components
 
         preview = client.post(
-            "/api/projects/local/documents/paint/preview", json=payload
+            "/api/projects/local/documents/paint/preview",
+            headers=admin_headers,
+            json=payload,
         )
-        docx = client.post("/api/projects/local/documents/paint/docx", json=payload)
-        xlsx = client.post("/api/projects/local/documents/paint/xlsx", json=payload)
+        docx = client.post(
+            "/api/projects/local/documents/paint/docx",
+            headers=admin_headers,
+            json=payload,
+        )
+        xlsx = client.post(
+            "/api/projects/local/documents/paint/xlsx",
+            headers=admin_headers,
+            json=payload,
+        )
 
         assert preview.status_code == 200, preview.text
         assert docx.status_code == 200, docx.text
@@ -2089,14 +2189,16 @@ class TestSketchProject:
         with zipfile.ZipFile(io.BytesIO(xlsx.content)) as archive:
             assert any(name.startswith("xl/media/") for name in archive.namelist())
 
-    def test_sketch_sections_and_docx_start_on_new_pages(self, client):
+    def test_sketch_sections_and_docx_start_on_new_pages(self, client, admin_headers):
         payload = self._payload([self._slide(), self._book(), self._lift()])
         preview = client.post(
             "/api/projects/local/documents/sketch/preview",
+            headers=admin_headers,
             json=payload,
         )
         docx = client.post(
             "/api/projects/local/documents/sketch/docx",
+            headers=admin_headers,
             json=payload,
         )
 
@@ -2111,7 +2213,7 @@ class TestSketchProject:
         assert "РАЗМЕРЫ СТЕКОЛ" in self._docx_text(docx.content)
 
     def test_slide_without_glass_keeps_sizes_and_builds_default_glass_order(
-        self, client
+        self, client, admin_headers
     ):
         payload = self._payload(
             [self._slide(glass_supplied=False, width=2000, height=2400)]
@@ -2121,11 +2223,19 @@ class TestSketchProject:
         )
 
         sketch = client.post(
-            "/api/projects/local/documents/sketch/preview", json=payload
+            "/api/projects/local/documents/sketch/preview",
+            headers=admin_headers,
+            json=payload,
         )
-        glass = client.post("/api/projects/local/documents/glass/preview", json=payload)
+        glass = client.post(
+            "/api/projects/local/documents/glass/preview",
+            headers=admin_headers,
+            json=payload,
+        )
         delivery = client.post(
-            "/api/projects/local/documents/delivery/preview", json=payload
+            "/api/projects/local/documents/delivery/preview",
+            headers=admin_headers,
+            json=payload,
         )
 
         assert sketch.status_code == 200
@@ -2152,7 +2262,7 @@ class TestSketchProject:
         ids=["slide", "book", "cs"],
     )
     def test_sketch_glass_supply_and_system_metadata_in_all_formats(
-        self, client, section_data, glass_supplied
+        self, client, admin_headers, section_data, glass_supplied
     ):
         glass_type = "10ММ ЗАКАЛЕННОЕ БРОНЗА В МАССЕ"
         section_data = {
@@ -2167,7 +2277,9 @@ class TestSketchProject:
         has_threshold = section_data["system"] == "СЛАЙД"
 
         preview = client.post(
-            "/api/projects/local/documents/sketch/preview", json=payload
+            "/api/projects/local/documents/sketch/preview",
+            headers=admin_headers,
+            json=payload,
         )
         assert preview.status_code == 200, preview.text
         meta_html = re.search(
@@ -2188,7 +2300,11 @@ class TestSketchProject:
         assert panel_rows
         assert all(row.findall("td")[2].text == expected_panel for row in panel_rows)
 
-        docx = client.post("/api/projects/local/documents/sketch/docx", json=payload)
+        docx = client.post(
+            "/api/projects/local/documents/sketch/docx",
+            headers=admin_headers,
+            json=payload,
+        )
         assert docx.status_code == 200, docx.text
         document = DocxDocument(io.BytesIO(docx.content))
         assert len(document.tables[0].rows) == len(meta_rows)
@@ -2206,7 +2322,11 @@ class TestSketchProject:
             [cell.text for cell in row.cells] for row in document.tables[-1].rows[1:]
         ] == [[cell.text for cell in row.findall("td")] for row in panel_rows]
 
-        pdf = client.post("/api/projects/local/documents/sketch/pdf", json=payload)
+        pdf = client.post(
+            "/api/projects/local/documents/sketch/pdf",
+            headers=admin_headers,
+            json=payload,
+        )
         assert pdf.status_code == 200, pdf.text
         pdf_text = " ".join(self._pdf_text(pdf.content).split())
         assert expected_header in pdf_text
@@ -2292,9 +2412,12 @@ class TestSketchProject:
         assert "RS1313" in r.text
         assert "RS2323" not in r.text
 
-    def test_local_project_paint_overlay_threshold_marks_bosses(self, client):
+    def test_local_project_paint_overlay_threshold_marks_bosses(
+        self, client, admin_headers
+    ):
         r = client.post(
             "/api/projects/local/documents/paint/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-PAINT", "customer": "Тест"},
                 "sections": [
@@ -2320,9 +2443,12 @@ class TestSketchProject:
         assert "НЕ КРАСИТЬ!!!" in r.text
         assert "paint-bosses-marker" not in r.text
 
-    def test_local_project_paint_preview_includes_manual_rows(self, client):
+    def test_local_project_paint_preview_includes_manual_rows(
+        self, client, admin_headers
+    ):
         r = client.post(
             "/api/projects/local/documents/paint/preview",
+            headers=admin_headers,
             json={
                 "project": {
                     "number": "LOCAL-PAINT",
@@ -2399,9 +2525,10 @@ class TestSketchProject:
 
         assert r.status_code == 401
 
-    def test_local_project_document_preview_without_auth(self, client):
+    def test_local_project_document_preview_without_auth(self, client, admin_headers):
         r = client.post(
             "/api/projects/local/documents/glass/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-DOC", "customer": "Гость"},
                 "sections": [
@@ -2425,9 +2552,12 @@ class TestSketchProject:
         assert "Заказ стекла" in r.text
         assert "Проект LOCAL-DOC" not in r.text
 
-    def test_local_lift_production_preview_uses_dedicated_two_page_sheet(self, client):
+    def test_local_lift_production_preview_uses_dedicated_two_page_sheet(
+        self, client, admin_headers
+    ):
         r = client.post(
             "/api/projects/local/sections/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-LIFT", "customer": "Гость"},
                 "section": {
@@ -2468,7 +2598,7 @@ class TestSketchProject:
         assert "RL2087" in r.text
 
     def test_local_lift_project_documents_use_calculation_and_manual_paint_rows(
-        self, client
+        self, client, admin_headers
     ):
         section = {
             "name": "Секция 4",
@@ -2508,10 +2638,20 @@ class TestSketchProject:
         }
         payload = {"project": project, "sections": [section]}
 
-        paint = client.post("/api/projects/local/documents/paint/preview", json=payload)
-        glass = client.post("/api/projects/local/documents/glass/preview", json=payload)
+        paint = client.post(
+            "/api/projects/local/documents/paint/preview",
+            headers=admin_headers,
+            json=payload,
+        )
+        glass = client.post(
+            "/api/projects/local/documents/glass/preview",
+            headers=admin_headers,
+            json=payload,
+        )
         delivery = client.post(
-            "/api/projects/local/documents/delivery/preview", json=payload
+            "/api/projects/local/documents/delivery/preview",
+            headers=admin_headers,
+            json=payload,
         )
 
         assert paint.status_code == 200
@@ -2578,11 +2718,12 @@ class TestSketchProject:
         assert "Raluma ЛИФТ, 3 панели" in delivery.text
         assert "RL2087" in delivery.text
 
-    def test_local_project_glass_pdf_download_returns_pdf(self, client):
+    def test_local_project_glass_pdf_download_returns_pdf(self, client, admin_headers):
         pytest.importorskip("weasyprint")
 
         r = client.post(
             "/api/projects/local/documents/glass/pdf",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-DOC", "customer": "Гость"},
                 "sections": [
@@ -2759,7 +2900,7 @@ class TestOfficeDownloads:
         ],
     )
     def test_local_section_office_downloads(
-        self, client, system, file_format, expected_text
+        self, client, admin_headers, system, file_format, expected_text
     ):
         section = {
             "name": "Секция 1",
@@ -2793,6 +2934,7 @@ class TestOfficeDownloads:
 
         response = client.post(
             f"/api/projects/local/sections/{file_format}",
+            headers=admin_headers,
             json={
                 "project": {"number": "OFFICE-SECTION", "customer": "Тест"},
                 "section": section,
@@ -2808,10 +2950,11 @@ class TestOfficeDownloads:
 
     @pytest.mark.parametrize("file_format", ["docx", "xlsx"])
     def test_local_glass_office_download_contains_project_rows(
-        self, client, file_format
+        self, client, admin_headers, file_format
     ):
         response = client.post(
             f"/api/projects/local/documents/glass/{file_format}",
+            headers=admin_headers,
             json={
                 "project": {"number": "OFFICE-GLASS", "customer": "Заказчик"},
                 "sections": [
@@ -2836,9 +2979,12 @@ class TestOfficeDownloads:
         assert "1,1" in archive_text
 
     @pytest.mark.parametrize("file_format", ["docx", "xlsx"])
-    def test_local_paint_office_download_keeps_manual_rows(self, client, file_format):
+    def test_local_paint_office_download_keeps_manual_rows(
+        self, client, admin_headers, file_format
+    ):
         response = client.post(
             f"/api/projects/local/documents/paint/{file_format}",
+            headers=admin_headers,
             json={
                 "project": {
                     "number": "OFFICE-PAINT",
@@ -2882,10 +3028,11 @@ class TestOfficeDownloads:
 
     @pytest.mark.parametrize("file_format", ["docx", "xlsx"])
     def test_local_hardware_order_office_download_has_one_page_per_system(
-        self, client, file_format
+        self, client, admin_headers, file_format
     ):
         response = client.post(
             f"/api/projects/local/documents/hardware_order/{file_format}",
+            headers=admin_headers,
             json={
                 "project": {
                     "number": "OFFICE-HARDWARE",
@@ -2947,11 +3094,12 @@ class TestOfficeDownloads:
             assert document_xml.count("<w:tbl>") == 2
             assert 'w:orient="landscape"' not in document_xml
 
-    def test_local_hardware_order_pdf_download_returns_pdf(self, client):
+    def test_local_hardware_order_pdf_download_returns_pdf(self, client, admin_headers):
         pytest.importorskip("weasyprint")
 
         response = client.post(
             "/api/projects/local/documents/hardware_order/pdf",
+            headers=admin_headers,
             json={
                 "project": {"number": "PDF-HARDWARE", "customer": "Заказчик"},
                 "sections": [
@@ -2993,7 +3141,9 @@ class TestOfficeDownloads:
         assert "СЛАЙД" in text_by_page[0]
         assert "ЛИФТ" in text_by_page[1]
 
-    def test_hardware_order_word_excel_and_pdf_share_complete_contract(self, client):
+    def test_hardware_order_word_excel_and_pdf_share_complete_contract(
+        self, client, admin_headers
+    ):
         pytest.importorskip("weasyprint")
         sections = [
             {
@@ -3052,6 +3202,7 @@ class TestOfficeDownloads:
         responses = {
             extension: client.post(
                 f"/api/projects/local/documents/hardware_order/{extension}",
+                headers=admin_headers,
                 json=payload,
             )
             for extension in ("preview", "pdf", "docx", "xlsx")
@@ -3127,7 +3278,9 @@ class TestOfficeDownloads:
                     assert compact_value in pdf_compact
                     assert compact_value in html_compact
 
-    def test_glass_word_excel_and_pdf_share_all_rows_and_values(self, client):
+    def test_glass_word_excel_and_pdf_share_all_rows_and_values(
+        self, client, admin_headers
+    ):
         pytest.importorskip("weasyprint")
         sections = [
             {
@@ -3161,6 +3314,7 @@ class TestOfficeDownloads:
         responses = {
             extension: client.post(
                 f"/api/projects/local/documents/glass/{extension}",
+                headers=admin_headers,
                 json=payload,
             )
             for extension in ("preview", "pdf", "docx", "xlsx")
@@ -3221,7 +3375,9 @@ class TestOfficeDownloads:
                 assert compact_value in pdf_compact
                 assert compact_value in html_compact
 
-    def test_paint_word_excel_and_pdf_share_pages_rows_and_values(self, client):
+    def test_paint_word_excel_and_pdf_share_pages_rows_and_values(
+        self, client, admin_headers
+    ):
         pytest.importorskip("weasyprint")
         sections = [
             {
@@ -3258,6 +3414,7 @@ class TestOfficeDownloads:
         responses = {
             extension: client.post(
                 f"/api/projects/local/documents/paint/{extension}",
+                headers=admin_headers,
                 json=payload,
             )
             for extension in ("preview", "pdf", "docx", "xlsx")
@@ -3395,6 +3552,7 @@ class TestOfficeDownloads:
     def test_local_delivery_xlsx_is_one_image_free_sheet_and_respects_stage(
         self,
         client,
+        admin_headers,
         production_stages,
         current_stage,
         expected_section,
@@ -3402,6 +3560,7 @@ class TestOfficeDownloads:
     ):
         response = client.post(
             "/api/projects/local/documents/delivery/xlsx",
+            headers=admin_headers,
             json={
                 "project": {
                     "number": "OFFICE-DELIVERY",
@@ -3504,10 +3663,11 @@ class TestOfficeDownloads:
 
     @pytest.mark.parametrize("file_format", ["docx", "xlsx"])
     def test_local_unsupported_project_office_download_is_rejected(
-        self, client, file_format
+        self, client, admin_headers, file_format
     ):
         response = client.post(
             f"/api/projects/local/documents/commercial/{file_format}",
+            headers=admin_headers,
             json={"project": {"number": "OFFICE"}, "sections": []},
         )
 
@@ -5371,9 +5531,10 @@ class TestDeliveryNote:
         assert response.text.count('class="signature-role">Исполнитель</span>') == 1
         assert response.text.count('class="signature-role">Заказчик</span>') == 1
 
-    def test_guest_preview_includes_non_slide_systems(self, client):
+    def test_local_preview_includes_non_slide_systems(self, client, admin_headers):
         response = client.post(
             "/api/projects/local/documents/delivery/preview",
+            headers=admin_headers,
             json={
                 "project": {
                     "number": "LOCAL-N-1",
@@ -5752,11 +5913,12 @@ class TestHardwareOrder:
         assert rows["RS3110"]["image"] == "RS3110.jpg"
         assert "3000" not in rows["RS3110"]["name"] + rows["RS3110"]["size"]
 
-    def test_guest_preview_and_authenticated_preview_are_available(
+    def test_local_preview_and_authenticated_preview_are_available(
         self, client, admin_headers, project
     ):
-        guest = client.post(
+        local = client.post(
             "/api/projects/local/documents/hardware_order/preview",
+            headers=admin_headers,
             json={
                 "project": {"number": "LOCAL-HARDWARE", "customer": "Гость"},
                 "sections": [
@@ -5775,9 +5937,9 @@ class TestHardwareOrder:
             },
         )
 
-        assert guest.status_code == 200
-        assert "Наряд-заказ на фурнитуру — LOCAL-HARDWARE" in guest.text
-        assert "СЛАЙД" in guest.text
+        assert local.status_code == 200
+        assert "Наряд-заказ на фурнитуру — LOCAL-HARDWARE" in local.text
+        assert "СЛАЙД" in local.text
 
         _create_slide_section(client, admin_headers, project["id"])
         token = admin_headers["Authorization"].replace("Bearer ", "")

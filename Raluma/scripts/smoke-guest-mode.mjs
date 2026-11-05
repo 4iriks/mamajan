@@ -5,7 +5,6 @@ import path from 'node:path';
 
 const appUrl = process.env.SMOKE_APP_URL ?? 'http://localhost:3000';
 const apiUrl = process.env.SMOKE_API_URL ?? 'http://localhost:8000';
-const keepData = process.env.SMOKE_KEEP_DATA === '1';
 
 const browserCandidates = [
   process.env.SMOKE_BROWSER_PATH,
@@ -113,7 +112,7 @@ async function connectCdp(wsUrl) {
   };
 }
 
-async function waitForExpression(cdp, expression, label, timeoutMs = 10000) {
+async function waitForExpression(cdp, expression, label, timeoutMs = 30000) {
   const started = Date.now();
   let lastValue;
   while (Date.now() - started < timeoutMs) {
@@ -166,7 +165,8 @@ async function fillBySelector(cdp, selector, value) {
 
 async function navigate(cdp, url) {
   const origin = new URL(url).origin;
-  await cdp.command('Page.navigate', { url });
+  const navigation = await cdp.command('Page.navigate', { url });
+  assert(!navigation.errorText, `Cannot navigate to ${url}: ${navigation.errorText}`);
   await waitForExpression(
     cdp,
     `location.href.startsWith(${JSON.stringify(origin)}) && document.readyState === "complete"`,
@@ -175,98 +175,54 @@ async function navigate(cdp, url) {
   );
 }
 
-async function cleanupProject(cdp, projectNumber) {
-  if (keepData) return { deletedProjects: 0, kept: true };
-  return cdp.evaluate(`(async () => {
-    const token = localStorage.getItem('access_token');
-    if (!token) return { deletedProjects: 0, skipped: 'no token' };
-    const headers = { Authorization: 'Bearer ' + token };
-    const response = await fetch(${JSON.stringify(`${apiUrl}/api/projects`)}, { headers });
-    if (!response.ok) return { deletedProjects: 0, skipped: 'projects list ' + response.status };
-    const projects = await response.json();
-    const matches = projects.filter(project => project.number === ${JSON.stringify(projectNumber)});
-    for (const project of matches) {
-      await fetch(${JSON.stringify(`${apiUrl}/api/projects`) } + '/' + project.id, { method: 'DELETE', headers });
-    }
-    localStorage.clear();
-    return { deletedProjects: matches.length };
-  })()`);
-}
-
+// This smoke is read-only and can also verify the deployed site.
 async function runScenario(cdp) {
-  const seed = Date.now().toString().slice(-6);
-  const rawProjectNumber = `SMK${seed.slice(-5)}`;
-  const username = `smoke_${seed}_${Math.random().toString(36).slice(2, 7)}`;
-  const password = 'SmokePass123!';
-
   await cdp.command('Page.enable');
   await cdp.command('Runtime.enable');
+  const routes = ['/', '/projects/-1', '/admin', '/admin/catalog/hardware', '/admin/pricing'];
+  for (const route of routes) {
+    await navigate(cdp, `${appUrl}${route}`);
+    await waitForExpression(cdp, `location.pathname === "/login" && Boolean(document.querySelector('input[placeholder="Ваш логин"]'))`, `login required for ${route}`);
+    assert(await cdp.evaluate('!document.body.innerText.includes("Продолжить без входа")'), 'Guest entry is still shown');
+    assert(await cdp.evaluate('!document.body.innerText.includes("Новый проект")'), 'Projects visible without login');
+  }
 
-  await navigate(cdp, appUrl);
-  await cdp.evaluate('localStorage.clear(); location.href = "/"');
-  await waitForExpression(cdp, 'location.pathname === "/" && document.body.innerText.includes("Новый проект")', 'guest projects page');
-  await waitForExpression(cdp, 'document.body.innerText.includes("Гостевой режим") && document.body.innerText.includes("Войти")', 'guest header');
+  const endpoints = [
+    ['GET', '/api/projects'],
+    ['GET', '/api/catalog/hardware/options'],
+    ['GET', '/api/catalog/cs-systems'],
+    ['POST', '/api/calculate/local/book'],
+    ['POST', '/api/calculate/local/cs'],
+    ...['calc', 'preview', 'pdf', 'docx', 'xlsx'].map(kind => ['POST', `/api/projects/local/sections/${kind}`]),
+    ...['preview', 'pdf', 'docx', 'xlsx'].map(kind => ['POST', `/api/projects/local/documents/sketch/${kind}`]),
+  ];
+  for (const [method, route] of endpoints) {
+    for (const invalidToken of [false, true]) {
+      const response = await fetch(`${apiUrl}${route}`, {
+        method,
+        headers: { 'Content-Type': 'application/json', ...(invalidToken ? { Authorization: 'Bearer invalid.token' } : {}) },
+        ...(method === 'POST' ? { body: '{}' } : {}),
+      });
+      const expected = invalidToken ? 401 : 403;
+      assert(response.status === expected, `${method} ${route}: expected ${expected}, received ${response.status}`);
+    }
+  }
 
-  await clickText(cdp, 'Новый проект');
-  await waitForExpression(cdp, 'document.body.innerText.toLowerCase().includes("номер проекта")', 'create project modal');
-  await fillBySelector(cdp, 'input[placeholder="Х00-0-0000"]', rawProjectNumber);
-  await fillBySelector(cdp, 'input[placeholder="Введите или выберите заказчика"]', 'Smoke Client');
-  await clickText(cdp, 'Создать');
-  await waitForExpression(cdp, 'location.pathname.startsWith("/projects/")', 'guest project editor');
+  // A stale or forged browser session must also return to login.
+  await cdp.evaluate('localStorage.setItem("access_token", "invalid.token"); location.href = "/projects/-1"');
+  await waitForExpression(cdp, `location.pathname === "/login" && !localStorage.getItem("access_token") && Boolean(document.querySelector('input[placeholder="Ваш логин"]'))`, 'invalid session rejected');
 
-  await waitForExpression(cdp, 'document.body.innerText.includes("Нажмите + чтобы добавить секцию")', 'empty sections hint');
-  await cdp.evaluate(`(() => {
-    const button = document.querySelector('aside .flex.items-center.justify-between button');
-    button?.click();
-    return Boolean(button);
-  })()`);
-  await waitForExpression(cdp, 'document.body.innerText.includes("СЛАЙД")', 'system picker');
-  await clickText(cdp, 'СЛАЙД');
-  await waitForExpression(cdp, 'document.body.innerText.includes("Стандарт 1 ряд")', 'slide subtype picker');
-  await clickText(cdp, 'Стандарт 1 ряд');
-  await waitForExpression(
-    cdp,
-    'document.body.innerText.includes("Секция 1") && [...document.querySelectorAll("button")].some(button => button.textContent.includes("Производственный лист"))',
-    'created guest section',
-  );
-
-  await clickText(cdp, 'Производственный лист');
-  await waitForExpression(cdp, 'document.querySelector(".fixed iframe[title=\\"Производственный лист\\"]")', 'production sheet modal');
-  await waitForExpression(cdp, `(() => {
-    const frame = document.querySelector('iframe[title="Производственный лист"]');
-    const doc = frame?.contentDocument;
-    const bodyText = doc?.body?.innerText ?? '';
-    return doc?.title === 'Производственный лист' || bodyText.includes('ПРОЕКТ');
-  })()`, 'guest production sheet iframe', 15000);
-  await cdp.evaluate(`document.querySelector('.fixed .relative button')?.click()`);
-
-  const projectNumber = await cdp.evaluate(`(() => {
-    const raw = localStorage.getItem('raluma-local-projects-v1');
-    const projects = raw ? JSON.parse(raw) : [];
-    return projects[0]?.number ?? '';
-  })()`);
-  assert(projectNumber, 'Локальный проект не найден в localStorage после создания.');
-
-  await navigate(cdp, `${appUrl}/login`);
-  await waitForExpression(cdp, 'document.body.innerText.toLowerCase().includes("регистрация")', 'login/register page');
-  await clickText(cdp, 'Регистрация');
-  await fillBySelector(cdp, 'input[placeholder="Ваш логин"]', username);
-  await fillBySelector(cdp, 'input[placeholder="Как вас показывать в системе"]', 'Smoke User');
-  await fillBySelector(cdp, 'input[type="password"]', password);
-  await clickText(cdp, 'Зарегистрироваться');
-
-  await waitForExpression(cdp, 'location.pathname === "/" && document.body.innerText.includes("Перенести локальные проекты?")', 'local import modal', 15000);
-  await clickText(cdp, 'Перенести');
-  await waitForExpression(cdp, `!document.body.innerText.includes("Перенести локальные проекты?") && document.body.innerText.includes(${JSON.stringify(projectNumber)})`, 'imported server project', 20000);
-
-  const localCleared = await cdp.evaluate(`(() => {
-    const raw = localStorage.getItem('raluma-local-projects-v1');
-    return !raw || JSON.parse(raw).length === 0;
-  })()`);
-  assert(localCleared, 'Локальные проекты не были очищены после переноса.');
-
-  const cleanup = await cleanupProject(cdp, projectNumber);
-  return { username, projectNumber, cleanup };
+  let authenticatedChecked = false;
+  if (process.env.SMOKE_USERNAME && process.env.SMOKE_PASSWORD) {
+    await fillBySelector(cdp, 'input[placeholder="Ваш логин"]', process.env.SMOKE_USERNAME);
+    await fillBySelector(cdp, 'input[type="password"]', process.env.SMOKE_PASSWORD);
+    await clickText(cdp, 'Войти');
+    await waitForExpression(cdp, 'location.pathname === "/" && document.body.innerText.includes("Новый проект")', 'authenticated projects');
+    await clickText(cdp, 'Выйти');
+    await waitForExpression(cdp, 'location.pathname === "/login" && !localStorage.getItem("access_token")', 'logout requires login');
+    authenticatedChecked = true;
+  }
+  return { protectedRoutes: routes.length, protectedEndpoints: endpoints.length, authenticatedChecked };
 }
 
 async function main() {

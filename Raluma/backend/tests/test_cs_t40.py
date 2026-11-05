@@ -158,12 +158,13 @@ def test_tape_excludes_crossing_air_gaps():
     assert result["hardware"][1]["qty"] == 9
 
 
-def test_triangle_excel_preserves_polygon_area_formula(client):
+def test_triangle_excel_preserves_polygon_area_formula(client, admin_headers):
     from openpyxl import load_workbook
 
     s = dict(system="ЦС", width=3000, height=3000, quantity=2, cs_shape="Треугольник")
     response = client.post(
         "/api/projects/local/documents/glass/xlsx",
+        headers=admin_headers,
         json={"project": {"number": "CS-TRI"}, "sections": [s]},
     )
     assert response.status_code == 200, response.text
@@ -190,9 +191,10 @@ def test_triangle_excel_preserves_polygon_area_formula(client):
         {"vertical": {"mode": "manual", "positions": None}},
     ],
 )
-def test_malformed_config_returns_user_error(client, config):
+def test_malformed_config_returns_user_error(client, admin_headers, config):
     response = client.post(
         "/api/calculate/local/cs",
+        headers=admin_headers,
         json={"system": "ЦС", "width": 1755, "height": 2835, "cs_config": config},
     )
     assert response.status_code == 422

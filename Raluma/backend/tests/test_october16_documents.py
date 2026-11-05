@@ -167,7 +167,7 @@ def qa_save(name, extension, content):
 
 
 @pytest.mark.parametrize("kind", ["rectangle", "triangle", "roof", "slide-reference"])
-def test_production_exports_use_large_cs_dimensions_only(client, kind):
+def test_production_exports_use_large_cs_dimensions_only(client, admin_headers, kind):
     section = {
         "system": "ЦС",
         "name": "Секция 1",
@@ -208,7 +208,11 @@ def test_production_exports_use_large_cs_dimensions_only(client, kind):
         "section": section,
     }
     for extension in ("pdf", "docx", "xlsx"):
-        response = client.post(f"/api/projects/local/sections/{extension}", json=body)
+        response = client.post(
+            f"/api/projects/local/sections/{extension}",
+            headers=admin_headers,
+            json=body,
+        )
         assert response.status_code == 200, response.text
         qa_save(kind, extension, response.content)
         if extension == "pdf":
@@ -224,7 +228,7 @@ def test_production_exports_use_large_cs_dimensions_only(client, kind):
             assert images[0].startswith(b"\x89PNG")
 
 
-def test_paint_exports_share_eighty_mm_allowance(client):
+def test_paint_exports_share_eighty_mm_allowance(client, admin_headers):
     sections = [
         {
             "name": f"Секция {rails}",
@@ -246,7 +250,9 @@ def test_paint_exports_share_eighty_mm_allowance(client):
     }
     for extension in ("preview", "pdf", "docx", "xlsx"):
         response = client.post(
-            f"/api/projects/local/documents/paint/{extension}", json=body
+            f"/api/projects/local/documents/paint/{extension}",
+            headers=admin_headers,
+            json=body,
         )
         assert response.status_code == 200, response.text
         qa_save(
