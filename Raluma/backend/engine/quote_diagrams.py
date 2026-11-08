@@ -283,58 +283,23 @@ def render_quote_room_png(
 
 
 def render_quote_top_png(details: dict[str, Any], *, show_title: bool = True) -> bytes:
-    canvas = Image.new("RGB", (1800, 720), BACKGROUND)
-    draw = ImageDraw.Draw(canvas)
-    title_font = load_font(31, bold=True)
-    label_font = load_font(32, bold=True)
-    small_font = load_font(28)
-    if show_title:
-        _center_text(draw, (900, 34), "ВИД СВЕРХУ", title_font)
+    """Rasterize the same self-contained detailed SVG used in HTML and PDF."""
+    import cairosvg
+    from engine.quote_slide_top import render_quote_top_svg
 
-    left, top, right, bottom = 130, 95, 1670, 510
-    rails = max(int(_number(details.get("rails"), 1)), 1)
-    row_height = (bottom - top) / rails
-    draw.rectangle((left, top, right, bottom), outline=INK, width=4)
-    for rail in range(1, rails):
-        y = top + rail * row_height
-        draw.line((left, y, right, y), fill=GRID, width=2)
-
-    rows = _geometry(details)
-    widths = [max(_number(row.get("width_mm"), 1), 1) for row in rows]
-    width_total = sum(widths) or len(widths)
-    fill = _glass_fill(details.get("glass_type"))
-    matte = "МАТ" in str(details.get("glass_type") or "").upper()
-    x = left
-    for row, width_mm in zip(rows, widths):
-        panel_px = (right - left) * width_mm / width_total
-        rail = max(0, min(rails - 1, int(_number(row.get("rail"), 0))))
-        cy = top + (rail + 0.5) * row_height
-        x1 = round(x + 4)
-        x2 = round(x + panel_px - 4)
-        y1 = round(cy - min(21, row_height * 0.28))
-        y2 = round(cy + min(21, row_height * 0.28))
-        box = (x1, y1, x2, y2)
-        draw.rectangle(box, fill=fill, outline=INK, width=3)
-        if matte:
-            _matte_pattern(draw, box)
-        _center_text(
-            draw,
-            ((x1 + x2) / 2, (y1 + y2) / 2),
-            f"{round(width_mm)} · №{row.get('number') or row.get('index')}",
-            label_font,
-        )
-        x += panel_px
-
-    _center_text(draw, (900, 72), "УЛИЦА", small_font, MUTED)
-    _center_text(draw, (900, 548), "ПОМЕЩЕНИЕ", small_font, MUTED)
-    direction = str(details.get("slide_direction") or "right")
-    _arrow(
-        draw,
-        (820, 596),
-        (980, 596),
-        start_head=direction in {"left", "both"},
-        end_head=direction in {"right", "both"},
-        width=3,
+    svg = render_quote_top_svg(details)
+    if not svg:
+        return _png(Image.new("RGB", (1800, 450), BACKGROUND))
+    png = cairosvg.svg2png(bytestring=svg.encode("utf-8"), output_width=2400)
+    if not show_title:
+        return png
+    with Image.open(io.BytesIO(png)) as drawing:
+        canvas = Image.new("RGB", (drawing.width, drawing.height + 70), BACKGROUND)
+        canvas.paste(drawing, (0, 70), drawing)
+    _center_text(
+        ImageDraw.Draw(canvas),
+        (canvas.width / 2, 32),
+        "ВИД СВЕРХУ",
+        load_font(31, bold=True),
     )
-    _center_text(draw, (900, 630), "НАПРАВЛЕНИЕ СДВИГА", small_font, MUTED)
     return _png(canvas)

@@ -140,6 +140,7 @@ PUBLIC_SECTION_DETAIL_FIELDS = {
     "slide_direction",
     "panel_width_total_mm",
     "panel_geometry",
+    "top_view_options",
 }
 PUBLIC_PANEL_GEOMETRY_FIELDS = {
     "index",
@@ -261,6 +262,14 @@ def safe_public_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 for panel in details.get("panel_geometry") or []
                 if isinstance(panel, dict)
             ]
+            if isinstance(details.get("top_view_options"), dict):
+                from engine.quote_slide_top import OPTION_FIELDS
+
+                safe_details["top_view_options"] = {
+                    key: value
+                    for key, value in details["top_view_options"].items()
+                    if key in OPTION_FIELDS
+                }
             safe_line["section_details"] = safe_details
         else:
             safe_line.pop("section_details", None)
@@ -989,6 +998,7 @@ def _section_snapshot(section: object, calc: object) -> dict[str, Any]:
     )
     technical = _section_technical_components(section)
     from engine.side_projection import side_projection, side_segments
+    from engine.quote_slide_top import snapshot_top_options
 
     return {
         "section_id": int(getattr(section, "id", 0) or 0),
@@ -1032,6 +1042,7 @@ def _section_snapshot(section: object, calc: object) -> dict[str, Any]:
         ),
         "panel_width_total_mm": decimal_text(sum(panel_widths, ZERO)),
         "panel_geometry": geometry,
+        "top_view_options": snapshot_top_options(section, calc),
     }
 
 

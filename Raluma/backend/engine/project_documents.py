@@ -223,12 +223,14 @@ def _document_money(value: object, whole: bool = False) -> str:
 def _get_env() -> Environment:
     from engine.side_projection import snapshot_side_projection, snapshot_side_segments
     from engine.quote_diagrams import render_quote_room_png
+    from engine.quote_slide_top import render_quote_top_svg
     from base64 import b64encode
 
     env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=False)
     env.globals["snapshot_side_projection"] = snapshot_side_projection
     env.globals["snapshot_side_segments"] = snapshot_side_segments
     env.globals["display_groups"] = display_groups
+    env.globals["quote_top"] = render_quote_top_svg
     env.globals["quote_snapshot_image"] = lambda details: b64encode(
         render_quote_room_png(details)
     ).decode("ascii")
