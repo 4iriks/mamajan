@@ -59,7 +59,7 @@ function LayoutCard({
       data-slide-layout-preset={preset.id}
       aria-pressed={active}
       onClick={onApply}
-      className={`group relative min-w-0 overflow-hidden rounded-2xl border p-1.5 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${
+      className={`group relative min-w-0 overflow-hidden rounded-xl border p-1 text-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${
         active
           ? 'border-accent/70 bg-accent/12 shadow-sm shadow-accent/10'
           : 'border-tint/25 bg-surface/35 hover:border-accent/45 hover:bg-accent/[0.07]'
@@ -68,7 +68,7 @@ function LayoutCard({
       <span data-slide-preset-preview className="flex h-20 items-center justify-center rounded-lg bg-page/55 [&_svg]:h-full [&_svg]:w-full">
         <SlideRoomViewSVG section={preview} compact />
       </span>
-      <span className="mt-1 flex h-5 items-center justify-between gap-1 px-0.5">
+      <span className="mt-0.5 flex h-5 items-center justify-center gap-1 px-0.5">
         <span className="min-w-0 truncate text-[11px] font-bold text-fg/85">{preset.title}</span>
         {active && (
           <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-white">
@@ -98,7 +98,7 @@ export function SlidePresetsPanel({
   const previewHardware = activeHardware ?? SLIDE_HARDWARE_PRESETS[0];
 
   return (
-    <section data-slide-presets data-slide-presets-layout="beside-heading" className="min-w-0 rounded-2xl border border-tint/25 bg-surface/20 p-2">
+    <section data-slide-presets data-slide-presets-layout="beside-heading" className={`min-w-0 w-full rounded-2xl border border-tint/25 bg-surface/20 p-1.5 ${isTwoRows ? 'max-w-[952px]' : 'max-w-[760px]'}`}>
       <div className={isTwoRows ? 'grid gap-2 lg:grid-cols-[minmax(0,1fr)_176px]' : ''}>
         <div className="min-w-0">
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">

@@ -1740,7 +1740,8 @@ def test_quote_missing_override_margin_snapshot_and_safe_exports(
         assert "70% аванс" in appendix.text
         assert "Общие и центральные" in preview.text
         assert "Вид на изделие со стороны помещения" in preview.text
-        assert "Вид сверху" not in preview.text
+        assert "Вид сверху" in preview.text
+        assert preview.text.count("data-quote-top-panel=") == 3
         assert "/api/catalog/profile-assets/" not in preview.text
 
         word_draft = client.get(
@@ -1774,7 +1775,8 @@ def test_quote_missing_override_margin_snapshot_and_safe_exports(
         assert "margin_approval" not in word_xml
         assert "Стекло" in word_xml
         assert "ТЕХНИЧЕСКАЯ КОМПЛЕКТАЦИЯ" in word_xml
-        assert len(quote_images) == 1
+        assert "ВИД СВЕРХУ" in word_xml
+        assert len(quote_images) == 2
 
         pdf = client.get(
             f"/api/projects/{project['id']}/documents/commercial/pdf",
@@ -1787,6 +1789,7 @@ def test_quote_missing_override_margin_snapshot_and_safe_exports(
             for page in PdfReader(io.BytesIO(pdf.content)).pages
         )
         assert "ОБЩИЕ И ЦЕНТРАЛЬНЫЕ" in pdf_text.upper()
+        assert "ВИД СВЕРХУ" in pdf_text.upper()
         assert "РАЗРЕШЕНО РУКОВОДИТЕЛЕМ ДЛЯ ТЕНДЕРА" not in pdf_text.upper()
         fixed = client.get(
             f"/api/projects/{project['id']}/quote", headers=admin_headers

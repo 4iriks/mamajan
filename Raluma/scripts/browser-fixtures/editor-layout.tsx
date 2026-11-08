@@ -90,8 +90,10 @@ async function run() {
   assert(current.rails === 5 && current.panels === 3, 'Short rail labels preserve numeric options and panel count');
   [...rails.querySelectorAll('button')].find(button => button.textContent === '3 рельса')!.click(); await pause();
   assert(current.rails === 3, 'Three-rail option still works');
-  for (const button of fields.querySelectorAll<HTMLElement>('button.ml-4')) {
-    assert(button.getBoundingClientRect().right <= button.parentElement!.getBoundingClientRect().right + 1, 'Indented profiles stay inside their column');
+  for (const label of labels.filter(label => ['Профили слева', 'Профили справа'].includes(label.textContent || ''))) {
+    const buttons = [...label.nextElementSibling!.querySelectorAll('button')];
+    const first = buttons[0].getBoundingClientRect();
+    assert(buttons.every(button => Math.abs(button.getBoundingClientRect().left - first.left) < 1 && Math.abs(button.getBoundingClientRect().right - first.right) < 1), 'All profile rows form straight columns');
   }
   const drawingTop = room.getBoundingClientRect().top;
   fields.scrollTop = fields.scrollHeight; await pause();
@@ -111,6 +113,9 @@ async function run() {
       assert(preview.height >= 75 && preview.height <= 90, 'Preset drawings are readable, not tiny');
       const title = card.querySelector('span.truncate')!;
       assert(title.scrollWidth <= title.clientWidth + 1, 'Preset title is not clipped');
+      const titleBox = title.getBoundingClientRect();
+      assert(Math.abs((titleBox.left + titleBox.right) / 2 - (box.left + box.right) / 2) < 1, 'Preset title is centered');
+      assert(box.width <= 185, 'Preset cards do not stretch into empty space');
     }
     const diagrams = [...left.querySelectorAll('svg')].filter(svg => svg.getAttribute('viewBox'));
     assert(diagrams.length === 2 && diagrams.every(svg => svg.getBoundingClientRect().bottom <= innerHeight), 'Both SLIDE views visible for either row count');

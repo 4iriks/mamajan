@@ -6,7 +6,7 @@ import io
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw
 
 from engine.office_common import load_font
 from engine.side_projection import snapshot_side_projection, snapshot_side_segments
@@ -142,7 +142,9 @@ def _geometry(details: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-def render_quote_room_png(details: dict[str, Any]) -> bytes:
+def render_quote_room_png(
+    details: dict[str, Any], *, compact: bool = False, show_title: bool = True
+) -> bytes:
     if details.get("system") == "ЦС":
         from types import SimpleNamespace
         from engine.cs_calc import cs_result_namespace
@@ -164,7 +166,8 @@ def render_quote_room_png(details: dict[str, Any]) -> bytes:
     number_font = load_font(31, bold=True)
     dimension_font = load_font(22, bold=True)
     small_font = load_font(18)
-    _center_text(draw, (900, 34), "ВИД ИЗ ПОМЕЩЕНИЯ", title_font)
+    if show_title:
+        _center_text(draw, (900, 34), "ВИД ИЗ ПОМЕЩЕНИЯ", title_font)
 
     section_width = max(_number(details.get("width_mm"), 1), 1)
     section_height = max(_number(details.get("height_mm"), 1), 1)
@@ -263,16 +266,30 @@ def render_quote_room_png(details: dict[str, Any]) -> bytes:
     _center_text(
         draw, ((left + right) / 2, bottom + 126), "ПОМЕЩЕНИЕ", small_font, MUTED
     )
+    if compact:
+        bounds = ImageChops.difference(
+            canvas, Image.new("RGB", canvas.size, BACKGROUND)
+        ).getbbox()
+        if bounds:
+            canvas = canvas.crop(
+                (
+                    max(0, bounds[0] - 24),
+                    0,
+                    min(canvas.width, bounds[2] + 24),
+                    canvas.height,
+                )
+            )
     return _png(canvas)
 
 
-def render_quote_top_png(details: dict[str, Any]) -> bytes:
+def render_quote_top_png(details: dict[str, Any], *, show_title: bool = True) -> bytes:
     canvas = Image.new("RGB", (1800, 720), BACKGROUND)
     draw = ImageDraw.Draw(canvas)
     title_font = load_font(31, bold=True)
-    label_font = load_font(20, bold=True)
-    small_font = load_font(18)
-    _center_text(draw, (900, 34), "ВИД СВЕРХУ", title_font)
+    label_font = load_font(32, bold=True)
+    small_font = load_font(28)
+    if show_title:
+        _center_text(draw, (900, 34), "ВИД СВЕРХУ", title_font)
 
     left, top, right, bottom = 130, 95, 1670, 510
     rails = max(int(_number(details.get("rails"), 1)), 1)

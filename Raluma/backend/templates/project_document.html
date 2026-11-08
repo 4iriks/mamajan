@@ -234,6 +234,8 @@
       text-transform: uppercase;
     }
     .commercial-sketch svg { display: block; width: 100%; height: 92mm; }
+    .commercial-sketch-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 3mm; }
+    .commercial-sketch-pair .commercial-sketch-title { min-height: 7mm; }
     {% if doc_type == 'commercial' %}
     .commercial-sketch svg { height: 65mm; }
     .page { padding-top: 3mm; }
@@ -368,7 +370,7 @@
 </head>
 <body>
 {% macro editable(field, value) %}{% if not is_pdf %}contenteditable="true" data-field="{{ field }}" data-original="{{ value }}"{% endif %}{% endmacro %}
-{% macro quote_room(details, key) %}
+{% macro quote_room(details, key, compact=false) %}
   {% set total = details.panel_width_total_mm|float if details.panel_width_total_mm else 1 %}
   {% set section_width = details.width_mm|float if details.width_mm else 1 %}
   {% set section_height = details.height_mm|float if details.height_mm else 1 %}
@@ -390,7 +392,7 @@
   {% set height_dimension_x = frame_right + 16 %}
   {% set glass = details.glass_type|upper %}
   {% set fill = '#ffffff' if 'БЕЗ СТЕКЛА' in glass else '#e4c39f' if 'БРОНЗ' in glass else '#c9d0d3' if 'СЕРО' in glass else '#e5e8e7' if 'МАТ' in glass else '#eefaf8' if 'ПРОСВЕТ' in glass else '#d3eadb' if 'ТРИПЛЕКС' in glass else '#dceff3' %}
-  <svg viewBox="0 0 740 305" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Вид из помещения">
+  <svg viewBox="{% if compact %}{{ frame_x - 12 }} 0 {{ frame_width + 65 }} 305{% else %}0 0 740 305{% endif %}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Вид из помещения">
     <defs>
       <marker id="arrow-{{ key }}" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto-start-reverse" markerUnits="strokeWidth">
         <path d="M0,0 L0,6 L7,3 z" fill="#123f47"/>
@@ -444,14 +446,14 @@
   {% set total = details.panel_width_total_mm|float if details.panel_width_total_mm else 1 %}
   {% set rails = details.rails|int if details.rails else 1 %}
   {% set glass = details.glass_type|upper %}
-  {% set fill = '#e4c39f' if 'БРОНЗ' in glass else '#c9d0d3' if 'СЕРО' in glass else '#e5e8e7' if 'МАТ' in glass else '#eefaf8' if 'ПРОСВЕТ' in glass else '#d3eadb' if 'ТРИПЛЕКС' in glass else '#dceff3' %}
+  {% set fill = '#ffffff' if 'БЕЗ СТЕКЛА' in glass else '#e4c39f' if 'БРОНЗ' in glass else '#c9d0d3' if 'СЕРО' in glass else '#e5e8e7' if 'МАТ' in glass else '#eefaf8' if 'ПРОСВЕТ' in glass else '#d3eadb' if 'ТРИПЛЕКС' in glass else '#dceff3' %}
   <svg viewBox="0 0 720 270" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Вид сверху">
     <defs>
       <marker id="top-arrow-{{ key }}" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto-start-reverse" markerUnits="strokeWidth">
         <path d="M0,0 L0,6 L7,3 z" fill="#123f47"/>
       </marker>
     </defs>
-    <text x="360" y="12" text-anchor="middle" font-size="8" font-family="Arial" fill="#667b80">УЛИЦА</text>
+    <text x="360" y="12" text-anchor="middle" font-size="12" font-family="Arial" fill="#667b80">УЛИЦА</text>
     <rect x="40" y="25" width="640" height="170" fill="none" stroke="#123f47" stroke-width="2"/>
     {% for rail in range(1, rails) %}
       <line x1="40" y1="{{ 25 + rail * 170 / rails }}" x2="680" y2="{{ 25 + rail * 170 / rails }}" stroke="#a8bbc0" stroke-width="1"/>
@@ -460,15 +462,15 @@
     {% for panel in details.panel_geometry %}
       {% set panel_width = 640 * (panel.width_mm|float) / total %}
       {% set cy = 25 + ((panel.rail|int) + 0.5) * 170 / rails %}
-      <rect x="{{ top.x + 2 }}" y="{{ cy - 9 }}" width="{{ panel_width - 4 }}" height="18" rx="2" fill="{{ fill }}" stroke="#123f47" stroke-width="1.2"/>
-      <text x="{{ top.x + panel_width / 2 }}" y="{{ cy + 3 }}" text-anchor="middle" font-size="8" font-family="Arial" font-weight="bold" fill="#123f47">{{ panel.width_mm|float|round|int }} · №{{ panel.number }}</text>
+      <rect data-quote-top-panel="{{ panel.number }}" data-rail="{{ panel.rail }}" x="{{ top.x + 2 }}" y="{{ cy - 11 }}" width="{{ panel_width - 4 }}" height="22" rx="2" fill="{{ fill }}" stroke="#123f47" stroke-width="1.2"/>
+      <text x="{{ top.x + panel_width / 2 }}" y="{{ cy + 4 }}" text-anchor="middle" font-size="12" font-family="Arial" font-weight="bold" fill="#123f47">{{ panel.width_mm|float|round|int }} · №{{ panel.number }}</text>
       {% set top.x = top.x + panel_width %}
     {% endfor %}
-    <text x="360" y="214" text-anchor="middle" font-size="8" font-family="Arial" fill="#667b80">ПОМЕЩЕНИЕ</text>
+    <text x="360" y="214" text-anchor="middle" font-size="12" font-family="Arial" fill="#667b80">ПОМЕЩЕНИЕ</text>
     <line x1="315" y1="238" x2="405" y2="238" stroke="#123f47" stroke-width="1.4"
           {% if details.slide_direction in ['left', 'both'] %}marker-start="url(#top-arrow-{{ key }})"{% endif %}
           {% if details.slide_direction in ['right', 'both'] %}marker-end="url(#top-arrow-{{ key }})"{% endif %}/>
-    <text x="360" y="258" text-anchor="middle" font-size="8" font-family="Arial" fill="#667b80">НАПРАВЛЕНИЕ СДВИГА</text>
+    <text x="360" y="258" text-anchor="middle" font-size="11" font-family="Arial" fill="#667b80">НАПРАВЛЕНИЕ СДВИГА</text>
   </svg>
 {% endmacro %}
 {% if doc_type in ['commercial', 'contract_appendix'] %}
@@ -521,8 +523,21 @@
             <div class="quote-product-note"><b>Примечание:</b><br>{{ details.comments|e if details.comments else '—' }}</div>
           </div>
           <div class="commercial-sketch">
+            {% if doc_type == 'commercial' and details.system == 'СЛАЙД' %}
+            <div class="commercial-sketch-pair">
+              <div>
+                <div class="commercial-sketch-title">Вид на изделие со стороны помещения</div>
+                {{ quote_room(details, loop.index, compact=true) }}
+              </div>
+              <div>
+                <div class="commercial-sketch-title">Вид сверху</div>
+                {{ quote_top(details, loop.index) }}
+              </div>
+            </div>
+            {% else %}
             <div class="commercial-sketch-title">Вид на изделие со стороны помещения</div>
             {% if details.system == 'ЦС' %}<img src="data:image/png;base64,{{ quote_snapshot_image(details) }}" alt="Схема ЦС" style="display:block;margin:0 auto;max-width:100%;max-height:65mm;object-fit:contain" />{% else %}{{ quote_room(details, loop.index) }}{% endif %}
+            {% endif %}
           </div>
         </div>
 

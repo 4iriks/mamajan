@@ -46,7 +46,7 @@ from engine.office_section_data import (
 )
 from engine.project_documents import build_project_document_context
 from engine.pdf import section_extra_components
-from engine.quote_diagrams import render_quote_room_png
+from engine.quote_diagrams import render_quote_room_png, render_quote_top_png
 
 
 CHECKLIST_ROWS = [
@@ -2020,19 +2020,47 @@ def _build_commercial_docx(context: dict) -> bytes:
                 run.font.size = Pt(7.2)
 
         sketch_cell = product.cell(0, 1)
-        _set_cell_text(
-            sketch_cell,
-            "ВИД НА ИЗДЕЛИЕ СО СТОРОНЫ ПОМЕЩЕНИЯ",
-            bold=True,
-            size=7.5,
-            align=WD_ALIGN_PARAGRAPH.CENTER,
-        )
-        _add_picture_fitted(
-            sketch_cell,
-            render_quote_room_png(details),
-            max_width_mm=198,
-            max_height_mm=65 if context.get("doc_type") == "commercial" else 83,
-        )
+        if context.get("doc_type") == "commercial" and details.get("system") == "СЛАЙД":
+            views = sketch_cell.add_table(rows=2, cols=2)
+            for index, title in enumerate(
+                ("ВИД НА ИЗДЕЛИЕ СО СТОРОНЫ ПОМЕЩЕНИЯ", "ВИД СВЕРХУ")
+            ):
+                _set_cell_text(
+                    views.cell(0, index),
+                    title,
+                    bold=True,
+                    size=7.5,
+                    align=WD_ALIGN_PARAGRAPH.CENTER,
+                )
+            for index, image in enumerate(
+                (
+                    render_quote_room_png(details, compact=True, show_title=False),
+                    render_quote_top_png(details, show_title=False),
+                )
+            ):
+                _add_picture_fitted(
+                    views.cell(1, index), image, max_width_mm=95, max_height_mm=60
+                )
+            _style_table(views, header_rows=0)
+            _hide_table_borders(views)
+            _set_table_geometry_mm(views, (99, 99), set_grid=True)
+            for paragraph in sketch_cell.paragraphs:
+                paragraph.paragraph_format.space_after = Pt(0)
+                paragraph.paragraph_format.line_spacing = Pt(1)
+        else:
+            _set_cell_text(
+                sketch_cell,
+                "ВИД НА ИЗДЕЛИЕ СО СТОРОНЫ ПОМЕЩЕНИЯ",
+                bold=True,
+                size=7.5,
+                align=WD_ALIGN_PARAGRAPH.CENTER,
+            )
+            _add_picture_fitted(
+                sketch_cell,
+                render_quote_room_png(details),
+                max_width_mm=198,
+                max_height_mm=65 if context.get("doc_type") == "commercial" else 83,
+            )
         _style_table(product, header_rows=0)
         # Match the declared cell widths in Word/LibreOffice's table grid too;
         # otherwise the equal default grid clips wide contract sketches.
