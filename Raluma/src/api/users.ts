@@ -4,7 +4,7 @@ export interface UserOut {
   id: number;
   username: string;
   display_name: string;
-  role: 'user' | 'dealer' | 'admin' | 'superadmin';
+  role: 'user' | 'dealer' | 'processor' | 'admin' | 'superadmin';
   customer: string | null;
   employee_number?: string | null;
   position?: string | null;
@@ -18,6 +18,7 @@ export interface UserOut {
   dealer_discount_percent?: number | null;
   dealer_notes?: string | null;
   can_manage_prices: boolean;
+  can_review_projects?: boolean;
   is_active: boolean;
   created_at: string;
   last_login: string | null;
@@ -41,6 +42,7 @@ export interface UserCreate {
   dealer_discount_percent?: number | null;
   dealer_notes?: string | null;
   can_manage_prices?: boolean;
+  can_review_projects?: boolean;
   is_active: boolean;
 }
 
@@ -60,6 +62,7 @@ export interface UserUpdate {
   dealer_discount_percent?: number | null;
   dealer_notes?: string | null;
   can_manage_prices?: boolean;
+  can_review_projects?: boolean;
   is_active?: boolean;
   password?: string;
 }

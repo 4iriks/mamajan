@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
+from project_access import can_read
 from auth import require_price_manager
 from database import get_db
 from engine.construction_pricing import (
@@ -110,6 +111,8 @@ def samples(
         if system_code(section) != code:
             continue
         project = section.project
+        if not can_read(project, _actor):
+            continue
         label = " · ".join(
             str(v)
             for v in (
@@ -161,7 +164,11 @@ def preview(
     results = []
     for section_id in dict.fromkeys(data.section_ids):
         section = db.get(models.Section, section_id)
-        if section is None or system_code(section) != code:
+        if (
+            section is None
+            or system_code(section) != code
+            or not can_read(section.project, _actor)
+        ):
             results.append(
                 {
                     "section_id": section_id,

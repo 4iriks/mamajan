@@ -68,13 +68,26 @@ def test_health_remains_public(client):
     assert client.get("/health").status_code == 200
 
 
-def test_registered_user_can_use_local_calculations_and_catalog(client):
-    registered = client.post(
-        "/api/auth/register",
+def test_admin_created_user_can_use_local_calculations_and_catalog(
+    client, admin_headers
+):
+    created = client.post(
+        "/api/users",
+        headers=admin_headers,
+        json={
+            "username": "local-calculation-user",
+            "display_name": "Test user",
+            "password": "test-password",
+            "role": "dealer",
+        },
+    )
+    assert created.status_code == 201
+    login = client.post(
+        "/api/auth/login",
         json={"username": "local-calculation-user", "password": "test-password"},
     )
-    assert registered.status_code == 201
-    headers = {"Authorization": f"Bearer {registered.json()['access_token']}"}
+    assert login.status_code == 200
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
     assert (
         client.get("/api/catalog/hardware/options", headers=headers).status_code == 200
     )
@@ -88,3 +101,5 @@ def test_registered_user_can_use_local_calculations_and_catalog(client):
         },
     )
     assert response.status_code == 200
+
+    client.delete(f"/api/users/{created.json()['id']}", headers=admin_headers)

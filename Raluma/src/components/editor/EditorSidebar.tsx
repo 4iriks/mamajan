@@ -11,6 +11,8 @@ import { Section, SystemType, SYSTEM_COLORS, SYSTEM_ACCENT_BG, SYSTEM_PICKER_COL
 import { getSectionTypeLabel, getSectionColorLabel } from './FormInputs';
 
 export interface EditorSidebarProps {
+  readOnly?: boolean;
+  allowBulk?: boolean;
   sections: Section[];
   activeSectionId: string | null;
   onSelectSection: (id: string | null) => void;
@@ -36,6 +38,7 @@ export interface EditorSidebarProps {
 }
 
 export const EditorSidebar: React.FC<EditorSidebarProps> = ({
+  readOnly = false, allowBulk = true,
   sections,
   activeSectionId,
   onSelectSection,
@@ -98,7 +101,7 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40">Секции</h3>
           <button
-            onClick={() => setShowSystemPicker(v => !v)}
+            disabled={readOnly} onClick={() => setShowSystemPicker(v => !v)}
             className={`p-1.5 rounded-lg border transition-colors ${
               showSystemPicker
                 ? 'bg-accent/20 border-accent/40 text-accent'
@@ -195,7 +198,7 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
                   )}
                 </div>
                 {/* КОМПЛЕКТАЦИЯ */}
-                <button onClick={() => handleAdd('КОМПЛЕКТАЦИЯ')}
+                <button hidden={!allowBulk} disabled={readOnly} onClick={() => handleAdd('КОМПЛЕКТАЦИЯ')}
                   className={`py-2.5 rounded-xl border font-bold text-[11px] transition-all ${SYSTEM_PICKER_COLORS['КОМПЛЕКТАЦИЯ']}`}>
                   КОМПЛЕКТАЦИЯ
                 </button>
@@ -224,7 +227,7 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
                 </span>
                 <div className="flex items-center gap-1 ml-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
                   <button
-                    onClick={e => { e.stopPropagation(); onCopySection(section); }}
+                    disabled={readOnly} onClick={e => { e.stopPropagation(); onCopySection(section); }}
                     className="p-1 rounded-lg hover:bg-blue-500/20 text-blue-300 transition-colors flex-shrink-0"
                     aria-label={`Копировать ${section.name}`}
                     title="Копировать секцию"
@@ -232,7 +235,7 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
                     <Copy className="w-3.5 h-3.5" />
                   </button>
                   <button
-                    onClick={e => { e.stopPropagation(); onDeleteSection(section); }}
+                    disabled={readOnly} onClick={e => { e.stopPropagation(); onDeleteSection(section); }}
                     className="p-1 rounded-lg hover:bg-red-500/20 text-red-400 transition-colors flex-shrink-0"
                     aria-label={`Удалить ${section.name}`}
                     title="Удалить секцию"
@@ -276,7 +279,7 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
         <div data-sidebar-project-actions className="shrink-0 border-t border-tint/20 p-5 pt-4">
           <button
             type="button"
-            onClick={onOpenProjectExtraComponents}
+            hidden={!allowBulk} disabled={readOnly} onClick={onOpenProjectExtraComponents}
             className="mb-3 flex w-full items-center justify-between gap-2 rounded-xl border border-tint/30 bg-tint/10 px-3 py-2.5 text-left text-xs font-bold text-accent transition-colors hover:bg-tint/20"
           >
             <span className="flex min-w-0 items-center gap-2">
@@ -326,7 +329,7 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
                 <div className="space-y-2.5 pt-3">
                   <div>
                     <label className="text-[10px] text-fg/25 uppercase tracking-wider block mb-1.5">Комментарии</label>
-                    <textarea
+                    <textarea disabled={readOnly}
                       value={projectComments}
                       onChange={e => setProjectComments(e.target.value)}
                       onBlur={onSaveProjectNotes}

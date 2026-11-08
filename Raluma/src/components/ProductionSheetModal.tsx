@@ -19,6 +19,7 @@ import type { DocumentFileFormat } from '../api/projects';
 import { toast } from '../store/toastStore';
 
 interface Props {
+  readOnly?: boolean;
   isOpen: boolean;
   onClose: () => void;
   projectId: number;
@@ -28,7 +29,7 @@ interface Props {
 }
 
 export default function ProductionSheetModal({
-  isOpen, onClose, projectId, sectionId, projectNumber, sectionOrder,
+  readOnly = false, isOpen, onClose, projectId, sectionId, projectNumber, sectionOrder,
 }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const previewObserver = useRef<ResizeObserver | null>(null);
@@ -37,6 +38,10 @@ export default function ProductionSheetModal({
     previewObserver.current?.disconnect();
     const doc = iframeRef.current?.contentDocument;
     if (!doc?.body) return;
+    if (readOnly) {
+      doc.querySelectorAll<HTMLElement>('[contenteditable]').forEach(node => node.contentEditable = 'false');
+      doc.querySelectorAll<HTMLInputElement>('input, select, textarea, button').forEach(node => node.disabled = true);
+    }
     const measure = () => {
       const bottom = Array.from<Element>(doc.body.children).reduce<number>((max, node) => {
         if (['SCRIPT', 'STYLE'].includes(node.tagName)) return max;
@@ -76,14 +81,14 @@ export default function ProductionSheetModal({
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.source !== iframeRef.current?.contentWindow) return;
-      if (e.data?.type === 'dirty') setIsDirty(true);
+      if (!readOnly && e.data?.type === 'dirty') setIsDirty(true);
       if (e.data?.type === 'height' && typeof e.data.height === 'number') {
         setIframeHeight(Math.ceil(e.data.height) + 16);
       }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, []);
+  }, [readOnly]);
 
   // Сброс dirty при закрытии/смене секции
   useEffect(() => {
@@ -217,7 +222,7 @@ export default function ProductionSheetModal({
               <div className="flex gap-2">
                 <button
                   onClick={handleSave}
-                  disabled={!isDirty || isSaving}
+                  disabled={readOnly || !isDirty || isSaving}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary hover:bg-primary-h text-white font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm"
                 >
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -225,7 +230,7 @@ export default function ProductionSheetModal({
                 </button>
                 <button
                   onClick={handleCancel}
-                  disabled={!isDirty}
+                  disabled={readOnly || !isDirty}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl bg-tint/10 hover:bg-tint/20 border border-tint/20 font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm"
                 >
                   <RotateCcw className="w-4 h-4" />

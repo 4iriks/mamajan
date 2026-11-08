@@ -59,6 +59,8 @@ def standalone_sale_quote(
     db: Session = Depends(get_db),
     _current_user: models.User = Depends(get_current_user),
 ):
+    if _current_user.role in {"dealer", "processor"}:
+        raise HTTPException(403, "Цены доступны только в согласованном КП")
     try:
         return calculate_standalone_sale(
             db,
@@ -1146,7 +1148,10 @@ def list_pricing_dealers(
 ):
     dealers = (
         db.query(models.User)
-        .filter(models.User.role == "dealer", models.User.is_active == True)  # noqa: E712
+        .filter(
+            models.User.role.in_(("dealer", "processor")),
+            models.User.is_active.is_(True),
+        )
         .order_by(models.User.dealer_company, models.User.display_name)
         .all()
     )
@@ -1166,7 +1171,13 @@ def get_dealer_terms(
     db: Session = Depends(get_db),
     _: models.User = Depends(require_admin),
 ):
-    dealer = db.query(models.User).filter_by(id=user_id, role="dealer").first()
+    dealer = (
+        db.query(models.User)
+        .filter(
+            models.User.id == user_id, models.User.role.in_(("dealer", "processor"))
+        )
+        .first()
+    )
     if dealer is None:
         raise HTTPException(status_code=404, detail="Дилер не найден")
     terms = db.query(models.DealerPricingTerms).filter_by(user_id=user_id).first()
@@ -1210,7 +1221,13 @@ def update_dealer_terms(
     db: Session = Depends(get_db),
     actor: models.User = Depends(require_admin),
 ):
-    dealer = db.query(models.User).filter_by(id=user_id, role="dealer").first()
+    dealer = (
+        db.query(models.User)
+        .filter(
+            models.User.id == user_id, models.User.role.in_(("dealer", "processor"))
+        )
+        .first()
+    )
     if dealer is None:
         raise HTTPException(status_code=404, detail="Дилер не найден")
     terms = db.query(models.DealerPricingTerms).filter_by(user_id=user_id).first()
@@ -1231,10 +1248,10 @@ def get_internal_project_quote(
     db: Session = Depends(get_db),
     actor: models.User = Depends(get_current_user),
 ):
-    project = db.query(models.Project).filter_by(id=project_id).first()
-    if project is None:
-        raise HTTPException(status_code=404, detail="Проект не найден")
-    if actor.role == "dealer":
+    from project_access import get_project, is_partner, partner_project
+
+    project = get_project(db, project_id, actor)
+    if is_partner(actor):
         raise HTTPException(status_code=403, detail="Нет доступа к проекту")
     evaluation_at = datetime.utcnow()
     result = internal_quote_state(db, project, at=evaluation_at)
@@ -1284,5 +1301,5 @@ def get_internal_project_quote(
             },
             "calculation": {},
         }
-    db.commit()
+    db.rollback() if partner_project(project) else db.commit()
     return result

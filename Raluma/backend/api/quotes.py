@@ -6,7 +6,7 @@ import json
 import hmac
 from datetime import datetime
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -33,6 +33,14 @@ from engine.quote_pricing import (
     refresh_quote_revision,
 )
 
+
+from project_access import (
+    get_project,
+    is_partner,
+    partner_project,
+    require_quote_read,
+    require_quote_write,
+)
 
 router = APIRouter(prefix="/api/projects", tags=["quotes"])
 ADMIN_ROLES = {"admin", "superadmin"}
@@ -61,12 +69,7 @@ def _require_current_preview(
 def _project_or_404(
     project_id: int, db: Session, current_user: models.User
 ) -> models.Project:
-    project = db.query(models.Project).filter_by(id=project_id).first()
-    if project is None:
-        raise HTTPException(status_code=404, detail="Проект не найден")
-    if current_user.role == "dealer" and project.created_by != current_user.id:
-        raise HTTPException(status_code=403, detail="Нет доступа к проекту")
-    return project
+    return get_project(db, project_id, current_user)
 
 
 @router.get("/{project_id}/quote")
@@ -76,8 +79,11 @@ def get_public_quote(
     current_user: models.User = Depends(get_current_user),
 ):
     project = _project_or_404(project_id, db, current_user)
+    require_quote_read(project, current_user)
+    if is_partner(current_user):
+        return quote_revision_snapshot(db, project, project.approved_quote_revision)[0]
     payload = public_quote(db, project)
-    db.commit()
+    db.rollback() if partner_project(project) else db.commit()
     return payload
 
 
@@ -88,7 +94,14 @@ def get_quote_revisions(
     current_user: models.User = Depends(get_current_user),
 ):
     project = _project_or_404(project_id, db, current_user)
-    return quote_revision_list(db, project)
+    require_quote_read(project, current_user)
+    rows = quote_revision_list(db, project)
+    return [
+        row
+        for row in rows
+        if not is_partner(current_user)
+        or row["revision"] == project.approved_quote_revision
+    ]
 
 
 @router.get("/{project_id}/quote/revisions/{revision}")
@@ -99,6 +112,7 @@ def get_quote_revision(
     current_user: models.User = Depends(get_current_user),
 ):
     project = _project_or_404(project_id, db, current_user)
+    require_quote_read(project, current_user, revision)
     try:
         return quote_revision_snapshot(db, project, revision)[0]
     except QuotePricingError as exc:
@@ -111,8 +125,14 @@ def fix_quote(
     data: QuoteRefreshRequest | None = Body(default=None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
+    response: Response = None,
 ):
     project = _project_or_404(project_id, db, current_user)
+    require_quote_write(db, project, current_user)
+    if response is not None:
+        response.headers["X-Project-Version"] = str(project.review_version)
+    if partner_project(project):
+        raise HTTPException(403, "Используйте действие «Одобрить проект»")
     evaluation_at = datetime.utcnow()
     _require_current_preview(db, project, data, evaluation_at)
     try:
@@ -136,8 +156,12 @@ def update_quote_config(
     data: schemas.QuoteConfigUpdate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
+    response: Response = None,
 ):
     project = _project_or_404(project_id, db, current_user)
+    require_quote_write(db, project, current_user)
+    if response is not None:
+        response.headers["X-Project-Version"] = str(project.review_version)
     invalid_services = [
         service
         for service in data.services
@@ -238,8 +262,12 @@ def update_quote_overrides(
     data: schemas.QuoteOverridesUpdate,
     db: Session = Depends(get_db),
     price_manager: models.User = Depends(require_price_manager),
+    response: Response = None,
 ):
     project = _project_or_404(project_id, db, price_manager)
+    require_quote_write(db, project, price_manager)
+    if response is not None:
+        response.headers["X-Project-Version"] = str(project.review_version)
     margin_comment_supplied = "margin_override_comment" in data.model_fields_set
     if margin_comment_supplied and price_manager.role not in ADMIN_ROLES:
         raise HTTPException(
@@ -334,8 +362,14 @@ def refresh_quote(
     data: QuoteRefreshRequest | None = Body(default=None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
+    response: Response = None,
 ):
     project = _project_or_404(project_id, db, current_user)
+    require_quote_write(db, project, current_user)
+    if response is not None:
+        response.headers["X-Project-Version"] = str(project.review_version)
+    if partner_project(project):
+        raise HTTPException(403, "Используйте действие «Одобрить проект»")
     evaluation_at = datetime.utcnow()
     _require_current_preview(db, project, data, evaluation_at)
     try:

@@ -43,6 +43,7 @@ import { captureQuoteConfirmation, type QuoteConfirmation } from '../utils/quote
 import { QuoteConfirmationDialog } from './QuoteConfirmationDialog';
 
 interface Props {
+  reviewManaged?: boolean;
   isOpen: boolean;
   onClose: () => void;
   projectId: number;
@@ -149,6 +150,7 @@ function parseDeliveryData(raw?: string): DeliveryNoteData {
 }
 
 export default function ProjectDocumentModal({
+  reviewManaged = false,
   isOpen,
   onClose,
   projectId,
@@ -188,7 +190,7 @@ export default function ProjectDocumentModal({
   const isCommercialDocument = docType === 'commercial' || docType === 'contract_appendix';
   const isSketchDocument = docType === 'sketch';
   const isCostReportDocument = docType === 'cost_report';
-  const canEditCommercial = Boolean(user && user.role !== 'dealer');
+  const canEditCommercial = Boolean(user && !['dealer', 'processor'].includes(user.role));
   const hasDocumentEditor = isPaintDocument || isDeliveryDocument || isCommercialDocument;
   const previewUrl = useMemo(
     () => isGuest ? undefined : `${getProjectDocumentPreviewUrl(projectId, docType)}?token=${encodeURIComponent(token)}&v=${previewVersion}${isCommercialDocument && selectedRevision !== undefined ? `&quote_revision=${selectedRevision}` : ''}`,
@@ -740,10 +742,10 @@ export default function ProjectDocumentModal({
                 {isQuoteLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {quote && <span>Редакция {quote.revision} · {quote.status === 'fixed' ? 'зафиксирована' : 'черновик'}</span>}
                 {quote?.stale && <span className="text-amber-600">Есть изменения после расчёта</span>}
-                {canEditCommercial && selectedRevision === undefined && quote?.status === 'draft' && (
+                {canEditCommercial && !reviewManaged && selectedRevision === undefined && quote?.status === 'draft' && (
                   <button type="button" disabled={isQuoteSaving || isQuoteLoading || !pendingQuote?.export_allowed || !previewToken} onClick={() => void handleFreezeQuote()} className="rounded-lg border border-accent/35 px-2 py-1 text-accent disabled:opacity-40">Зафиксировать КП</button>
                 )}
-                {canEditCommercial && selectedRevision === undefined && quote?.status === 'fixed' && quote.stale && (
+                {canEditCommercial && !reviewManaged && selectedRevision === undefined && quote?.status === 'fixed' && quote.stale && (
                   <button type="button" disabled={isQuoteSaving || isQuoteLoading || !pendingQuote?.export_allowed || !previewToken} onClick={handleRefreshQuote} className="flex gap-1 items-center text-accent disabled:opacity-40">
                     <RefreshCw className="h-3 w-3" /> Новая редакция
                   </button>

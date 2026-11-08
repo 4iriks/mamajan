@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header, Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -10,7 +10,19 @@ import schemas
 from auth import get_current_user
 from engine.legacy_values import normalize_section_data_values
 
+from project_access import (
+    get_project,
+    require_content_write,
+    validate_dealer_content,
+    sanitize_project_payload,
+)
+
 router = APIRouter(prefix="/api/projects", tags=["sections"])
+
+
+def _section_response(section, actor):
+    value = schemas.SectionOut.model_validate(section).model_dump()
+    return sanitize_project_payload({"sections": [value]}, actor)["sections"][0]
 
 
 def _assign_price_group(section_data: dict, db: Session) -> None:
@@ -43,12 +55,7 @@ def _assign_price_group(section_data: dict, db: Session) -> None:
 def _get_project_or_403(
     project_id: int, db: Session, current_user: models.User
 ) -> models.Project:
-    project = db.query(models.Project).filter(models.Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Проект не найден")
-    if current_user.role == "dealer" and project.created_by != current_user.id:
-        raise HTTPException(status_code=403, detail="Нет доступа")
-    return project
+    return get_project(db, project_id, current_user)
 
 
 @router.get("/{project_id}/sections", response_model=list[schemas.SectionOut])
@@ -58,12 +65,13 @@ def list_sections(
     current_user: models.User = Depends(get_current_user),
 ):
     _get_project_or_403(project_id, db, current_user)
-    return (
+    rows = (
         db.query(models.Section)
         .filter(models.Section.project_id == project_id)
         .order_by(models.Section.order)
         .all()
     )
+    return [_section_response(row, current_user) for row in rows]
 
 
 @router.post(
@@ -71,11 +79,15 @@ def list_sections(
 )
 def create_section(
     project_id: int,
+    response: Response,
     data: schemas.SectionCreate,
+    version: int | None = Header(default=None, alias="X-Project-Version"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
     project = _get_project_or_403(project_id, db, current_user)
+    require_content_write(db, project, current_user, version)
+    response.headers["X-Project-Version"] = str(project.review_version)
     # auto order: use max to avoid collisions after deletions
     max_order = (
         db.query(func.max(models.Section.order))
@@ -83,6 +95,11 @@ def create_section(
         .scalar()
     )
     section_data = normalize_section_data_values(data.model_dump())
+    validate_dealer_content(
+        current_user,
+        system=section_data.get("system"),
+        extras=section_data.get("extra_components"),
+    )
     _assign_price_group(section_data, db)
     section_data["order"] = (max_order or 0) + 1
     section = models.Section(project_id=project_id, **section_data)
@@ -90,18 +107,22 @@ def create_section(
     project.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(section)
-    return section
+    return _section_response(section, current_user)
 
 
 @router.put("/{project_id}/sections/{section_id}", response_model=schemas.SectionOut)
 def update_section(
     project_id: int,
+    response: Response,
     section_id: int,
     data: schemas.SectionUpdate,
+    version: int | None = Header(default=None, alias="X-Project-Version"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
     project = _get_project_or_403(project_id, db, current_user)
+    require_content_write(db, project, current_user, version)
+    response.headers["X-Project-Version"] = str(project.review_version)
     section = (
         db.query(models.Section)
         .filter(
@@ -123,6 +144,11 @@ def update_section(
                 if (section.unused_track or "Внешний") == "Внешний"
                 else "outside"
             )
+    validate_dealer_content(
+        current_user,
+        system=section_data.get("system"),
+        extras=section_data.get("extra_components"),
+    )
     _assign_price_group(section_data, db)
     # ``order`` is server-owned after creation. Older editors sent a zero-based
     # array index here and could silently turn the first section into order=0.
@@ -132,17 +158,21 @@ def update_section(
     project.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(section)
-    return section
+    return _section_response(section, current_user)
 
 
 @router.delete("/{project_id}/sections/{section_id}", status_code=204)
 def delete_section(
     project_id: int,
+    response: Response,
     section_id: int,
+    version: int | None = Header(default=None, alias="X-Project-Version"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
     project = _get_project_or_403(project_id, db, current_user)
+    require_content_write(db, project, current_user, version)
+    response.headers["X-Project-Version"] = str(project.review_version)
     section = (
         db.query(models.Section)
         .filter(

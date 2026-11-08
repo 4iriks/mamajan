@@ -1014,7 +1014,7 @@ def test_pricing_permission_and_dealer_quote_access(client, admin_headers):
                 headers=dealer_headers,
                 json=config,
             ).status_code
-            == 200
+            == 403
         )
     finally:
         if manager_project_id is not None:
@@ -1022,7 +1022,16 @@ def test_pricing_permission_and_dealer_quote_access(client, admin_headers):
                 f"/api/projects/{manager_project_id}", headers=manager_headers
             )
         if project_id is not None:
-            client.delete(f"/api/projects/{project_id}", headers=dealer_headers)
+            current = client.get(
+                f"/api/projects/{project_id}", headers=dealer_headers
+            ).json()
+            client.delete(
+                f"/api/projects/{project_id}",
+                headers={
+                    **dealer_headers,
+                    "X-Project-Version": str(current["workflow"]["version"]),
+                },
+            )
         if price_manager_project_id is not None:
             client.delete(
                 f"/api/projects/{price_manager_project_id}", headers=price_headers
@@ -1962,6 +1971,8 @@ def test_quote_missing_override_margin_snapshot_and_safe_exports(
 
 
 def test_margin_approval_is_bound_to_every_pricing_input(client, admin_headers):
+    from engine.quote_pricing import refresh_quote_revision, QuoteExportBlocked
+
     admin_id = client.get("/api/auth/me", headers=admin_headers).json()["id"]
     dealer, dealer_password = _create_user(
         client,
@@ -1982,6 +1993,7 @@ def test_margin_approval_is_bound_to_every_pricing_input(client, admin_headers):
         )
         assert created.status_code == 201, created.text
         project_id = created.json()["id"]
+        dealer_headers["X-Project-Version"] = str(created.json()["workflow"]["version"])
         created_section = client.post(
             f"/api/projects/{project_id}/sections",
             headers=dealer_headers,
@@ -1999,6 +2011,24 @@ def test_margin_approval_is_bound_to_every_pricing_input(client, admin_headers):
         assert created_section.status_code == 201, created_section.text
         section_id = created_section.json()["id"]
         seed = _seed_quote_prices(project_id, admin_id)
+        submitted = client.post(
+            f"/api/projects/{project_id}/review",
+            headers=dealer_headers,
+            json={
+                "action": "submit",
+                "expected_version": int(created_section.headers["X-Project-Version"]),
+            },
+        )
+        assert submitted.status_code == 200, submitted.text
+        claimed = client.post(
+            f"/api/projects/{project_id}/review",
+            headers=admin_headers,
+            json={
+                "action": "claim",
+                "expected_version": submitted.json()["workflow"]["version"],
+            },
+        )
+        assert claimed.status_code == 200, claimed.text
 
         def override_payload(comment: str | None = None):
             payload = {
@@ -2046,11 +2076,15 @@ def test_margin_approval_is_bound_to_every_pricing_input(client, admin_headers):
             assert approval["target_revision"] == expected_revision + 1, reason
             assert internal.json()["config"]["margin_override_comment"] == ""
 
-            blocked = client.post(
-                f"/api/projects/{project_id}/quote/refresh",
-                headers=admin_headers,
-            )
-            assert blocked.status_code == 409, (reason, blocked.text)
+            # Exercise the margin engine while the partner application remains in review.
+            with SessionLocal() as db:
+                with pytest.raises(QuoteExportBlocked):
+                    refresh_quote_revision(
+                        db,
+                        db.get(models.Project, project_id),
+                        db.get(models.User, admin_id),
+                    )
+                db.rollback()
             still_fixed = client.get(
                 f"/api/projects/{project_id}/quote", headers=admin_headers
             ).json()
@@ -2069,14 +2103,16 @@ def test_margin_approval_is_bound_to_every_pricing_input(client, admin_headers):
             assert approved_state["valid"] is True, reason
             assert approved_state["target_revision"] == expected_revision + 1
 
-            refreshed = client.post(
-                f"/api/projects/{project_id}/quote/refresh",
-                headers=admin_headers,
-            )
-            assert refreshed.status_code == 200, (reason, refreshed.text)
+            with SessionLocal() as db:
+                refreshed = refresh_quote_revision(
+                    db,
+                    db.get(models.Project, project_id),
+                    db.get(models.User, admin_id),
+                )
+                db.commit()
             expected_revision += 1
-            assert refreshed.json()["revision"] == expected_revision
-            assert refreshed.json()["status"] == "fixed"
+            assert refreshed["revision"] == expected_revision
+            assert refreshed["status"] == "fixed"
 
         db = SessionLocal()
         try:
@@ -2163,7 +2199,9 @@ def test_margin_approval_is_bound_to_every_pricing_input(client, admin_headers):
         require_reapproval("разовая цена")
     finally:
         if project_id is not None:
-            client.delete(f"/api/projects/{project_id}", headers=dealer_headers)
+            with SessionLocal() as cleanup:
+                cleanup.delete(cleanup.get(models.Project, project_id))
+                cleanup.commit()
         if seed is not None:
             _cleanup_quote_prices(seed)
         db = SessionLocal()

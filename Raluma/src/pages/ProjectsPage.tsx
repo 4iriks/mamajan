@@ -1,3 +1,4 @@
+import { REVIEW_LABELS } from '../api/projects';
 /**
  * ProjectsPage — список проектов с поиском, фильтрами, CRUD.
  * Извлечено из App.tsx.
@@ -90,7 +91,7 @@ export default function ProjectsPage() {
   const [newCustomer, setNewCustomer] = useState('');
   const [newStages, setNewStages] = useState<1 | 2>(1);
   const [showCustomerDrop, setShowCustomerDrop] = useState(false);
-  const [viewTab, setViewTab] = useState<'current' | 'archive'>('current');
+  const [viewTab, setViewTab] = useState<'current' | 'archive' | 'queue' | 'mine'>('current');
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [localImportSignature, setLocalImportSignature] = useState('');
@@ -120,7 +121,7 @@ export default function ProjectsPage() {
   };
 
   const filteredProjects = useMemo(() => {
-    const byTab = projects.filter(p => viewTab === 'archive' ? p.status === 'Архив' : p.status !== 'Архив');
+    const byTab = projects.filter(p => viewTab === 'queue' ? p.workflow?.status === 'submitted' : viewTab === 'mine' ? p.workflow?.status === 'in_review' && p.workflow.manager_id === user?.id : viewTab === 'archive' ? p.status === 'Архив' : p.status !== 'Архив');
     const query = searchQuery.toLowerCase();
     return byTab.filter(p => (
       p.number.toLowerCase().includes(query)
@@ -128,7 +129,7 @@ export default function ProjectsPage() {
       || (p.invoice_number || '').includes(searchQuery)
       || p.customer.toLowerCase().includes(query)
     ));
-  }, [projects, searchQuery, viewTab]);
+  }, [projects, searchQuery, viewTab, user?.id]);
 
   const customerOptions = useCustomerOptions();
   const [copyFromId, setCopyFromId] = useState<number | null>(null);
@@ -321,13 +322,14 @@ export default function ProjectsPage() {
           </button>
         </div>
 
-        <div className="flex gap-2 mb-4">
-          {(['current', 'archive'] as const).map(tab => (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {(['current', 'archive', ...(user?.can_review_projects || isAdmin() ? ['queue', 'mine'] as const : [])] as const).map(tab => (
             <button key={tab} onClick={() => setViewTab(tab)}
               className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all border ${viewTab === tab ? 'bg-accent/10 border-accent/40 text-accent' : 'bg-hi/[0.03] border-hi/[0.08] text-fg/50 hover:border-tint/40'}`}>
-              {tab === 'current' ? 'Текущие проекты' : 'Архив'}
+              {({ current: 'Текущие проекты', archive: 'Архив', queue: 'Очередь согласования', mine: 'У меня в работе' })[tab]}
             </button>
           ))}
+          <button onClick={() => void loadProjects()} className="px-4 py-2 text-sm underline">Обновить список</button>
         </div>
 
         <div className="bg-surface/30 backdrop-blur-xl border border-tint/30 rounded-[2rem] overflow-hidden shadow-2xl">
@@ -384,6 +386,7 @@ export default function ProjectsPage() {
                         {project.production_stages === 2 ? (project.current_stage ?? 1) : ''}
                       </td>
                       <td className="px-5 py-4">
+                        <StatusBadge value={REVIEW_LABELS[project.workflow?.status || '']} colors={{}} />
                         <StatusBadge value={project.status} colors={STATUS_COLORS} />
                       </td>
                       <td className="px-5 py-4">
@@ -394,7 +397,7 @@ export default function ProjectsPage() {
                       </td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-2 opacity-20 group-hover:opacity-100 transition-opacity">
-                          <button onClick={e => startRename(e, project)}
+                          <button disabled={project.workflow?.can_edit === false} onClick={e => startRename(e, project)}
                             className="p-2 rounded-lg hover:bg-tint/20 text-accent transition-colors" title="Переименовать">
                             <Edit2 className="w-4 h-4" />
                           </button>
@@ -402,7 +405,7 @@ export default function ProjectsPage() {
                             className="p-2 rounded-lg hover:bg-tint/20 text-accent transition-colors">
                             <Copy className="w-4 h-4" />
                           </button>
-                          <button onClick={e => { e.stopPropagation(); setProjectToDelete(project); setIsDeleteModalOpen(true); }}
+                          <button disabled={project.workflow?.can_edit === false} onClick={e => { e.stopPropagation(); setProjectToDelete(project); setIsDeleteModalOpen(true); }}
                             className="p-2 rounded-lg hover:bg-red-500/20 text-red-400 transition-colors">
                             <Trash2 className="w-4 h-4" />
                           </button>

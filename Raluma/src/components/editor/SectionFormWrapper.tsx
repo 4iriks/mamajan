@@ -23,6 +23,7 @@ import { BookCalcResults } from './BookCalcResults';
 import { CsEditor } from './CsEditor';
 
 export interface SectionFormWrapperProps {
+  readOnly?: boolean;
   section: Section;
   onUpdate: (updates: Partial<Section>) => void;
   onSave: () => Promise<unknown>;
@@ -33,7 +34,7 @@ export interface SectionFormWrapperProps {
 }
 
 export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
-  section, onUpdate, onSave, onBack, isSaving, isDirty, onOpenDoc,
+  readOnly = false, section, onUpdate, onSave, onBack, isSaving, isDirty, onOpenDoc,
 }) => {
   const [diagramContainer, setDiagramContainer] = useState<HTMLDivElement | null>(null);
   const [sectionCalc, setSectionCalc] = useState<SectionCalcPreview | null>(null);
@@ -135,7 +136,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
             {systemLabel}
           </span>
         </div>
-        {section.system === 'СЛАЙД' && (
+        {section.system === 'СЛАЙД' && !readOnly && (
           <div className="min-w-0 flex-1">
             <SlidePresetsPanel section={section} onApply={onUpdate} />
           </div>
@@ -150,7 +151,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
 
         <div className="section-editor-fields">
           {/* Карточка формы */}
-          <div
+          <fieldset disabled={readOnly}
             className="bg-surface/40 border border-tint/35 rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 mb-4"
             onWheelCapture={event => {
               const target = event.target;
@@ -259,14 +260,14 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
                 </div>
               </div>
             </div>
-          </div>
+          </fieldset>
 
           {/* Мобильный визуализатор */}
 
 
           {/* Нижняя панель: сохранить + кнопки документов */}
           <div className="flex flex-wrap gap-2 sm:gap-3 items-stretch">
-            <button onClick={onSave} disabled={isSaving}
+            <button onClick={onSave} disabled={isSaving || readOnly}
               className={`flex-1 min-w-[180px] py-3 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed ${
                 isDirty
                   ? 'bg-amber-500 hover:bg-amber-400 shadow-lg shadow-amber-500/20'

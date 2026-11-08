@@ -1,3 +1,5 @@
+import { ProjectReviewBar } from './ProjectReviewBar';
+import type { ProjectWorkflow } from '../api/projects';
 import { useProjectEconomics } from '../hooks/useProjectEconomics';
 import { ProjectEconomics } from './editor/ProjectEconomics';
 import { ProjectServicesModal } from './editor/ProjectServicesModal';
@@ -71,13 +73,19 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
     orderNumber?: string | null;
     customer: string;
   } | null>(null);
+  const [workflow, setWorkflow] = useState<ProjectWorkflow>();
+  const partner = user?.role === 'dealer' || user?.role === 'processor';
+  const canEdit = workflow?.can_edit ?? false;
+  const canEditQuote = workflow?.can_edit_quote ?? false;
+  const canViewQuote = workflow?.can_view_quote ?? false;
   const [sections, setSections] = useState<Section[]>([]);
   const savedSectionsRef = useRef<Section[]>([]);
   const [loadingProject, setLoadingProject] = useState(true);
-  const economics = useProjectEconomics(projectId, Boolean(token) && !loadingProject, Boolean(user && user.role !== 'dealer'));
+  const economics = useProjectEconomics(projectId, Boolean(token) && !loadingProject && canViewQuote, canEditQuote);
 
   useEffect(() => {
     getProject(projectId).then(p => {
+      setWorkflow(p.workflow);
       setProject({
         id: p.id,
         number: p.number,
@@ -133,6 +141,22 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [unsavedModalOpen, setUnsavedModalOpen] = useState(false);
   const [pendingNavTarget, setPendingNavTarget] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!partner || workflow?.status !== 'approved' || !workflow.valid_until) return;
+    const deadline = Date.parse(`${workflow.valid_until}T23:59:59.999+03:00`) + 1;
+    let timer: ReturnType<typeof setTimeout>;
+    const expire = () => {
+      const remaining = deadline - Date.now();
+      if (remaining > 0) { timer = setTimeout(expire, Math.min(remaining, 2147483647)); return; }
+      setProjectDoc(null);
+      setWorkflow(current => current ? { ...current, status: 'expired', can_view_quote: false,
+        approved_revision: null, actions: ['renew', 'reopen'] } : current);
+    };
+    expire();
+    return () => clearTimeout(timer);
+  }, [partner, workflow?.status, workflow?.valid_until]);
+
 
   const activeSection = useMemo(() =>
     sections.find(s => s.id === activeSectionId) || null,
@@ -195,7 +219,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   };
 
   const handleAddSection = async (system: SystemType, opts?: { slideRails?: 3 | 5; slideRows?: 1 | 2; bookSubtype?: string; liftPanels?: number; csShape?: string }) => {
-    if (!project) return;
+    if (!project || !canEdit) return;
     const extra: Partial<Section> = {};
     if (system === 'СЛАЙД' && opts?.slideRails) extra.rails = opts.slideRails;
     if (system === 'СЛАЙД' && opts?.slideRows) extra.slideRows = opts.slideRows;
@@ -242,7 +266,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   };
 
   const handleCopySection = async (source: Section) => {
-    if (!project) return;
+    if (!project || !canEdit) return;
     const maxNum = sections.reduce((m, sec) => Math.max(m, parseInt(sec.name.replace(/\D/g, '')) || 0), 0);
     const copy: Section = {
       ...source,
@@ -272,7 +296,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   };
 
   const updateActiveSection = useCallback((updates: Partial<Section>) => {
-    if (!activeSectionId) return;
+    if (!activeSectionId || !canEdit) return;
     setIsDirty(true);
     setSections(currentSections => {
       const current = currentSections.find(section => section.id === activeSectionId);
@@ -280,9 +304,10 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         currentSections, activeSectionId, current ? csDimensionUpdates(current, updates) : updates,
       );
     });
-  }, [activeSectionId]);
+  }, [activeSectionId, canEdit]);
 
   const handleSaveSection = async () => {
+    if (!canEdit) return true;
     if (isSaving) return false;
     if (!activeSection || !project || !isDirty) return true;
     const sectionId = parseInt(activeSection.id);
@@ -353,7 +378,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   };
 
   const handleDeleteSection = async () => {
-    if (!sectionToDelete || !project) return;
+    if (!sectionToDelete || !project || !canEdit) return;
     try {
       const sectionId = parseInt(sectionToDelete.id);
       if (!isNaN(sectionId)) await deleteSection(project.id, sectionId);
@@ -391,6 +416,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
 
   const openProjectDocument = async (type: ProjectDocumentType, title: string) => {
     if (!await economics.save()) return;
+    if (partner && type !== 'sketch' && (type !== 'commercial' || !canViewQuote)) return;
     setProjectDoc({ type, title });
   };
 
@@ -400,13 +426,14 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   };
 
   const handleSaveProjectNotes = async () => {
-    if (!project) return;
+    if (!project || !canEdit) return;
     try {
       await updateProject(project.id, {
         extra_components: stringifyExtraComponents(projectExtraComponents, canManagePrices()),
         hardware_installation: hardwareInstallation,
         comments: projectComments,
         production_stages: productionStages,
+        ...(partner ? {} : {
         current_stage: currentStage,
         status: projectStatus || undefined,
         glass_status: glassStatus || undefined,
@@ -416,14 +443,17 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         paint_ship_date: paintShipDate || undefined,
         paint_received_date: paintReceivedDate || undefined,
         order_items: orderItems.length ? JSON.stringify(orderItems) : undefined,
+        }),
       });
+      return true;
     } catch {
       toast.error('Не удалось сохранить данные проекта');
+      return false;
     }
   };
 
   const handleSaveProjectExtras = async () => {
-    if (!project) return;
+    if (!project || !canEdit) return;
     const savedComponents = cloneExtraComponents(projectExtraComponentsDraft);
     try {
       await updateProject(project.id, {
@@ -450,7 +480,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   const changeHardwareInstallation = async (
     value: 'installed' | 'not_installed',
   ) => {
-    if (!project || value === hardwareInstallation) return;
+    if (!project || !canEdit || value === hardwareInstallation) return;
     const previous = hardwareInstallation;
     setHardwareInstallation(value);
     try {
@@ -462,20 +492,20 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
   };
 
   const saveStatus = async (updates: Partial<{ customer: string; status: string; glass_status: string; glass_invoice: string; glass_ready_date: string; paint_status: string; paint_ship_date: string; paint_received_date: string; current_stage: number; order_items: string; production_stages: number; }>) => {
-    if (!project) return;
+    if (!project || !canEdit) return;
     try { await updateProject(project.id, updates); }
     catch { toast.error('Не удалось сохранить'); }
   };
 
   const saveProjectCustomer = async (customer: string) => {
-    if (!project) return;
+    if (!project || !canEdit) return;
     const savedProject = await updateProject(project.id, { customer });
     setProject(prev => prev?.id === savedProject.id ? { ...prev, customer: savedProject.customer } : prev);
     toast.success('Заказчик сохранён');
   };
 
   const saveOrderNumber = async () => {
-    if (!project) return;
+    if (!project || !canEdit) return;
     const orderNumber = (project.orderNumber || '').trim();
     try {
       const savedProject = await updateProject(project.id, {
@@ -587,9 +617,25 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
         </div>
       </div>
 
+      <ProjectReviewBar projectId={projectId} workflow={workflow}
+        prepare={async action => {
+          if (action === 'submit' || (action === 'refresh' && canEdit)) {
+            if (!await handleSaveSection()) return false;
+            if (!await handleSaveProjectNotes()) return false;
+          }
+          return action === 'approve' ? economics.save() : true;
+        }}
+        onChanged={p => {
+          setWorkflow(p.workflow); setProjectDoc(null);
+          const loaded = synchronizeLiftRemoteCounts(p.sections.map(apiToLocal));
+          savedSectionsRef.current = snapshotSections(loaded); setSections(loaded); setIsDirty(false);
+          setProjectComments(p.comments || ''); setProjectExtraComponents(parseExtraComponents(p.extra_components));
+          void economics.reload();
+        }} />
+
       {/* Document buttons sub-bar — only visible at project level (no active section) */}
       {!activeSectionId && (
-        <div className="hidden sm:flex flex-wrap items-center gap-1 px-4 sm:px-8 py-2 border-b border-tint/20 bg-surface/20 flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-1 px-4 sm:px-8 py-2 border-b border-tint/20 bg-surface/20 flex-shrink-0">
           {[
             { name: 'Эскизный проект', icon: FileText, projectDoc: 'sketch' as const },
             { name: 'Коммерческое предложение', icon: FileText, projectDoc: 'commercial' as const },
@@ -604,7 +650,8 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             { name: 'Заявка на покраску', icon: Palette, projectDoc: 'paint' as const },
             { name: 'Себестоимость и наценка', icon: FileText, projectDoc: 'cost_report' as const, internal: true },
           ].filter(doc => (
-            (!('internal' in doc) || !doc.internal || canManagePrices())
+            (!partner || doc.projectDoc === 'sketch' || (doc.projectDoc === 'commercial' && canViewQuote))
+            && (!('internal' in doc) || !doc.internal || canManagePrices())
             && (Boolean(token) || !['commercial', 'contract_appendix', 'cost_report'].includes(doc.projectDoc))
           )).map(doc => (
             <button
@@ -622,6 +669,8 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       <div className="flex-1 flex flex-col sm:flex-row min-h-0 overflow-hidden">
 
         <EditorSidebar
+          readOnly={!canEdit}
+          allowBulk={user?.role !== 'dealer'}
           sections={sections}
           activeSectionId={activeSectionId}
           onSelectSection={requestNavigate}
@@ -635,7 +684,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
           projectExtraComponentsCount={projectExtraComponents.length}
           onOpenProjectExtraComponents={openProjectExtras}
           projectServicesCount={economics.config?.services.length ?? 0}
-          onOpenProjectServices={token && user && user.role !== 'dealer' ? () => setProjectServicesOpen(true) : undefined}
+          onOpenProjectServices={canEditQuote ? () => setProjectServicesOpen(true) : undefined}
           projectServicesDisabled={!economics.config || economics.busy}
           onSaveProjectNotes={handleSaveProjectNotes}
         />
@@ -646,6 +695,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
             {!activeSection ? (
               <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 className="project-overview p-3 sm:p-4 max-w-6xl mx-auto w-full">
+                <fieldset disabled={!canEdit}>
 
                 {productionStages === 2 && (
                   <div className="flex items-center gap-3 mb-6">
@@ -685,8 +735,11 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                 </div>
 
                 <ProjectCustomerField key={project.id} value={project.customer} onSave={saveProjectCustomer} />
-                {token && <ProjectEconomics state={economics} />}
+                </fieldset>
+                {token && canViewQuote && <ProjectEconomics state={economics} />}
+                <fieldset disabled={!canEdit}>
 
+                {!partner && <>
                 {/* Status */}
                 <div className="bg-surface/40 border border-tint/30 rounded-2xl p-5 sm:p-6 mb-4">
                   <div className="flex items-center gap-3 mb-4">
@@ -772,6 +825,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   )}
                 </div>
 
+                </>}
                 {/* Hardware installation and structured project extras */}
                 <div className="mb-4 rounded-2xl border border-tint/30 bg-surface/40 p-5 sm:p-6">
                   <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.2em] text-accent/40">Комплектация</p>
@@ -796,12 +850,18 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   </div>
                   <button
                     type="button"
+                    hidden={user?.role === 'dealer'}
                     onClick={openProjectExtras}
                     className="mt-3 flex w-full items-center justify-between rounded-xl border border-tint/30 bg-tint/10 px-4 py-3 text-sm font-bold text-accent hover:bg-tint/20"
                   >
                     <span className="flex items-center gap-2"><PackagePlus className="h-4 w-4" /> Дополнительные комплектующие проекта</span>
                     <span className="rounded-full bg-accent/15 px-2.5 py-0.5 font-mono text-xs">{projectExtraComponents.length}</span>
                   </button>
+                  {user?.role === 'dealer' && projectExtraComponents.length > 0 && canEdit && <button className="mt-3 text-sm text-red-600 underline" onClick={async () => {
+                    if (!window.confirm('Удалить отдельные комплектующие из проекта дилера?')) return;
+                    try { await updateProject(projectId, { extra_components: '[]' }); setProjectExtraComponents([]); }
+                    catch { toast.error('Не удалось удалить комплектующие'); }
+                  }}>Удалить отдельные комплектующие</button>}
                   {projectExtraComponents.length > 0 && (
                     <div className="mt-3 divide-y divide-tint/15 overflow-hidden rounded-xl border border-tint/20 bg-hi/[0.025]">
                       {projectExtraComponents.map((item, index) => (
@@ -833,6 +893,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   </div>
                 </div>
 
+                </fieldset>
                 <button onClick={() => setMobileSidebarOpen(true)}
                   className="sm:hidden mt-4 w-full flex items-center justify-center gap-2 px-6 py-3 bg-hi/[0.03] border border-tint/20 hover:bg-tint/20 text-fg/40 hover:text-accent text-sm font-bold rounded-xl transition-all">
                   <ClipboardList className="w-4 h-4" /> Список секций
@@ -844,6 +905,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
                   ? 'p-4 sm:p-6 w-full max-w-4xl xl:max-w-[1380px] mx-auto'
                   : 'section-editor-shell w-full p-2'}>
                 <SectionFormWrapper
+                  readOnly={!canEdit}
                   section={activeSection}
                   onUpdate={updateActiveSection}
                   onSave={handleSaveSection}
@@ -971,6 +1033,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
       {/* Производственный лист — полноценная модалка с iframe */}
       {previewDocName === 'Производственный лист' && activeSection && (
         <ProductionSheetModal
+          readOnly={!canEdit}
           isOpen={isPreviewModalOpen}
           onClose={() => setIsPreviewModalOpen(false)}
           projectId={projectId}
@@ -982,6 +1045,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
 
       {projectDoc && (
         <ProjectDocumentModal
+          reviewManaged={workflow?.status !== 'internal'}
           isOpen={Boolean(projectDoc)}
           onClose={() => { setProjectDoc(null); void economics.reload(); }}
           projectId={projectId}

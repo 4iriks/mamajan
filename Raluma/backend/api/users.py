@@ -8,7 +8,7 @@ from auth import require_admin, hash_password, generate_password
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
-MANAGED_ROLES = ("user", "dealer")
+MANAGED_ROLES = ("user", "dealer", "processor")
 ALL_ROLES = (*MANAGED_ROLES, "admin", "superadmin")
 TEXT_FIELDS = (
     "customer",
@@ -110,6 +110,7 @@ def create_user(
         dealer_discount_percent=_validate_dealer_discount(data.dealer_discount_percent),
         dealer_notes=_blank_to_none(data.dealer_notes),
         can_manage_prices=data.can_manage_prices,
+        can_review_projects=data.can_review_projects if data.role == "user" else False,
         is_active=data.is_active,
     )
     db.add(user)
@@ -158,6 +159,7 @@ def update_user(
         )
     if effective_role != "user":
         updates["can_manage_prices"] = False
+        updates["can_review_projects"] = False
     if "display_name" in updates:
         display_name = (updates["display_name"] or "").strip()
         if not display_name:

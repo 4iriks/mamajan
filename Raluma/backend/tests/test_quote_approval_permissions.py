@@ -47,7 +47,8 @@ def approval_app():
         project = models.Project(
             number="Approval",
             customer="Test",
-            created_by=users["dealer"][0],
+            # Price/margin permissions on an internal project; partner workflow is tested separately.
+            created_by=users["admin"][0],
             extra_components=json.dumps(
                 [
                     {

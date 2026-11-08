@@ -19,7 +19,20 @@ import {
 } from './localProjects';
 import { filenameFromContentDisposition } from '../utils/documentExports';
 
+export const REVIEW_LABELS: Record<string, string> = {
+  draft: 'Черновик', submitted: 'Отправлен на согласование', in_review: 'На согласовании',
+  returned: 'На доработке', approved: 'КП одобрено', expired: 'Срок КП истёк',
+};
+
+export interface ProjectWorkflow {
+  status: string; version: number; round: number; manager_id: number | null;
+  manager_name: string | null; comment: string | null; actions: string[];
+  can_edit: boolean; can_edit_quote: boolean; can_view_quote: boolean;
+  approved_revision: number | null; valid_until: string | null;
+}
+
 export interface ProjectList {
+  workflow?: ProjectWorkflow;
   id: number;
   number: string;
   invoice_number?: string | null;
@@ -543,6 +556,15 @@ export const downloadProjectDocumentPdf = (
   overrides,
 );
 
+// Serialize this tab's writes, including blur-save followed by submission.
+const writes = new Map<number, Promise<unknown>>();
+function writeProject<T>(id: number, operation: () => Promise<T>): Promise<T> {
+  const pending = (writes.get(id) ?? Promise.resolve()).catch(() => undefined).then(operation);
+  writes.set(id, pending);
+  void pending.finally(() => { if (writes.get(id) === pending) writes.delete(id); }).catch(() => undefined);
+  return pending;
+}
+
 // Projects
 export const getProjects = () =>
   hasAuthToken()
@@ -561,7 +583,7 @@ export const createProject = (data: { number?: string; order_number?: string; cu
 
 export const updateProject = (id: number, data: Partial<Omit<ProjectList, 'id' | 'created_at' | 'updated_at' | 'created_by'>>) =>
   hasAuthToken()
-    ? client.put<ProjectFull>(`/api/projects/${id}`, data).then(r => r.data)
+    ? writeProject(id, () => client.put<ProjectFull>(`/api/projects/${id}`, data).then(r => r.data))
     : Promise.resolve(updateLocalProject(id, data));
 
 export const deleteProject = (id: number) =>
@@ -577,17 +599,17 @@ export const copyProject = (id: number, customer?: string) =>
 // Sections
 export const createSection = (projectId: number, data: Omit<SectionOut, 'id' | 'project_id'>) =>
   hasAuthToken()
-    ? client.post<SectionOut>(`/api/projects/${projectId}/sections`, data).then(r => r.data)
+    ? writeProject(projectId, () => client.post<SectionOut>(`/api/projects/${projectId}/sections`, data).then(r => r.data))
     : Promise.resolve(createLocalSection(projectId, data));
 
 export const updateSection = (projectId: number, sectionId: number, data: Partial<SectionOut>) =>
   hasAuthToken()
-    ? client.put<SectionOut>(`/api/projects/${projectId}/sections/${sectionId}`, data).then(r => r.data)
+    ? writeProject(projectId, () => client.put<SectionOut>(`/api/projects/${projectId}/sections/${sectionId}`, data).then(r => r.data))
     : Promise.resolve(updateLocalSection(projectId, sectionId, data));
 
 export const deleteSection = (projectId: number, sectionId: number) =>
   hasAuthToken()
-    ? client.delete(`/api/projects/${projectId}/sections/${sectionId}`)
+    ? writeProject(projectId, () => client.delete(`/api/projects/${projectId}/sections/${sectionId}`))
     : Promise.resolve(deleteLocalSection(projectId, sectionId));
 
 export const hasLocalProjects = () => getLocalProjectsSnapshot().length > 0;

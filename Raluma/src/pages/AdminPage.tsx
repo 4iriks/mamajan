@@ -20,12 +20,14 @@ import {
 const ROLE_LABELS: Record<string, string> = {
   user: 'Сотрудник',
   dealer: 'Дилер',
+  processor: 'Переработчик',
   admin: 'Админ',
   superadmin: 'Админ',
 };
 
 const ROLE_COLORS: Record<string, string> = {
   user: 'bg-hi/10 text-fg/70 border-hi/15',
+  processor: 'bg-teal-500/20 text-teal-500 border-teal-500/30',
   dealer: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
   admin: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
   superadmin: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
@@ -82,11 +84,12 @@ function roleOptions(isSuperAdmin: boolean, role: string) {
     ...(isSuperAdmin ? [{ value: role === 'superadmin' ? 'superadmin' : 'admin', label: 'Админ' }] : []),
     { value: 'user', label: 'Сотрудник' },
     { value: 'dealer', label: 'Дилер' },
+    { value: 'processor', label: 'Переработчик' },
   ];
 }
 
 function UserDetails({ user }: { user: UserOut }) {
-  if (user.role === 'dealer') {
+  if (['dealer', 'processor'].includes(user.role)) {
     return (
       <div>
         <div className="text-sm font-medium text-fg/80">{user.dealer_company || user.customer || '—'}</div>
@@ -160,7 +163,7 @@ export default function AdminPage() {
   };
 
   const filtered = users.filter(u => {
-    const matchesTab = accountTab === 'dealers' ? u.role === 'dealer' : u.role !== 'dealer';
+    const matchesTab = accountTab === 'dealers' ? ['dealer', 'processor'].includes(u.role) : !['dealer', 'processor'].includes(u.role);
     const query = search.toLowerCase();
     const matchesSearch = u.username.toLowerCase().includes(query) ||
       u.display_name.toLowerCase().includes(query) ||
@@ -183,7 +186,7 @@ export default function AdminPage() {
     setForm({ ...u, password: '' });
     setDealerTerms(EMPTY_DEALER_TERMS);
     setIsEditOpen(true);
-    if (u.role === 'dealer') {
+    if (['dealer', 'processor'].includes(u.role)) {
       try {
         const terms = await getDealerPricingTerms(u.id);
         setDealerTerms({
@@ -216,20 +219,22 @@ export default function AdminPage() {
           dealer_inn: form.dealer_inn || null,
           dealer_discount_percent: form.dealer_discount_percent || 0,
           dealer_notes: form.dealer_notes || null,
-          can_manage_prices: false,
+          can_manage_prices: form.can_manage_prices,
+          can_review_projects: form.role === 'user' && Boolean(form.can_review_projects),
           is_active: form.is_active,
         };
         if (form.password) upd.password = form.password;
         const savedUser = await updateUser(editingUser.id, upd);
-        if (savedUser.role === 'dealer') {
+        if (['dealer', 'processor'].includes(savedUser.role)) {
           await updateDealerPricingTerms(savedUser.id, dealerTerms);
         }
       } else {
         const savedUser = await createUser({
           ...form,
-          can_manage_prices: false,
+          can_manage_prices: form.can_manage_prices,
+          can_review_projects: form.role === 'user' && Boolean(form.can_review_projects),
         });
-        if (savedUser.role === 'dealer') {
+        if (['dealer', 'processor'].includes(savedUser.role)) {
           await updateDealerPricingTerms(savedUser.id, dealerTerms);
         }
       }
@@ -352,7 +357,7 @@ export default function AdminPage() {
         <div className="mb-5 grid max-w-md grid-cols-2 rounded-2xl border border-tint/30 bg-surface/30 p-1">
           {([
             { id: 'employees', label: 'Сотрудники' },
-            { id: 'dealers', label: 'Дилеры' },
+            { id: 'dealers', label: 'Дилеры и переработчики' },
           ] as const).map(tab => (
             <button
               key={tab.id}
@@ -478,7 +483,7 @@ export default function AdminPage() {
               onClick={() => setIsEditOpen(false)} className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
             <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className={`relative w-full ${form.role === 'dealer' ? 'max-w-4xl' : 'max-w-lg'} bg-modal border border-tint/40 rounded-[2.5rem] p-6 sm:p-10 shadow-2xl z-10 overflow-y-auto max-h-[95vh]`}>
+              className={`relative w-full ${['dealer', 'processor'].includes(form.role) ? 'max-w-4xl' : 'max-w-lg'} bg-modal border border-tint/40 rounded-[2.5rem] p-6 sm:p-10 shadow-2xl z-10 overflow-y-auto max-h-[95vh]`}>
               <button onClick={() => setIsEditOpen(false)} className="absolute right-8 top-8 text-fg/30 hover:text-fg transition-colors">
                 <X className="w-6 h-6" />
               </button>
@@ -538,6 +543,7 @@ export default function AdminPage() {
                   </div>
                 )}
 
+                {form.role === 'user' && <label className="flex items-center gap-3 text-sm"><input type="checkbox" checked={Boolean(form.can_review_projects)} onChange={e => setForm(f => ({ ...f, can_review_projects: e.target.checked }))} />Согласование проектов партнёров</label>}
                 {form.role === 'user' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -559,7 +565,7 @@ export default function AdminPage() {
                   </div>
                 )}
 
-                {form.role === 'dealer' && (
+                {['dealer', 'processor'].includes(form.role) && (
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <div className="space-y-2">

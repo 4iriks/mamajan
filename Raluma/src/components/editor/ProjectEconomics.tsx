@@ -20,6 +20,7 @@ export function ProjectEconomics({ state }: { state: ReturnType<typeof useProjec
   const pending = fixed && Boolean(quote.stale || internal?.stale);
   const showingPreviousCalculation = Boolean(dirty || refreshing || error);
   const { user } = useAuthStore();
+  const partner = user?.role === 'dealer' || user?.role === 'processor';
   const rules = config?.discounts || [];
   const quickIndices = quickFields.map(field => rules.findIndex(rule => rule.scope === field.scope && rule.mode === field.mode));
   const additionalRules = rules.map((rule, index) => ({ rule, index })).filter(({ index }) => !quickIndices.includes(index));
@@ -29,15 +30,15 @@ export function ProjectEconomics({ state }: { state: ReturnType<typeof useProjec
   return <section className="rounded-xl border border-tint/30 bg-surface/40 p-3 mb-3" aria-label="Стоимость и скидки">
     <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
       <h3 className="text-sm font-bold">Стоимость заказа</h3>
-      <button type="button" disabled={busy || refreshing} onClick={() => dirty ? void save() : void reload()} className={button}>{busy ? 'Сохранение…' : refreshing ? 'Пересчитываем…' : dirty ? 'Сохранить и пересчитать' : 'Обновить расчёт'}</button>
+      <button type="button" disabled={busy || refreshing} onClick={() => dirty ? void save() : void reload()} className={button}>{busy ? 'Сохранение…' : refreshing ? 'Пересчитываем…' : dirty ? 'Сохранить и пересчитать' : partner ? 'Обновить КП' : 'Обновить расчёт'}</button>
     </div>
     {error && <p role="alert" className="text-xs text-red-600 mb-2">{error}</p>}
     {!quote && !error && <p className="text-xs">Загрузка стоимости…</p>}
     {fixed && <div className="mb-3 rounded-lg border border-tint/25 bg-black/5 p-3 text-xs" aria-label="Зафиксированное КП">
       <div className="flex flex-wrap justify-between gap-2"><b>Зафиксированное КП №{quote.revision}</b><b>{money(quote.totals.grand_total)}</b></div>
-      <p className="mt-1 text-fg/65">Это сохранённая цена для клиента. Изменение заказа её не переписывает; документ и архив доступны в окне КП.</p>
+      <p className="mt-1 text-fg/65">{partner ? 'Утверждённая стоимость. Изменение проекта или истечение срока закрывает доступ к КП до повторного согласования.' : 'Это сохранённая цена для клиента. Изменение заказа её не переписывает; документ и архив доступны в окне КП.'}</p>
     </div>}
-    {fixed && !calculated && user?.role !== 'dealer' && <p role="status" className="my-2 text-xs text-amber-700">Текущий расчёт ещё не загружен. Обновите расчёт перед проверкой новых цен; сохранённая сумма КП не является новым итогом.</p>}
+    {fixed && !calculated && !['dealer', 'processor'].includes(user?.role || '') && <p role="status" className="my-2 text-xs text-amber-700">Текущий расчёт ещё не загружен. Обновите расчёт перед проверкой новых цен; сохранённая сумма КП не является новым итогом.</p>}
     {warnings.length > 0 && <div role={incomplete ? 'alert' : 'status'} className="my-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs"><b>{incomplete ? fixed ? 'Текущий расчёт неполный — новую редакцию КП пока нельзя зафиксировать' : 'Расчёт неполный — экспорт КП недоступен' : 'Проверьте текущий расчёт'}</b><ul className="mt-1 list-disc pl-4">{warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>{fixed && <p className="mt-1">Ранее зафиксированное КП остаётся доступным без изменений.</p>}</div>}
     {calculated && <>
       {fixed && <h4 className="text-xs font-semibold">{showingPreviousCalculation ? 'Последний успешный расчёт' : `Текущий расчёт заказа${pending ? ' · для следующей редакции' : ' · совпадает с КП'}`}</h4>}

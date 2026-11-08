@@ -11,6 +11,7 @@ import models  # noqa: F401 — нужен для создания таблиц
 from auth import hash_password
 from database import SessionLocal
 from api import (
+    reviews,
     auth,
     calculations,
     catalog,
@@ -23,7 +24,7 @@ from api import (
     sections,
     users,
 )
-from migrations import run_migrations
+from migrations import run_migrations, migrate_project_review
 
 
 def seed_superadmin():
@@ -51,6 +52,7 @@ def seed_superadmin():
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     run_migrations()
+    migrate_project_review()
     seed_superadmin()
     from api.catalog import _ensure_catalog_seed
     from engine.construction_pricing import migrate_construction_pricing
@@ -88,6 +90,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(customers.router)
+app.include_router(reviews.router)
 app.include_router(projects.router)
 app.include_router(sections.router)
 app.include_router(documents.router)

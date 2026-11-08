@@ -603,7 +603,7 @@ def _dealer_terms(db: Session, owner: models.User | None) -> dict[str, Decimal]:
         "component_discount_percent": ZERO,
         "service_discount_percent": ZERO,
     }
-    if owner is None or owner.role != "dealer":
+    if owner is None or owner.role not in {"dealer", "processor"}:
         return zeros
     terms = (
         db.query(models.DealerPricingTerms)
@@ -2093,7 +2093,8 @@ def _pricing_context_payload(
         "catalog": catalog,
         "dealer_terms": {
             "user_id": project.owner.id
-            if project.owner is not None and project.owner.role == "dealer"
+            if project.owner is not None
+            and project.owner.role in {"dealer", "processor"}
             else None,
             **{key: decimal_text(value) for key, value in terms.items()},
         },
@@ -2296,6 +2297,18 @@ def get_or_create_quote_state(
     db.add(state)
     db.flush()
     return state
+
+
+def _validity_date(project, at):
+    from datetime import timezone, timedelta
+
+    if project.owner is not None and project.owner.role in {"dealer", "processor"}:
+        return (
+            at.replace(tzinfo=timezone.utc)
+            .astimezone(timezone(timedelta(hours=3)))
+            .date()
+        )
+    return at.date()
 
 
 def calculate_quote(
@@ -2921,7 +2934,9 @@ def calculate_quote(
     warnings.extend(slide_warnings)
 
     basis_date = state.fixed_at or now
-    valid_until = basis_date.date() + timedelta(days=state.validity_days)
+    valid_until = _validity_date(project, basis_date) + timedelta(
+        days=state.validity_days
+    )
     total_area = sum(
         (
             decimal_value(line.get("section_details", {}).get("area_m2"))
@@ -3184,7 +3199,7 @@ def freeze_quote(
     payload["revision"] = 1
     payload["fixed_at"] = fixed_at.isoformat()
     payload["valid_until"] = (
-        fixed_at.date() + timedelta(days=state.validity_days)
+        _validity_date(project, fixed_at) + timedelta(days=state.validity_days)
     ).isoformat()
     public.update(
         {
@@ -3238,7 +3253,9 @@ def refresh_quote_revision(
         raise QuoteExportBlocked(payload)
 
     fixed_at = evaluation_at
-    valid_until = (fixed_at.date() + timedelta(days=state.validity_days)).isoformat()
+    valid_until = (
+        _validity_date(project, fixed_at) + timedelta(days=state.validity_days)
+    ).isoformat()
     public.update(
         {
             "revision": next_revision,

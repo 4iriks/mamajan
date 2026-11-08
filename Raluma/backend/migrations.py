@@ -1485,3 +1485,37 @@ def run_migrations():
             table.create(conn, checkfirst=True)
         _preserve_effective_pricing_baseline_once(conn)
         conn.commit()
+
+
+def migrate_project_review(engine_override=None):
+    from sqlalchemy import inspect
+    import models
+
+    target = engine_override or engine
+    columns = {
+        "users": {"can_review_projects": "BOOLEAN NOT NULL DEFAULT 0"},
+        "projects": {
+            "review_status": "VARCHAR NOT NULL DEFAULT 'internal'",
+            "review_version": "INTEGER NOT NULL DEFAULT 1",
+            "review_round": "INTEGER NOT NULL DEFAULT 0",
+            "review_manager_id": "INTEGER REFERENCES users(id)",
+            "review_comment": "TEXT",
+            "approved_quote_revision": "INTEGER",
+            "quote_valid_until": "VARCHAR",
+        },
+    }
+    with target.begin() as conn:
+        for table, additions in columns.items():
+            present = {col["name"] for col in inspect(conn).get_columns(table)}
+            for column, definition in additions.items():
+                if column not in present:
+                    conn.execute(
+                        text(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+                    )
+        models.ProjectReviewEvent.__table__.create(conn, checkfirst=True)
+        conn.execute(
+            text(
+                "UPDATE projects SET review_status='draft' WHERE review_status='internal' "
+                "AND created_by IN (SELECT id FROM users WHERE role IN ('dealer','processor'))"
+            )
+        )

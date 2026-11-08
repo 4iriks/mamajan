@@ -3,7 +3,7 @@ import binascii
 from datetime import datetime
 from decimal import Decimal, DecimalException, ROUND_HALF_UP
 import json
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -14,6 +14,17 @@ from auth import get_current_user, user_can_manage_prices
 from api.customers import active_customer
 from engine.legacy_values import normalize_center_handle_offset
 from engine.pricing_rules import resolve_effective_price
+
+from project_access import (
+    get_project as access_project,
+    can_read,
+    is_partner,
+    require_content_write,
+    validate_dealer_content,
+    validate_partner_project_fields,
+    workflow_payload,
+    sanitize_project_payload,
+)
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -107,6 +118,8 @@ def _project_response(
                 row.pop("actual_cost", None)
                 row.pop("actualCost", None)
         result["extra_components"] = json.dumps(rows, ensure_ascii=False)
+    result = sanitize_project_payload(result, actor)
+    result["workflow"] = workflow_payload(project, actor)
     return result
 
 
@@ -185,6 +198,15 @@ def _normalize_project_extras(
             )
         elif row_id and "actual_cost" in previous_by_id.get(row_id, {}):
             private_cost["actual_cost"] = previous_by_id[row_id]["actual_cost"]
+        if actor is not None and is_partner(actor):
+            if any(
+                row.get(key) not in (None, "")
+                for key in ("unit_price", "unitPrice", "price", "price_snapshot")
+            ):
+                raise HTTPException(403, "Партнёр не может назначать цены")
+            previous_row = previous_by_id.get(row_id, {})
+            if previous_row.get("unit_price") is not None:
+                row["unit_price"] = previous_row["unit_price"]
         item_id = _extra_int(row, "catalog_item_id", "catalogItemId")
         variant_id = _extra_int(row, "finish_variant_id", "finishVariantId")
         if item_id is None:
@@ -358,12 +380,7 @@ def _normalize_project_extras(
 def _get_project_or_404(
     project_id: int, db: Session, current_user: models.User
 ) -> models.Project:
-    project = db.query(models.Project).filter(models.Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Проект не найден")
-    if current_user.role == "dealer" and project.created_by != current_user.id:
-        raise HTTPException(status_code=403, detail="Нет доступа к проекту")
-    return project
+    return access_project(db, project_id, current_user)
 
 
 @router.get("", response_model=list[schemas.ProjectList])
@@ -372,11 +389,12 @@ def list_projects(
     current_user: models.User = Depends(get_current_user),
 ):
     query = db.query(models.Project)
-    if current_user.role == "dealer":
+    if is_partner(current_user):
         query = query.filter(models.Project.created_by == current_user.id)
     return [
         _project_response(project, current_user, include_sections=False)
         for project in query.order_by(models.Project.created_at.desc()).all()
+        if can_read(project, current_user)
     ]
 
 
@@ -387,6 +405,10 @@ def create_project(
     current_user: models.User = Depends(get_current_user),
 ):
     values = data.model_dump()
+    validate_partner_project_fields(current_user, values)
+    validate_dealer_content(
+        current_user, system=values.get("system"), extras=values.get("extra_components")
+    )
     values["customer"] = active_customer(db, values.get("customer"))
     # Invoice numbers are immutable and always issued by the server.
     values.pop("invoice_number", None)
@@ -401,6 +423,7 @@ def create_project(
         **values,
         invoice_number=_next_invoice_number(db),
         created_by=current_user.id,
+        review_status="draft" if is_partner(current_user) else "internal",
     )
     db.add(project)
     db.commit()
@@ -423,11 +446,17 @@ def get_project(
 def update_project(
     project_id: int,
     data: schemas.ProjectUpdate,
+    version: int | None = Header(default=None, alias="X-Project-Version"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
     project = _get_project_or_404(project_id, db, current_user)
+    require_content_write(db, project, current_user, version)
     values = data.model_dump(exclude_unset=True)
+    validate_partner_project_fields(current_user, values, project)
+    validate_dealer_content(
+        current_user, system=values.get("system"), extras=values.get("extra_components")
+    )
     if "customer" in values and values["customer"] != project.customer:
         values["customer"] = active_customer(db, values["customer"])
     if "extra_components" in values:
@@ -457,10 +486,12 @@ def update_project(
 @router.delete("/{project_id}", status_code=204)
 def delete_project(
     project_id: int,
+    version: int | None = Header(default=None, alias="X-Project-Version"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
     project = _get_project_or_404(project_id, db, current_user)
+    require_content_write(db, project, current_user, version)
     db.delete(project)
     db.commit()
 
@@ -473,6 +504,9 @@ def copy_project(
     current_user: models.User = Depends(get_current_user),
 ):
     source = _get_project_or_404(project_id, db, current_user)
+    validate_dealer_content(
+        current_user, extras=source.extra_components, sections=source.sections
+    )
     selected_customer = active_customer(
         db, customer if customer is not None else source.customer
     )
@@ -502,6 +536,7 @@ def copy_project(
         paint_manual_rows=source.paint_manual_rows,
         delivery_note_data=source.delivery_note_data,
         created_by=current_user.id,
+        review_status="draft" if is_partner(current_user) else "internal",
     )
     db.add(new_project)
     db.flush()

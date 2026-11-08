@@ -28,7 +28,7 @@ export function useProjectEconomics(projectId: number, enabled: boolean, editabl
     inFlight.current = null;
     setQuote(null); setConfig(null); setDirty(false); setBusy(false); setError('');
     setInternal(null); setRefreshing(false);
-  }, [projectId]);
+  }, [projectId, enabled, editable]);
 
   const reload = useCallback(async () => {
     if (!enabled) return;
@@ -49,7 +49,10 @@ export function useProjectEconomics(projectId: number, enabled: boolean, editabl
         setDirty(false);
       }
       setError('');
-    } catch {
+    } catch (cause) {
+      if ((cause as { response?: { status?: number } }).response?.status === 403) {
+        setQuote(null); setInternal(null); setConfig(null);
+      }
       if (mounted.current && owner === generation.current && request === reloadVersion.current) setError('Не удалось обновить стоимость. Показанные суммы могут быть устаревшими. Повторите загрузку.');
     } finally {
       if (mounted.current && owner === generation.current && request === reloadVersion.current) setRefreshing(false);

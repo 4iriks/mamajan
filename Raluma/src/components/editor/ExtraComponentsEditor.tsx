@@ -90,7 +90,8 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
   items = [],
   onChange,
 }) => {
-  const { canManagePrices } = useAuthStore();
+  const { canManagePrices, user } = useAuthStore();
+  const showPrices = user?.role !== 'dealer' && user?.role !== 'processor';
   const [catalog, setCatalog] = useState<HardwareCatalogOption[]>([]);
   const [query, setQuery] = useState('');
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -440,13 +441,13 @@ export const ExtraComponentsEditor: React.FC<ExtraComponentsEditorProps> = ({
                   <option value="2">Этап 2</option>
                 </select>
               </label>
-              {isManual && <label className="space-y-1"><span className={LBL}>Цена продажи, ₽/{row.unit || 'шт'}</span><input aria-label="Цена ручной позиции" className={INP} inputMode="decimal" placeholder="Нужна для расчёта КП" value={row.unitPrice ?? ''} onChange={event => updateRow(row.id!, { unitPrice: event.target.value })} /></label>}
+              {isManual && showPrices && <label className="space-y-1"><span className={LBL}>Цена продажи, ₽/{row.unit || 'шт'}</span><input aria-label="Цена ручной позиции" className={INP} inputMode="decimal" placeholder="Нужна для расчёта КП" value={row.unitPrice ?? ''} onChange={event => updateRow(row.id!, { unitPrice: event.target.value })} /></label>}
               {isManual && canManagePrices() && <label className="space-y-1"><span className={LBL}>Себестоимость, ₽/{row.unit || 'шт'}</span><input aria-label="Себестоимость ручной позиции" className={INP} inputMode="decimal" placeholder="Не задана · необязательно" value={row.actualCost ?? ''} onChange={event => updateRow(row.id!, { actualCost: event.target.value })} /></label>}
             </div>
-            <p className="mt-3 text-xs text-fg/65">{isManual
+            {showPrices && <p className="mt-3 text-xs text-fg/65">{isManual
               ? numericDraft(row.unitPrice) === null ? 'Цена не задана: позиция сохранится в комплектации, но расчёт КП будет неполным.' : `До дилерских условий и скидок заказа: ${row.qty || '0'} ${row.unit || 'шт'} × ${money(numericDraft(row.unitPrice))} = ${money((numericDraft(row.qty) ?? 0) * (numericDraft(row.unitPrice) ?? 0))}.`
               : row.category === 'profile' ? metres === null ? 'Для цены за метр укажите длину одной детали и количество. Цена берётся из каталога автоматически.' : `${row.qty} шт × ${row.size} мм = ${metres.toLocaleString('ru-RU', { maximumFractionDigits: 6 })} м для расчёта цены. В документах сохраняются длина и количество деталей.`
-              : `Цена за ${catalogItem?.unit || row.unit || 'единицу'} берётся из каталога; размер — для документов, не дополнительный множитель.`}</p>
+              : `Цена за ${catalogItem?.unit || row.unit || 'единицу'} берётся из каталога; размер — для документов, не дополнительный множитель.`}</p>}
           </article>
             );
           })}

@@ -58,6 +58,7 @@ class UserBase(BaseModel):
     dealer_discount_percent: Optional[float] = None
     dealer_notes: Optional[str] = None
     can_manage_prices: bool = False
+    can_review_projects: bool = False
     is_active: bool = True
 
 
@@ -81,6 +82,7 @@ class UserUpdate(BaseModel):
     dealer_discount_percent: Optional[float] = None
     dealer_notes: Optional[str] = None
     can_manage_prices: Optional[bool] = None
+    can_review_projects: Optional[bool] = None
     is_active: Optional[bool] = None
     password: Optional[str] = None
 
@@ -102,6 +104,7 @@ class UserMe(BaseModel):
     role: str
     customer: Optional[str] = None
     can_manage_prices: bool = False
+    can_review_projects: bool = False
     is_active: bool
     created_at: datetime
     last_login: Optional[datetime] = None
@@ -666,6 +669,7 @@ class ProjectUpdate(BaseModel):
 
 
 class ProjectOut(ProjectBase):
+    workflow: dict = Field(default_factory=dict)
     id: int
     created_at: datetime
     updated_at: datetime
@@ -676,6 +680,7 @@ class ProjectOut(ProjectBase):
 
 
 class ProjectList(ProjectBase):
+    workflow: dict = Field(default_factory=dict)
     id: int
     created_at: datetime
     updated_at: datetime

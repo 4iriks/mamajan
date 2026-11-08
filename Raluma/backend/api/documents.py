@@ -58,6 +58,35 @@ from engine.quote_pricing import (
     quote_revision_snapshot,
 )
 
+from project_access import (
+    get_project,
+    partner_project,
+    is_partner,
+    require_document,
+    require_content_write,
+    validate_dealer_content,
+)
+from fastapi import Header, Response, Request
+
+
+async def _guard_local(
+    request: Request, actor: models.User = Depends(get_current_user)
+):
+    payload = await request.json()
+    if is_partner(actor) and request.path_params.get("doc_type", "sketch") != "sketch":
+        raise HTTPException(403, "Документ доступен только сотрудникам")
+    validate_dealer_content(
+        actor, extras=payload.get("project", {}).get("extra_components")
+    )
+    sections = payload.get("sections", []) + (
+        [payload["section"]] if "section" in payload else []
+    )
+    for section in sections:
+        validate_dealer_content(
+            actor, system=section.get("system"), extras=section.get("extra_components")
+        )
+
+
 router = APIRouter(prefix="/api/projects", tags=["documents"])
 
 PRODUCTION_SHEET_SYSTEMS = {"СЛАЙД", "ЛИФТ", "КНИЖКА", "ЦС"}
@@ -213,11 +242,7 @@ def _ensure_book_project_documents_supported(
 def _get_section_or_404(
     project_id: int, section_id: int, db: Session, current_user: models.User
 ):
-    project = db.query(models.Project).filter(models.Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Проект не найден")
-    if current_user.role == "dealer" and project.created_by != current_user.id:
-        raise HTTPException(status_code=403, detail="Нет доступа")
+    project = get_project(db, project_id, current_user)
     section = (
         db.query(models.Section)
         .filter(
@@ -236,11 +261,7 @@ def _get_section_or_404(
 
 
 def _get_project_or_404(project_id: int, db: Session, current_user: models.User):
-    project = db.query(models.Project).filter(models.Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Проект не найден")
-    if current_user.role == "dealer" and project.created_by != current_user.id:
-        raise HTTPException(status_code=403, detail="Нет доступа")
+    project = get_project(db, project_id, current_user)
     return project
 
 
@@ -496,7 +517,7 @@ def _cost_context(db, project, revision=None):
 @router.post(
     "/local/sections/preview",
     response_class=HTMLResponse,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(_guard_local)],
 )
 def preview_local_section(payload: LocalDocumentPayload):
     project, section = _build_local_document_objects(payload)
@@ -510,7 +531,7 @@ def preview_local_section(payload: LocalDocumentPayload):
     return HTMLResponse(html)
 
 
-@router.post("/local/sections/calc", dependencies=[Depends(get_current_user)])
+@router.post("/local/sections/calc", dependencies=[Depends(_guard_local)])
 def calculate_local_section(payload: LocalDocumentPayload):
     _, section = _build_local_document_objects(payload)
     return asdict(_calculate_section(section))
@@ -519,7 +540,7 @@ def calculate_local_section(payload: LocalDocumentPayload):
 @router.post(
     "/local/documents/{doc_type}/preview",
     response_class=HTMLResponse,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(_guard_local)],
 )
 def preview_local_project_document(doc_type: str, payload: LocalProjectDocumentPayload):
     doc_type = _validate_project_doc_type(doc_type)
@@ -535,7 +556,7 @@ def preview_local_project_document(doc_type: str, payload: LocalProjectDocumentP
     return HTMLResponse(html)
 
 
-@router.post("/local/sections/pdf", dependencies=[Depends(get_current_user)])
+@router.post("/local/sections/pdf", dependencies=[Depends(_guard_local)])
 def download_local_pdf(payload: LocalDocumentPayload):
     project, section = _build_local_document_objects(payload)
     _ensure_book_section_documents_supported(section)
@@ -571,19 +592,17 @@ def _download_local_section_office(
     return _office_response(content, filename, file_format)
 
 
-@router.post("/local/sections/docx", dependencies=[Depends(get_current_user)])
+@router.post("/local/sections/docx", dependencies=[Depends(_guard_local)])
 def download_local_section_docx(payload: LocalDocumentPayload):
     return _download_local_section_office(payload, "docx")
 
 
-@router.post("/local/sections/xlsx", dependencies=[Depends(get_current_user)])
+@router.post("/local/sections/xlsx", dependencies=[Depends(_guard_local)])
 def download_local_section_xlsx(payload: LocalDocumentPayload):
     return _download_local_section_office(payload, "xlsx")
 
 
-@router.post(
-    "/local/documents/{doc_type}/pdf", dependencies=[Depends(get_current_user)]
-)
+@router.post("/local/documents/{doc_type}/pdf", dependencies=[Depends(_guard_local)])
 def download_local_project_document_pdf(
     doc_type: str,
     payload: LocalProjectDocumentPayload,
@@ -636,9 +655,7 @@ def _download_local_project_office(
     return _office_response(content, filename, file_format)
 
 
-@router.post(
-    "/local/documents/{doc_type}/docx", dependencies=[Depends(get_current_user)]
-)
+@router.post("/local/documents/{doc_type}/docx", dependencies=[Depends(_guard_local)])
 def download_local_project_document_docx(
     doc_type: str,
     payload: LocalProjectDocumentPayload,
@@ -646,9 +663,7 @@ def download_local_project_document_docx(
     return _download_local_project_office(doc_type, payload, "docx")
 
 
-@router.post(
-    "/local/documents/{doc_type}/xlsx", dependencies=[Depends(get_current_user)]
-)
+@router.post("/local/documents/{doc_type}/xlsx", dependencies=[Depends(_guard_local)])
 def download_local_project_document_xlsx(
     doc_type: str,
     payload: LocalProjectDocumentPayload,
@@ -668,15 +683,18 @@ def preview_project_document(
     current_user = _get_user_by_token(token, db)
     _ensure_internal_document_access(doc_type, current_user)
     project = _get_project_or_404(project_id, db, current_user)
+    require_document(project, current_user, doc_type, quote_revision)
+    if is_partner(current_user) and doc_type == "commercial":
+        quote_revision = project.approved_quote_revision
     if doc_type == "cost_report":
         context = _cost_context(db, project, quote_revision)
-        db.commit()
+        db.rollback() if partner_project(project) else db.commit()
         return HTMLResponse(render_cost_report_html(context))
     _ensure_book_project_documents_supported(doc_type, project.sections)
     quote = None
     if doc_type in COMMERCIAL_DOCUMENTS:
         quote = _document_quote(db, project, quote_revision)
-        db.commit()
+        db.rollback() if partner_project(project) else db.commit()
     html = _render_project_document_or_error(
         project, project.sections, doc_type, quote=quote
     )
@@ -694,10 +712,13 @@ def download_project_document_pdf(
     doc_type = _validate_project_doc_type(doc_type)
     _ensure_internal_document_access(doc_type, current_user)
     project = _get_project_or_404(project_id, db, current_user)
+    require_document(project, current_user, doc_type, quote_revision)
+    if is_partner(current_user) and doc_type == "commercial":
+        quote_revision = project.approved_quote_revision
     if doc_type == "cost_report":
         context = _cost_context(db, project, quote_revision)
         pdf_bytes = generate_pdf(render_cost_report_html(context, is_pdf=True))
-        db.commit()
+        db.rollback() if partner_project(project) else db.commit()
         filename = cost_report_filename(context, "pdf")
         from urllib.parse import quote
 
@@ -724,7 +745,7 @@ def download_project_document_pdf(
             pdf_bytes, drawing_files_for_sections(project.sections)
         )
     if doc_type in COMMERCIAL_DOCUMENTS:
-        db.commit()
+        db.rollback() if partner_project(project) else db.commit()
     filename = f"{DOC_TITLES[doc_type]}_{_project_export_number(project, doc_type)}.pdf"
     from urllib.parse import quote
 
@@ -755,10 +776,13 @@ def _download_project_office(
         doc_type = _validate_office_project_doc_type(doc_type, file_format)
     _ensure_internal_document_access(doc_type, current_user)
     project = _get_project_or_404(project_id, db, current_user)
+    require_document(project, current_user, doc_type, quote_revision)
+    if is_partner(current_user) and doc_type == "commercial":
+        quote_revision = project.approved_quote_revision
     if doc_type == "cost_report":
         context = _cost_context(db, project, quote_revision)
         content = build_cost_report_xlsx(context)
-        db.commit()
+        db.rollback() if partner_project(project) else db.commit()
         return _office_response(
             content,
             cost_report_filename(context, "xlsx"),
@@ -922,12 +946,16 @@ class OverridesPayload(BaseModel):
 @router.patch("/{project_id}/sections/{section_id}/overrides")
 def save_overrides(
     project_id: int,
+    response: Response,
     section_id: int,
     payload: OverridesPayload,
+    version: int | None = Header(default=None, alias="X-Project-Version"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    _, section = _get_section_or_404(project_id, section_id, db, current_user)
+    project, section = _get_section_or_404(project_id, section_id, db, current_user)
+    require_content_write(db, project, current_user, version)
+    response.headers["X-Project-Version"] = str(project.review_version)
     # Мёрджим с существующими overrides
     existing = {}
     try:
@@ -949,12 +977,16 @@ def save_overrides(
 @router.delete("/{project_id}/sections/{section_id}/overrides")
 def clear_overrides(
     project_id: int,
+    response: Response,
     section_id: int,
+    version: int | None = Header(default=None, alias="X-Project-Version"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
     """Сбросить все ручные правки — вернуть к расчётным значениям."""
-    _, section = _get_section_or_404(project_id, section_id, db, current_user)
+    project, section = _get_section_or_404(project_id, section_id, db, current_user)
+    require_content_write(db, project, current_user, version)
+    response.headers["X-Project-Version"] = str(project.review_version)
     section.document_overrides = "{}"
     db.commit()
     return {"ok": True}

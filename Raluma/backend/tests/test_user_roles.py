@@ -238,6 +238,7 @@ def test_dealer_is_not_admin_and_can_access_only_own_project_scope(
     )
     assert own_project.status_code == 201, own_project.text
     own_project = own_project.json()
+    dealer_headers["X-Project-Version"] = str(own_project["workflow"]["version"])
 
     other_project = client.post(
         "/api/projects",
@@ -253,6 +254,7 @@ def test_dealer_is_not_admin_and_can_access_only_own_project_scope(
         json={"name": "Своя секция", "system": "СЛАЙД"},
     )
     assert own_section.status_code == 201, own_section.text
+    dealer_headers["X-Project-Version"] = own_section.headers["X-Project-Version"]
 
     other_section = client.post(
         f"/api/projects/{other_project['id']}/sections",

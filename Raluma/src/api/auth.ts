@@ -4,9 +4,10 @@ export interface UserMe {
   id: number;
   username: string;
   display_name: string;
-  role: 'user' | 'dealer' | 'admin' | 'superadmin';
+  role: 'user' | 'dealer' | 'processor' | 'admin' | 'superadmin';
   customer: string | null;
   can_manage_prices: boolean;
+  can_review_projects?: boolean;
   is_active: boolean;
   created_at: string;
   last_login: string | null;

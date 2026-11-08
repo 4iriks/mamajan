@@ -39,11 +39,14 @@ class User(Base):
     dealer_discount_percent = Column(Float, nullable=True)
     dealer_notes = Column(Text, nullable=True)
     can_manage_prices = Column(Boolean, default=False, nullable=False)
+    can_review_projects = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
 
-    projects = relationship("Project", back_populates="owner")
+    projects = relationship(
+        "Project", back_populates="owner", foreign_keys="Project.created_by"
+    )
 
 
 class Customer(Base):
@@ -97,7 +100,16 @@ class Project(Base):
         Text, nullable=True
     )  # JSON: реквизиты и кол-во мест накладной
 
-    owner = relationship("User", back_populates="projects")
+    review_status = Column(String, default="internal", nullable=False)
+    review_version = Column(Integer, default=1, nullable=False)
+    review_round = Column(Integer, default=0, nullable=False)
+    review_manager_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    review_comment = Column(Text, nullable=True)
+    approved_quote_revision = Column(Integer, nullable=True)
+    quote_valid_until = Column(String, nullable=True)
+    owner = relationship("User", back_populates="projects", foreign_keys=[created_by])
+    review_manager = relationship("User", foreign_keys=[review_manager_id])
+    review_events = relationship("ProjectReviewEvent", cascade="all, delete-orphan")
     sections = relationship(
         "Section",
         back_populates="project",
@@ -113,6 +125,18 @@ class Project(Base):
     quote_revisions = relationship(
         "ProjectQuoteRevision", back_populates="project", cascade="all, delete-orphan"
     )
+
+
+class ProjectReviewEvent(Base):
+    __tablename__ = "project_review_events"
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    round = Column(Integer, nullable=False)
+    action = Column(String, nullable=False)
+    actor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    comment = Column(Text, nullable=True)
+    snapshot = Column(Text, nullable=True)
 
 
 class Section(Base):
