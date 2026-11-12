@@ -612,6 +612,11 @@ def _paint_request_length(clean: float, article: object) -> int:
     return _ceil_to_step(clean + _paint_allowance_mm(article), 50)
 
 
+def _paint_total_m(qty: int, length_mm: float) -> float:
+    meters = Decimal(str(qty)) * Decimal(str(length_mm)) / 1000
+    return float(meters.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP))
+
+
 def _paint_allowance_label(rows: list[dict]) -> str:
     if any(row.get("stock_length") for row in rows):
         return "Размер в заявку, мм"
@@ -644,7 +649,7 @@ def _manual_paint_row(raw: dict) -> tuple[str, dict] | None:
         allowance_mm = _paint_allowance_mm(article)
     total_m = _safe_float(raw.get("totalM") or raw.get("total_m"), 0)
     if total_m <= 0 and qty > 0 and allowance > 0:
-        total_m = round(qty * allowance / 1000, 1)
+        total_m = _paint_total_m(qty, allowance)
     row = {
         "article": article,
         "name": name,
@@ -806,7 +811,7 @@ def _build_paint_pages(
                 },
             )
             row["qty"] += int(profile.qty)
-            row["total_m"] = round(row["qty"] * allowance / 1000, 1)
+            row["total_m"] = _paint_total_m(row["qty"], allowance)
 
         covers_qty = _rs3020_covers_quantity(item.section, item.calc)
         if covers_qty:

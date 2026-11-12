@@ -227,3 +227,16 @@ def test_paint_manual_default_rounds_up_but_explicit_size_is_preserved():
     raw = {"article": "RS1313", "clean": 2715, "qty": 1}
     assert _manual_paint_row(raw)[1]["allowance"] == 2800
     assert _manual_paint_row({**raw, "allowance": 2812})[1]["allowance"] == 2812
+
+
+def test_paint_linear_meters_round_half_up_for_fifty_mm_steps():
+    p = project(
+        extra_components=[
+            {"sku": "RS1323", "size": "2494", "qty": 1, "requires_paint": True},
+            {"sku": "RS1313", "size": "2633", "qty": 1, "requires_paint": True},
+        ]
+    )
+    page = build_project_document_context(p, [], "paint")["paint_pages"][0]
+    assert [r["allowance"] for r in page["rows"]] == [2550, 2750]
+    assert [r["total_m"] for r in page["rows"]] == [2.6, 2.8]
+    assert page["total_m"] == 5.4
