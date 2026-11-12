@@ -2120,6 +2120,14 @@ def _build_delivery_xlsx(context: dict) -> bytes:
         page_height += height
         row += 1
 
+    def write_glass_summary(summary: dict, prefix: str = "") -> None:
+        nonlocal row, page_height
+        ensure_space(30)
+        worksheet.merge_range(row, 0, row, 5, prefix + summary["text"], detail_bold)
+        worksheet.set_row(row, 30)
+        row += 1
+        page_height += 30
+
     for item_number, item in enumerate(context.get("delivery_item1_rows") or [], 1):
         if item.get("kind") == "construction":
             dimensions = []
@@ -2172,6 +2180,11 @@ def _build_delivery_xlsx(context: dict) -> bytes:
                 item.get("places") if glass_index == 0 else "",
                 show_number=glass_index == 0,
             )
+        if item.get("glass_summary"):
+            write_glass_summary(item["glass_summary"])
+
+    if context.get("delivery_glass_summary"):
+        write_glass_summary(context["delivery_glass_summary"], "Итого по накладной. ")
 
     component_header_written = False
 

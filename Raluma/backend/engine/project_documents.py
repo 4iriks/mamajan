@@ -608,11 +608,17 @@ def _paint_allowance_mm(article: object) -> int:
     return 80 if str(article or "").strip().upper() in {"RS1313", "RS1315"} else 50
 
 
+def _paint_request_length(clean: float, article: object) -> int:
+    return _ceil_to_step(clean + _paint_allowance_mm(article), 10)
+
+
 def _paint_allowance_label(rows: list[dict]) -> str:
     if any(row.get("stock_length") for row in rows):
         return "Размер в заявку, мм"
     allowances = {
-        round(row["allowance"] - row["clean"], 6) for row in rows if row["clean"] > 0
+        row.get("allowance_mm") or round(row["allowance"] - row["clean"], 6)
+        for row in rows
+        if row["clean"] > 0
     }
     if allowances == {80}:
         return "С припуском 80 мм"
@@ -632,8 +638,10 @@ def _manual_paint_row(raw: dict) -> tuple[str, dict] | None:
     qty = max(0, int(_safe_float(raw.get("qty") or raw.get("quantity"), 0)))
     clean = _safe_float(raw.get("clean") or raw.get("cleanSize"), 0)
     allowance = _safe_float(raw.get("allowance") or raw.get("allowanceSize"), 0)
+    allowance_mm = raw.get("allowance_mm")
     if allowance <= 0 and clean > 0:
-        allowance = clean + _paint_allowance_mm(article)
+        allowance = _paint_request_length(clean, article)
+        allowance_mm = _paint_allowance_mm(article)
     total_m = _safe_float(raw.get("totalM") or raw.get("total_m"), 0)
     if total_m <= 0 and qty > 0 and allowance > 0:
         total_m = round(qty * allowance / 1000, 1)
@@ -647,6 +655,7 @@ def _manual_paint_row(raw: dict) -> tuple[str, dict] | None:
         "qty": qty,
         "clean": clean,
         "allowance": allowance,
+        "allowance_mm": allowance_mm,
         "total_m": total_m,
         "note": str(raw.get("note") or "").strip(),
         "_view_group": raw.get("_view_group"),
@@ -686,10 +695,14 @@ def _project_extra_paint_rows(project: object) -> list[dict]:
                 "color": color,
                 "qty": qty,
                 "clean": clean,
-                "allowance": clean
-                + _paint_allowance_mm(extra.get("sku") or extra.get("article"))
+                "allowance": _paint_request_length(
+                    clean, extra.get("sku") or extra.get("article")
+                )
                 if clean > 0
                 else 0,
+                "allowance_mm": _paint_allowance_mm(
+                    extra.get("sku") or extra.get("article")
+                ),
                 "imageFile": extra.get("imageFile") or extra.get("image_file") or "",
                 "imageData": extra.get("imageData") or extra.get("image_data") or "",
                 "note": "",
@@ -760,7 +773,7 @@ def _build_paint_pages(
             if not profile.painted or profile.length_mm <= 0:
                 continue
             clean = _ceil_to_step(profile.length_mm, 50)
-            allowance = clean + _paint_allowance_mm(profile.article)
+            allowance = _paint_request_length(clean, profile.article)
             note = profile.paint_note
             paint_image = _paint_request_image(profile.article, profile.image)
             has_baked_marker = paint_image != profile.image
@@ -787,6 +800,7 @@ def _build_paint_pages(
                     "qty": 0,
                     "clean": clean,
                     "allowance": allowance,
+                    "allowance_mm": _paint_allowance_mm(profile.article),
                     "total_m": 0.0,
                     "note": note,
                 },
@@ -1393,6 +1407,48 @@ def _delivery_section_number(section: object, fallback: int) -> int:
     return _document_section_number(section, fallback)
 
 
+def _delivery_glass_10mm_summary(rows: Iterable[dict]) -> dict | None:
+    panes = []
+    for row in rows:
+        glass_type = str(row.get("glass_type") or "").casefold()
+        if any(
+            token in glass_type for token in ("стеклопакет", "триплекс", "пеноплекс")
+        ):
+            continue
+        if re.search(r"(?<![\d.,])10(?:[.,]0+)?\s*(?:мм|mm)\b", glass_type):
+            panes.append(row)
+    if not panes:
+        return None
+
+    area = Decimal(0)
+    for pane in panes:
+        shape_area = pane.get("shape_area_m2")
+        width, height = pane.get("width"), pane.get("height")
+        if shape_area is not None and shape_area > 0:
+            piece_area = Decimal(str(shape_area))
+        elif width is not None and height is not None and width > 0 and height > 0:
+            piece_area = Decimal(str(width)) * Decimal(str(height)) / 1_000_000
+        else:
+            return {
+                "area_m2": None,
+                "weight_kg": None,
+                "text": "Стекло 10 мм: общая площадь и вес — согласно ТЗ.",
+            }
+        area += piece_area * Decimal(str(pane["qty"]))
+    area = area.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+    weight = (area * 25).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    area_text = f"{area:.3f}".replace(".", ",")
+    weight_text = f"{weight:.2f}".replace(".", ",")
+    return {
+        "area_m2": float(area),
+        "weight_kg": float(weight),
+        "text": (
+            f"Стекло 10 мм: общая площадь — {area_text} м²; "
+            f"вес — {weight_text} кг (25 кг/м²)."
+        ),
+    }
+
+
 def _build_delivery_glass_rows(
     project: object, sections: list[object], places: dict[str, str]
 ) -> list[dict]:
@@ -1513,6 +1569,7 @@ def _build_delivery_glass_rows(
         rows.append(
             {
                 **group,
+                "glass_summary": _delivery_glass_10mm_summary(group["rows"]),
                 "place_key": place_key,
                 "places": _delivery_place(places, place_key),
             }
@@ -1839,7 +1896,7 @@ def _build_delivery_hardware_rows(
             "places": _delivery_place(places, kit_key),
         }
     )
-    if sections and all(
+    if not sections or all(
         str(getattr(section, "system", "")) == "ЦС" for section in sections
     ):
         rows.clear()
@@ -2062,6 +2119,13 @@ def _build_delivery_context(project: object, sections: Iterable[object]) -> dict
             "includeGlass": include_glass,
         },
         "delivery_item1_rows": item1_rows,
+        "delivery_glass_summary": (
+            _delivery_glass_10mm_summary(
+                pane for group in glass_rows for pane in group["rows"]
+            )
+            if sum(bool(group["glass_summary"]) for group in glass_rows) > 1
+            else None
+        ),
         "delivery_item2_rows": hardware_rows,
         "delivery_item2_plain_rows": hardware_plain_rows,
         "delivery_hardware_groups": hardware_groups,

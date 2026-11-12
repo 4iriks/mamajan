@@ -81,6 +81,7 @@
     .glass-table th, .glass-table td { padding: 0.8mm 1mm; }
     .glass-table th { line-height: 1.15; overflow-wrap: anywhere; }
     .glass-note { margin-top: 0.4mm; font-size: 7.2pt; font-style: italic; }
+    .glass-summary { margin-top: 1.4mm; font-size: 8.4pt; font-weight: 700; }
     .center { text-align: center; }
     .nowrap { white-space: nowrap; }
     .group-row + .group-row td:not(.item-number) { border-top-color: #777; }
@@ -206,6 +207,7 @@
                     {% endfor %}
                   </tbody>
                 </table>
+                {% if row.glass_summary %}<div class="glass-summary">{{ row.glass_summary.text|e }}</div>{% endif %}
               {% endif %}
             </td>
             <td class="quantity">{{ row.qty_text }}</td>
@@ -223,6 +225,10 @@
 
       </tbody>
     </table>
+    {% endif %}
+
+    {% if delivery_glass_summary %}
+    <div class="glass-summary">Итого по накладной. {{ delivery_glass_summary.text|e }}</div>
     {% endif %}
 
     {% if delivery_component_groups %}
