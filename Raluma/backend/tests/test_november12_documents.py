@@ -179,10 +179,10 @@ def test_delivery_with_sections_retains_hardware_kit():
 @pytest.mark.parametrize(
     "article,expected",
     [
-        ("RS1313", [2800, 2720, 2580]),
-        ("RS1315", [2800, 2720, 2580]),
-        ("RS1323", [2770, 2690, 2550]),
-        ("RS1333", [2770, 2690, 2550]),
+        ("RS1313", [2800, 2750, 2600]),
+        ("RS1315", [2800, 2750, 2600]),
+        ("RS1323", [2800, 2700, 2550]),
+        ("RS1333", [2800, 2700, 2550]),
     ],
 )
 def test_paint_lengths_round_up_after_allowance_without_changing_clean_sizes(

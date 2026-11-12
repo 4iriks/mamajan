@@ -609,7 +609,7 @@ def _paint_allowance_mm(article: object) -> int:
 
 
 def _paint_request_length(clean: float, article: object) -> int:
-    return _ceil_to_step(clean + _paint_allowance_mm(article), 10)
+    return _ceil_to_step(clean + _paint_allowance_mm(article), 50)
 
 
 def _paint_allowance_label(rows: list[dict]) -> str:

@@ -55,8 +55,9 @@ def test_paint_allowance_only_for_two_upper_tracks(article, extra):
     )[0]
     row = page["rows"][0]
     assert row["clean"] == 1450  # Established upward rounding is not changed.
-    assert row["allowance"] == 1450 + extra
-    assert row["total_m"] == round(3 * (1450 + extra) / 1000, 1)
+    expected_length = 1550 if extra == 80 else 1500
+    assert row["allowance"] == expected_length
+    assert row["total_m"] == round(3 * expected_length / 1000, 1)
     assert page["allowance_label"] == f"С припуском {extra} мм"
     assert calc == before  # No change to production dimensions/quantities.
 
@@ -78,9 +79,10 @@ def test_extra_and_manual_paint_defaults_follow_article(article, extra):
         ]
     )
     rows = _project_extra_paint_rows(project)
-    assert rows[0]["allowance"] == 1000 + extra
+    expected_length = 1100 if extra == 80 else 1050
+    assert rows[0]["allowance"] == expected_length
     raw = {"article": article, "qty": 2, "clean": 1000}
-    assert _manual_paint_row(raw)[1]["allowance"] == 1000 + extra
+    assert _manual_paint_row(raw)[1]["allowance"] == expected_length
     assert (
         _manual_paint_row({**raw, "allowance": 1123, "totalM": 9})[1]["allowance"]
         == 1123
@@ -272,6 +274,6 @@ def test_paint_exports_share_eighty_mm_allowance(client, admin_headers):
                     for name in archive.namelist()
                     if name.endswith(".xml")
                 )
-        assert "3080" in text and "3050" in text
+        assert "3100" in text and "3050" in text
         assert "RS1313" in text and "RS1315" in text
         assert "50/80" in text
