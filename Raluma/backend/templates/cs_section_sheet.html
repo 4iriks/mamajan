@@ -60,7 +60,10 @@
     <td>Количество стекол</td><td>{{ calc.panes|length }} тип. / {{ calc.panes|sum(attribute='qty') }} физ.</td>
     <td>Общая площадь</td><td>{{ '%.3f'|format(calc.glass_area_m2) }} м²</td>
   </tr>
-  <tr><td>Световой проём</td><td colspan="3">{{ calc.clear_width_mm|cs_mm }} × {{ calc.clear_height_mm|cs_mm }} мм</td></tr>
+  <tr>
+    <td>Световой проём</td><td>{{ calc.clear_width_mm|cs_mm }} × {{ calc.clear_height_mm|cs_mm }} мм</td>
+    <td>Цвет конструкции</td><td>{{ calc.color_text }}</td>
+  </tr>
 </table>
 
 <div class="bar">Геометрия и деление контура</div>
