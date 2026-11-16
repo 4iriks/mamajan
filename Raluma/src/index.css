@@ -153,6 +153,56 @@ html.light .card-shadow {
 .project-overview .mb-6 { margin-bottom: 10px; }
 .section-editor-diagram > .cs-canvas, .cs-canvas { position: relative; }
 
+/* BOOK actions stay within reach while its long form scrolls. */
+.section-editor-shell--book { height: 100%; }
+.section-editor[data-editor-system="КНИЖКА"] {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.section-editor[data-editor-system="КНИЖКА"] > div:first-child { flex-shrink: 0; }
+.section-editor[data-editor-system="КНИЖКА"] .section-editor-layout {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  grid-template-columns: minmax(0, 1fr);
+}
+.section-editor[data-editor-system="КНИЖКА"] .section-editor-diagram { min-width: 0; }
+.section-editor[data-editor-system="КНИЖКА"] .section-editor-diagram svg { min-width: 0; }
+.section-editor[data-editor-system="КНИЖКА"] .section-editor-content { min-width: 0; width: 100%; }
+.section-editor[data-editor-system="КНИЖКА"] .section-editor-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  flex-shrink: 0;
+  margin-top: 8px;
+  padding: 8px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  border: 1px solid var(--theme-tint);
+  border-radius: 14px;
+  background: var(--theme-page);
+  box-shadow: 0 -4px 12px rgb(0 0 0 / 12%);
+}
+@media (min-width: 1024px) {
+  .section-editor[data-editor-system="КНИЖКА"] .section-editor-layout {
+    grid-template-columns: minmax(460px, 1.15fr) minmax(280px, 1fr);
+    overflow: hidden;
+  }
+  .section-editor[data-editor-system="КНИЖКА"] .section-editor-fields {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .section-editor[data-editor-system="КНИЖКА"] .section-editor-content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    margin-bottom: 8px;
+  }
+}
+
 /* October 13: denser controls, with diagrams on the right; CS stays unchanged. */
 .section-editor--compact .section-editor-fields [class*="space-y-"] > * { margin-block: 0; }
 .section-editor--compact .section-editor-fields label:not(.flex) { display: block; line-height: 14px; }

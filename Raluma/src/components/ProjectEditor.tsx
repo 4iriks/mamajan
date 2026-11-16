@@ -903,7 +903,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({ projectId, onBack 
               <motion.div key={activeSection.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
                 className={activeSection.system === 'ЦС'
                   ? 'p-4 sm:p-6 w-full max-w-4xl xl:max-w-[1380px] mx-auto'
-                  : 'section-editor-shell w-full p-2'}>
+                  : `section-editor-shell w-full p-2${activeSection.system === 'КНИЖКА' ? ' section-editor-shell--book' : ''}`}>
                 <SectionFormWrapper
                   readOnly={!canEdit}
                   section={activeSection}

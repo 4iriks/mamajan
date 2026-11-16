@@ -1,6 +1,6 @@
 import type { ExtraComponent, Section, SystemType } from './types';
 import type { SectionOut } from '../../api/projects';
-import { bookExtraDoorPanelOptions, normalizeBookSystem } from '../../constants/book';
+import { bookExtraDoorPanelOptions, normalizeBookSystem, resolveBookLeftStackPanels } from '../../constants/book';
 import { normalizeGlassType } from '../../constants/glass';
 
 function normalizePaintingType(value?: string): Section['paintingType'] {
@@ -340,10 +340,7 @@ export function localToApi(s: Section, fallbackIndex: number): Omit<SectionOut, 
   const extraDoorPanel = extraDoorOptions.includes(s.bookExtraDoorPanel || 0)
     ? s.bookExtraDoorPanel
     : extraDoorOptions[0];
-  const leftBookStackPanels = Math.max(
-    1,
-    Math.min(s.bookLeftStackPanels || Math.floor(s.panels / 2), s.panels - 1),
-  );
+  const leftBookStackPanels = resolveBookLeftStackPanels(s.panels, s.bookLeftStackPanels);
   return {
     name: s.name, order: s.order ?? fallbackIndex + 1,
     system: s.system,

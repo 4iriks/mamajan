@@ -119,6 +119,33 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
     }
   })();
 
+  const isBook = section.system === 'КНИЖКА';
+  const actions = (
+    <div className="section-editor-actions flex flex-wrap gap-2 sm:gap-3 items-stretch">
+      <button onClick={onSave} disabled={isSaving || readOnly}
+        className={`flex-1 min-w-[180px] py-3 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed ${
+          isDirty
+            ? 'bg-amber-500 hover:bg-amber-400 shadow-lg shadow-amber-500/20'
+            : 'bg-primary hover:bg-primary-h shadow-lg shadow-primary/20'
+        }`}>
+        {isSaving ? (
+          <div className="w-5 h-5 border-2 border-hi/30 border-t-white rounded-full animate-spin" />
+        ) : isDirty ? (
+          <><Save className="w-4 h-4" /> Сохранить изменения</>
+        ) : 'Сохранить секцию'}
+      </button>
+      {[{ name: 'Производственный лист', icon: ClipboardList }].map(doc => (
+        <button key={doc.name} onClick={() => onOpenDoc?.(doc.name)}
+          disabled={isBook && (!bookCalc?.production_sheet_implemented || !bookCalc.documents_allowed || !!calcError)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface/60 border border-tint/30 hover:bg-tint/30 hover:border-accent/40 transition-all group disabled:opacity-50 disabled:cursor-not-allowed">
+          <doc.icon className="w-3.5 h-3.5 text-accent/50 group-hover:text-accent transition-colors flex-shrink-0" />
+          <span className="text-[10px] font-bold text-fg/50 group-hover:text-fg transition-colors whitespace-nowrap uppercase tracking-wider">{doc.name}</span>
+        </button>
+      ))}
+      <button type="button" onClick={onBack} className="flex items-center gap-2 rounded-xl border border-tint/30 px-3 py-2 text-sm"><ArrowLeft className="h-4 w-4" />{isBook ? 'К проекту' : 'Вернуться к проекту'}</button>
+    </div>
+  );
+
   return (
     <div className={`section-editor${section.system === 'ЦС' ? '' : ' section-editor--compact'}`} data-editor-system={section.system}>
       {/* Хлебные крошки + заголовок */}
@@ -152,7 +179,7 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
         <div className="section-editor-fields">
           {/* Карточка формы */}
           <fieldset disabled={readOnly}
-            className="bg-surface/40 border border-tint/35 rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 mb-4"
+            className="section-editor-content bg-surface/40 border border-tint/35 rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 mb-4"
             onWheelCapture={event => {
               const target = event.target;
               if (target instanceof HTMLInputElement && target.type === 'number') {
@@ -265,37 +292,13 @@ export const SectionFormWrapper: React.FC<SectionFormWrapperProps> = ({
           {/* Мобильный визуализатор */}
 
 
-          {/* Нижняя панель: сохранить + кнопки документов */}
-          <div className="flex flex-wrap gap-2 sm:gap-3 items-stretch">
-            <button onClick={onSave} disabled={isSaving || readOnly}
-              className={`flex-1 min-w-[180px] py-3 rounded-2xl text-white font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed ${
-                isDirty
-                  ? 'bg-amber-500 hover:bg-amber-400 shadow-lg shadow-amber-500/20'
-                  : 'bg-primary hover:bg-primary-h shadow-lg shadow-primary/20'
-              }`}>
-              {isSaving ? (
-                <div className="w-5 h-5 border-2 border-hi/30 border-t-white rounded-full animate-spin" />
-              ) : isDirty ? (
-                <><Save className="w-4 h-4" /> Сохранить изменения</>
-              ) : 'Сохранить секцию'}
-            </button>
-            {(section.system === 'КНИЖКА'
-              ? []
-              : [{ name: 'Производственный лист', icon: ClipboardList }]
-            ).map(doc => (
-              <button key={doc.name} onClick={() => onOpenDoc?.(doc.name)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface/60 border border-tint/30 hover:bg-tint/30 hover:border-accent/40 transition-all group">
-                <doc.icon className="w-3.5 h-3.5 text-accent/50 group-hover:text-accent transition-colors flex-shrink-0" />
-                <span className="text-[10px] font-bold text-fg/50 group-hover:text-fg transition-colors whitespace-nowrap uppercase tracking-wider">{doc.name}</span>
-              </button>
-            ))}
-            <button type="button" onClick={onBack} className="flex items-center gap-2 rounded-xl border border-tint/30 px-3 py-2 text-sm"><ArrowLeft className="h-4 w-4" />Вернуться к проекту</button>
-          </div>
+          {!isBook && actions}
         </div>
 
         {/* Десктопный визуализатор (sticky) */}
 
       </div>
+      {isBook && actions}
     </div>
   );
 };

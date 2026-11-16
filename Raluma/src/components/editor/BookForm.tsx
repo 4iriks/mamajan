@@ -1,7 +1,7 @@
 import { AlertTriangle } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-import { bookExtraDoorPanelOptions } from '../../constants/book';
+import { bookExtraDoorPanelOptions, resolveBookLeftStackPanels } from '../../constants/book';
 import { Checkbox } from './FormInputs';
 import { INP, LBL, SEL, Section } from './types';
 
@@ -240,6 +240,7 @@ export function BookSystemTab({
   const doorLayout = rawLayout === 'none' ? 'right' : rawLayout;
   const hasLeftDoor = doorLayout === 'left' || doorLayout === 'both';
   const hasRightDoor = doorLayout === 'right' || doorLayout === 'both';
+  const leftStackPanels = resolveBookLeftStackPanels(s.panels, s.bookLeftStackPanels);
   const extraDoorPanelOptions = bookExtraDoorPanelOptions({
     panelCount: s.panels,
     doorLayout,
@@ -263,6 +264,7 @@ export function BookSystemTab({
     update({
       doorSide: layout,
       doors,
+      ...(layout === 'both' ? { bookLeftStackPanels: leftStackPanels } : {}),
       bookSubtype: 'doors',
       bookSystem: s.bookSystem || 'B25',
       bookLeftDoorHardware: layout === 'left' || layout === 'both'
@@ -291,7 +293,15 @@ export function BookSystemTab({
               min={2}
               step={1}
               value={s.panels || ''}
-              onChange={event => update({ panels: Math.max(0, Number(event.target.value)) })}
+              onChange={event => {
+                const panels = Math.max(0, Number(event.target.value));
+                update({
+                  panels,
+                  ...(doorLayout === 'both' && Number.isInteger(panels) && panels >= 2
+                    ? { bookLeftStackPanels: resolveBookLeftStackPanels(panels, s.bookLeftStackPanels) }
+                    : {}),
+                });
+              }}
               className={INP}
               data-book-panel-count
             />
@@ -342,9 +352,9 @@ export function BookSystemTab({
           </div>
           {doorLayout === 'both' && (
             <div className="space-y-1.5">
-              <label className={LBL}>Подвижных панелей в левом сборе</label>
+              <label className={LBL}>Панелей в левом сборе, включая дверь</label>
               <select
-                value={s.bookLeftStackPanels ?? Math.max(1, Math.floor(s.panels / 2))}
+                value={leftStackPanels}
                 onChange={event => update({ bookLeftStackPanels: Number(event.target.value) })}
                 className={SEL}
                 data-book-left-stack
@@ -353,6 +363,7 @@ export function BookSystemTab({
                   <option key={count} value={count}>{count}</option>
                 ))}
               </select>
+              <p className="text-[10px] text-fg/45">В правом сборе: {Math.max(0, s.panels - leftStackPanels)}, включая дверь.</p>
             </div>
           )}
         </div>

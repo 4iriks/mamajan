@@ -7,6 +7,7 @@ import { bookExtraDoorPanelOptions } from '../src/constants/book';
 import { BookCalcResults } from '../src/components/editor/BookCalcResults';
 import { BookRoomViewSVG, BookTopViewSVG } from '../src/components/editor/BookDiagrams';
 import { BookSystemTab } from '../src/components/editor/BookForm';
+import { SectionFormWrapper } from '../src/components/editor/SectionFormWrapper';
 import { apiToLocal, localToApi } from '../src/components/editor/converters';
 import { EditorVisualizer } from '../src/components/editor/EditorVisualizer';
 import { MainTab } from '../src/components/editor/FormTabs';
@@ -237,6 +238,38 @@ for (const label of ['Изнутри внутрь', 'Изнутри наружу
 assert.match(formMarkup, /Количество панелей, включая двери/);
 assert.match(formMarkup, /Справа и слева/);
 assert.match(formMarkup, /Без комп\. профиля/);
+assert.match(formMarkup, /Панелей в левом сборе, включая дверь/);
+
+// Loading an older out-of-range parking value must not mutate the saved input.
+// The visible selection must still agree with the value sent to calculation.
+const reducedSection = Object.freeze({ ...section, panels: 3, bookLeftStackPanels: 6 });
+const reducedMarkup = renderToStaticMarkup(<BookSystemTab s={reducedSection} update={() => undefined} />);
+assert.match(reducedMarkup, /<option value="2" selected="">2<\/option>/);
+assert.equal(localToApi(reducedSection, 0).book_left_stack_panels, 2);
+assert.equal(reducedSection.bookLeftStackPanels, 6);
+
+// Exercise the actual count input handler: shrinking then growing must not
+// silently restore the old oversized parking stack.
+let editedSection = { ...section, panels: 7, bookLeftStackPanels: 6 };
+function findPanelCountInput(node: React.ReactNode): React.ReactElement | undefined {
+  if (!React.isValidElement<{ children?: React.ReactNode; 'data-book-panel-count'?: boolean }>(node)) return;
+  if (node.props['data-book-panel-count']) return node;
+  return React.Children.toArray(node.props.children).map(findPanelCountInput).find(Boolean);
+}
+for (const panels of [3, 7]) {
+  const tree = BookSystemTab({ s: editedSection, update: updates => { editedSection = { ...editedSection, ...updates }; } });
+  const input = findPanelCountInput(tree) as React.ReactElement<{ onChange: (event: { target: { value: string } }) => void }>;
+  assert.ok(input);
+  input.props.onChange({ target: { value: String(panels) } });
+  assert.equal(editedSection.bookLeftStackPanels, 2);
+  assert.equal(localToApi(editedSection, 0).book_left_stack_panels, 2);
+}
+
+const editorMarkup = renderToStaticMarkup(<SectionFormWrapper section={section}
+  onUpdate={() => undefined} onSave={async () => true} onBack={() => undefined}
+  isSaving={false} isDirty={false} onOpenDoc={() => undefined} />);
+assert.match(editorMarkup, /Производственный лист/);
+assert.match(editorMarkup, /section-editor-actions/);
 assert.equal((formMarkup.match(/data-book-fixed=/g) ?? []).length, 4);
 assert.doesNotMatch(formMarkup, /Без дверей|Система книжки|data-book-angle/);
 for (const system of ['B16', 'B17', 'C16', 'C17']) {

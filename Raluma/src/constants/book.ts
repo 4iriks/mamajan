@@ -31,6 +31,11 @@ export function normalizeBookSystem(value?: string): BookProfileSystem {
   return BOOK_SYSTEM_ALIASES[raw] || 'B25';
 }
 
+/** The parking count includes its door, with at least one panel on each side. */
+export function resolveBookLeftStackPanels(panelCount: number, requested?: number): number {
+  return Math.max(1, Math.min(requested || Math.floor(panelCount / 2), panelCount - 1));
+}
+
 export function bookExtraDoorPanelOptions({
   panelCount,
   doorLayout,
