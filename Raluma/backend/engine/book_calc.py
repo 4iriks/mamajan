@@ -3,8 +3,8 @@
 Модуль намеренно не зависит от ``slide_calc`` и ``lift_calc``.  Он строит
 результат вокруг физических панелей и для каждой формулы сохраняет источник:
 
-1. ТЗ КНИЖКА;
-2. новые расчётные Excel;
+1. расчётный Excel для ширин прямой B25 и комплектации;
+2. ТЗ КНИЖКА для прибавок дверей и предварительной обработки;
 3. восстановленная логика старой программы.
 
 Прямые секции без дополнительных панелей считаются подтверждённой
@@ -16,8 +16,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal, ROUND_HALF_UP
-from math import ceil
+from math import ceil, floor, isfinite
 from typing import Any, Literal
+
+from engine.book_machining import BookMachiningOperation, build_book_operations
 
 
 FormulaSource = Literal["tz", "excel", "legacy"]
@@ -105,6 +107,7 @@ class BookProfileItem:
     source: FormulaSource
     status: FormulaStatus
     formula: str
+    total_length_mm: float = 0.0
 
 
 @dataclass
@@ -126,6 +129,7 @@ class BookCalcResult:
     panels: list[BookPanelItem] = field(default_factory=list)
     profiles: list[BookProfileItem] = field(default_factory=list)
     hardware: list[BookHardwareItem] = field(default_factory=list)
+    operations: list[BookMachiningOperation] = field(default_factory=list)
     formulas: list[BookFormulaTrace] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     normalized_config: dict[str, Any] = field(default_factory=dict)
@@ -152,7 +156,10 @@ def _number(value: Any, default: float = 0.0) -> float:
     if value in (None, ""):
         return default
     try:
-        return float(value)
+        number = float(value)
+        if not isfinite(number):
+            raise ValueError("non-finite number")
+        return number
     except (TypeError, ValueError) as exc:
         raise BookCalculationError(
             f"Ожидалось числовое значение, получено: {value!r}"
@@ -335,14 +342,16 @@ def _movement_direction(
     return "left"
 
 
-def _panel_hardware(role: str, hardware: str | None, opening: str | None) -> list[str]:
+def _panel_hardware(
+    role: str, hardware: str | None, opening: str | None, side: str | None = None
+) -> list[str]:
     if role == "door":
         articles = ["RBA0006", "RBA0005", "RBA0050", "RBA0008"]
         if hardware == "lock":
             articles.append("RBA0052")
         else:
             articles.extend(["RBA0026", "RBA0219", "RBA0021"])
-        if opening in {"inside_in", "outside_in"}:
+        if (side == "left") == (opening in {"inside_in", "outside_in"}):
             articles.append("RBA0211")
         else:
             articles.append("RBA0212")
@@ -443,6 +452,7 @@ def _build_hardware(
     extra_door_direction: str,
     angular_joints: int,
     joints_90: int,
+    compensator_count: int,
 ) -> None:
     q = quantity
     doors = int(door_layout in {"left", "both"}) + int(door_layout in {"right", "both"})
@@ -461,9 +471,7 @@ def _build_hardware(
     )
     right_closers = doors - left_closers
 
-    # ТЗ перекрывает строку Excel RBA0009: по одному механизму на физическую
-    # панель и ещё один в общем сборе, когда панелей больше четырёх.
-    compensator_sets = (panel_count + int(panel_count > 4)) * q
+    compensator_sets = (3 * doors + moving_panels) * compensator_count * q
     _add_hardware(
         result,
         article="RBP0004",
@@ -491,9 +499,8 @@ def _build_hardware(
         qty=compensator_sets,
         unit="шт.",
         stage=1,
-        formula="(P + 1 при P > 4) × q",
-        note="Формула ТЗ имеет приоритет над формулой Excel 3D + M.",
-        source="tz",
+        formula="(3 × D + M) × Kкомп × q",
+        note="На каждый установленный компенсирующий профиль; без него — 0.",
     )
     _add_hardware(
         result,
@@ -665,7 +672,7 @@ def _build_hardware(
     )
     _add_hardware(
         result,
-        article="RBA0013",
+        article="Артикул уточнить",
         name="Шуруп DIN 7982 3×16, длинный",
         qty=(doors * 2 + extra_doors * 2) * q,
         unit="шт.",
@@ -786,6 +793,8 @@ def calculate_book(section: object) -> BookCalcResult:
     height = _number(_get(section, "height"))
     base_panel_count = _integer(_get(section, "panels"))
     quantity = _integer(_get(section, "quantity"), 1)
+    if not 0 <= _integer(_get(section, "doors"), 0) <= 2:
+        raise BookCalculationError("Количество основных дверей должно быть от 0 до 2")
     if width <= 0 or height <= 0:
         raise BookCalculationError(
             "Ширина и высота секции КНИЖКИ должны быть больше нуля"
@@ -1008,8 +1017,11 @@ def calculate_book(section: object) -> BookCalcResult:
 
     left_boundary = 27.0 if angle_left else 11.5
     right_boundary = 27.0 if angle_right else 11.5
+    excel_widths = book_system == "B25" and not preliminary_features
     total_glass_span = (
-        width - left_boundary - right_boundary - 3.0 * (physical_count - 1)
+        width - 20.0 - 0.5 * (physical_count - 1) - 3.0 * physical_count
+        if excel_widths
+        else width - left_boundary - right_boundary - 3.0 * (physical_count - 1)
     )
     _require_positive(total_glass_span, "Суммарная ширина стекол")
 
@@ -1033,6 +1045,8 @@ def calculate_book(section: object) -> BookCalcResult:
         if raw_width in (None, ""):
             continue
         door_width = _number(raw_width)
+        if door_width == 0:
+            continue
         if door_width <= 3:
             raise BookCalculationError(
                 "Заданная ширина основной двери должна быть больше 3 мм"
@@ -1049,8 +1063,29 @@ def calculate_book(section: object) -> BookCalcResult:
             "Ширина стекла дополнительной двери",
         )
 
+    door_additions = {
+        "left": 220.0
+        if left_hardware == "lock"
+        else 0.0
+        if _opening_is_visual_in(left_opening)
+        else 100.0,
+        "right": 220.0
+        if right_hardware == "lock"
+        else 0.0
+        if _opening_is_visual_in(right_opening)
+        else 100.0,
+    }
+    automatic_additions = {
+        index: door_additions[panel["door_side"]]
+        for index, panel in enumerate(panel_defs)
+        if excel_widths and panel["role"] == "door" and index not in specified_glass
+    }
     uniform_count = physical_count - len(specified_glass)
-    remaining_glass = total_glass_span - sum(specified_glass.values())
+    remaining_glass = (
+        total_glass_span
+        - sum(specified_glass.values())
+        - sum(automatic_additions.values())
+    )
     if uniform_count <= 0:
         if abs(remaining_glass) > 0.11:
             raise BookCalculationError(
@@ -1059,7 +1094,9 @@ def calculate_book(section: object) -> BookCalcResult:
         uniform_glass_width = 0.0
     else:
         uniform_glass_width = _require_positive(
-            remaining_glass / uniform_count,
+            floor(remaining_glass / uniform_count)
+            if excel_widths
+            else remaining_glass / uniform_count,
             "Ширина стекла стандартной панели",
         )
     (
@@ -1084,7 +1121,9 @@ def calculate_book(section: object) -> BookCalcResult:
 
     width_status: FormulaStatus = "preliminary" if preliminary_features else "confirmed"
     width_expression = (
-        "(W − Lкрай − Rкрай − 3 × (P − 1) − ΣWзаданных стекол) / Pобычных"
+        "floor((W − 20 − 0,5 × (P − 1) − ΣWзаданных профилей − Σприбавок дверей) / Pавто) − 3"
+        if excel_widths
+        else "(W − Lкрай − Rкрай − 3 × (P − 1) − ΣWзаданных стекол) / Pобычных"
         if specified_glass or preliminary_features
         else "(W − 11,5 − 11,5 − 3 × (P − 1)) / P"
     )
@@ -1096,9 +1135,11 @@ def calculate_book(section: object) -> BookCalcResult:
         unit="мм",
         expression=width_expression,
         scope="Прямая секция; при дополнительных элементах — предварительное распределение",
-        source="tz",
+        source="excel" if excel_widths else "tz",
         status=width_status,
-        reference="ТЗ КНИЖКА, стр. 9, блок «Прямая секция»",
+        reference="Расчет_книжки_29_07_26_прямые_секции_4_08.xlsx, D21:D25"
+        if excel_widths
+        else "ТЗ КНИЖКА, стр. 9, блок «Прямая секция»",
     )
     _add_formula(
         result,
@@ -1177,7 +1218,9 @@ def calculate_book(section: object) -> BookCalcResult:
             door_layout,
             left_stack,
         )
-        glass_width = specified_glass.get(index, uniform_glass_width)
+        glass_width = specified_glass.get(
+            index, uniform_glass_width + automatic_additions.get(index, 0.0)
+        )
         panel_glass_height = (
             door_glass_height if role in {"door", "moving_door"} else glass_height
         )
@@ -1190,7 +1233,7 @@ def calculate_book(section: object) -> BookCalcResult:
             if (preliminary_features or book_system != "B25" or role == "moving_door")
             else "confirmed"
         )
-        panel_source: FormulaSource = "tz"
+        panel_source: FormulaSource = "excel" if excel_widths else "tz"
         dimension_sources = {
             "glass_width_mm": {
                 "source": panel_source,
@@ -1228,7 +1271,7 @@ def calculate_book(section: object) -> BookCalcResult:
                 panel_width_mm=_mm(profile_width),
                 panel_height_mm=_mm(panel_height),
                 qty=quantity,
-                hardware_articles=_panel_hardware(role, hardware, opening),
+                hardware_articles=_panel_hardware(role, hardware, opening, side),
                 source=panel_source,
                 status=panel_status,
                 dimension_sources=dimension_sources,
@@ -1317,6 +1360,7 @@ def calculate_book(section: object) -> BookCalcResult:
         extra_door_direction=extra_door_direction,
         angular_joints=angular_joints,
         joints_90=joints_90,
+        compensator_count=compensator_count,
     )
     if book_system != "B25":
         for item in result.hardware:
@@ -1396,6 +1440,28 @@ def calculate_book(section: object) -> BookCalcResult:
         "extra_fixed_panel": bool(fixed_indices),
         "extra_moving_door": extra_door_enabled,
     }
+    for profile in result.profiles:
+        profile.total_length_mm = _mm(profile.length_mm * profile.qty)
+    if excel_widths:
+        result.source_priority = ["excel", "tz", "legacy"]
+        standard_widths = [
+            p.panel_width_mm for p in result.panels if p.role == "standard"
+        ]
+        for index, panel in enumerate(result.panels):
+            if panel.role == "door" and index in specified_glass and standard_widths:
+                recommended = max(standard_widths) + door_additions[panel.door_side]
+                if panel.panel_width_mm < recommended:
+                    result.warnings.append(
+                        f"Дверь {'слева' if panel.door_side == 'left' else 'справа'}: задано {panel.panel_width_mm:g} мм; "
+                        f"рекомендуется не менее {recommended:g} мм. Ручной размер сохранён."
+                    )
+        if any(
+            p.panel_width_mm > (850 if p.role == "door" else 800) for p in result.panels
+        ):
+            result.warnings.append(
+                "Проверить ширины панелей: есть размеры выше рекомендации 800 мм для панели / 850 мм для двери."
+            )
+    result.operations = build_book_operations(result)
     return result
 
 

@@ -21,6 +21,9 @@
   body { box-shadow: 0 0 7mm rgba(16, 40, 51, .16); }
   {% endif %}
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  tr { break-inside: avoid; }
+  .operations td { font-size: 7.5pt; overflow-wrap: anywhere; }
+  .operations [data-field] { display: inline-block; min-width: 12mm; min-height: 4mm; }
   th, td { border: 1px solid #9eafb4; padding: 1.25mm 1.5mm; vertical-align: middle; }
   th { background: #e8eef0; color: #102833; font-size: 7.5pt; text-transform: uppercase; }
   .header { border: 2px solid #102833; }
@@ -38,6 +41,7 @@
     line-height: 1.25;
   }
   .bar {
+    break-after: avoid;
     margin-top: 2mm;
     padding: 1mm 2mm;
     background: #102833;
@@ -169,7 +173,6 @@
   <table class="header">
     <tr><td>ПРОЕКТ № {{ project_number }}</td><td class="title">НАРЕЗКА И КОМПЛЕКТАЦИЯ</td><td class="right">{{ section_label }}</td></tr>
   </table>
-  <div class="warning">Сверловка направляющих и профилей по этому ПЛ не выполняется.</div>
 
   <div class="bar">Профили</div>
   <table class="profile-table">
@@ -180,7 +183,7 @@
         <td class="image-cell">{% if row.image|img_b64 %}<img class="profile-img" src="{{ row.image|img_b64 }}" alt="{{ row.article }}">{% endif %}</td>
         <td class="article-cell"><div class="article">{{ row.article }}</div><div class="name">{{ row.name }}</div>{% if row.formula %}<div class="formula">{{ row.formula }}</div>{% endif %}</td>
         <td class="size-cell{% if row.status == 'preliminary' %} preliminary{% endif %}">{{ value(row.field_prefix ~ '_length', row.length_mm|glass_mm) }} мм × {{ value(row.field_prefix ~ '_qty', row.qty) }} {{ row.unit }}</td>
-        <td class="position-cell">{{ row.positions_text }}</td>
+        <td class="position-cell">{{ row.positions_text }}<br>Всего: {{ value(row.field_prefix ~ '_total_m', row.total_length_m) }} м</td>
       </tr>
     {% endfor %}
     </tbody>
@@ -201,6 +204,24 @@
     </tbody>
   </table>
 
+  <div class="quality-page">
+  <table class="header">
+    <tr><td>ПРОЕКТ № {{ project_number }}</td><td class="title">ОБРАБОТКА ПРОФИЛЕЙ</td><td class="right">{{ section_label }}</td></tr>
+  </table>
+
+  <div class="bar">Обработка профилей</div>
+  <div class="warning">{{ book_sheet.warning }}</div>
+  <table class="operations">
+    <colgroup><col style="width:18%"><col style="width:23%"><col style="width:16%"><col style="width:27%"><col style="width:16%"></colgroup>
+    <thead><tr><th>Профиль</th><th>Операция</th><th>Отсчёт</th><th>Координаты, мм</th><th>Статус</th></tr></thead>
+    <tbody>{% for row in book_sheet.operation_rows %}
+      <tr><td>{{ row.profile }}</td><td>{{ row.kind }}</td><td>{{ row.reference }}</td>
+        <td>{{ value(row.field_prefix ~ '_coordinates', row.coordinates) }}</td><td class="preliminary">{{ row.status }}</td></tr>
+      <tr><td colspan="5" class="muted">Размер обработки, мм: {{ value(row.field_prefix ~ '_dimensions', row.dimensions) }}<br>{{ value(row.field_prefix ~ '_note', row.note) }}</td></tr>
+    {% endfor %}</tbody>
+  </table>
+  {% if book_sheet.notes %}<div class="bar">Замечания к расчёту</div>{% for note in book_sheet.notes %}<p class="muted">{{ note }}</p>{% endfor %}{% endif %}
+  </div>
   <div class="quality-page">
   <table class="header">
     <tr><td>ПРОЕКТ № {{ project_number }}</td><td class="title">ЧЕК-ЛИСТ ПРОИЗВОДСТВА</td><td class="right">{{ section_label }}</td></tr>

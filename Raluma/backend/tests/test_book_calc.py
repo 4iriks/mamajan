@@ -1,4 +1,5 @@
 from dataclasses import asdict
+from math import floor
 
 import pytest
 
@@ -26,10 +27,10 @@ def book_section(**overrides):
 
 
 @pytest.mark.parametrize("panels", range(2, 7))
-def test_direct_sections_two_to_six_panels_use_tz_width_formula(panels):
+def test_direct_sections_two_to_six_panels_use_excel_width_formula(panels):
     width = 3000
     result = calculate_book(book_section(width=width, panels=panels))
-    expected = round((width - 11.5 - 11.5 - 3 * (panels - 1)) / panels, 1)
+    expected = floor((width - 20 - 0.5 * (panels - 1)) / panels) - 3
 
     assert len(result.panels) == panels
     assert {panel.glass_width_mm for panel in result.panels} == {expected}
@@ -37,7 +38,7 @@ def test_direct_sections_two_to_six_panels_use_tz_width_formula(panels):
         round(expected + 3, 1)
     }
     width_formula = next(item for item in result.formulas if item.key == "glass_width")
-    assert width_formula.source == "tz"
+    assert width_formula.source == "excel"
     assert width_formula.status == "confirmed"
     assert result.configuration_status == "confirmed"
     assert result.documents_allowed is True
@@ -45,13 +46,12 @@ def test_direct_sections_two_to_six_panels_use_tz_width_formula(panels):
     assert result.documents_implemented is False
 
 
-def test_tz_formula_has_priority_over_conflicting_excel_width_formula():
+def test_excel_width_formula_is_the_mvp_working_basis():
     result = calculate_book(book_section(width=3000, panels=4))
-    # ТЗ: 742,0; формула из нового Excel для тех же входных данных дала бы 741.
-    assert result.panels[0].glass_width_mm == 742.0
+    assert result.panels[0].glass_width_mm == 741.0
     trace = next(item for item in result.formulas if item.key == "glass_width")
-    assert trace.source == "tz"
-    assert result.source_priority == ["tz", "excel", "legacy"]
+    assert trace.source == "excel"
+    assert result.source_priority == ["excel", "tz", "legacy"]
 
 
 @pytest.mark.parametrize(
@@ -269,7 +269,7 @@ def test_result_is_serializable_and_contains_physical_panel_sources():
 
     assert payload["panels"][0]["number"] == 1
     assert payload["panels"][0]["dimension_sources"]["glass_width_mm"] == {
-        "source": "tz",
+        "source": "excel",
         "status": "confirmed",
     }
     assert payload["formulas"]
@@ -278,15 +278,15 @@ def test_result_is_serializable_and_contains_physical_panel_sources():
     )
 
 
-def test_hardware_preserves_shipment_stage_and_tz_override():
+def test_hardware_preserves_shipment_stage_and_excel_formula():
     result = calculate_book(book_section(panels=5))
     compensator = next(item for item in result.hardware if item.article == "RBA0009")
 
     assert len(result.hardware) == 38
     assert {item.shipment_stage for item in result.hardware} == {1, 2}
-    assert compensator.qty == 6
-    assert compensator.source == "tz"
-    assert "P + 1" in compensator.formula
+    assert compensator.qty == 7
+    assert compensator.source == "excel"
+    assert "3 × D + M" in compensator.formula
 
 
 @pytest.mark.parametrize(
@@ -351,8 +351,8 @@ def test_four_fixed_positions_and_two_door_widths_have_stable_physical_order():
         400,
         700,
         410,
-        955,
-        955,
+        953,
+        953,
         420,
         710,
         430,
@@ -367,7 +367,7 @@ def test_four_fixed_positions_and_two_door_widths_have_stable_physical_order():
         "right",
         "none",
     ]
-    assert sum(panel.panel_width_mm for panel in result.panels) == 4980
+    assert sum(panel.panel_width_mm for panel in result.panels) == 4976
     assert result.normalized_config["physical_panel_count"] == 8
     assert result.normalized_config["fixed_panel_numbers"] == [1, 3, 6, 8]
     assert result.normalized_config["fixed_panels"] == {

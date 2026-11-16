@@ -190,6 +190,7 @@ def _seed_item_to_model(index: int, item) -> models.CatalogItem:
                 name=fixed_name,
                 price=base_cost,
                 cost=base_cost,
+                cost_is_set=item.system != "КНИЖКА",
                 profile_markup_percent=max(0, item.markup_percent),
                 profile_discount_percent=0,
                 waste_markup_percent=max(0, item.waste_percent),
@@ -236,6 +237,7 @@ def _ensure_catalog_seed(db: Session) -> None:
                     models.CatalogPriceVersion(
                         finish_variant_id=variant.id,
                         cost=variant.cost,
+                        cost_is_set=variant.cost_is_set,
                         profile_markup_percent=variant.profile_markup_percent,
                         profile_discount_percent=variant.profile_discount_percent,
                         waste_markup_percent=variant.waste_markup_percent,

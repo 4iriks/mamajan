@@ -1,4 +1,5 @@
 import io
+import json
 import zipfile
 from types import SimpleNamespace
 
@@ -7,6 +8,93 @@ from openpyxl import load_workbook
 
 from engine.project_documents import build_project_document_context
 from schemas import SectionCreate
+
+
+def test_book_machining_overrides_persist_and_reach_all_exports(
+    client, admin_headers, project, monkeypatch
+):
+    created = client.post(
+        f"/api/projects/{project['id']}/sections",
+        headers=admin_headers,
+        json=book_payload(
+            book_left_door_width=700,
+            ral_color="1024 МАТОВЫЙ",
+            comments="Припуск на хлыст 120 мм",
+            glass_supplied=False,
+        ),
+    )
+    assert created.status_code == 201, created.text
+    sid = created.json()["id"]
+    base = f"/api/projects/{project['id']}/sections/{sid}"
+    patches = [
+        {"book_glass_0_width": "701.5", "section_comments": "Особый распил 120 мм"},
+        {
+            "book_operation_d13_lower_coordinates": "93; 186; 701.25",
+            "book_operation_outlet_left_coordinates": "720",
+            "book_operation_outlet_left_dimensions": "34 × 12",
+            "book_operation_outlet_left_note": "Вырез 34 мм, проверено вручную",
+        },
+    ]
+    for overrides in patches:
+        response = client.patch(
+            base + "/overrides", headers=admin_headers, json={"overrides": overrides}
+        )
+        assert response.status_code == 200
+    saved = next(
+        s
+        for s in client.get(
+            f"/api/projects/{project['id']}", headers=admin_headers
+        ).json()["sections"]
+        if s["id"] == sid
+    )
+    assert saved["book_left_door_width"] == 700
+    assert json.loads(saved["document_overrides"]) == patches[0] | patches[1]
+    token = admin_headers["Authorization"].split()[1]
+    preview = client.get(base + "/preview", params={"token": token})
+    assert preview.status_code == 200
+    html_used_for_pdf = []
+
+    def fake_pdf(html):
+        html_used_for_pdf.append(html)
+        return b"%PDF-1.4\n%%EOF"
+
+    monkeypatch.setattr("api.documents.generate_pdf", fake_pdf)
+    assert client.get(base + "/pdf", headers=admin_headers).status_code == 200
+    word_response = client.get(base + "/docx", headers=admin_headers)
+    excel_response = client.get(base + "/xlsx", headers=admin_headers)
+    assert word_response.status_code == excel_response.status_code == 200
+    word = Document(io.BytesIO(word_response.content))
+    word_text = (
+        "\n".join(p.text for p in word.paragraphs)
+        + "\n"
+        + "\n".join(
+            cell.text
+            for table in word.tables
+            for row in table.rows
+            for cell in row.cells
+        )
+    )
+    excel = load_workbook(io.BytesIO(excel_response.content), data_only=True)
+    excel_text = "\n".join(
+        str(c.value)
+        for sheet in excel
+        for row in sheet
+        for c in row
+        if c.value is not None
+    )
+    for content in [preview.text, html_used_for_pdf[0], word_text, excel_text]:
+        for token in (
+            "93; 186; 701.25",
+            "34 × 12",
+            "Вырез 34 мм, проверено вручную",
+            "701.5",
+            "1024 МАТОВЫЙ",
+            "Особый распил 120 мм",
+            "Проверить",
+            "Заполнить",
+        ):
+            assert token in content
+        assert "не выполняется" not in content
 
 
 def book_payload(**overrides):
@@ -41,7 +129,7 @@ def test_book_calculation_has_authenticated_and_local_endpoints(
         "/api/calculate/local/book", headers=admin_headers, json=book_payload()
     )
     assert local.status_code == 200
-    assert local.json()["panels"][0]["glass_width_mm"] == 742.0
+    assert local.json()["panels"][0]["glass_width_mm"] == 686.0
     assert local.json()["normalized_config"]["door_layout"] == "both"
 
     assert client.post("/api/calculate/book", json=book_payload()).status_code == 403
@@ -66,7 +154,7 @@ def test_existing_local_calc_dispatches_to_book(client, admin_headers):
 
     assert response.status_code == 200
     assert len(response.json()["panels"]) == 4
-    assert response.json()["source_priority"][0] == "tz"
+    assert response.json()["source_priority"][0] == "excel"
 
 
 def test_book_api_returns_clear_calculation_error(client, admin_headers):
@@ -201,6 +289,9 @@ def test_book_production_sheet_is_available_and_preliminary_configs_are_blocked(
     assert "RBP001" in preview.text
     assert "RBP002" in preview.text
     assert "RBP003" in preview.text
+    assert "Обработка профилей" in preview.text
+    assert "Проверить" in preview.text
+    assert "не включены" not in preview.text
     assert "отверстие 93" not in preview.text
 
     docx = client.post(

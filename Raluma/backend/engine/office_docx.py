@@ -1069,9 +1069,53 @@ def _add_book_profiles(
             size=8,
             align=WD_ALIGN_PARAGRAPH.CENTER,
         )
-        _set_cell_text(row.cells[3], item.positions_text, size=7)
+        total = override_value(
+            overrides, f"{item.field_prefix}_total_m", item.total_length_m
+        )
+        _set_cell_text(row.cells[3], f"{item.positions_text}\nВсего: {total} м", size=7)
         _prevent_row_split(row)
     table.style = "Table Grid"
+
+
+def _add_book_operations(
+    document: Document, sheet: BookSheetData, overrides: dict[str, Any]
+) -> None:
+    _add_bar(document, "Обработка профилей")
+    _add_book_warning(document, sheet.warning)
+    table = document.add_table(rows=1, cols=5)
+    table.autofit = False
+    widths = (31, 44, 28, 57, 26)
+    for index, header in enumerate(
+        ("Профиль", "Операция", "Отсчёт", "Координаты, мм", "Статус")
+    ):
+        _set_cell_width(table.cell(0, index), widths[index])
+        _set_cell_text(table.cell(0, index), header, bold=True, size=7)
+        _set_cell_shading(table.cell(0, index), HEADER_GRAY)
+    for item in sheet.operation_rows:
+        row = table.add_row()
+        coordinates = override_value(
+            overrides, f"{item.field_prefix}_coordinates", item.coordinates
+        )
+        for index, value in enumerate(
+            (item.profile, item.kind, item.reference, coordinates, item.status)
+        ):
+            _set_cell_width(row.cells[index], widths[index])
+            _set_cell_text(row.cells[index], value, size=7)
+        _prevent_row_split(row)
+        note_row = table.add_row()
+        cell = note_row.cells[0].merge(note_row.cells[-1])
+        _set_cell_text(
+            cell,
+            f"Размер обработки, мм: {override_value(overrides, f'{item.field_prefix}_dimensions', item.dimensions)}\n"
+            f"{override_value(overrides, f'{item.field_prefix}_note', item.note)}",
+            size=7,
+        )
+        _prevent_row_split(note_row)
+    table.style = "Table Grid"
+    if sheet.notes:
+        _add_bar(document, "Замечания к расчёту")
+        for note in sheet.notes:
+            document.add_paragraph(note)
 
 
 def _add_book_hardware(
@@ -1313,13 +1357,12 @@ def build_section_docx(project: object, section: object, calc: object) -> bytes:
         _add_book_assemblies(document, sheet, overrides)
         document.add_page_break()
         _add_header(document, project, section, "КНИЖКА · НАРЕЗКА И КОМПЛЕКТАЦИЯ")
-        _add_book_warning(
-            document,
-            "Сверловка направляющих и профилей по этому ПЛ не выполняется.",
-        )
         _add_book_profiles(document, sheet, overrides)
         _add_book_hardware(document, sheet, overrides)
         _add_book_extra_components(document, section, overrides)
+        document.add_page_break()
+        _add_header(document, project, section, "КНИЖКА · ОБРАБОТКА ПРОФИЛЕЙ")
+        _add_book_operations(document, sheet, overrides)
         document.add_page_break()
         _add_header(document, project, section, "КНИЖКА · ЧЕК-ЛИСТ ПРОИЗВОДСТВА")
         _add_book_checklist(document, sheet, section, overrides)

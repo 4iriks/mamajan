@@ -125,7 +125,7 @@ export function BookCalcResults({
             {calc.profiles.map((item, index) => (
               <div key={`${item.article}-${item.panel_number ?? index}`} className="flex justify-between gap-3 border-t border-tint/15 pt-2 text-[10px]">
                 <span className="text-fg/60">{item.article} · {item.position}</span>
-                <span className="whitespace-nowrap font-mono text-fg/80">{item.length_mm.toFixed(1)} мм × {item.qty}</span>
+                <span className="whitespace-nowrap font-mono text-fg/80">{item.length_mm.toFixed(1)} мм × {item.qty} · {((item.total_length_mm ?? item.length_mm * item.qty) / 1000).toFixed(3)} м</span>
               </div>
             ))}
           </div>
@@ -148,6 +148,21 @@ export function BookCalcResults({
         </details>
       </div>
 
+      {!!calc.operations?.length && (
+        <details className="rounded-xl border border-tint/25 bg-black/5 p-3" data-book-operations>
+          <summary className="cursor-pointer text-xs font-bold text-fg/70">Обработка профилей · проверить</summary>
+          <p className="mt-2 text-xs text-fg/55">Координаты предварительные. Исправить и заполнить их можно в производственном листе.</p>
+          <div className="mt-3 space-y-2">
+            {calc.operations.map(item => (
+              <div key={item.key} className="border-t border-tint/15 pt-2 text-xs text-fg/70">
+                <div>{item.profile_article} · {{ upper: 'верх', lower: 'низ', both: 'верх и низ' }[item.position]} · {item.kind}</div>
+                <div className="mt-1 font-mono">{item.reference_side === 'left' ? 'Слева' : 'Справа'}: {item.coordinates_mm.length ? `${item.coordinates_mm.join('; ')} мм — проверить` : 'Заполнить вручную'}</div>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
       {calc.warnings.map((warning, index) => (
         <div
           key={`${warning}-${index}`}
@@ -167,7 +182,7 @@ export function BookCalcResults({
         )}
         <span>
           {calc.production_sheet_implemented && calc.documents_allowed
-            ? 'Предварительный ПЛ доступен. Сверловка D13/D6 и отверстия направляющих в него не включены.'
+            ? 'ПЛ доступен. Координаты обработки предварительные: проверьте их и заполните пропуски в ПЛ перед производством.'
             : calc.documents_allowed
               ? 'Производственный лист КНИЖКИ пока недоступен.'
               : 'Производственный лист заблокирован до подтверждения конфигурации.'}

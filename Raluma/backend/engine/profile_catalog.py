@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from engine.lift_catalog import LIFT_CATALOG_SPECS
+from engine.book_catalog import BOOK_CATALOG_SPECS
 
 
 DEFAULT_COLOR_VARIANTS = ("Анод/неокрас", "RAL стандарт", "RAL муар", "Сублимация")
@@ -554,6 +555,30 @@ PROFILE_CATALOG.update(
             waste_percent=0,
             note="Внутренний код. Две штуки на каждое стекло. Цена и вес не заполнены.",
         ),
+    }
+)
+
+
+PROFILE_CATALOG.update(
+    {
+        article: ProfileCatalogItem(
+            article=article,
+            name=name,
+            image="",
+            section_width_mm=0,
+            section_height_mm=0,
+            paint_mode="Красится" if group == "Профили" else "Не красится",
+            color_variants=DEFAULT_COLOR_VARIANTS
+            if group == "Профили"
+            else ("Без цвета",),
+            group=group,
+            system="КНИЖКА",
+            unit=unit,
+            markup_percent=0,
+            waste_percent=0,
+            note="КНИЖКА B25: артикул из расчётного Excel. Цена не задана. Вариант фурнитуры не заменять автоматически.",
+        )
+        for article, name, unit, group in BOOK_CATALOG_SPECS
     }
 )
 

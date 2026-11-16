@@ -1,8 +1,7 @@
 """Shared presentation data for the preliminary BOOK production sheet.
 
 The calculator remains the single source of geometry.  This module only groups
-physical items for manufacturing documents and deliberately exposes no drilling
-coordinates while the drilling brief is unfinished.
+physical items and preliminary machining for all manufacturing formats.
 """
 
 from __future__ import annotations
@@ -12,16 +11,19 @@ from typing import Any
 
 
 BOOK_SHEET_WARNING = (
-    "ПРЕДВАРИТЕЛЬНЫЙ ПРОИЗВОДСТВЕННЫЙ ЛИСТ. Сверловка D13/D6, отверстия "
-    "для слива, вывод под нижнюю направляющую и расстояние под доводчик "
-    "в этот документ не включены. Эти операции выполнять только по отдельному "
-    "согласованному чертежу."
+    "Обработка предварительная: позиции «Проверить» сверить перед производством. "
+    "Пустые координаты и размеры заполнить вручную в ПЛ. "
+    "Все координаты приведены для одной секции в миллиметрах."
 )
 
 
 BOOK_CHECKLIST_ROWS = (
     ("1", "Проверить размеры секции и состав панелей по схеме", ""),
-    ("2", "Нарезать направляющие и компенсирующие профили по ПЛ", "Без сверловки"),
+    (
+        "2",
+        "Нарезать и обработать профили по проверенному ПЛ",
+        "Проверить координаты и заполнить пропуски",
+    ),
     ("3", "Нарезать стекольные профили RBP002 по сгруппированным размерам", ""),
     ("4", "Склеить панели по размерам ПЛ", "Сверить номера панелей"),
     ("5", "Установить ручки, замки, защёлки и прочую фурнитуру", "По комплектации"),
@@ -81,6 +83,22 @@ class BookSheetProfileRow:
     def positions_text(self) -> str:
         return ", ".join(self.positions)
 
+    @property
+    def total_length_m(self) -> float:
+        return round(self.length_mm * self.qty / 1000, 3)
+
+
+@dataclass
+class BookSheetOperationRow:
+    field_prefix: str
+    profile: str
+    kind: str
+    reference: str
+    coordinates: str
+    dimensions: str
+    status: str
+    note: str
+
 
 @dataclass
 class BookSheetHardwareRow:
@@ -103,6 +121,8 @@ class BookSheetData:
     assembly_rows: list[BookSheetAssemblyRow]
     profile_rows: list[BookSheetProfileRow]
     hardware_rows: list[BookSheetHardwareRow]
+    operation_rows: list[BookSheetOperationRow]
+    notes: list[str]
     checklist_rows: tuple[tuple[str, str, str], ...]
     glass_supplied: bool
     calculation_status: str
@@ -286,6 +306,14 @@ def build_book_sheet_data(section: object, calc: object) -> BookSheetData:
     )
     summary_rows = [
         ("Система", book_system),
+        (
+            "Цвет конструкции",
+            " ".join(
+                str(getattr(section, key, "") or "").strip()
+                for key in ("painting_type", "ral_color")
+            ).strip()
+            or "Не задан",
+        ),
         ("Ширина секции", f"{_number(getattr(section, 'width', 0)):g} мм"),
         ("Высота секции", f"{_number(getattr(section, 'height', 0)):g} мм"),
         ("Физических панелей", f"{len(list(getattr(calc, 'panels', None) or []))} шт."),
@@ -313,6 +341,28 @@ def build_book_sheet_data(section: object, calc: object) -> BookSheetData:
         assembly_rows=_group_assemblies(calc),
         profile_rows=_group_profiles(calc),
         hardware_rows=_group_hardware(calc),
+        operation_rows=[
+            BookSheetOperationRow(
+                field_prefix=f"book_operation_{op.key}",
+                profile=f"{op.profile_article} · { {'upper': 'верх', 'lower': 'низ', 'both': 'верх и низ'}[op.position] }",
+                kind=op.kind,
+                reference="Справа налево"
+                if op.reference_side == "right"
+                else "Слева направо",
+                coordinates="; ".join(f"{value:g}" for value in op.coordinates_mm),
+                dimensions="Ø13"
+                if "D13" in op.kind
+                else "Ø6"
+                if "D6" in op.kind
+                else "",
+                status="Проверить"
+                if op.status == "preliminary"
+                else "Заполнить / проверить",
+                note=op.note,
+            )
+            for op in getattr(calc, "operations", [])
+        ],
+        notes=list(getattr(calc, "warnings", []) or []),
         checklist_rows=BOOK_CHECKLIST_ROWS,
         glass_supplied=glass_supplied,
         calculation_status=str(

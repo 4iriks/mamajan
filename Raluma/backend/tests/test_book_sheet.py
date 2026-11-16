@@ -34,15 +34,16 @@ def test_book_sheet_groups_equal_glass_assemblies_and_profiles_for_quantity():
     assert [
         (row.width_mm, row.height_mm, row.qty, row.positions)
         for row in sheet.glass_rows
-    ] == [(742.0, 2385.0, 8, [1, 2, 3, 4])]
+    ] == [(686.0, 2385.0, 6, [1, 2, 3]), (906.0, 2385.0, 2, [4])]
     assert [
         (row.width_mm, row.height_mm, row.qty, row.positions)
         for row in sheet.assembly_rows
-    ] == [(745.0, 2418.0, 8, [1, 2, 3, 4])]
+    ] == [(689.0, 2418.0, 6, [1, 2, 3]), (909.0, 2418.0, 2, [4])]
     assert [(row.article, row.length_mm, row.qty) for row in sheet.profile_rows] == [
         ("RBP001", 3000.0, 4),
         ("RBP003", 3000.0, 4),
-        ("RBP002", 745.0, 16),
+        ("RBP002", 689.0, 12),
+        ("RBP002", 909.0, 4),
     ]
     assert {row.image for row in sheet.profile_rows} == {
         "RBP001.png",
@@ -65,12 +66,12 @@ def test_book_sheet_merges_equal_doors_and_keeps_unsupplied_glass_dimensions():
     assert dict(sheet.summary_rows)["Стекло"] == "БЕЗ СТЕКЛА"
     assert [(row.width_mm, row.qty, row.positions) for row in sheet.glass_rows] == [
         (797.0, 2, [1, 4]),
-        (687.0, 2, [2, 3]),
+        (686.0, 2, [2, 3]),
     ]
     rbp002 = [row for row in sheet.profile_rows if row.article == "RBP002"]
     assert [(row.length_mm, row.qty, row.positions) for row in rbp002] == [
         (800.0, 4, ["Панель 1", "Панель 4"]),
-        (690.0, 4, ["Панель 2", "Панель 3"]),
+        (689.0, 4, ["Панель 2", "Панель 3"]),
     ]
 
 

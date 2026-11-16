@@ -177,7 +177,7 @@ function DoorSettings({
           <label className={LBL}>Ширина двери, мм (необязательно)</label>
           <input
             type="number"
-            min={4}
+            min={0}
             step={0.1}
             value={width ?? ''}
             onChange={event => update({
@@ -187,6 +187,7 @@ function DoorSettings({
             placeholder="Рассчитать автоматически"
             data-book-door-width={side}
           />
+          <p className="text-[10px] text-fg/45">Пусто или 0 — автоматически. Ручка наружу: +100 мм; замок: +220 мм к панели.</p>
         </div>
         <div className="space-y-1.5">
           <label className={LBL}>Фурнитура</label>

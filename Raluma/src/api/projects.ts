@@ -260,6 +260,7 @@ export interface BookCalcProfile {
   article: string;
   name: string;
   length_mm: number;
+  total_length_mm?: number;
   qty: number;
   unit: string;
   position: string;
@@ -298,6 +299,16 @@ export interface BookCalcPreview {
   panels: BookCalcPanel[];
   profiles: BookCalcProfile[];
   hardware: BookCalcHardware[];
+  operations?: {
+    key: string;
+    profile_article: string;
+    position: 'upper' | 'lower' | 'both';
+    reference_side: 'left' | 'right';
+    kind: string;
+    coordinates_mm: number[];
+    status: 'preliminary' | 'manual_required';
+    note: string;
+  }[];
   formulas: BookCalcFormula[];
   warnings: string[];
   normalized_config: {

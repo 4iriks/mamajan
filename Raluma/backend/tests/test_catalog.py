@@ -8,6 +8,44 @@ from database import SessionLocal
 import models
 
 
+def test_book_seed_preserves_existing_prices_and_marks_new_costs_unset(client):
+    from api.catalog import _ensure_catalog_seed
+    from engine.book_catalog import BOOK_CATALOG_SPECS
+
+    with SessionLocal() as db:
+        items = (
+            db.query(models.CatalogItem)
+            .filter(models.CatalogItem.system == "КНИЖКА")
+            .all()
+        )
+        assert {item.sku for item in items} == {spec[0] for spec in BOOK_CATALOG_SPECS}
+        assert all(not item.image_file and not item.photo_file for item in items)
+        assert all(not v.cost_is_set for item in items for v in item.finish_variants)
+        assert all(not v.cost_is_set for item in items for v in item.price_versions)
+        item = next(i for i in items if i.sku == "RBA0211")
+        before = (item.name, item.purchase_price, item.finish_variants[0].cost)
+        item.name = "Название пользователя"
+        item.purchase_price = 1234
+        item.finish_variants[0].cost = Decimal("456.78")
+        db.commit()
+        try:
+            _ensure_catalog_seed(db)
+            assert item.name == "Название пользователя"
+            assert item.purchase_price == 1234
+            assert item.finish_variants[0].cost == Decimal("456.78")
+            assert db.query(models.CatalogItem).filter_by(
+                system="КНИЖКА"
+            ).count() == len(BOOK_CATALOG_SPECS)
+            assert (
+                not db.query(models.CatalogItem)
+                .filter_by(sku="Артикул уточнить")
+                .first()
+            )
+        finally:
+            item.name, item.purchase_price, item.finish_variants[0].cost = before
+            db.commit()
+
+
 def test_rs1005_insert_migration_preserves_admin_changes():
     from migrations import _CREATE_TABLES, _DATA_MIGRATIONS
 

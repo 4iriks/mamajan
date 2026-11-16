@@ -1305,12 +1305,6 @@ def _write_book_details_sheet(
         section,
         "КНИЖКА · НАРЕЗКА И КОМПЛЕКТАЦИЯ",
     )
-    row = _write_book_warning(
-        worksheet,
-        formats,
-        row,
-        "Сверловка направляющих и профилей по этому ПЛ не выполняется.",
-    )
 
     row = _write_bar(worksheet, formats, row, "Профили")
     profile_spans = ((0, 1), (2, 4), (5, 7), (8, 11))
@@ -1330,7 +1324,7 @@ def _write_book_details_sheet(
                 f"{override_value(overrides, f'{item.field_prefix}_length', format_dimension(item.length_mm))} мм × "
                 f"{override_value(overrides, f'{item.field_prefix}_qty', item.qty)} {item.unit}"
             ),
-            item.positions_text,
+            f"{item.positions_text}\nВсего: {override_value(overrides, f'{item.field_prefix}_total_m', item.total_length_m)} м",
         )
         current_row = row
         row = _write_spanned_values(
@@ -1403,6 +1397,51 @@ def _write_book_details_sheet(
                 center={0, 2, 3, 4},
             )
 
+    operation_start = row
+    row = _write_bar(worksheet, formats, row, "Обработка профилей")
+    row = _write_book_warning(worksheet, formats, row, sheet.warning)
+    operation_spans = ((0, 1), (2, 4), (5, 6), (7, 9), (10, 11))
+    row = _write_headers(
+        worksheet,
+        formats,
+        row,
+        ("Профиль", "Операция", "Отсчёт", "Координаты, мм", "Статус"),
+        operation_spans,
+    )
+    for item in sheet.operation_rows:
+        row = _write_spanned_values(
+            worksheet,
+            formats,
+            row,
+            (
+                item.profile,
+                item.kind,
+                item.reference,
+                override_value(
+                    overrides, f"{item.field_prefix}_coordinates", item.coordinates
+                ),
+                item.status,
+            ),
+            operation_spans,
+        )
+        worksheet.set_row(row - 1, max(38, 14 * (len(item.coordinates) // 22 + 1)))
+        worksheet.merge_range(
+            row,
+            0,
+            row,
+            11,
+            f"Размер обработки, мм: {override_value(overrides, f'{item.field_prefix}_dimensions', item.dimensions)}\n"
+            f"{override_value(overrides, f'{item.field_prefix}_note', item.note)}",
+            formats["cell"],
+        )
+        worksheet.set_row(row, 38)
+        row += 1
+    if sheet.notes:
+        row = _write_bar(worksheet, formats, row, "Замечания к расчёту")
+        for note in sheet.notes:
+            worksheet.merge_range(row, 0, row, 11, note, formats["cell"])
+            worksheet.set_row(row, 32)
+            row += 1
     checklist_start = row
     row = _write_bar(worksheet, formats, row, "Чек-лист производства")
     checklist_spans = ((0, 0), (1, 1), (2, 8), (9, 11))
@@ -1450,7 +1489,7 @@ def _write_book_details_sheet(
         center={0, 1, 2},
     )
     worksheet.set_row(row - 1, 58)
-    worksheet.set_h_pagebreaks([checklist_start])
+    worksheet.set_h_pagebreaks([operation_start, checklist_start])
     worksheet.print_area(0, 0, max(row - 1, 1), 11)
 
 
