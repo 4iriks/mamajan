@@ -32,7 +32,7 @@ from engine.pdf import (
     profile_dimension,
     section_extra_components,
 )
-from engine.office_common import _font_candidates
+from engine.office_common import _font_candidates, image_png_bytes
 from engine.office_diagrams import section_diagrams
 from engine.office_docx import build_project_docx, build_section_docx
 from engine.project_documents import (
@@ -3675,6 +3675,92 @@ class TestOfficeDownloads:
 
 
 class TestProjectPaintOrder:
+    def test_extras_only_legacy_profile_image_in_all_document_views(self):
+        extras = [
+            {
+                "sku": sku,
+                "name": name,
+                "size": size,
+                "qty": qty,
+                "color": "8017 МАТОВЫЙ",
+                "requires_paint": True,
+                "catalog_item_id": index,
+                "image_file": image,
+                "unit_price": "0.00",
+            }
+            for index, (sku, name, size, qty, image) in enumerate(
+                [
+                    ("RS112", "Профиль-ручка", "2698", "2", "RS112.png"),
+                    ("RS1081", "Боковой П-образный профиль-замок", "2795", "2", ""),
+                    ("RS2021", "Стекольный профиль", "950", "2", "RS2021.png"),
+                    ("RS2021", "Стекольный профиль", "923", "3", "RS2021.png"),
+                ],
+                start=1,
+            )
+        ]
+        project = SimpleNamespace(
+            number="С26-5-4334",
+            order_number="С26-5-4334",
+            invoice_number="00000088",
+            customer="",
+            paint_manual_rows="[]",
+            extra_components=json.dumps(extras, ensure_ascii=False),
+        )
+        original = vars(project).copy()
+        page = build_project_document_context(project, [], "paint")["paint_pages"][0]
+        row = next(row for row in page["rows"] if row["article"] == "RS1081")
+        assert row["image"] == "RS2081.png"
+        assert (row["qty"], row["clean"], row["allowance"], row["total_m"]) == (
+            2,
+            2795,
+            2850,
+            5.7,
+        )
+        assert (page["total_qty"], page["total_m"]) == (9, 16.2)
+        for is_pdf in (False, True):
+            html = render_project_document_html(project, [], "paint", is_pdf=is_pdf)
+            assert _img_b64("RS2081.png") in html
+            assert 'alt="RS1081"' in html
+        for output, media_dir, size in (
+            (build_project_docx(project, [], "paint"), "word/media/", (700, 450)),
+            (build_project_xlsx(project, [], "paint"), "xl/media/", (760, 480)),
+        ):
+            expected_image = image_png_bytes("RS2081.png", max_size=size)
+            assert expected_image
+            with zipfile.ZipFile(io.BytesIO(output)) as archive:
+                assert expected_image in [
+                    archive.read(name)
+                    for name in archive.namelist()
+                    if name.startswith(media_dir)
+                ]
+        assert vars(project) == original
+
+    @pytest.mark.parametrize(
+        "article, supplied, expected_image, expected_data",
+        [
+            ("RS1081", {"imageFile": "custom.png"}, "custom.png", ""),
+            (
+                "RS1081",
+                {"imageData": "data:image/png;base64,abc"},
+                "",
+                "data:image/png;base64,abc",
+            ),
+            ("RS2081", {}, "RS2081.png", ""),
+            ("RS1082", {}, "RS1082.png", ""),
+            ("UNKNOWN", {}, "", ""),
+        ],
+    )
+    def test_manual_paint_image_fallback_preserves_explicit_images(
+        self, article, supplied, expected_image, expected_data
+    ):
+        raw = {"article": article, "qty": 1, "clean": 1000, **supplied}
+        before = raw.copy()
+        row = _build_paint_pages([], [raw])[0]["rows"][0]
+        assert row["article"] == article
+        assert row["image"] == expected_image
+        assert row["image_data"] == expected_data
+        assert raw == before
+
     def test_clean_size_rounds_up_to_50_mm_step(self):
         section = SimpleNamespace()
         calc = SimpleNamespace(

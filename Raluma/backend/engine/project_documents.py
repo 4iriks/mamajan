@@ -29,6 +29,7 @@ from engine.document_numbers import (
 from engine.glass_types import default_glass_type, normalize_glass_type
 from engine.lift_calc import PENOPLEX_20MM, calculate_lift
 from engine.pdf import TEMPLATES_DIR, _img_b64, glass_mm
+from engine.profile_catalog import get_profile_catalog_item
 from engine.slide_calc import calculate_slide
 from engine.sketch_project import build_sketch_project_context
 
@@ -650,11 +651,19 @@ def _manual_paint_row(raw: dict) -> tuple[str, dict] | None:
     total_m = _safe_float(raw.get("totalM") or raw.get("total_m"), 0)
     if total_m <= 0 and qty > 0 and allowance > 0:
         total_m = _paint_total_m(qty, allowance)
+    image = str(raw.get("imageFile") or raw.get("image") or "").strip()
+    image_data = str(raw.get("imageData") or raw.get("image_data") or "").strip()
+    if not image and not image_data:
+        # RS1081 is the former article of RS2081. Resolve only the drawing:
+        # saved order articles, prices and manually supplied images stay intact.
+        image_article = {"RS1081": "RS2081"}.get(article.upper(), article.upper())
+        profile = get_profile_catalog_item(image_article)
+        image = profile.image if profile else ""
     row = {
         "article": article,
         "name": name,
-        "image": str(raw.get("imageFile") or raw.get("image") or "").strip(),
-        "image_data": str(raw.get("imageData") or raw.get("image_data") or "").strip(),
+        "image": image,
+        "image_data": image_data,
         "paint_marker": False,
         "paint_marker_class": "",
         "qty": qty,
