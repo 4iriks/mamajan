@@ -17,6 +17,7 @@ import {
 } from '../api/projects';
 import type { DocumentFileFormat } from '../api/projects';
 import { toast } from '../store/toastStore';
+import { acknowledgeProductionSheetChanges, collectProductionSheetChanges } from '../utils/productionSheetOverrides';
 
 interface Props {
   readOnly?: boolean;
@@ -102,17 +103,7 @@ export default function ProductionSheetModal({
   const collectChanges = useCallback((): Record<string, unknown> => {
     const doc = iframeRef.current?.contentDocument;
     if (!doc) return {};
-    const changed: Record<string, unknown> = {};
-
-    // Скалярные поля. Доп. комплектующие редактируются только в форме секции.
-    doc.querySelectorAll<HTMLElement>('[data-field]').forEach(el => {
-      const field = el.dataset.field!;
-      const original = el.dataset.original ?? '';
-      const current = el.textContent?.trim() ?? '';
-      if (current !== original) changed[field] = current;
-    });
-
-    return changed;
+    return collectProductionSheetChanges(doc);
   }, []);
 
   const handleSave = async (): Promise<boolean> => {
@@ -124,7 +115,9 @@ export default function ProductionSheetModal({
     setIsSaving(true);
     try {
       await saveDocumentOverrides(projectId, sectionId, changes);
-      setIsDirty(false);
+      const doc = iframeRef.current?.contentDocument;
+      if (doc) acknowledgeProductionSheetChanges(doc, changes);
+      setIsDirty(Object.keys(collectChanges()).length > 0);
       toast.success('Правки сохранены');
       return true;
     } catch {

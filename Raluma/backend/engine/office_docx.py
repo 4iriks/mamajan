@@ -457,6 +457,20 @@ def _add_diagrams(document: Document, section: object, calc: object) -> None:
     diagrams = section_diagrams(
         section, calc, cs_print_dimensions=True, cs_print_size_mm=(90, float("inf"))
     )
+    if str(getattr(section, "system", "")).strip().upper() == "КНИЖКА":
+        for title, data in diagrams:
+            caption = document.add_paragraph()
+            caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            caption.paragraph_format.keep_with_next = True
+            caption.paragraph_format.space_after = Pt(2)
+            run = caption.add_run(title.upper())
+            run.bold = True
+            run.font.size = Pt(8)
+            paragraph = document.add_paragraph()
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            paragraph.paragraph_format.space_after = Pt(2)
+            paragraph.add_run().add_picture(io.BytesIO(data), width=Mm(186))
+        return
     first = diagrams[:2]
     is_lift = str(getattr(section, "system", "") or "").strip().upper() == "ЛИФТ"
     table = document.add_table(rows=1, cols=len(first))
@@ -1352,12 +1366,18 @@ def build_section_docx(project: object, section: object, calc: object) -> bytes:
     if system == "КНИЖКА":
         sheet = build_book_sheet_data(section, calc)
         _add_diagrams(document, section, calc)
+        document.add_page_break()
+        _add_header(document, project, section, "КНИЖКА · РАЗМЕРЫ И НАРЕЗКА")
         _add_book_summary(document, sheet)
         _add_book_glass(document, sheet, overrides)
         _add_book_assemblies(document, sheet, overrides)
-        document.add_page_break()
-        _add_header(document, project, section, "КНИЖКА · НАРЕЗКА И КОМПЛЕКТАЦИЯ")
+        _add_bar(document, "Примечания к нарезке")
+        document.add_paragraph(
+            str(override_value(overrides, "book_cutting_note", sheet.cutting_note))
+        )
         _add_book_profiles(document, sheet, overrides)
+        document.add_page_break()
+        _add_header(document, project, section, "КНИЖКА · КОМПЛЕКТАЦИЯ")
         _add_book_hardware(document, sheet, overrides)
         _add_book_extra_components(document, section, overrides)
         document.add_page_break()

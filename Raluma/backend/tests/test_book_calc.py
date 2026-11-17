@@ -117,11 +117,16 @@ def test_first_form_legacy_system_value_preserves_previous_b25_result_with_warni
 
     assert result.normalized_config["book_system"] == "B25"
     assert result.panels[0].glass_height_mm == 2365.0
-    assert any("перенесено в B25" in warning for warning in result.warnings)
+    assert any(
+        "перенесено в текущую конфигурацию КНИЖКИ" in warning
+        for warning in result.warnings
+    )
 
 
 def test_unknown_book_profile_system_is_rejected():
-    with pytest.raises(BookCalculationError, match="B25, B16, B17, C16 или C17"):
+    with pytest.raises(
+        BookCalculationError, match="Неизвестный вариант системы КНИЖКА"
+    ):
         calculate_book(book_section(book_system="UNKNOWN"))
 
 

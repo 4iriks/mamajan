@@ -7,6 +7,7 @@ physical items and preliminary machining for all manufacturing formats.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 from typing import Any
 
 
@@ -14,6 +15,13 @@ BOOK_SHEET_WARNING = (
     "Обработка предварительная: позиции «Проверить» сверить перед производством. "
     "Пустые координаты и размеры заполнить вручную в ПЛ. "
     "Все координаты приведены для одной секции в миллиметрах."
+)
+
+BOOK_CUTTING_NOTE = (
+    "Необходимо начать с нарезки углов. Измеряется наибольшая сторона направляющей. "
+    "При положительном угле основание нижней направляющей соприкасается с основанием "
+    "оборудования по нарезке; верхнюю направляющую располагают основанием вверх, "
+    "каналами к основанию режущего оборудования. При отрицательных углах — наоборот."
 )
 
 
@@ -98,6 +106,7 @@ class BookSheetOperationRow:
     dimensions: str
     status: str
     note: str
+    field_aliases: tuple[str, ...] = ()
 
 
 @dataclass
@@ -126,6 +135,7 @@ class BookSheetData:
     checklist_rows: tuple[tuple[str, str, str], ...]
     glass_supplied: bool
     calculation_status: str
+    cutting_note: str = BOOK_CUTTING_NOTE
 
 
 def _number(value: Any) -> float:
@@ -281,11 +291,66 @@ def _group_hardware(calc: object) -> list[BookSheetHardwareRow]:
     return result
 
 
+def _operation_rows(section: object, calc: object) -> list[BookSheetOperationRow]:
+    raw = getattr(section, "document_overrides", None)
+    try:
+        overrides = raw if isinstance(raw, dict) else json.loads(raw or "{}")
+    except (TypeError, ValueError):
+        overrides = {}
+    if not isinstance(overrides, dict):
+        overrides = {}
+    rows = []
+    candidates = {}
+    for op in getattr(calc, "operations", []):
+        prefix = f"book_operation_{op.key}"
+
+        def effective(suffix, default):
+            value = overrides.get(f"{prefix}_{suffix}")
+            return str(default if value is None else value)
+
+        position = {"upper": "верх", "lower": "низ", "both": "верх и низ"}[op.position]
+        row = BookSheetOperationRow(
+            field_prefix=prefix,
+            profile=f"{op.profile_article} · {position}",
+            kind=op.kind,
+            reference="Справа налево"
+            if op.reference_side == "right"
+            else "Слева направо",
+            coordinates=effective(
+                "coordinates", "; ".join(f"{v:g}" for v in op.coordinates_mm)
+            ),
+            dimensions=effective(
+                "dimensions",
+                "Ø13" if "D13" in op.kind else "Ø6" if "D6" in op.kind else "",
+            ),
+            status="Проверить"
+            if op.status == "preliminary"
+            else "Заполнить / проверить",
+            note=effective("note", op.note),
+        )
+        key = (
+            op.profile_article,
+            row.kind,
+            op.reference_side,
+            row.coordinates,
+            row.dimensions,
+            op.status,
+            row.note,
+        )
+        previous = candidates.get(key)
+        if previous and {previous[1], op.position} == {"upper", "lower"}:
+            previous[0].profile = f"{op.profile_article} · верх и низ"
+            previous[0].field_aliases = (prefix,)
+            del candidates[key]
+        else:
+            rows.append(row)
+            if op.position in {"upper", "lower"}:
+                candidates[key] = (row, op.position)
+    return rows
+
+
 def build_book_sheet_data(section: object, calc: object) -> BookSheetData:
     config = dict(getattr(calc, "normalized_config", None) or {})
-    book_system = str(
-        config.get("book_system") or getattr(section, "book_system", "") or "B25"
-    )
     door_layout = str(config.get("door_layout") or "none")
     compensator = str(config.get("compensator") or "none")
     door_labels = {
@@ -305,7 +370,6 @@ def build_book_sheet_data(section: object, calc: object) -> BookSheetData:
         config.get("glass_supplied", getattr(section, "glass_supplied", True))
     )
     summary_rows = [
-        ("Система", book_system),
         (
             "Цвет конструкции",
             " ".join(
@@ -319,7 +383,7 @@ def build_book_sheet_data(section: object, calc: object) -> BookSheetData:
         ("Физических панелей", f"{len(list(getattr(calc, 'panels', None) or []))} шт."),
         ("Количество секций", f"{int(getattr(section, 'quantity', 1) or 1)} шт."),
         ("Двери", door_labels.get(door_layout, door_layout)),
-        ("Компенсатор", compensator_labels.get(compensator, compensator)),
+        ("Компенсирующий профиль", compensator_labels.get(compensator, compensator)),
         (
             "Стекло",
             "БЕЗ СТЕКЛА"
@@ -328,40 +392,16 @@ def build_book_sheet_data(section: object, calc: object) -> BookSheetData:
             if glass_rows
             else "10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ",
         ),
-        (
-            "Поставка стекла",
-            "В комплекте" if glass_supplied else "Не входит в комплект",
-        ),
     ]
     return BookSheetData(
-        system_label=f"КНИЖКА {book_system}",
+        system_label="КНИЖКА",
         warning=BOOK_SHEET_WARNING,
         summary_rows=summary_rows,
         glass_rows=glass_rows,
         assembly_rows=_group_assemblies(calc),
         profile_rows=_group_profiles(calc),
         hardware_rows=_group_hardware(calc),
-        operation_rows=[
-            BookSheetOperationRow(
-                field_prefix=f"book_operation_{op.key}",
-                profile=f"{op.profile_article} · { {'upper': 'верх', 'lower': 'низ', 'both': 'верх и низ'}[op.position] }",
-                kind=op.kind,
-                reference="Справа налево"
-                if op.reference_side == "right"
-                else "Слева направо",
-                coordinates="; ".join(f"{value:g}" for value in op.coordinates_mm),
-                dimensions="Ø13"
-                if "D13" in op.kind
-                else "Ø6"
-                if "D6" in op.kind
-                else "",
-                status="Проверить"
-                if op.status == "preliminary"
-                else "Заполнить / проверить",
-                note=op.note,
-            )
-            for op in getattr(calc, "operations", [])
-        ],
+        operation_rows=_operation_rows(section, calc),
         notes=list(getattr(calc, "warnings", []) or []),
         checklist_rows=BOOK_CHECKLIST_ROWS,
         glass_supplied=glass_supplied,

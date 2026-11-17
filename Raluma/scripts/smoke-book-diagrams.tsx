@@ -12,6 +12,7 @@ import { apiToLocal, localToApi } from '../src/components/editor/converters';
 import { EditorVisualizer } from '../src/components/editor/EditorVisualizer';
 import { MainTab } from '../src/components/editor/FormTabs';
 import type { Section } from '../src/components/editor/types';
+import { acknowledgeProductionSheetChanges, collectProductionSheetChanges } from '../src/utils/productionSheetOverrides';
 
 
 const section: Section = {
@@ -222,7 +223,7 @@ const lowerHandleY = Number(
 );
 assert.ok(lowerHandleY > handleY);
 
-const roomPanelWidths = [...roomMarkup.matchAll(/<rect x="[^"]+" y="32" width="([^"]+)"/g)]
+const roomPanelWidths = [...roomMarkup.matchAll(/<rect x="[^"]+" y="18" width="([^"]+)"/g)]
   .map(match => Number(match[1]));
 assert.equal(roomPanelWidths.length, 4);
 assert.ok(roomPanelWidths[0] < roomPanelWidths[1]);
@@ -281,10 +282,42 @@ assert.match(mainFormMarkup, /Без стекла/);
 assert.doesNotMatch(mainFormMarkup, /ТРИПЛЕКС|Другое|8ММ|6ММ/);
 assert.match(resultsMarkup, /data-book-calc-results="true"/);
 assert.equal((resultsMarkup.match(/data-book-result-panel=/g) ?? []).length, 4);
-assert.match(resultsMarkup, /data-book-calculated-system="B25"/);
+assert.doesNotMatch(resultsMarkup, /B25|В25/);
+assert.doesNotMatch(roomMarkup, /data-book-panel-joint/);
+assert.equal((roomMarkup.match(/data-book-glass-profile=/g) ?? []).length, 8);
+assert.equal((topMarkup.match(/data-book-top-limit=/g) ?? []).length, 2);
+const lengths = [...topMarkup.matchAll(/data-book-stack-panel="(\d+)"[^>]*><line[^>]*data-book-leaf-length="([^"]+)"/g)]
+  .map(match => [Number(match[1]), Number(match[2])]);
+assert.equal(lengths.length, calc.panels.length);
+for (const [number, length] of lengths) {
+  const panel = calc.panels.find(item => item.number === number)!;
+  assert.ok(Math.abs(length - panel.panel_width_mm / section.width * 416) < 0.001);
+}
+assert.match(topMarkup, /data-book-stack="right"[^>]*><g data-book-stack-panel="4"/);
 assert.match(resultsMarkup, /TZ → EXCEL → LEGACY/i);
 
 const api = localToApi(section, 2);
+// A single visible edit must preserve the two existing operation keys.
+const editableFields = [
+    { dataset: { field: 'book_operation_d6_upper_coordinates', original: '124; 246', fieldAliases: 'book_operation_d6_lower_coordinates' }, textContent: ' 125; 247 ' },
+    { dataset: { field: 'book_cutting_note', original: 'Исходное примечание' }, textContent: 'Правка примечания' },
+    { dataset: { field: 'section_comments', original: 'Без изменений' }, textContent: 'Без изменений' },
+  ];
+const mockDocument = {
+  querySelectorAll: () => editableFields,
+} as unknown as Document;
+assert.deepEqual(collectProductionSheetChanges(mockDocument), {
+  book_operation_d6_upper_coordinates: '125; 247',
+  book_operation_d6_lower_coordinates: '125; 247',
+  book_cutting_note: 'Правка примечания',
+});
+acknowledgeProductionSheetChanges(mockDocument, collectProductionSheetChanges(mockDocument));
+assert.deepEqual(collectProductionSheetChanges(mockDocument), {});
+editableFields[0].textContent = '124; 246';
+assert.deepEqual(collectProductionSheetChanges(mockDocument), {
+  book_operation_d6_upper_coordinates: '124; 246',
+  book_operation_d6_lower_coordinates: '124; 246',
+});
 assert.equal(api.book_left_door_hardware, 'handle');
 assert.equal(api.book_right_door_hardware, 'lock');
 assert.equal(api.book_left_door_opening, 'inside_in');

@@ -1320,8 +1320,7 @@ def _construction_name(section: object) -> str:
         row_label = "1 ряд" if rows == 1 else "2 ряда"
         return f"Raluma SLIDE, {rails}-полозная система, {row_label}"
     if system == "КНИЖКА":
-        variant = str(getattr(section, "book_system", "") or "").strip()
-        return f"Raluma КНИЖКА{f' {variant}' if variant else ''}"
+        return "Raluma КНИЖКА"
     if system == "ЛИФТ":
         panels = _positive_int(getattr(section, "panels", 2), 2)
         return f"Raluma ЛИФТ, {panels} панели"

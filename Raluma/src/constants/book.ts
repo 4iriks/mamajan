@@ -4,7 +4,7 @@ export const BOOK_PROFILE_SYSTEMS: Array<{
   value: BookProfileSystem;
   label: string;
 }> = [
-  { value: 'B25', label: 'B25' },
+  { value: 'B25', label: 'КНИЖКА' },
   { value: 'B16', label: 'B16' },
   { value: 'B17', label: 'B17' },
   { value: 'C16', label: 'C16' },

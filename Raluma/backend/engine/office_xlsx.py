@@ -411,6 +411,36 @@ def _write_diagrams(
     diagrams = section_diagrams(section, calc, cs_print_dimensions=True)
     system = str(getattr(section, "system", "") or "").strip().upper()
 
+    if system == "КНИЖКА":
+        breaks = []
+        page_start = 0
+        for title, data in diagrams:
+            with Image.open(io.BytesIO(data)) as image:
+                height_px = ceil(790 * image.height / image.width) + 8
+            rows = ceil(height_px / (16 * 4 / 3))
+            if (row - page_start + rows + 1) * 16 > 650 and row > 2:
+                breaks.append(row)
+                page_start = row
+            worksheet.merge_range(row, 0, row, 11, title.upper(), formats["header"])
+            worksheet.set_row(row, 16)
+            worksheet.merge_range(row + 1, 0, row + rows, 11, "", formats["cell"])
+            for line in range(row + 1, row + rows + 1):
+                worksheet.set_row(line, 16)
+            _insert_image(
+                worksheet,
+                row + 1,
+                0,
+                io.BytesIO(data),
+                max_width_px=790,
+                max_height_px=height_px,
+                x_offset=8,
+                y_offset=4,
+            )
+            row += rows + 1
+        if breaks:
+            worksheet.set_h_pagebreaks(breaks)
+        return row
+
     if system == "СЛАЙД":
         for index, (title, data) in enumerate(diagrams[:2]):
             line = row + index * 10
@@ -1305,6 +1335,19 @@ def _write_book_details_sheet(
         section,
         "КНИЖКА · НАРЕЗКА И КОМПЛЕКТАЦИЯ",
     )
+
+    row = _write_bar(worksheet, formats, row, "Примечания к нарезке")
+    worksheet.merge_range(
+        row,
+        0,
+        row + 2,
+        11,
+        override_value(overrides, "book_cutting_note", sheet.cutting_note),
+        formats["cell"],
+    )
+    for line in range(row, row + 3):
+        worksheet.set_row(line, 20)
+    row += 3
 
     row = _write_bar(worksheet, formats, row, "Профили")
     profile_spans = ((0, 1), (2, 4), (5, 7), (8, 11))

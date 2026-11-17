@@ -339,7 +339,13 @@ def _item_to_dict(item: models.CatalogItem) -> dict:
         "updatedAt": item.updated_at.date().isoformat()
         if item.updated_at
         else CATALOG_UPDATED_AT,
-        "note": item.note or "",
+        "note": (item.note or "").replace(
+            "КНИЖКА B25: артикул из расчётного Excel.",
+            "КНИЖКА: артикул из расчётного Excel.",
+            1,
+        )
+        if item.system == "КНИЖКА"
+        else item.note or "",
     }
 
 

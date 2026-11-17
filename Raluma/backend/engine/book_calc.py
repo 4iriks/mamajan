@@ -274,11 +274,11 @@ def _normalize_book_system(value: Any, warnings: list[str]) -> str:
     normalized = BOOK_SYSTEM_ALIASES.get(raw, raw)
     if normalized not in BOOK_SYSTEMS:
         raise BookCalculationError(
-            "Система КНИЖКИ должна быть одной из B25, B16, B17, C16 или C17"
+            "Неизвестный вариант системы КНИЖКА. Проверьте конфигурацию."
         )
     if raw in {"С КАРЕТКОЙ", "БЕЗ КАРЕТКИ"}:
         warnings.append(
-            f"Старое значение системы «{value}» перенесено в B25, чтобы сохранить "
+            f"Старое значение системы «{value}» перенесено в текущую конфигурацию КНИЖКИ, чтобы сохранить "
             "результат прежнего калькулятора. Проверьте систему профиля."
         )
     return normalized
@@ -1160,7 +1160,7 @@ def calculate_book(section: object) -> BookCalcResult:
         value=_mm(glass_height),
         unit="мм",
         expression=f"H − {_mm(height_deduction):g}",
-        scope=f"Система {book_system}; компенсатор {compensator}",
+        scope=f"КНИЖКА; компенсирующий профиль {compensator}",
         source=height_source,
         status="preliminary",
         reference=height_reference,
@@ -1187,7 +1187,7 @@ def calculate_book(section: object) -> BookCalcResult:
         expression=(
             "Hстекла + 33" if assembly_height_adjustment > 0 else "Hстекла − 33"
         ),
-        scope=f"Система {book_system}",
+        scope="КНИЖКА",
         source=height_source,
         status="preliminary",
         reference=height_reference,

@@ -585,8 +585,7 @@ def _system_text(system: str, section: object, calc: object) -> str:
     if system == "СЛАЙД":
         return _text(getattr(calc, "system_text", None), "SLIDE")
     if system == "КНИЖКА":
-        book_system = (getattr(calc, "normalized_config", {}) or {}).get("book_system")
-        return _text(f"BOOK {book_system}" if book_system else "BOOK")
+        return "КНИЖКА"
     if system == "ЦС":
         cs_system = getattr(calc, "system", None)
         return _text(getattr(cs_system, "name", None), "ЦС")

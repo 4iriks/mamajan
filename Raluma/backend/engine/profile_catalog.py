@@ -576,7 +576,7 @@ PROFILE_CATALOG.update(
             unit=unit,
             markup_percent=0,
             waste_percent=0,
-            note="КНИЖКА B25: артикул из расчётного Excel. Цена не задана. Вариант фурнитуры не заменять автоматически.",
+            note="КНИЖКА: артикул из расчётного Excel. Цена не задана. Вариант фурнитуры не заменять автоматически.",
         )
         for article, name, unit, group in BOOK_CATALOG_SPECS
     }

@@ -1500,7 +1500,7 @@ class TestSketchProject:
         required = (
             "ЭСКИЗНЫЙ ПРОЕКТ № SKETCH-001",
             "SLIDE-стандарт 1 ряд",
-            "BOOK B25",
+            "КНИЖКА",
             "LIFT",
             "2000",
             "2400",
@@ -1515,7 +1515,8 @@ class TestSketchProject:
             for expected in required:
                 assert re.sub(r"\s+", "", expected).casefold() in compact
             positions = [
-                compact.index(marker.casefold()) for marker in ("SLIDE", "BOOK", "LIFT")
+                compact.index(marker.casefold())
+                for marker in ("SLIDE", "КНИЖКА", "LIFT")
             ]
             assert positions == sorted(positions)
 
@@ -4658,7 +4659,7 @@ class TestDeliveryNote:
             ("2000×2400 мм", "Порог стандартный анод"),
             ("2000×2400 мм", "Порог накладной окраш"),
         }
-        assert any("КНИЖКА B25" in row["name"] for row in rows)
+        assert any("КНИЖКА" in row["name"] for row in rows)
         assert any("ЛИФТ" in row["name"] for row in rows)
         assert any("ЦЕЛЬНОСТЕКЛЯННАЯ КОНСТРУКЦИЯ" in row["name"] for row in rows)
 
@@ -5662,7 +5663,7 @@ class TestDeliveryNote:
         )
 
         assert response.status_code == 200
-        assert "Raluma КНИЖКА B25" in response.text
+        assert "Raluma КНИЖКА" in response.text
         assert "Raluma ЛИФТ" in response.text
         assert "ЦЕЛЬНОСТЕКЛЯННАЯ КОНСТРУКЦИЯ" in response.text
         assert 'contenteditable="true"' in response.text
