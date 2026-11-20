@@ -35,8 +35,10 @@ def test_cs_rounded_sheet_exports(client, admin_headers, radius, mirror):
         "/api/projects/local/sections/pdf", headers=admin_headers, json=body
     )
     assert pdf.status_code == 200, pdf.text
-    text = "\n".join(
-        page.extract_text() for page in PdfReader(BytesIO(pdf.content)).pages
+    text = " ".join(
+        " ".join(
+            page.extract_text() for page in PdfReader(BytesIO(pdf.content)).pages
+        ).split()
     )
     assert f"Скругление R{radius}" in text
     assert "после скругления" in text
