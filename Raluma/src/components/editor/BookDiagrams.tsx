@@ -73,8 +73,8 @@ export function BookRoomViewSVG({
         const cx = panel.x + panel.width / 2;
         const arrowStart = panel.movement_direction === 'right' ? cx - 10 : cx + 10;
         const arrowEnd = panel.movement_direction === 'right' ? cx + 10 : cx - 10;
-        const outerX = doorConvergesRight(panel) ? panel.x + 5 : panel.x + panel.width - 5;
-        const convergenceX = doorConvergesRight(panel) ? panel.x + panel.width - 5 : panel.x + 5;
+        const outerX = doorConvergesRight(panel) ? panel.x : panel.x + panel.width;
+        const convergenceX = doorConvergesRight(panel) ? panel.x + panel.width : panel.x;
         return (
           <g
             key={panel.number}
@@ -113,7 +113,7 @@ export function BookRoomViewSVG({
             <text x={cx} y={bottom + 18} textAnchor="middle" fill="var(--diagram-symbol)" fontSize="11.5" fontWeight="700">
               {formatMm(panel.glass_width_mm)}
             </text>
-            {panel.movement_direction !== 'none' && (
+            {panel.role !== 'door' && panel.role !== 'fixed' && panel.movement_direction !== 'none' && (
               <line
                 x1={arrowStart}
                 y1={bottom - 32}
@@ -128,7 +128,7 @@ export function BookRoomViewSVG({
             {isDoor && (
               <>
                 <path
-                  d={`M ${outerX} ${top + drawingHeight * 0.3} L ${convergenceX} ${top + drawingHeight * 0.5} L ${outerX} ${top + drawingHeight * 0.7}`}
+                  d={`M ${outerX} ${top + 6} L ${convergenceX} ${top + drawingHeight * 0.5} L ${outerX} ${bottom - 6}`}
                   fill="none"
                   stroke="var(--diagram-symbol)"
                   strokeWidth="1"
@@ -195,7 +195,7 @@ export function BookTopViewSVG({ section, calc }: { section: Section; calc: Book
     <defs><marker id={arrowId} markerWidth="7" markerHeight="7" refX="5.5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="var(--diagram-symbol)" /></marker></defs>
     <text x={center} y={streetY} textAnchor="middle" fill="var(--diagram-symbol)" fontSize="10">УЛИЦА</text>
     {[-4, 4].map(y => <line key={y} x1={left} y1={y} x2={right} y2={y} stroke="var(--diagram-line)" strokeWidth="1.2" />)}
-    {[left, right].map(x => <line key={x} x1={x} y1="-9" x2={x} y2="9" stroke="var(--diagram-line)" strokeWidth="1.2" data-book-top-limit />)}
+    {[left, right].map(x => <line key={x} x1={x} y1="-4" x2={x} y2="4" stroke="var(--diagram-line)" strokeWidth="1.2" data-book-top-limit />)}
     {angles.map((angle, i) => angle > 0 && <line key={i} x1={i ? right : left} y1="0" x2={(i ? right : left) + (i ? -1 : 1) * Math.cos((180 - angle) * Math.PI / 180) * 55} y2={-Math.sin((180 - angle) * Math.PI / 180) * 55} stroke="#b7791f" strokeWidth="2" data-book-legacy-angle={i ? 'right' : 'left'} />)}
     {panels.filter(p => p.role === 'fixed').map(panel => <g key={panel.number} data-book-top-fixed={panel.number}>
       <rect x={panel.x} y="-5" width={panel.width} height="10" fill="#f6d89b" stroke="#b7791f" />

@@ -14,7 +14,7 @@ from typing import Any
 
 from shapely.geometry import LineString, Polygon, box
 from engine.glass_types import normalize_slide_glass_type
-from engine.cs_rounding import triangle_rounding
+from engine.cs_rounding import is_axis_right_triangle, rounded_bounds, triangle_rounding
 from engine.cs_cover_cutting import (
     cover_cuts,
     pack_cuts,
@@ -395,14 +395,24 @@ def calculate_cs(section, *, system=None, outer_profile=None, joint_profile=None
     light_distances = [
         40 if t == "clamp" else bubble if t == "bubble" else 0 for t in treatments
     ]
-    glass_distances = [
-        26 if t == "clamp" else bubble if t == "bubble" else 0 for t in treatments
-    ]
     installation = (
         vertices
         if mode == "installation"
         else offset_contour(vertices, [-d for d in light_distances])
     )
+    right_triangle = is_axis_right_triangle(installation)
+    glass_distances = []
+    for i, treatment in enumerate(treatments):
+        distance = (
+            26 if treatment == "clamp" else bubble if treatment == "bubble" else 0
+        )
+        if right_triangle and treatment == "clamp":
+            a, b = installation[i], installation[(i + 1) % len(installation)]
+            dx, dy = b["x"] - a["x"], b["y"] - a["y"]
+            if abs(dx) > EPS and abs(dy) > EPS:
+                # Approved drawing В26-7-4346: 26 mm vertically below the slope.
+                distance *= abs(dx) / hypot(dx, dy)
+        glass_distances.append(distance)
     light = offset_contour(installation, light_distances)
     glass = offset_contour(installation, glass_distances)
     light_polygon, glass_polygon = _polygon(light), _polygon(glass)
@@ -466,8 +476,20 @@ def calculate_cs(section, *, system=None, outer_profile=None, joint_profile=None
             raise CsCalculationError(f"Стекло З{index}: {error}") from error
         if rounding:
             pane["rounded_corner"] = rounding
+            if right_triangle:
+                x0, y0, x1, y1 = rounded_bounds(pane["polygon"], rounding)
+                pane["width_mm"], pane["height_mm"] = (
+                    floor(x1 - x0 + EPS),
+                    floor(y1 - y0 + EPS),
+                )
+                if min(pane["width_mm"], pane["height_mm"]) < 1:
+                    raise CsCalculationError(
+                        "Размер стекла после скругления должен быть не менее 1 мм"
+                    )
             pane["treatment_note"] = (
-                f"Скругление R{radius:g}; расчётные размеры до скругления"
+                f"Скругление R{radius:g}; размеры после скругления"
+                if right_triangle
+                else f"Скругление R{radius:g}; расчётные размеры до скругления"
             )
     cuts = [_joint_length(glass_polygon, x, ys, 0) for x in xs]
     cuts += [_joint_length(glass_polygon, y, xs, 1) for y in ys]

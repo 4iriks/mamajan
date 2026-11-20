@@ -1,6 +1,42 @@
-"""Optional glass edge treatment. Never feeds back into CS quantities or sizes."""
+"""Glass edge treatment and exact finished bounds; quantities remain unchanged."""
 
 from math import acos, atan2, cos, hypot, pi, sin, tan
+
+
+def is_axis_right_triangle(points):
+    if len(points) != 3:
+        return False
+    edges = [(p, points[(i + 1) % 3]) for i, p in enumerate(points)]
+    return any(abs(a["x"] - b["x"]) < 1e-7 for a, b in edges) and any(
+        abs(a["y"] - b["y"]) < 1e-7 for a, b in edges
+    )
+
+
+def rounded_bounds(points, rounding):
+    """Include exact arc extrema instead of measuring the sampled drawing."""
+    remaining = [p for i, p in enumerate(points) if i != rounding["vertex_index"]]
+    remaining.extend([rounding["start"], rounding["end"]])
+    center, radius = rounding["center"], rounding["radius_mm"]
+    direction = 1 if rounding["sweep"] else -1
+    start = atan2(
+        rounding["start"]["y"] - center["y"], rounding["start"]["x"] - center["x"]
+    )
+    end = atan2(rounding["end"]["y"] - center["y"], rounding["end"]["x"] - center["x"])
+    sweep = (direction * (end - start)) % (2 * pi)
+    for angle in (0, pi / 2, pi, 3 * pi / 2):
+        if (direction * (angle - start)) % (2 * pi) <= sweep + 1e-9:
+            remaining.append(
+                {
+                    "x": center["x"] + radius * cos(angle),
+                    "y": center["y"] + radius * sin(angle),
+                }
+            )
+    return (
+        min(p["x"] for p in remaining),
+        min(p["y"] for p in remaining),
+        max(p["x"] for p in remaining),
+        max(p["y"] for p in remaining),
+    )
 
 
 def triangle_rounding(points, radius):

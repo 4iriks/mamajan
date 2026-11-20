@@ -13,7 +13,7 @@ from engine.cs_calc import calculate_cs, cs_result_namespace
 from engine.component_groups import group_extra_sources, group_display_rows
 from engine.lift_calc import calculate_lift, lift_geometry_error
 from engine.document_numbers import production_project_number, resolve_section_numbers
-from engine.office_diagrams import render_slide_room, render_slide_top, section_diagrams
+from engine.office_diagrams import sketch_slide_diagrams, section_diagrams
 from engine.slide_calc import (
     _inter_glass_article,
     _resolve_inter_glass_profile,
@@ -499,38 +499,9 @@ def _diagram_rows(section: object, calc: object) -> list[dict]:
     # Keep the dedicated room renderer for its physical aspect ratio and overall
     # dimensions.  The top view must be identical to the production sheet: that
     # reference diagram includes the wall and side-profile assemblies.
-    reference_diagrams = section_diagrams(section, calc) if system == "СЛАЙД" else []
-    reference_top = next(
-        (
-            payload
-            for title, payload in reference_diagrams
-            if "сверху" in title.casefold()
-        ),
-        None,
-    )
+    aligned = sketch_slide_diagrams(section, calc) if system == "СЛАЙД" else []
     diagrams = (
-        [
-            (
-                "Вид из помещения",
-                render_slide_room(
-                    section,
-                    calc,
-                    include_title=False,
-                    crop=True,
-                    print_dimensions=True,
-                ),
-            ),
-            (
-                "Схема · вид сверху",
-                reference_top
-                or render_slide_top(
-                    section,
-                    calc,
-                    include_title=False,
-                    crop=True,
-                ),
-            ),
-        ]
+        [(title, payload) for title, payload, _ in aligned]
         if system == "СЛАЙД"
         else section_diagrams(
             section, calc, cs_print_dimensions=True, cs_print_size_mm=(176, 75)
@@ -549,6 +520,7 @@ def _diagram_rows(section: object, calc: object) -> list[dict]:
                 "title": title,
                 "kind": "top" if "сверху" in title.casefold() else "room",
                 "png": payload,
+                "print_width_mm": aligned[0][2] if aligned else None,
                 "data_uri": "data:image/png;base64,"
                 + base64.b64encode(payload).decode("ascii"),
             }
@@ -583,7 +555,9 @@ def _side_component_tables(section, components):
 
 def _system_text(system: str, section: object, calc: object) -> str:
     if system == "СЛАЙД":
-        return _text(getattr(calc, "system_text", None), "SLIDE")
+        rails = int(getattr(section, "rails", None) or 3)
+        rows = int(getattr(section, "slide_rows", None) or 1)
+        return f"SLIDE, {rails}-рельсовая, {rows} {'ряда' if rows == 2 else 'ряд'}"
     if system == "КНИЖКА":
         return "КНИЖКА"
     if system == "ЦС":
@@ -713,6 +687,7 @@ def build_sketch_project_context(
         "project_number": document_number,
         "invoice_number": _text(getattr(project, "invoice_number", None), ""),
         "order_number": order_number,
+        "project_comments": str(getattr(project, "comments", None) or "").strip(),
         "sections": prepared,
         "project_components": _extra_components(project, multiply=False),
         "document_warnings": [

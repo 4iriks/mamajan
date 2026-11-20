@@ -68,8 +68,15 @@ export function csOffsetContour(vertices: CsPoint[], distances: number[]): CsPoi
 export function csContourFrames(source: CsConfig) {
   const config = normalizeCsConfig(source);
   const light = config.edgeTreatments!.map(kind => kind === 'clamp' ? 40 : kind === 'bubble' ? config.bubbleDeductionMm! : 0);
-  const glass = config.edgeTreatments!.map(kind => kind === 'clamp' ? 26 : kind === 'bubble' ? config.bubbleDeductionMm! : 0);
   const installation = config.dimensionMode === 'clear' ? csOffsetContour(config.vertices, light.map(value => -value)) : config.vertices;
+  const edges = installation.map((point, index) => ({ dx: installation[(index + 1) % installation.length].x - point.x, dy: installation[(index + 1) % installation.length].y - point.y }));
+  const rightTriangle = installation.length === 3 && edges.some(e => Math.abs(e.dx) < 1e-7) && edges.some(e => Math.abs(e.dy) < 1e-7);
+  const glass = config.edgeTreatments!.map((kind, index) => {
+    const distance = kind === 'clamp' ? 26 : kind === 'bubble' ? config.bubbleDeductionMm! : 0;
+    const { dx, dy } = edges[index];
+    return rightTriangle && kind === 'clamp' && Math.abs(dx) > EPS && Math.abs(dy) > EPS
+      ? distance * Math.abs(dx) / Math.hypot(dx, dy) : distance;
+  });
   return { installation, clear: csOffsetContour(installation, light), glass: csOffsetContour(installation, glass) };
 }
 

@@ -286,6 +286,7 @@ assert.doesNotMatch(resultsMarkup, /B25|В25/);
 assert.doesNotMatch(roomMarkup, /data-book-panel-joint/);
 assert.equal((roomMarkup.match(/data-book-glass-profile=/g) ?? []).length, 8);
 assert.equal((topMarkup.match(/data-book-top-limit=/g) ?? []).length, 2);
+assert.equal((topMarkup.match(/y1="-4"[^>]*y2="4"[^>]*data-book-top-limit/g) ?? []).length, 2);
 const lengths = [...topMarkup.matchAll(/data-book-stack-panel="(\d+)"[^>]*><line[^>]*data-book-leaf-length="([^"]+)"/g)]
   .map(match => [Number(match[1]), Number(match[2])]);
 assert.equal(lengths.length, calc.panels.length);

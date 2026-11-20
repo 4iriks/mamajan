@@ -1541,6 +1541,12 @@ def _build_sketch_docx(context: dict) -> bytes:
     title_run.font.size = Pt(16)
     title_run.font.color.rgb = RGBColor.from_string(BRAND_DARK)
 
+    if context.get("project_comments"):
+        comment = document.add_paragraph()
+        comment.paragraph_format.space_after = Pt(8)
+        comment.add_run("Примечание к проекту: ").bold = True
+        comment.add_run(context["project_comments"])
+
     if not context["sections"]:
         paragraph = document.add_paragraph("В проекте нет секций.")
         paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -1629,12 +1635,20 @@ def _build_sketch_docx(context: dict) -> bytes:
                     size=7,
                     align=WD_ALIGN_PARAGRAPH.CENTER,
                 )
-                _add_picture_fitted(
-                    cell,
-                    diagram["png"],
-                    max_width_mm=176,
-                    max_height_mm=fit.diagram_height(diagram.get("kind")),
-                )
+                if diagram.get("print_width_mm"):
+                    _add_picture_fitted(
+                        cell,
+                        diagram["png"],
+                        max_width_mm=diagram["print_width_mm"],
+                        max_height_mm=1000,
+                    )
+                else:
+                    _add_picture_fitted(
+                        cell,
+                        diagram["png"],
+                        max_width_mm=176,
+                        max_height_mm=fit.diagram_height(diagram.get("kind")),
+                    )
             diagram_table.style = "Table Grid"
             _set_table_geometry_mm(
                 diagram_table,
@@ -1766,7 +1780,8 @@ def _build_sketch_docx(context: dict) -> bytes:
                 paragraphs.append(paragraph)
                 fmt = paragraph.paragraph_format
                 fmt.line_spacing = fit.line_height
-                fmt.keep_with_next = True
+                if not fit.paginate:
+                    fmt.keep_with_next = True
                 fmt.keep_together = True
                 for attr in ("space_before", "space_after"):
                     value = getattr(fmt, attr)

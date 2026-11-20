@@ -23,6 +23,21 @@ const original = {
   profileRightHandleBar: false, profileRightBubble: false,
   csConfig: config,
 } satisfies Section;
+// Approved В26-7-4346 contour: vertical deduction under the inclined clamp.
+for (const mirrored of [false, true]) {
+  const triangle: CsConfig = {
+    version: 2, dimensionMode: 'installation',
+    vertices: [{ x: 0, y: 0 }, { x: 2700, y: 0 }, { x: 2700, y: 900 }]
+      .map(p => ({ x: mirrored ? 2700 - p.x : p.x, y: p.y })),
+    edgeTreatments: ['clamp', 'clamp', 'clamp'],
+    profiledEdges: [0, 1, 2],
+    vertical: { count: 0, mode: 'equal' }, horizontal: { count: 0, mode: 'equal' },
+    triangleCornerRadiusMm: 8,
+  };
+  const bounds = csBounds(csContourFrames(triangle).glass);
+  assert.ok(Math.abs(bounds.maxX - bounds.minX - 2518) < 1e-6);
+  assert.ok(Math.abs(bounds.maxY - bounds.minY - 839.3333333333) < 1e-6);
+}
 const near = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 0.000001, `${actual} ≠ ${expected}`);
 assert.equal(csShapeLabel('Треугольник'), 'Треугольник прямоугольный');
 assert.equal(csShapeLabel('Прямоугольник'), 'Прямоугольник');

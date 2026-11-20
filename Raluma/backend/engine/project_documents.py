@@ -1355,7 +1355,7 @@ def _build_delivery_construction_rows(
     grouped: dict[tuple, dict] = {}
     for section in sections:
         system = str(getattr(section, "system", "") or "").strip().upper()
-        if not system or system == "КОМПЛЕКТАЦИЯ":
+        if not system or system in {"КОМПЛЕКТАЦИЯ", "ЦС"}:
             continue
         color = _section_color(section)
         variant = _section_variant(section)
@@ -1468,7 +1468,7 @@ def _build_delivery_glass_rows(
     grouped: dict[tuple, dict] = {}
     for section_number, section in resolve_section_numbers(sections):
         system = str(getattr(section, "system", "") or "").strip().upper()
-        if not system or system == "КОМПЛЕКТАЦИЯ":
+        if not system or system in {"КОМПЛЕКТАЦИЯ", "ЦС"}:
             continue
         if system == "СЛАЙД" and not bool(getattr(section, "glass_supplied", True)):
             continue

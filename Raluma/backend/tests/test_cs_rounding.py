@@ -67,7 +67,7 @@ def test_cs_rounding_exact_circle_tangency_inside_original_and_no_mutation(
 @pytest.mark.parametrize("radius", [8, 10])
 @pytest.mark.parametrize("mode", ["clear", "installation"])
 @pytest.mark.parametrize("split", [False, True])
-def test_cs_rounding_does_not_change_any_calculation(radius, mode, split):
+def test_cs_rounding_changes_finished_bounds_only(radius, mode, split):
     options = {"dimensionMode": mode}
     if split:
         options["vertical"] = {"count": 1, "mode": "equal"}
@@ -80,7 +80,15 @@ def test_cs_rounding_does_not_change_any_calculation(radius, mode, split):
         pane.pop("rounded_corner", None)
         pane.pop("treatment_note", None)
     after["normalized_config"].pop("triangleCornerRadiusMm")
-    assert after == before  # sizes, glass area, profiles, tape, pads, gaps, quantities
+    assert any(
+        a["width_mm"] < b["width_mm"] or a["height_mm"] < b["height_mm"]
+        for a, b in zip(after["panes"], before["panes"])
+    )
+    for result in (before, after):
+        for pane in result["panes"]:
+            pane.pop("width_mm")
+            pane.pop("height_mm")
+    assert after == before  # area, profiles, tape, pads, gaps and quantities
 
 
 def test_cs_legacy_off_and_rectangles_are_unchanged():
@@ -178,7 +186,7 @@ def test_cs_rounding_documents_and_api(client, admin_headers, radius):
         "/api/projects/local/sections/preview", headers=admin_headers, json=body
     )
     assert html.status_code == 200, html.text
-    assert f"Скругление R{radius}; расчётные размеры до скругления" in html.text
+    assert f"Скругление R{radius}; размеры после скругления" in html.text
     for extension in ("docx", "xlsx"):
         response = client.post(
             f"/api/projects/local/sections/{extension}",
@@ -192,7 +200,7 @@ def test_cs_rounding_documents_and_api(client, admin_headers, radius):
                 for name in archive.namelist()
                 if name.endswith(".xml")
             )
-        assert f"Скругление R{radius}; расчётные размеры до скругления" in xml
+        assert f"Скругление R{radius}; размеры после скругления" in xml
         if os.environ.get("CS_ROUNDING_QA_DIR") and extension == "docx":
             directory = Path(os.environ["CS_ROUNDING_QA_DIR"]).resolve()
             directory.mkdir(parents=True, exist_ok=True)

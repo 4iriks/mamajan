@@ -226,7 +226,7 @@ def test_quote_prices_shared_stock_and_preserves_fixed_snapshots(request):
     assert archive.public_payload == original
 
 
-def test_cs_whole_glass_dimensions_tape_and_separate_delivery_group():
+def test_cs_whole_glass_dimensions_tape_and_no_delivery_glass():
     rows = sections()
     rows[-1].cs_config = {"vertical": {"count": 1}}
     calc = calculate_cs(rows[-1])
@@ -248,11 +248,7 @@ def test_cs_whole_glass_dimensions_tape_and_separate_delivery_group():
     project = SimpleNamespace(number="В26-5-4306")
     context = build_project_document_context(project, [slide, *rows], "delivery")
     groups = [row for row in context["delivery_item1_rows"] if row["kind"] == "glass"]
-    cs = next(g for g in groups if g["system"] == "ЦС")
-    assert cs["name"] == "СТЕКЛО(ЦС), РАЗМЕРЫ СТЕКОЛ:"
-    assert cs["color"] == ""
-    assert [r["marking"] for r in cs["rows"]] == ["4,1", "5,1", "6,1"]
-    assert cs["rows"][-1]["width"] == 732
+    assert not any(g["system"] == "ЦС" for g in groups)
     assert any(g["name"].startswith("СТЕКЛЯННЫЕ ПАНЕЛИ, RAL") for g in groups)
     html = render_project_document_html(project, [slide, *rows], "delivery")
     assert "732.0" not in html and "732,5" not in html
@@ -268,14 +264,7 @@ def test_cs_whole_glass_dimensions_tape_and_separate_delivery_group():
     }
     assert glass_rows["1,1"][1] == "Стеклянная панель"
     assert "8025" in glass_rows["1,1"][3]
-    for marking, size in [
-        ("4,1", "1813 × 838 мм"),
-        ("5,1", "2073 × 838 мм"),
-        ("6,1", "732 × 2333 мм"),
-    ]:
-        row = glass_rows[marking]
-        assert row[1] == "СТЕКЛО(ЦС)"
-        assert row[3] == f"10ММ ЗАКАЛЕННОЕ ПРОЗРАЧНОЕ\n{size}"
+    assert not ({"4,1", "5,1", "6,1"} & glass_rows.keys())
 
 
 @pytest.mark.parametrize(

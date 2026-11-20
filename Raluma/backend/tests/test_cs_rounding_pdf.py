@@ -39,7 +39,7 @@ def test_cs_rounded_sheet_exports(client, admin_headers, radius, mirror):
         page.extract_text() for page in PdfReader(BytesIO(pdf.content)).pages
     )
     assert f"Скругление R{radius}" in text
-    assert "до скругления" in text
+    assert "после скругления" in text
     if os.environ.get("CS_ROUNDING_QA_DIR"):
         directory = Path(os.environ["CS_ROUNDING_QA_DIR"]).resolve()
         directory.mkdir(parents=True, exist_ok=True)

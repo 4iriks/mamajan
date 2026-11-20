@@ -107,6 +107,8 @@
     }
     .diagram-room img { height: 75mm; }
     .diagram-top img { height: 27mm; }
+    .diagram img.diagram-aligned { height: auto !important; max-width: 100%; margin: 0 auto; }
+    .project-comment { white-space: pre-wrap; margin: 0 0 3mm; font-size: 9.5pt; }
     .section-comment {
       margin: 0 0 2.5mm;
       padding: 1.5mm 2mm;
@@ -173,6 +175,7 @@
 <body>
 <main data-sketch-project>
   <h1>{{ document_title|e }}</h1>
+  {% if project_comments %}<div class="project-comment"><strong>Примечание к проекту:</strong> {{ project_comments|e }}</div>{% endif %}
 
   {% if not sections %}
     <div class="empty">В проекте нет секций.</div>
@@ -215,7 +218,7 @@
       {% for diagram in section.diagrams %}
       <div class="diagram diagram-{{ diagram.kind|e }}">
         <div class="diagram-title">{{ diagram.title|e }}</div>
-        <img src="{{ diagram.data_uri }}" alt="{{ diagram.title|e }}">
+        <img src="{{ diagram.data_uri }}" alt="{{ diagram.title|e }}"{% if diagram.print_width_mm %} class="diagram-aligned" style="width:{{ diagram.print_width_mm }}mm"{% endif %}>
       </div>
       {% endfor %}
     </div>

@@ -423,6 +423,58 @@ def _draw_slide_room_hardware_marker(
         )
 
 
+def slide_room_frame(section):
+    width, height = _fit_rect(
+        float(section.width or 1), float(section.height or 1), 1340, 470
+    )
+    left, top = (1740 - width) // 2, 80 + max(0, (470 - height) // 2)
+    return left, top, width, height
+
+
+def sketch_slide_diagrams(section, calc):
+    """Keep both physical construction edges at identical printed X positions."""
+    room = render_slide_room(
+        section, calc, include_title=False, crop=True, print_dimensions=True
+    )
+    with Image.open(io.BytesIO(room)) as source:
+        room_width, room_height = source.size
+    left, _, drawing_width, _ = slide_room_frame(section)
+    room_left = left - max(0, left - 24)
+    html = render_pdf_html(SimpleNamespace(number=""), section, calc)
+    svg = next(svg for svg, name in _OFFICE_SVG_RE.findall(html) if name == "slide-top")
+    viewbox = _VIEWBOX_RE.search(svg)
+    output_height = round(2400 * float(viewbox.group(2)) / float(viewbox.group(1)))
+    # Assembly PNGs contain transparent padding, so their SVG boxes are not
+    # physical edges. Measure visible ink before aligning the two projections.
+    with Image.open(
+        io.BytesIO(
+            cairosvg.svg2png(
+                bytestring=svg.encode("utf-8"),
+                output_width=2400,
+                output_height=output_height,
+            )
+        )
+    ) as source:
+        ink = Image.new("RGB", source.size, BACKGROUND)
+        source = source.convert("RGBA")
+        ink.paste(source, mask=source.getchannel("A"))
+    bounds = ImageChops.difference(
+        ink, Image.new("RGB", ink.size, BACKGROUND)
+    ).getbbox()
+    x0, x1 = bounds[0], bounds[2]
+    scale = drawing_width / (x1 - x0)
+    top_canvas = Image.new(
+        "RGB", (room_width, max(1, round(ink.height * scale))), BACKGROUND
+    )
+    content = ink.crop((x0, 0, x1, ink.height)).resize(
+        (drawing_width, top_canvas.height), Image.Resampling.LANCZOS
+    )
+    top_canvas.paste(content, (room_left, 0))
+    top = _png(top_canvas)
+    width_mm = min(176, 75 * room_width / room_height)
+    return [("Вид из помещения", room, width_mm), ("Схема · вид сверху", top, width_mm)]
+
+
 def render_slide_room(
     section: object,
     calc: object,
@@ -439,9 +491,7 @@ def render_slide_room(
         _center_text(draw, (870, 34), "ВИД ИЗ ПОМЕЩЕНИЯ", title_font)
     section_width = float(getattr(section, "width", 0) or 1)
     section_height = float(getattr(section, "height", 0) or 1)
-    drawing_width, drawing_height = _fit_rect(section_width, section_height, 1340, 470)
-    left = (1740 - drawing_width) // 2
-    top = 80 + max(0, (470 - drawing_height) // 2)
+    left, top, drawing_width, drawing_height = slide_room_frame(section)
     right = left + drawing_width
     bottom = top + drawing_height
     print_crop_box = (

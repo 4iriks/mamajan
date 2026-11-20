@@ -48,15 +48,16 @@ def dense_slide(panels=10):
 
 
 @pytest.mark.parametrize("panels", [4, 6, 8, 10])
-def test_dense_product_stays_on_one_pdf_page_with_all_glass_rows(panels):
+def test_dense_product_keeps_readable_schemes_and_all_glass_rows(panels):
     project = SimpleNamespace(number="FIT-CHECK")
     item = dense_slide(panels)
     before = deepcopy(vars(item))
     context = build_project_document_context(project, [item], "sketch")
     html = render_project_document_html(project, [item], "sketch", is_pdf=True)
     pdf = PdfReader(BytesIO(generate_pdf(html)))
-    assert len(pdf.pages) == 1
-    text = " ".join(pdf.pages[0].extract_text().split())
+    assert 1 <= len(pdf.pages) <= 2
+    assert fit_sketch_context(context)[0].scale >= 8.5 / 9.5
+    text = " ".join(" ".join(p.extract_text() for p in pdf.pages).split())
     assert "КОНЕЦ ПРИМЕЧАНИЯ" in text and "РАЗМЕРЫ СТЕКОЛ" in text.upper()
     expected = Counter(p.position for p in context["sections"][0]["panels"])
     for position, count in expected.items():
@@ -76,10 +77,18 @@ def test_each_product_has_its_own_layout_and_word_keeps_last_row_separate():
     assert layouts[1].compact and layouts[1].scale < 1
     html = render_project_document_html(project, items, "sketch", is_pdf=True)
     pdf = PdfReader(BytesIO(generate_pdf(html)))
-    assert len(pdf.pages) == 2
-    for index, page in enumerate(pdf.pages, 1):
-        assert f"Изделие № {index}" in page.extract_text()
-        assert "РАЗМЕРЫ СТЕКОЛ" in page.extract_text().upper()
+    assert layouts[1].paginate
+    assert len(pdf.pages) == 3
+    first_text = pdf.pages[0].extract_text()
+    assert "Изделие № 1" in first_text
+    assert "РАЗМЕРЫ СТЕКОЛ" in first_text.upper()
+    continuation = " ".join(" ".join(p.extract_text() for p in pdf.pages[1:]).split())
+    assert "Изделие № 2" in continuation and "КОНЕЦ ПРИМЕЧАНИЯ" in continuation
+    assert continuation.upper().count("РАЗМЕРЫ СТЕКОЛ") == 1
+    for position, count in Counter(
+        p.position for p in context["sections"][1]["panels"]
+    ).items():
+        assert continuation.count(position) == count
     word = Document(BytesIO(_build_sketch_docx(context)))
     last = word.tables[-1]
     assert len(last.rows) == 11

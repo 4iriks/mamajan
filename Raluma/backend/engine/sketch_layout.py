@@ -8,6 +8,7 @@ from functools import lru_cache
 class SketchLayout:
     scale: float = 1.0
     compact: bool = False
+    paginate: bool = False
 
     @property
     def spacing(self):
@@ -51,9 +52,16 @@ def layout_css(layouts):
                 "font-size": pt(9.5),
                 "line-height": str(fit.line_height),
                 "margin-bottom": "0",
-                "break-inside": "avoid",
+                "break-inside": "auto" if fit.paginate else "avoid",
             },
         )
+        if fit.paginate:
+            rule(
+                [".section-intro", ".diagram-grid"],
+                {"break-inside": "auto", "page-break-inside": "auto"},
+            )
+            rule([".diagram-grid"], {"display": "block"})
+            rule([".diagram"], {"break-inside": "avoid", "margin-bottom": mm(2.5)})
         rule(
             ["table", ".panel-table td:nth-child(4)", ".panel-table td:nth-child(5)"],
             {"font-size": pt(9.5)},
@@ -81,7 +89,7 @@ def layout_css(layouts):
         rule([".diagram-title"], {"font-size": pt(7), "margin-bottom": mm(1)})
         for kind in ("room", "top"):
             rule(
-                [f".diagram-{kind} img"],
+                [f".diagram-{kind} img:not(.diagram-aligned)"],
                 {"height": f"{fit.diagram_height(kind):.4f}mm"},
             )
         rule(
@@ -122,7 +130,10 @@ def _fit_html(html, count):
                 index = box.element.get("data-sketch-index")
                 if index is not None:
                     heights[int(index)] += box.margin_height() * 25.4 / 96
-                elif box.element.tag == "h1":
+                elif (
+                    box.element.tag == "h1"
+                    or box.element.get("class") == "project-comment"
+                ):
                     title_height += box.margin_height() * 25.4 / 96
         changed = False
         for index, height in enumerate(heights):
@@ -131,11 +142,16 @@ def _fit_html(html, count):
             if height <= available:
                 continue
             fit = layouts[index]
+            if fit.paginate:
+                continue
+            scale = fit.scale * min(0.97, available / height * 0.98)
             layouts[index] = (
                 SketchLayout(compact=True)
                 if not fit.compact
                 else SketchLayout(
-                    scale=fit.scale * min(0.97, available / height * 0.98), compact=True
+                    scale=max(8.5 / 9.5, scale),
+                    compact=True,
+                    paginate=scale < 8.5 / 9.5,
                 )
             )
             changed = True

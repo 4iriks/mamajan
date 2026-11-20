@@ -152,7 +152,7 @@ def book_room_svg(section, calc) -> str:
             drawing.text(center, top + 48, "ГЛУХАЯ", 9, fill=stroke)
         drawing.text(center, top + 28, panel.number, 14)
         drawing.text(center, bottom + 18, f"{panel.glass_width_mm:g}")
-        if panel.movement_direction != "none":
+        if role not in {"door", "fixed"} and panel.movement_direction != "none":
             sign = 1 if panel.movement_direction == "right" else -1
             drawing.line(
                 center - sign * 10,
@@ -168,11 +168,11 @@ def book_room_svg(section, calc) -> str:
                 if panel.door_side
                 else panel.movement_direction == "left"
             )
-            outer = x + 5 if converges_right else x + width - 5
-            inner = x + width - 5 if converges_right else x + 5
+            outer = x if converges_right else x + width
+            inner = x + width if converges_right else x
             drawing.add(
                 "path",
-                d=f"M{outer},{top + height * 0.3} L{inner},{top + height * 0.5} L{outer},{top + height * 0.7}",
+                d=f"M{outer},{top + 6} L{inner},{top + height * 0.5} L{outer},{bottom - 6}",
                 fill="none",
                 stroke=INK,
                 stroke_width=1,
@@ -267,7 +267,7 @@ def book_top_svg(section, calc) -> str:
     for y in (-4, 4):
         drawing.line(LEFT, y, RIGHT, y, stroke_width=1.2)
     for x in (LEFT, RIGHT):
-        drawing.line(x, -9, x, 9, stroke_width=1.2)
+        drawing.line(x, -4, x, 4, stroke_width=1.2)
     for index, angle in enumerate(angles):
         if angle > 0:
             x = RIGHT if index else LEFT

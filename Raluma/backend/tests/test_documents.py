@@ -33,7 +33,6 @@ from engine.pdf import (
     section_extra_components,
 )
 from engine.office_common import _font_candidates, image_png_bytes
-from engine.office_diagrams import section_diagrams
 from engine.office_docx import build_project_docx, build_section_docx
 from engine.project_documents import (
     CalculatedSection,
@@ -1499,7 +1498,7 @@ class TestSketchProject:
         }
         required = (
             "ЭСКИЗНЫЙ ПРОЕКТ № SKETCH-001",
-            "SLIDE-стандарт 1 ряд",
+            "SLIDE, 3-рельсовая, 1 ряд",
             "КНИЖКА",
             "LIFT",
             "2000",
@@ -1660,7 +1659,7 @@ class TestSketchProject:
         assert f"ЭСКИЗНЫЙ ПРОЕКТ № {project['order_number']}" in preview.text
         assert f"ЭСКИЗНЫЙ ПРОЕКТ № {project['invoice_number']}" not in preview.text
 
-    def test_slide_top_view_reuses_production_sheet_diagram(self):
+    def test_slide_top_view_reuses_production_sheet_diagram(self, monkeypatch):
         project = SimpleNamespace(
             number="B26-TEST",
             order_number="B26-TEST",
@@ -1669,11 +1668,23 @@ class TestSketchProject:
         section = SimpleNamespace(**SectionCreate(**self._slide()).model_dump())
         calc = calculate_slide(section)
 
+        rendered_sources = []
+        rasterize = office_diagrams.cairosvg.svg2png
+
+        def record_source(*args, **kwargs):
+            rendered_sources.append(kwargs.get("bytestring"))
+            return rasterize(*args, **kwargs)
+
+        monkeypatch.setattr(office_diagrams.cairosvg, "svg2png", record_source)
         context = build_project_document_context(project, [section], "sketch")
         expected_top = next(
-            payload
-            for title, payload in section_diagrams(section, calc)
-            if "сверху" in title.casefold()
+            svg
+            for svg, kind in office_diagrams._OFFICE_SVG_RE.findall(
+                office_diagrams.render_pdf_html(
+                    SimpleNamespace(number=""), section, calc
+                )
+            )
+            if kind == "slide-top"
         )
         actual_top = next(
             row["png"]
@@ -1681,7 +1692,10 @@ class TestSketchProject:
             if row["kind"] == "top"
         )
 
-        assert actual_top == expected_top
+        # Crop and print scale can differ, but every detailed assembly must come
+        # from the production SVG, rather than the simplified fallback sketch.
+        assert expected_top.encode("utf-8") in rendered_sources
+        assert actual_top.startswith(b"\x89PNG")
 
     def test_slide_sketch_restores_profile_rows_and_total_quantity(
         self, client, admin_headers
@@ -4649,7 +4663,7 @@ class TestDeliveryNote:
         ]
         slide = [row for row in rows if "SLIDE" in row["name"]][0]
 
-        assert len(rows) == 4
+        assert len(rows) == 3
         assert slide["qty"] == 3
         assert slide["threshold"] == "Пороги согласно ТЗ"
         assert {
@@ -4661,7 +4675,7 @@ class TestDeliveryNote:
         }
         assert any("КНИЖКА" in row["name"] for row in rows)
         assert any("ЛИФТ" in row["name"] for row in rows)
-        assert any("ЦЕЛЬНОСТЕКЛЯННАЯ КОНСТРУКЦИЯ" in row["name"] for row in rows)
+        assert not any("ЦЕЛЬНОСТЕКЛЯННАЯ КОНСТРУКЦИЯ" in row["name"] for row in rows)
 
     def test_anodized_construction_ignores_stale_ral_color(self):
         section = _delivery_section(
@@ -5396,12 +5410,11 @@ class TestDeliveryNote:
         ]
         detail_rows = [detail for row in glass_rows for detail in row["rows"]]
 
-        assert sum(row["qty"] for row in glass_rows) == 9
+        assert sum(row["qty"] for row in glass_rows) == 8
         assert {detail["marking"] for detail in detail_rows} == {
             "1,1",
             "2,1",
             "2,2",
-            "3,1",
         }
         assert (
             next(detail["qty"] for detail in detail_rows if detail["marking"] == "1,1")
@@ -5415,8 +5428,7 @@ class TestDeliveryNote:
         cs_rows = [
             detail for detail in detail_rows if detail["marking"].startswith("3,")
         ]
-        assert all(detail["width"] is not None for detail in cs_rows)
-        assert all(detail["height"] is not None for detail in cs_rows)
+        assert cs_rows == []
         placeholder_rows = [
             detail for detail in detail_rows if detail["marking"].startswith("1,")
         ]
@@ -5665,7 +5677,7 @@ class TestDeliveryNote:
         assert response.status_code == 200
         assert "Raluma КНИЖКА" in response.text
         assert "Raluma ЛИФТ" in response.text
-        assert "ЦЕЛЬНОСТЕКЛЯННАЯ КОНСТРУКЦИЯ" in response.text
+        assert "ЦЕЛЬНОСТЕКЛЯННАЯ КОНСТРУКЦИЯ" not in response.text
         assert 'contenteditable="true"' in response.text
 
 
